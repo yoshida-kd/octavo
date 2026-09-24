@@ -1,0 +1,79 @@
+# octavo を pip で入れられるようにするための設定。
+#
+# 配布名だけが octavo-kit（PyPI が octavo という名前を許さないため）。
+# コマンドとパッケージ（octavo/）の名前は octavo。
+#
+#   pipx install octavo-kit    ->  octavo コマンドが入る
+#
+# clone して setup.sh でシンボリックリンクを張る従来のやり方も変わらない。
+# どちらで入れても同梱物の場所は octavo/paths.py が吸収する。
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[project]
+name = "octavo-kit"
+dynamic = ["version"]
+description = "Build papers, handouts, slides and Word files from one Markdown source, with unified citations and no hand-typed results."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { file = "LICENSE" }
+authors = [{ name = "Takahiro Yoshida" }]
+keywords = ["pandoc", "typst", "latex", "beamer", "quarto", "citation", "markdown", "academic-writing"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Natural Language :: Japanese",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Text Processing :: Markup",
+]
+# 依存パッケージは**入れない**。octavo は標準ライブラリだけで動く
+# （外部の道具は pandoc / Typst / LaTeX / quarto で、pip の管轄外）。
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/yoshida-kd/octavo"
+Repository = "https://github.com/yoshida-kd/octavo"
+
+[project.scripts]
+octavo = "octavo.cli:main"
+
+[tool.hatch.version]
+path = "octavo/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["octavo"]
+
+# リポジトリではルートに置いてある同梱物を、wheel の中ではパッケージの
+# 下に入れる。**ファイルは動かさない**（clone して使う側の paths は
+# 今までどおり）。paths.py が「repo 直下に無ければパッケージの中」で拾う。
+[tool.hatch.build.targets.wheel.force-include]
+"templates" = "octavo/templates"
+"config.example.py" = "octavo/config.example.py"
+"config.example.ja.py" = "octavo/config.example.ja.py"
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "octavo",
+    "templates",
+    "tests",
+    "config.example.py",
+    "config.example.ja.py",
+    "bin",
+    "setup.sh",
+    "README.md",
+    "README.ja.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "pyproject.toml",
+]

@@ -1,0 +1,51 @@
+% =====================================================================
+%  A4 プリント（profile: handout）用の追加プリアンブル。
+%  pandoc の --standalone に --include-in-header で足される。
+%  自分のものに差し替えるなら octavo.config.py に
+%      'headers': {'latex': 'my-handout-header.tex'},
+% =====================================================================
+
+% ---- 日本語 -----------------------------------------------------------
+% documentclass が ltjsarticle なら luatexja は既に読まれている。
+% article（lang: 'en'）のときだけ luatexja-preset で和文を足す。
+% texlive-lang-japanese が入っていない環境でも（日本語は化けるが）止まらない。
+\makeatletter
+\@ifpackageloaded{luatexja}
+  {\IfFileExists{luatexja-fontspec.sty}{\usepackage{luatexja-fontspec}}{}}
+  {\IfFileExists{luatexja-preset.sty}
+     {\usepackage[haranoaji]{luatexja-preset}}
+     {\PackageWarningNoLine{octavo}{luatexja が無い。日本語は組めない。
+       sudo apt install texlive-lang-japanese (macOS: MacTeX)}}}
+\makeatother
+
+% ---- 版面 -------------------------------------------------------------
+\usepackage[margin=22mm,top=20mm,bottom=20mm]{geometry}
+\usepackage{enumitem}
+\setlist{nosep,leftmargin=1.6em}
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{1.2\baselineskip}{0.4\baselineskip}
+\titlespacing*{\subsection}{0pt}{0.9\baselineskip}{0.3\baselineskip}
+
+% 題扉を詰める（プリントは1行目から本文に入りたい）
+\usepackage{titling}
+\setlength{\droptitle}{-2.2\baselineskip}
+\pretitle{\begin{center}\large\bfseries}
+\posttitle{\end{center}\vspace{-0.6\baselineskip}}
+\postauthor{\end{center}\vspace{-0.8\baselineskip}}
+\postdate{\end{center}\vspace{-0.6\baselineskip}}
+
+% ---- 図表 -------------------------------------------------------------
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=4pt}
+\usepackage{adjustbox}
+\let\oldtabular\tabular
+\let\endoldtabular\endtabular
+\renewenvironment{tabular}{\adjustbox{max width=\linewidth}\bgroup\oldtabular}
+                          {\endoldtabular\egroup}
+\newcommand{\inputtable}[1]{\IfFileExists{#1.tex}{\input{#1}}{\textbf{[表が無い: #1]}}}
+
+% ---- 書き込み欄 -------------------------------------------------------
+% 原稿で \fillin あるいは \fillin[8] と書くと下線が引ける（穴埋めプリント用）。
+\newcommand{\fillin}[1][4]{\underline{\hspace{#1\zw}}}
+% \zw が無い環境（article + luatexja-preset）向けの保険
+\providecommand{\zw}{em}

@@ -1,0 +1,56 @@
+/* Octavo のプレビュー。VS Code のテーマ色をそのまま使う。 */
+html, body { height: 100%; margin: 0; }
+body {
+  display: flex; flex-direction: column;
+  background: var(--vscode-editor-background);
+  color: var(--vscode-foreground);
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size);
+}
+#bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 8px; flex: none;
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128,128,128,.35));
+  background: var(--vscode-editorWidget-background, transparent);
+}
+#spacer { flex: 1 1 auto; }
+#label, #pages { opacity: .75; font-size: .9em; }
+#bar button {
+  border: none; border-radius: 3px; padding: 2px 8px; cursor: pointer;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,.18));
+}
+#bar button:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,.3)); }
+#bar.busy #label::after {
+  content: ' …'; opacity: .7;
+}
+#view { flex: 1 1 auto; overflow: auto; padding: 10px 0 24px; }
+#pages-host { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+/* ページは常に白地で出す（暗いテーマでも紙は紙） */
+#pages-host canvas {
+  background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); max-width: 100%;
+}
+#message {
+  display: none; flex: none; max-height: 45%; overflow: auto;
+  white-space: pre-wrap; padding: 10px 14px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: .9em;
+  border-top: 2px solid var(--vscode-editorError-foreground, #e51400);
+  background: var(--vscode-inputValidation-errorBackground, rgba(229,20,0,.12));
+}
+#message.on { display: block; }
+/* 分析が古いときの帯（ボタンで走らせる） */
+#stale {
+  display: none; flex: none; align-items: center; gap: 10px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--vscode-editorWarning-foreground, #cca700);
+  background: var(--vscode-inputValidation-warningBackground, rgba(204,167,0,.15));
+}
+#stale.on { display: flex; }
+#stale-text { flex: 1 1 auto; }
+#stale-run {
+  flex: none; border: none; border-radius: 3px; padding: 3px 10px; cursor: pointer;
+  color: var(--vscode-button-foreground);
+  background: var(--vscode-button-background);
+}
+#stale-run:hover { background: var(--vscode-button-hoverBackground); }

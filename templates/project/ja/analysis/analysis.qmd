@@ -1,0 +1,93 @@
+---
+title: "分析"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- 論文に出す数値・図・表は、原稿ではなくここで作る。
+     octavo build が `.qmd` の更新を見て、必要なら quarto render を走らせる。 -->
+
+<!-- octavo:example この .qmd は octavo init が置いたひな型で、いまは**嘘のデータ**を
+     その場で作っている。実データに差し替えたら `octavo:example` の印ごと消す。
+     印が残っているあいだは octavo check が「ひな型の残り」として知らせる。 -->
+
+```{r}
+#| label: setup
+#| include: false
+# 同じ analysis/ にある octavo.R を読む。octavo build から呼ばれたときは
+# OCTAVO_ROOT が入っているので、どこから走らせても当たる。
+root <- Sys.getenv("OCTAVO_ROOT", unset = "")
+source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+```
+
+## データ
+
+```{r}
+#| label: data
+# 実際のデータを読むとき（原データは data/raw/、整形後は data/derived/）:
+#   d <- read.csv(file.path(ov_root(), "data", "derived", "analysis.csv"))
+# 整形も .qmd で行い、結果を data/derived/ に書く。data/raw/ は書き換えない。
+#   raw <- read.csv(file.path(ov_root(), "data", "raw", "survey2021.csv"))
+#   d <- subset(raw, !is.na(x))
+#   write.csv(d, file.path(ov_root(), "data", "derived", "analysis.csv"),
+#             row.names = FALSE)
+
+# octavo:example ここから ─ 嘘のデータ。実データを読む処理に差し替えて消す
+set.seed(20260101)
+d <- data.frame(
+  x = rnorm(1523, 12, 3),
+  y   = rnorm(1523, 50, 10)
+)
+d$y <- d$y + 0.34 * d$x
+# octavo:example ここまで
+
+ov_value("n_obs", nrow(d), note = "分析に使った観測数")
+```
+
+## 推定
+
+```{r}
+#| label: model
+m <- lm(y ~ x, data = d)
+s <- summary(m)$coefficients
+
+ov_value("coef_x", s["x", "Estimate"])
+ov_value("se_x",   s["x", "Std. Error"])
+ov_value("p_x",    ov_pval(s["x", "Pr(>|t|)"]))
+```
+
+本文では `{{n_obs}}` `{{coef_x}}` `{{p_x}}` と書けば、この値が入る。
+
+## 図
+
+```{r}
+#| label: fig-trend
+p <- function() {
+  plot(d$x, d$y, pch = 16, col = "#4477aa55",
+       xlab = "x", ylab = "y")
+  abline(m, lwd = 2)
+}
+ov_figure(p, "fig1_trend")      # figures/fig1_trend.pdf と .png
+```
+
+原稿には `![](figures/fig1_trend.png)` と `**図1．** 説明` を書く。
+
+## 表
+
+```{r}
+#| label: tbl-summary
+tab <- data.frame(
+  変数 = c("x", "y"),
+  平均 = c(mean(d$x), mean(d$y)),
+  標準偏差 = c(sd(d$x), sd(d$y))
+)
+ov_table(tab, "tbl1_summary", caption = "記述統計",
+         notes = paste0("注: N = ", nrow(d), "。"))
+```
+
+`octavo.config.py` に `'table_map': {'1': 'tbl1_summary'}` と書くと、
+本文の **表1．…** がこのファイル（tables/tbl1_summary.tex / .typ）に
+差し替わる。書かなければ原稿のマークダウン表がそのまま使われる。

@@ -1,0 +1,45 @@
+# Generated output. Safe to delete (the hand-written layouts main.typ /
+# main.tex live next to the manuscripts)
+build/
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.synctex.gz
+*.bib.bak
+
+# Raw and intermediate data stay out of git.
+# Record where it came from in data/raw/README.md (the only record that survives).
+data/raw/*
+!data/raw/README.md
+data/derived/*
+!data/derived/.gitkeep
+# The data fingerprints do go in (data/ itself doesn't, so this is the only record)
+!data/HASHES.json
+
+# Submission and replication packages
+/submission*
+/replication*
+
+# The analysis environment. **Commit the records (requirements.txt / renv.lock),
+# not the environment itself**
+.venv/
+renv/library/
+renv/local/
+renv/staging/
+renv/python/
+.Rhistory
+.RData
+
+# Python's cache from reading octavo.config.py
+__pycache__/
+
+# Quarto's working files (results/*.json is output and is committed)
+/.quarto/
+**/*_files/
+analysis/*.html
+results/.analysis-stamp.json

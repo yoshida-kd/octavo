@@ -1,0 +1,235 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# テストは英語の原文を突き合わせる。ランナーのロケールが変わっても
+# 揺れないように、ここで固定しておく（既定はロケール任せ）。
+env:
+  OCTAVO_LANG: en
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      # 版は setup.sh の PANDOC_VER / TYPST_VER から取る（2か所に書くとずれる）。
+      # apt の pandoc は古いことがあり、Typst の書き出しが変わるので使わない。
+      - name: Install pandoc
+        run: |
+          V=$(sed -n 's/^PANDOC_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -fsSL -o pandoc.deb "https://github.com/jgm/pandoc/releases/download/${V}/pandoc-${V}-1-amd64.deb"
+          sudo apt-get install -y ./pandoc.deb
+          pandoc --version | head -1
+
+      # EndToEnd.test_typst_compiles_to_pdf が typst compile まで走る。
+      - name: Install Typst
+        run: |
+          V=$(sed -n 's/^TYPST_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -sSL "https://github.com/typst/typst/releases/download/v${V}/typst-x86_64-unknown-linux-musl.tar.xz" | tar xJ
+          sudo install -m 0755 typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+          typst --version
+
+      - name: Run unit tests
+        run: python3 tests/test_octavo.py
+
+  # pip で入れたときに同梱物（templates/）が付いてくるか。wheel の中では
+  # octavo/templates/ に入るので、リポジトリを触らない場所で init から
+  # 組版まで通して初めて確かめられる（paths.py の分岐がここで効く）。
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pandoc
+        run: |
+          V=$(sed -n 's/^PANDOC_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -fsSL -o pandoc.deb "https://github.com/jgm/pandoc/releases/download/${V}/pandoc-${V}-1-amd64.deb"
+          sudo apt-get install -y ./pandoc.deb
+
+      - name: Install Typst
+        run: |
+          V=$(sed -n 's/^TYPST_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -sSL "https://github.com/typst/typst/releases/download/v${V}/typst-x86_64-unknown-linux-musl.tar.xz" | tar xJ
+          sudo install -m 0755 typst-x86_64-unknown-linux-musl/typst /usr/local/bin/typst
+
+      - name: Build the wheel
+        run: |
+          python3 -m pip install --quiet build
+          python3 -m build
+          ls -l dist
+
+      # リポジトリの外で走らせる。中だと repo 直下の templates/ を拾って
+      # しまい、wheel に入っていなくても通ってしまう。
+      - name: Install it and build a project from scratch
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet dist/*.whl
+          export PATH=/tmp/venv/bin:$PATH
+          cd /tmp
+          octavo --version
+          octavo doctor || true
+          octavo init proj
+          cd proj
+          octavo new paper smoke
+          octavo new slides deck
+          octavo build --compile
+          test -f build/typst/smoke/main.pdf
+          test -f build/typst-slides/deck.typ
+          # 英語のプロジェクトも（ひな型は言語ごとに別のファイル）
+          cd /tmp
+          octavo init proj-en --lang en
+          cd proj-en
+          octavo new paper smoke
+          octavo template list
+          octavo build --compile
+          test -f build/typst/smoke/main.pdf
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: octavo-dist
+          path: dist/*
+
+  # macOS。setup.sh の Homebrew の道をそのまま走らせ（pandoc・Typst・quarto・
+  # フォント）、テスト一式と、wheel からの init → 組版をリポジトリの外で通す。
+  # 書体の名前（typst.FONTS）が Mac で本当にその名前で見えるかもここで確かめる。
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: setup.sh (Homebrew)
+        run: bash setup.sh
+
+      # 既定の書体とヒラギノ（最後の受け皿）が、書いてある名前で Typst に見えること
+      - name: Fonts are visible to Typst under the names octavo uses
+        run: |
+          typst fonts > /tmp/fonts.txt
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, '.')
+          from octavo.backends.typst import FONTS
+          seen = {l.strip() for l in open('/tmp/fonts.txt')}
+          want = {n for latin, cjk in FONTS.values() for n in (latin, *cjk)}
+          lack = sorted(want - seen)
+          print('missing:', lack or 'none')
+          sys.exit(1 if lack else 0)
+          PY
+
+      - name: doctor gives Homebrew hints, not apt
+        run: |
+          python3 bin/octavo doctor | tee /tmp/doctor.txt || true
+          ! grep -q 'apt ' /tmp/doctor.txt
+
+      - name: Run unit tests
+        run: python3 tests/test_octavo.py
+
+      - name: Build the wheel, and a project from scratch outside the repo
+        run: |
+          python3 -m pip install --quiet build
+          python3 -m build --wheel
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet dist/*.whl
+          export PATH=/tmp/venv/bin:$PATH
+          cd /tmp
+          octavo init proj
+          cd proj
+          octavo new paper smoke
+          octavo new slides deck
+          octavo new lecture course
+          octavo build --compile --no-analysis
+          test -f build/typst/smoke/main.pdf
+          test -f build/typst-slides/deck.pdf
+          test -f build/typst-slides/course-01.pdf
+
+  # VS Code 拡張がコンパイルでき、.vsix にまとまるか。strict + noUnused* なので
+  # 使われない変数1つでも落ちる。作った .vsix は artifact として落とせる。
+  # Node 22 なのは @vscode/vsce の依存（@azure/*）が node >= 22 を要求するため。
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: vscode-extension
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: vscode-extension/package-lock.json
+
+      - name: Install dev dependencies
+        run: npm ci
+
+      # vsce package が vscode:prepublish（= npm run compile）も走らせる。
+      - name: Compile and package
+        run: npx vsce package -o octavo.vsix
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: octavo-vsix
+          path: vscode-extension/octavo.vsix
+
+  # 分析の側（quarto + R + templates/project/common/analysis/octavo.R）を実際に走らせる。
+  # ここが通らないかぎり octavo.R は「書いただけ」の状態なので、
+  # 1つの job を丸ごとこれに充てている。
+  analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install pandoc
+        run: |
+          V=$(sed -n 's/^PANDOC_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -fsSL -o pandoc.deb "https://github.com/jgm/pandoc/releases/download/${V}/pandoc-${V}-1-amd64.deb"
+          sudo apt-get install -y ./pandoc.deb
+
+      - uses: quarto-dev/quarto-actions/setup@v2
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+
+      # quarto の knitr エンジンに要る。octavo.R 自体は素の R だけで動く。
+      - name: Install R packages for the knitr engine
+        run: install.packages(c("knitr", "rmarkdown"))
+        shell: Rscript {0}
+
+      - name: Show versions
+        run: python3 bin/octavo doctor || true
+
+      # AnalysisEndToEnd が quarto と Rscript を見つけて走る。
+      # 1回で済ませる（2回走らせると分析まで含めて時間が倍かかる）。
+      # pipefail が無いと `| tee` がテストの失敗を握り潰す（パイプの終了
+      # コードは tee のもの）ので必須。
+      - name: Run unit tests (analysis included)
+        run: |
+          set -o pipefail
+          python3 tests/test_octavo.py 2>&1 | tee /tmp/out.txt
+          if grep -q 'AnalysisEndToEnd.*skipped' /tmp/out.txt; then
+            echo '分析の検証が飛ばされている。quarto か R が入っていない'
+            exit 1
+          fi

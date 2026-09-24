@@ -1,0 +1,43 @@
+# 生成物。丸ごと消してよい（手で書く体裁 main.typ / main.tex は原稿の隣にある）
+build/
+*.aux
+*.log
+*.out
+*.toc
+*.fls
+*.fdb_latexmk
+*.nav
+*.snm
+*.synctex.gz
+*.bib.bak
+
+# 原データと中間生成物は git に入れない。
+# 出所は data/raw/README.md に書くこと（それだけが記録に残る）。
+data/raw/*
+!data/raw/README.md
+data/derived/*
+!data/derived/.gitkeep
+# データの指紋は入れる（data/ 自体は入らないので、これが唯一の記録になる）
+!data/HASHES.json
+
+# 投稿用・複製パッケージの固め直し
+/submission*
+/replication*
+
+# 分析の環境。**中身は git に入れず、記録（requirements.txt / renv.lock）を入れる**
+.venv/
+renv/library/
+renv/local/
+renv/staging/
+renv/python/
+.Rhistory
+.RData
+
+# octavo.config.py を読んだときに Python が作るキャッシュ
+__pycache__/
+
+# Quarto の作業物（results/ の *.json は成果物なので commit する）
+/.quarto/
+**/*_files/
+analysis/*.html
+results/.analysis-stamp.json

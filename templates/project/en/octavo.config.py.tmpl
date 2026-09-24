@@ -1,0 +1,45 @@
+# -*- coding: utf-8 -*-
+"""Settings for @@NAME@@. This file is all Octavo reads."""
+
+CONFIG = {
+    # ---- Manuscripts ---------------------------------------------------
+@@DOCUMENTS@@
+
+    # ---- Bibliography --------------------------------------------------
+    'bib_file': 'literature.bib',      # exported from Zotero
+    # Match the journal. Add styles with octavo csl list / octavo csl get <id>
+    'csl': 'chicago-author-date',
+
+    # ---- Language ------------------------------------------------------
+    'lang': 'en',
+
+    # ---- Figures and tables --------------------------------------------
+    'figure_dir': 'figures',
+    'table_dir': 'tables',
+
+    # ---- Title block (a manuscript's front matter wins) ----------------
+    'meta': {
+        'title': '@@NAME@@',
+        'author': 'Author Name',
+    },
+
+    # ---- Analysis (Quarto) ---------------------------------------------
+    # analysis/*.qmd writes results/*.json (the {{…}} in the text), figures/
+    # and tables/. octavo build runs quarto render when a .qmd or its deps
+    # are newer than the last run.
+    'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
+
+    # When the analysis writes a table, tie it to the paper's table number
+    # 'table_map': {'1': 'tbl1_summary'},
+
+    # ---- Word ----------------------------------------------------------
+    # Make a style template with octavo reference-docx reference.docx,
+    # adjust it in Word, then point at it
+    # 'docx_reference': 'reference.docx',
+
+    # ---- Slides --------------------------------------------------------
+    'typst_slides_aspect': '16-9',     # or '4-3'
+    # To change the whole look, copy the bundled template into this project
+    # and edit it:
+    #   octavo template copy slides/typst-slides.typ   # -> templates/slides/typst-slides.typ
+}

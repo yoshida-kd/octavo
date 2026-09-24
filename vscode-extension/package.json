@@ -1,0 +1,428 @@
+{
+  "name": "octavo",
+  "displayName": "Octavo",
+  "description": "%extension.description%",
+  "version": "0.1.0",
+  "publisher": "yoshida-kd",
+  "license": "MIT",
+  "icon": "media/icon.png",
+  "galleryBanner": { "color": "#0e2f92", "theme": "dark" },
+  "homepage": "https://github.com/yoshida-kd/octavo/tree/HEAD/vscode-extension#readme",
+  "bugs": { "url": "https://github.com/yoshida-kd/octavo/issues" },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yoshida-kd/octavo.git",
+    "directory": "vscode-extension"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization",
+    "Education",
+    "Snippets"
+  ],
+  "keywords": [
+    "typst",
+    "pandoc",
+    "markdown",
+    "pdf preview",
+    "academic writing",
+    "citation",
+    "zotero",
+    "quarto",
+    "latex"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "workspaceContains:**/octavo.config.py"
+  ],
+  "main": "./out/extension.js",
+  "l10n": "./l10n",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "octavo", "title": "Octavo", "icon": "media/octavo.svg" }
+      ]
+    },
+    "views": {
+      "octavo": [
+        { "id": "octavo.project", "name": "%view.project.name%" }
+      ]
+    },
+    "commands": [
+      {
+        "command": "octavo.sidebarRefresh",
+        "title": "%command.sidebarRefresh.title%",
+        "category": "Octavo",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "octavo.openConfig",
+        "title": "%command.openConfig.title%",
+        "category": "Octavo",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "octavo.editSetting",
+        "title": "%command.editSetting.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.previewDoc",
+        "title": "%command.previewDoc.title%",
+        "category": "Octavo",
+        "icon": "$(file-pdf)"
+      },
+      {
+        "command": "octavo.buildDoc",
+        "title": "%command.buildDoc.title%",
+        "category": "Octavo",
+        "icon": "$(play)"
+      },
+      {
+        "command": "octavo.check",
+        "title": "%command.check.title%",
+        "category": "Octavo",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "octavo.analysisRun",
+        "title": "%command.analysisRun.title%",
+        "category": "Octavo",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "octavo.analysisRunOne",
+        "title": "%command.analysisRunOne.title%",
+        "category": "Octavo",
+        "icon": "$(play)"
+      },
+      {
+        "command": "octavo.build",
+        "title": "%command.build.title%",
+        "category": "Octavo",
+        "icon": "$(play)"
+      },
+      {
+        "command": "octavo.buildAll",
+        "title": "%command.buildAll.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.watch",
+        "title": "%command.watch.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.preview",
+        "title": "%command.preview.title%",
+        "category": "Octavo",
+        "icon": "$(file-pdf)"
+      },
+      {
+        "command": "octavo.previewColumn",
+        "title": "%command.previewColumn.title%",
+        "category": "Octavo",
+        "icon": "$(vm)"
+      },
+      {
+        "command": "octavo.previewRefresh",
+        "title": "%command.previewRefresh.title%",
+        "category": "Octavo",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "octavo.watchTypstFile",
+        "title": "%command.watchTypstFile.title%",
+        "category": "Octavo",
+        "icon": "$(eye)"
+      },
+      {
+        "command": "octavo.checkbib",
+        "title": "%command.checkbib.title%",
+        "category": "Octavo",
+        "icon": "$(book)"
+      },
+      {
+        "command": "octavo.doctor",
+        "title": "%command.doctor.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.selftest",
+        "title": "%command.selftest.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.init",
+        "title": "%command.init.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.new",
+        "title": "%command.new.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.bibPull",
+        "title": "%command.bibPull.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.insertCitation",
+        "title": "%command.insertCitation.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.refreshBib",
+        "title": "%command.refreshBib.title%",
+        "category": "Octavo",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "octavo.refreshValues",
+        "title": "%command.refreshValues.title%",
+        "category": "Octavo",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "octavo.showOutput",
+        "title": "%command.showOutput.title%",
+        "category": "Octavo"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        { "command": "octavo.sidebarRefresh", "when": "view == octavo.project", "group": "navigation" },
+        { "command": "octavo.openConfig", "when": "view == octavo.project", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "octavo.previewDoc", "when": "view == octavo.project && viewItem == octavo.doc", "group": "inline" },
+        { "command": "octavo.buildDoc", "when": "view == octavo.project && viewItem == octavo.doc", "group": "inline" },
+        { "command": "octavo.analysisRunOne", "when": "view == octavo.project && viewItem == octavo.analysisUnit", "group": "inline" }
+      ],
+      "commandPalette": [
+        { "command": "octavo.editSetting", "when": "false" },
+        { "command": "octavo.previewDoc", "when": "false" },
+        { "command": "octavo.buildDoc", "when": "false" },
+        {
+          "command": "octavo.build"
+        },
+        {
+          "command": "octavo.buildAll"
+        },
+        {
+          "command": "octavo.preview",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "octavo.previewColumn",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "octavo.previewRefresh",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "octavo.watch"
+        },
+        {
+          "command": "octavo.watchTypstFile",
+          "when": "resourceExtname == .typ"
+        },
+        {
+          "command": "octavo.checkbib"
+        },
+        {
+          "command": "octavo.doctor"
+        },
+        {
+          "command": "octavo.selftest"
+        },
+        {
+          "command": "octavo.init"
+        },
+        {
+          "command": "octavo.new"
+        },
+        {
+          "command": "octavo.bibPull"
+        },
+        {
+          "command": "octavo.insertCitation",
+          "when": "editorLangId == markdown"
+        },
+        {
+          "command": "octavo.refreshBib"
+        },
+        {
+          "command": "octavo.refreshValues"
+        },
+        {
+          "command": "octavo.showOutput"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "octavo.insertCitation",
+          "when": "editorLangId == markdown",
+          "group": "9_cutcopypaste"
+        },
+        {
+          "command": "octavo.watchTypstFile",
+          "when": "resourceExtname == .typ",
+          "group": "octavo"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "octavo.analysisRunOne",
+          "when": "resourceExtname == .qmd && octavo.hasConfig",
+          "group": "navigation"
+        },
+        {
+          "command": "octavo.watchTypstFile",
+          "when": "resourceExtname == .typ",
+          "group": "navigation"
+        },
+        {
+          "command": "octavo.preview",
+          "when": "editorLangId == markdown",
+          "group": "navigation"
+        },
+        {
+          "command": "octavo.previewColumn",
+          "when": "editorLangId == markdown && octavo.previewCanChooseColumn",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "octavo.build",
+          "when": "resourceFilename == octavo.config.py",
+          "group": "octavo"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "octavo.insertCitation",
+        "key": "ctrl+alt+@",
+        "mac": "cmd+alt+@",
+        "when": "editorLangId == markdown && editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "Octavo",
+      "properties": {
+        "octavo.executionMode": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "local",
+            "wsl"
+          ],
+          "enumDescriptions": [
+            "%config.executionMode.auto%",
+            "%config.executionMode.local%",
+            "%config.executionMode.wsl%"
+          ],
+          "default": "auto",
+          "description": "%config.executionMode.description%"
+        },
+        "octavo.wslDistro": {
+          "type": "string",
+          "default": "",
+          "description": "%config.wslDistro.description%"
+        },
+        "octavo.command": {
+          "type": "string",
+          "default": "octavo",
+          "description": "%config.command.description%"
+        },
+        "octavo.configPath": {
+          "type": "string",
+          "default": "",
+          "description": "%config.configPath.description%"
+        },
+        "octavo.diagnosticsOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.diagnosticsOnSave.description%"
+        },
+        "octavo.defaultTargets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "%config.defaultTargets.description%"
+        },
+        "octavo.typstCommand": {
+          "type": "string",
+          "default": "typst",
+          "description": "%config.typstCommand.description%"
+        },
+        "octavo.previewLectureColumn": {
+          "type": "string",
+          "enum": [
+            "slides",
+            "notes",
+            "none"
+          ],
+          "enumDescriptions": [
+            "%config.previewLectureColumn.slides%",
+            "%config.previewLectureColumn.notes%",
+            "%config.previewLectureColumn.none%"
+          ],
+          "default": "slides",
+          "description": "%config.previewLectureColumn.description%"
+        },
+        "octavo.typstAutoOpenPdf": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.typstAutoOpenPdf.description%"
+        }
+      }
+    },
+    "snippets": [
+      {
+        "language": "markdown",
+        "path": "./snippets/octavo.code-snippets"
+      }
+    ],
+    "problemMatchers": [
+      {
+        "name": "octavo",
+        "owner": "octavo",
+        "source": "Octavo",
+        "applyTo": "allDocuments",
+        "severity": "error",
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^\\s*(欠落|MISSING|中止|\\[stopped\\]|\\[中止\\])\\s*(.*)$",
+          "message": 2
+        }
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run assets && npm run compile",
+    "assets": "node scripts/copy-pdfjs.mjs && node scripts/check-media.mjs",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.24.0",
+    "pdfjs-dist": "^4.0.379",
+    "typescript": "^5.4.0"
+  }
+}

@@ -1,0 +1,37 @@
+% =====================================================================
+%  CSL（pandoc --citeproc）で組んだ書誌を LaTeX で受けるための定義。
+%
+%  Octavo は引用を CSL で解決するので、body.tex には biblatex の
+%  \autocite ではなく「解決済みの地の文」と、末尾の CSLReferences 環境が入る。
+%  その環境の定義は pandoc の standalone テンプレートが持っているものと同じ。
+%  投稿先の main.tex に差し替えたら、この定義をそこに写すか、
+%      octavo template copy paper/csl-preamble.tex
+%  でプロジェクトの templates/ に置いて \input する。
+%
+%  （同梱の paper/ja/main.tex・paper/en/main.tex には最初から同じ定義が
+%    書いてあるので、それを使っているならこのファイルは要らない。）
+% =====================================================================
+\makeatletter
+\@ifundefined{CSLReferences}{%
+  \newlength{\cslhangindent}
+  \setlength{\cslhangindent}{1.5em}
+  \newlength{\csllabelwidth}
+  \setlength{\csllabelwidth}{3em}
+  \newenvironment{CSLReferences}[2]% #1 ぶら下げインデント, #2 項目間の空き
+   {\begin{list}{}{%
+     \setlength{\itemindent}{0pt}
+     \setlength{\leftmargin}{0pt}
+     \setlength{\parsep}{0pt}
+     \ifodd #1
+      \setlength{\leftmargin}{\cslhangindent}
+      \setlength{\itemindent}{-1\cslhangindent}
+     \fi
+     \setlength{\itemsep}{#2\baselineskip}}}
+   {\end{list}}
+  \newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut#1\strut}}
+  \newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
+  \newcommand{\CSLRightInline}[1]%
+    {\parbox[t]{\dimexpr\linewidth-\csllabelwidth\relax}{\strut#1\strut}}
+  \newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+}{}
+\makeatother

@@ -1,0 +1,8 @@
+{
+  "_generated": "octavo init",
+  "_placeholder": "placeholder values written by octavo init; running the analysis once replaces them",
+  "n_obs": 1523,
+  "coef_x": 0.342,
+  "se_x": 0.081,
+  "p_x": "< .001"
+}

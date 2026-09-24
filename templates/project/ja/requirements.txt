@@ -1,0 +1,12 @@
+# 分析に使う Python パッケージ。**入れたらここに書く。**
+#
+#   python3 -m venv .venv          # 最初の1回
+#   source .venv/bin/activate      # 作業のたび（.qmd を render する前にも）
+#   pip install -r requirements.txt
+#
+# 入れ足したら `pip freeze > requirements.txt` ではなく、使うものだけを
+# 手で足して版を固定する（freeze は依存まで全部書き出して読めなくなる）。
+# R 側は renv が同じ役目をする（renv.lock）。
+
+# pandas==2.3.1
+# statsmodels==0.14.5

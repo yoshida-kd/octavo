@@ -1,0 +1,45 @@
+% =====================================================================
+%  日本語スライド（Beamer + LuaLaTeX）用の追加プリアンブル。
+%  pandoc の --standalone に --include-in-header で足される。
+%  差し替えるなら octavo.config.py に
+%      'headers': {'beamer': 'my-beamer-header.tex'},
+% =====================================================================
+
+% ---- 日本語 -----------------------------------------------------------
+% beamer は article 系クラスなので luatexja を明示的に読む。
+% haranoaji は TeX Live 同梱なのでシステムフォントに依存しない。
+\IfFileExists{luatexja-preset.sty}{%
+  \usepackage{luatexja}
+  \usepackage[haranoaji,deluxe]{luatexja-preset}
+  % スライドの和文は明朝よりゴシックのほうが読みやすい
+  \renewcommand{\kanjifamilydefault}{\gtdefault}%
+}{\PackageWarningNoLine{octavo}{luatexja が無い。日本語は組めない。
+   sudo apt install texlive-lang-japanese (macOS: MacTeX)}}
+\renewcommand{\familydefault}{\sfdefault}
+
+% ---- 体裁 -------------------------------------------------------------
+\setbeamertemplate{navigation symbols}{}          % 右下の小さなボタンを消す
+\setbeamertemplate{footline}[page number]         % ページ番号を出す（後で「n枚目」と参照できるように）
+\setbeamertemplate{caption}{\insertcaption}       % 「図1:」を出さない
+\setbeamerfont{frametitle}{size=\large}
+\setbeamerfont{footnote}{size=\scriptsize}
+
+% 今のsectionをフレームタイトルの上に小さく灰色で出す（長いスライドで迷子にならないように）。
+% 原稿側は普通に "## 見出し" と書くだけでよい（\insertsection は beamer 側で自動的に埋まる）。
+\addtobeamertemplate{frametitle}{%
+  {\color{gray}\fontsize{10pt}{12pt}\selectfont\insertsection\par}%
+}{}
+
+% 箇条書きの行間を少し空ける（スライドは詰まると読めない）
+\addtobeamertemplate{itemize/enumerate body begin}{\setlength{\itemsep}{0.5em}}{}
+
+% ---- 図表 -------------------------------------------------------------
+\usepackage{adjustbox}
+\let\oldtabular\tabular
+\let\endoldtabular\endtabular
+\renewenvironment{tabular}{\adjustbox{max width=\linewidth,max height=0.62\textheight}%
+                           \bgroup\oldtabular}
+                          {\endoldtabular\egroup}
+
+% 出典を小さく入れる。原稿で \source{国勢調査（2020）} と書く。
+\newcommand{\source}[1]{\par\vspace{0.3em}{\scriptsize\raggedleft 出典: #1\par}}

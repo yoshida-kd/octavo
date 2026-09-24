@@ -1,0 +1,34 @@
+% =====================================================================
+%  English slides (Beamer + LuaLaTeX). Added via --include-in-header.
+%  Replace with your own via  'headers': {'beamer': 'my-header.tex'}.
+% =====================================================================
+
+% Occasional CJK on English slides (names, sources).
+% Skipped (with a warning) when texlive-lang-japanese is not installed.
+\IfFileExists{luatexja-preset.sty}
+  {\usepackage[haranoaji]{luatexja-preset}}
+  {\PackageWarningNoLine{octavo}{luatexja not found; CJK will not typeset.
+    sudo apt install texlive-lang-japanese (macOS: MacTeX)}}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[page number]  % show page numbers (handy to reference "slide n" later)
+\setbeamertemplate{caption}{\insertcaption}
+\setbeamerfont{frametitle}{size=\large}
+\setbeamerfont{footnote}{size=\scriptsize}
+\addtobeamertemplate{itemize/enumerate body begin}{\setlength{\itemsep}{0.5em}}{}
+
+% Show the current section above the frame title, in small gray text, so a
+% long deck stays orientable. Sources just write "## Heading" as usual —
+% \insertsection is filled in automatically by beamer.
+\addtobeamertemplate{frametitle}{%
+  {\color{gray}\fontsize{10pt}{12pt}\selectfont\insertsection\par}%
+}{}
+
+\usepackage{adjustbox}
+\let\oldtabular\tabular
+\let\endoldtabular\endtabular
+\renewenvironment{tabular}{\adjustbox{max width=\linewidth,max height=0.62\textheight}%
+                           \bgroup\oldtabular}
+                          {\endoldtabular\egroup}
+
+\newcommand{\source}[1]{\par\vspace{0.3em}{\scriptsize\raggedleft Source: #1\par}}

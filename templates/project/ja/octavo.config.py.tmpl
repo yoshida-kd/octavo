@@ -1,0 +1,42 @@
+# -*- coding: utf-8 -*-
+"""@@NAME@@ の設定。Octavo 本体はこのファイルだけを見る。"""
+
+CONFIG = {
+    # ---- 原稿 ----------------------------------------------------------
+@@DOCUMENTS@@
+
+    # ---- 書誌 ----------------------------------------------------------
+    'bib_file': 'literature.bib',      # Zotero からの書き出し
+    # 投稿先に合わせて変える。octavo csl list / octavo csl get <id> で増やせる
+    'csl': 'chicago-author-date',
+
+    # ---- 言語 ----------------------------------------------------------
+    'lang': 'ja',
+
+    # ---- 図・表 --------------------------------------------------------
+    'figure_dir': 'figures',
+    'table_dir': 'tables',
+
+    # ---- 題扉（原稿の front matter が優先）------------------------------
+    'meta': {
+        'title': '@@NAME@@',
+        'author': '著者名',
+    },
+
+    # ---- 分析（Quarto）--------------------------------------------------
+    # analysis/*.qmd が results/*.json（本文の {{…}}）、figures/、tables/ を
+    # 作る。octavo build は .qmd か deps が新しければ自動で quarto render する。
+    'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
+
+    # 分析が表を出したら、論文の表番号と結びつける
+    # 'table_map': {'1': 'tbl1_summary'},
+
+    # ---- Word ----------------------------------------------------------
+    # octavo reference-docx reference.docx で雛形を作り、Word で整えてから指定
+    # 'docx_reference': 'reference.docx',
+
+    # ---- スライド ------------------------------------------------------
+    'typst_slides_aspect': '16-9',     # '4-3' も可
+    # 体裁ごと変えるなら、同梱のひな型をこのプロジェクトに写して直す:
+    #   octavo template copy slides/typst-slides.typ   # -> templates/slides/typst-slides.typ
+}

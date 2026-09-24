@@ -1,0 +1,139 @@
+% =====================================================================
+%  日本語論文テンプレート（LuaLaTeX + ltjsarticle + CSL 引用）
+%
+%  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ papers/<名前>/ に
+%  置くので、タイトル・著者・体裁を書き換える。組版のたびに build/latex/<名前>/ へ
+%  写されるので、直すのは papers/ の側。body.tex / abstract.tex は Octavo が
+%  自動生成するので直接編集しない（次の変換で消える）。
+%
+%    octavo build <名前> --to latex
+%    cd build/latex/<名前> && latexmk -lualatex main.tex
+%
+%  引用は pandoc --citeproc が CSL（octavo.config.py の 'csl'）で解決して
+%  body.tex に地の文として書き込む。**biblatex/biber は使わない。**
+%  投稿先の書式を変えるときは main.tex ではなく octavo.config.py を直す:
+%
+%    octavo csl get modern-language-association
+%    'csl': 'modern-language-association',
+% =====================================================================
+\documentclass[11pt,a4paper]{ltjsarticle}
+% ltjsarticle は LuaTeX-ja 版の jsarticle。段落先頭の一字下げ・和欧文間の
+% スペーシングなど、日本語論文に必要な体裁を最初から持っている。
+% 英語主体の論文なら templates/paper/en/main.tex（article + luatexja-preset）。
+
+% ---- フォント ---------------------------------------------------------
+% 既定の和文フォントは haranoaji（TeX Live 同梱、システムフォント不要）。
+\usepackage{luatexja-fontspec}
+% \setmainfont{TeX Gyre Termes}     % 欧文本文フォントを変えたい場合
+\usepackage{microtype}
+
+% ---- 体裁 -------------------------------------------------------------
+\usepackage[margin=25mm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+\usepackage{enumitem}
+\setlist{nosep}
+
+% ---- 図表 -------------------------------------------------------------
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{caption}
+\captionsetup{font=small,labelfont=bf,skip=6pt}
+\usepackage{float}
+\usepackage{adjustbox}
+
+% 表の見た目を一括制御する（tables/*.tex には手を入れない）。
+%   (1) フロートの中身を \small に（外で \small と書くだけでは戻される）
+%   (2) それでも本文幅に収まらない表だけ自動で縮小する
+\makeatletter
+\g@addto@macro\@floatboxreset{\small}
+\makeatother
+\let\oldtabular\tabular
+\let\endoldtabular\endtabular
+\renewenvironment{tabular}{\adjustbox{max width=\linewidth}\bgroup\oldtabular}
+                          {\endoldtabular\egroup}
+
+% tablenotes（threeparttable は衝突するので読まず、自前で定義する）
+\makeatletter
+\newenvironment{tablenotes}
+  {\par\vspace{0.6ex}\footnotesize
+   \begin{list}{}{\setlength\leftmargin{0pt}\setlength\rightmargin{0pt}%
+                  \setlength\labelwidth{0pt}\setlength\labelsep{0pt}%
+                  \setlength\itemindent{0pt}\setlength\listparindent{0pt}%
+                  \setlength\topsep{0pt}\setlength\parsep{0pt}\setlength\itemsep{2pt}}}
+  {\end{list}\par}
+\makeatother
+
+% 外部の表ファイル。Octavo が相対パス込みで \inputtable{../../../tables/xxx} と書く。
+\newcommand{\inputtable}[1]{%
+  \IfFileExists{#1.tex}{\input{#1}}{%
+    \begin{table}[htbp]\centering\fbox{\parbox{0.8\textwidth}{\centering
+      \textbf{表が無い:} \texttt{\detokenize{#1}.tex}}}
+    \caption{[missing]}
+    \end{table}}}
+
+% ---- CSL で組んだ書誌を受ける定義 -------------------------------------
+% pandoc の standalone テンプレートが持つものと同じ。
+% （templates/paper/csl-preamble.tex と同じ）
+\makeatletter
+\@ifundefined{CSLReferences}{%
+  \newlength{\cslhangindent}\setlength{\cslhangindent}{1.5em}
+  \newlength{\csllabelwidth}\setlength{\csllabelwidth}{3em}
+  \newenvironment{CSLReferences}[2]
+   {\begin{list}{}{%
+     \setlength{\itemindent}{0pt}\setlength{\leftmargin}{0pt}\setlength{\parsep}{0pt}
+     \ifodd #1 \setlength{\leftmargin}{\cslhangindent}
+       \setlength{\itemindent}{-1\cslhangindent}\fi
+     \setlength{\itemsep}{#2\baselineskip}}}
+   {\end{list}}
+  \newcommand{\CSLBlock}[1]{\hfill\break\parbox[t]{\linewidth}{\strut#1\strut}}
+  \newcommand{\CSLLeftMargin}[1]{\parbox[t]{\csllabelwidth}{\strut#1\strut}}
+  \newcommand{\CSLRightInline}[1]%
+    {\parbox[t]{\dimexpr\linewidth-\csllabelwidth\relax}{\strut#1\strut}}
+  \newcommand{\CSLIndent}[1]{\hspace{\cslhangindent}#1}
+}{}
+\makeatother
+
+% \poscite は変換の前に展開されるので、ここでの定義は保険。
+\providecommand{\poscite}[1]{\texttt{[poscite:#1]}}
+
+% ---- リンク（最後に読む） ---------------------------------------------
+\usepackage[hidelinks]{hyperref}
+\usepackage{cleveref}
+
+% =====================================================================
+% 匿名審査の切り替え。octavo build --anonymous のたびに flags.tex が
+% 書き換わる（\anonymoustrue / \anonymousfalse）。無ければ通常版。
+% **\title より前に置くこと**（\newif の前に \ifanonymous を使うと
+% Undefined control sequence で止まる）。
+\newif\ifanonymous\anonymousfalse
+\IfFileExists{flags.tex}{\input{flags}}{}
+
+\title{論文タイトル}
+\ifanonymous
+  \author{\normalsize [匿名審査のため著者名を伏せています]}
+\else
+  \author{著者名\\ \small 所属\\ \small\texttt{email@example.ac.jp}}
+\fi
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\noindent
+\IfFileExists{abstract.tex}{\input{abstract}}{[abstract.tex が無い]}
+\end{abstract}
+
+\clearpage
+% body.tex の末尾に「参考文献」節と書誌一覧（CSLReferences）が入っている。
+\input{body}
+
+% 付録があるなら次を有効にし、先に octavo build --to latex --appendix を走らせる。
+% \clearpage
+% \appendix
+% \input{appendix}
+
+\end{document}

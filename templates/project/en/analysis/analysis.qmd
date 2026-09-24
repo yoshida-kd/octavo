@@ -1,0 +1,95 @@
+---
+title: "Analysis"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- The numbers, figures and tables in the paper are made here, not in the
+     manuscript. octavo build watches the .qmd and runs quarto render when needed. -->
+
+<!-- octavo:example This .qmd is the template octavo init wrote, and right now
+     it makes up **fake data** on the spot. Once it reads your real data, delete
+     the `octavo:example` marks with it. While any mark is left, octavo check
+     reports it as a template leftover. -->
+
+```{r}
+#| label: setup
+#| include: false
+# Load octavo.R from this same analysis/ folder. When octavo build runs this,
+# OCTAVO_ROOT is set, so it is found wherever it runs from.
+root <- Sys.getenv("OCTAVO_ROOT", unset = "")
+source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+```
+
+## Data
+
+```{r}
+#| label: data
+# Reading real data (raw data in data/raw/, cleaned data in data/derived/):
+#   d <- read.csv(file.path(ov_root(), "data", "derived", "analysis.csv"))
+# Clean it in a .qmd too, writing the result to data/derived/. Never modify data/raw/.
+#   raw <- read.csv(file.path(ov_root(), "data", "raw", "survey2024.csv"))
+#   d <- subset(raw, !is.na(x))
+#   write.csv(d, file.path(ov_root(), "data", "derived", "analysis.csv"),
+#             row.names = FALSE)
+
+# octavo:example start — fake data. Replace with code that reads yours, then delete
+set.seed(20260101)
+d <- data.frame(
+  x = rnorm(1523, 12, 3),
+  y   = rnorm(1523, 50, 10)
+)
+d$y <- d$y + 0.34 * d$x
+# octavo:example end
+
+ov_value("n_obs", nrow(d), note = "observations used in the analysis")
+```
+
+## Estimation
+
+```{r}
+#| label: model
+m <- lm(y ~ x, data = d)
+s <- summary(m)$coefficients
+
+ov_value("coef_x", s["x", "Estimate"])
+ov_value("se_x",   s["x", "Std. Error"])
+ov_value("p_x",    ov_pval(s["x", "Pr(>|t|)"]))
+```
+
+Write `{{n_obs}}` `{{coef_x}}` `{{p_x}}` in the manuscript and these values go in.
+
+## Figure
+
+```{r}
+#| label: fig-trend
+p <- function() {
+  plot(d$x, d$y, pch = 16, col = "#4477aa55",
+       xlab = "x", ylab = "y")
+  abline(m, lwd = 2)
+}
+ov_figure(p, "fig1_trend")      # figures/fig1_trend.pdf and .png
+```
+
+In the manuscript, write `![](figures/fig1_trend.png)` and `**Figure 1.** Caption`.
+
+## Table
+
+```{r}
+#| label: tbl-summary
+tab <- data.frame(
+  Variable = c("x", "y"),
+  Mean = c(mean(d$x), mean(d$y)),
+  SD = c(sd(d$x), sd(d$y))
+)
+ov_table(tab, "tbl1_summary", caption = "Descriptive statistics",
+         notes = paste0("Note: N = ", nrow(d), "."))
+```
+
+With `'table_map': {'1': 'tbl1_summary'}` in `octavo.config.py`, the
+**Table 1. …** in the manuscript is replaced with this file
+(tables/tbl1_summary.tex / .typ). Without it, the manuscript's own Markdown
+table is used.

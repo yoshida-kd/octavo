@@ -1,0 +1,8 @@
+{
+  "_generated": "octavo init",
+  "_placeholder": "octavo init が置いた仮の値。分析を1度走らせれば本物に置き換わる",
+  "n_obs": 1523,
+  "coef_x": 0.342,
+  "se_x": 0.081,
+  "p_x": "< .001"
+}
