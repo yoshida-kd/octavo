@@ -70,10 +70,11 @@ p <- function() {
        xlab = "x", ylab = "y")
   abline(m, lwd = 2)
 }
-ov_figure(p, "fig1_trend")      # figures/fig1_trend.pdf と .png
+ov_figure(p, "trend")      # figures/trend.pdf と .png
 ```
 
-原稿には `![](figures/fig1_trend.png)` と `**図1．** 説明` を書く。
+原稿には `![推移](../../figures/trend.png){#fig-trend}` と書き、`@fig-trend` で
+参照する（番号は組むときに振られる: 図2.1）。
 
 ## 表
 
@@ -84,10 +85,10 @@ tab <- data.frame(
   平均 = c(mean(d$x), mean(d$y)),
   標準偏差 = c(sd(d$x), sd(d$y))
 )
-ov_table(tab, "tbl1_summary", caption = "記述統計",
+ov_table(tab, "summary",
          notes = paste0("注: N = ", nrow(d), "。"))
 ```
 
-`octavo.config.py` に `'table_map': {'1': 'tbl1_summary'}` と書くと、
-本文の **表1．…** がこのファイル（tables/tbl1_summary.tex / .typ）に
-差し替わる。書かなければ原稿のマークダウン表がそのまま使われる。
+表の中身（tables/summary.typ / .tex / .md）が書かれる。原稿に
+`: 記述統計 {#tbl-summary}` の1行を書けばそこに表題つきで入り、`@tbl-summary` で
+参照できる。

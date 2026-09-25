@@ -40,7 +40,8 @@ from pathlib import Path
 
 from .base import Backend, Ctx
 from ..i18n import t, tag
-from .latex import check_assets, check_cjk, no_babel_for_japanese, tex_escape
+from .latex import (check_assets, check_cjk, latex_ref, no_babel_for_japanese,
+                    numbered_equations, tex_escape)
 
 
 class BeamerBackend(Backend):
@@ -54,8 +55,6 @@ class BeamerBackend(Backend):
     always_standalone = True
     is_slides = True
     keeps_notes = True
-    uses_table_map = False        # スライドに longtable を持ち込まない
-    auto_numbers_captions = False  # スライドの図表は通し番号を出さない
 
     def input_extras(self) -> tuple:
         return ('raw_tex', 'fenced_divs')
@@ -85,24 +84,35 @@ class BeamerBackend(Backend):
         return args + no_babel_for_japanese(ctx)
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
+    def fmt_figure(self, m: re.Match, label, ctx: Ctx) -> str:
         """スライドの図は「枠に収まること」が最優先。高さで制限する。"""
-        f = m.group('file')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        ctx.say(f'{tag("figure")} {m.group("num")} -> {rel}')
-        if not ctx.cfg['beamer_figure_captions']:
+        rel = ctx.figure_target(m.group('path'))
+        cap = ' '.join(m.group('alt').split())
+        ctx.say(f'{tag("figure")} {label or cap[:30] or "-"} -> {rel}')
+        if not ctx.cfg['beamer_figure_captions'] or not (cap or label):
             return ('\n```{=latex}\n\\begin{center}\n'
                     f'\\includegraphics[width=\\linewidth,height=0.7\\textheight,'
                     f'keepaspectratio]{{{rel}}}\n\\end{{center}}\n```\n')
+        lab = f'\\label{{{label}}}' if label else ''
         return ('\n```{=latex}\n\\begin{figure}\n\\centering\n'
                 f'\\includegraphics[width=\\linewidth,height=0.62\\textheight,'
                 f'keepaspectratio]{{{rel}}}\n'
-                f'\\caption{{{tex_escape(cap)}}}\n\\end{{figure}}\n```\n')
+                f'\\caption{{{tex_escape(cap)}}}{lab}\n\\end{{figure}}\n```\n')
+
+    def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
+        rel = ctx.rel(ctx.table_path(name))[:-len(self.table_ext)]
+        ctx.say(f'{tag("table")} {label} -> \\input{{{rel}}}')
+        return ('\n```{=latex}\n\\begin{table}\n\\centering\n'
+                f'\\caption{{{tex_escape(caption)}}}\\label{{{label}}}\n'
+                f'\\IfFileExists{{{rel}.tex}}{{\\input{{{rel}}}}}{{[{name}.tex ?]}}\n'
+                '\\end{table}\n```\n')
+
+    def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
+        return f'`{latex_ref(item, short, ctx)}`{{=latex}}'
 
     # -- 変換後 -------------------------------------------------------------
     def postprocess(self, tex: str, ctx: Ctx) -> str:
-        tex = re.sub(r'\n{3,}', '\n\n', tex)
+        tex = numbered_equations(re.sub(r'\n{3,}', '\n\n', tex))
         return tex.strip() + '\n'
 
     def check(self, tex: str, ctx: Ctx) -> None:

@@ -5,9 +5,9 @@
 
   * clone して使う（`setup.sh` + `~/.local/bin/octavo` のシンボリックリンク）
     -> リポジトリ直下の `templates/` `config.example.py` `setup.sh` `csl/`
-  * pip で入れる（`pip install octavo-kit`）
-    -> wheel に取り込まれた `octavo/templates/` `octavo/config.example*.py`。
-       `setup.sh` は入らない（システムに道具を入れるスクリプトなので）。
+  * pip / uv で入れる（`uv tool install octavo-kit`）
+    -> wheel に取り込まれた `octavo/templates/` `octavo/config.example*.py`
+       `octavo/setup.sh`（`octavo setup` が走らせる）。
        CSL のキャッシュは site-packages に書けないので利用者のキャッシュ領域。
 
 どちらか一方しか存在しないので、分岐は「repo 直下にあればそれ、無ければ
@@ -38,9 +38,23 @@ def example_config(lang: str = 'en') -> Path:
     return _pick('config.example.ja.py' if lang == 'ja' else 'config.example.py')
 
 
+def is_clone() -> bool:
+    """clone したリポジトリから動いているか（wheel にも setup.sh は入るので、
+    `bin/octavo` と一緒にあるかで見分ける）。"""
+    return (REPO / 'setup.sh').exists() and (REPO / 'bin' / 'octavo').exists()
+
+
+def on_windows() -> bool:
+    """Windows で直接動いているか（WSL の中は Linux）。テストが差し替えられるよう関数にしてある。"""
+    return os.name == 'nt'
+
+
 def setup_script() -> Path | None:
-    """`setup.sh`。pip で入れたときは無いので None。"""
-    p = REPO / 'setup.sh'
+    """道具を入れるスクリプト。Windows では `setup.ps1`、それ以外は `setup.sh`。
+
+    repo 直下か、wheel の中。どちらにも無ければ None。
+    """
+    p = _pick('setup.ps1' if on_windows() else 'setup.sh')
     return p if p.exists() else None
 
 
@@ -51,7 +65,7 @@ def csl_cache_dir() -> Path:
     （`.gitignore` 済み）。pip で入れたときは site-packages に書けないので
     `$XDG_CACHE_HOME/octavo/csl`（既定 `~/.cache/octavo/csl`）。
     """
-    if setup_script() is not None:
+    if is_clone():
         return REPO / 'csl'
     base = os.environ.get('XDG_CACHE_HOME') or (Path.home() / '.cache')
     return Path(base) / 'octavo' / 'csl'

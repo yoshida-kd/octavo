@@ -7,7 +7,9 @@ it can be translated like everything else on screen.
 from __future__ import annotations
 
 import argparse
+import os
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -25,7 +27,9 @@ from . import config as configmod
 from . import csl as cslmod
 from . import dataset
 from . import doctor as doctormod
+from . import envsetup
 from . import lint as lintmod
+from . import paths
 from . import md as mdlib
 from . import review as reviewmod
 from . import scaffold
@@ -55,6 +59,8 @@ USAGE_LINES = (
     ('octavo bib pull --collection X', 'fetch the .bib from Zotero'),
     ('octavo csl get apa', "fetch a journal's style (CSL)"),
     ('octavo doctor', 'diagnose the environment'),
+    ('octavo setup', 'install the tools (pandoc, Typst, quarto, R, uv, fonts)'),
+    ('octavo env', "set up this project's .venv and renv"),
     ('octavo init 2026-study', 'write a project skeleton'),
     ('octavo new paper|slides|lecture name', 'add a manuscript'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
@@ -582,7 +588,43 @@ def cmd_csl(args) -> int:
 
 
 def cmd_doctor(args) -> int:
+    if args.json:
+        import json as _json
+        print(_json.dumps(doctormod.as_json(), ensure_ascii=False))
+        return 0
     return doctormod.report(verbose=args.verbose)
+
+
+def cmd_setup(args) -> int:
+    script = paths.setup_script()
+    if paths.on_windows():
+        # Windows は setup.ps1（winget）。TeX はそこでは入れない
+        if script is None:
+            sys.exit(t('setup.ps1 is missing, so this cannot run here'))
+        if args.with_tex:
+            sys.exit(t('On Windows, octavo setup does not install TeX. Install MiKTeX or '
+                       'TeX Live yourself if you need LaTeX / Beamer.'))
+        cmd = ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(script)]
+        for flag, ps in (('no_quarto', '-NoQuarto'), ('no_r', '-NoR'), ('check', '-Check')):
+            if getattr(args, flag):
+                cmd.append(ps)
+        if not paths.is_clone():
+            cmd += ['-OctavoVersion', __version__]
+        return subprocess.call(cmd)
+    if script is None or not shutil.which('bash'):
+        sys.exit(t('setup.sh or bash is missing, so this cannot run here'))
+    cmd = ['bash', str(script)]
+    for flag in ('with_tex', 'no_quarto', 'no_r', 'check'):
+        if getattr(args, flag):
+            cmd.append('--' + flag.replace('_', '-'))
+    # clone でなければ CLI も PyPI から入れ直す。版はいま動いているものに合わせる
+    if not paths.is_clone():
+        cmd += ['--octavo-version', __version__]
+    return subprocess.call(cmd)
+
+
+def cmd_env(args) -> int:
+    return envsetup.run(configmod.load(args.config))
 
 
 def cmd_init(args) -> int:
@@ -861,7 +903,18 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser('doctor', help=t('diagnose the environment'))
     p.add_argument('--verbose', '-v', action='store_true')
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_doctor)
+
+    p = sub.add_parser('setup', help=t('install the tools (pandoc, Typst, quarto, R, uv, fonts)'))
+    p.add_argument('--with-tex', action='store_true', help=t('TeX Live too (several GB)'))
+    p.add_argument('--no-quarto', action='store_true', help=t('leave out quarto'))
+    p.add_argument('--no-r', action='store_true', help=t('leave out R'))
+    p.add_argument('--check', action='store_true', help=t('only show what would be installed'))
+    p.set_defaults(func=cmd_setup)
+
+    p = with_config(sub.add_parser('env', help=t("set up this project's .venv and renv")))
+    p.set_defaults(func=cmd_env)
 
     p = sub.add_parser('init', help=t('write a project skeleton (add manuscripts with octavo new)'))
     p.add_argument('dir')
@@ -921,6 +974,14 @@ def make_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    if os.name == 'nt':
+        # Windows では、パイプ（VS Code の拡張機能が読む）への出力が既定で
+        # CP932 などになり、日本語が化けたり └ のような字で止まったりする。
+        for stream in (sys.stdout, sys.stderr):
+            try:
+                stream.reconfigure(encoding='utf-8', errors='replace')
+            except (AttributeError, ValueError):
+                pass
     args = make_parser().parse_args(argv)
     try:
         return args.func(args) or 0

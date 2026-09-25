@@ -34,7 +34,8 @@ template**. Delete the mark along with the content once it is yours.
 |---|---|---|
 | a `octavo:example` comment | manuscripts, appendix, `analysis.qmd`, `literature.bib` | delete the block, comment and all |
 | `_placeholder` | `results/analysis.json` | `octavo analysis run` rewrites the file |
-| a figure that is a box with an × | `figures/fig1_trend.*` | `ov_figure()` in the `.qmd` rewrites it |
+| a figure that is a box with an × | `figures/trend.*` | `ov_figure()` in the `.qmd` rewrites it |
+| a table with nothing in it | `tables/summary.*` | `ov_table()` in the `.qmd` rewrites it |
 
 `octavo check` counts what is left. The placeholder values in
 `results/analysis.json` are **fatal**: typesetting before the analysis has ever
@@ -96,41 +97,33 @@ octavo build example-lecture --to typst-slides --compile  # lecture notes -> a d
 ## The analysis environment (.venv and renv)
 
 The analysis runs in this project's own environment. **Never against a bare R or
-Python.**
+Python.** One command makes it (in VS Code: **Tools → Set Up This Project's
+Analysis Environment** in the Octavo sidebar):
 
 ```bash
-python3 -m venv .venv                  # once
-source .venv/bin/activate              # every session, before rendering a .qmd too
-pip install -r requirements.txt
+octavo env
 ```
 
-```r
-renv::init()       # once (writes renv.lock and .Rprofile)
-renv::snapshot()   # always, after install.packages()
-```
+It makes `.venv` with uv and installs what `requirements.txt` lists, and for R
+sets up renv (`renv.lock` and `.Rprofile`) with knitr and rmarkdown, which quarto
+needs. After a fresh clone it restores the same packages from `renv.lock`. It is
+safe to run again.
 
-renv itself does not come with R. If you get `there is no package called
-‘renv’`, install it once per machine first (and create your personal library
-folder — without it `install.packages()` has nowhere to write and fails):
+- Python: add the package to `requirements.txt`, then `octavo env` again.
+  `octavo analysis run` uses `.venv` by itself; to work in it from a terminal,
+  `source .venv/bin/activate` (or `uv run python …`).
+- R: `install.packages()` inside the project, then always `renv::snapshot()`.
 
-```bash
-mkdir -p "$(Rscript -e 'cat(Sys.getenv("R_LIBS_USER"))')"
-Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
-```
+`.venv/` and `renv/library/` are not in git, so **the records
+(`requirements.txt` / `renv.lock`) are the environment.**
 
-`octavo doctor` shows whether it is there, under "Analysis".
-
-Record every package you add in `requirements.txt` / `renv.lock`. `.venv/` and
-`renv/library/` are not in git, so **the records are the environment.**
-
-Octavo itself (pandoc, Typst, quarto) lives outside the project, once per machine:
-`bash setup.sh` in the Octavo repository, or `bash setup.sh --with-tex` if you
-also want LaTeX / Beamer.
+Octavo itself (pandoc, Typst, quarto, R, uv) lives outside the project, once per
+machine: the VS Code extension's **Set up**, or `octavo setup` in a terminal.
 
 ## Getting started
 
 1. `octavo doctor` — check that pandoc / Typst / quarto / R are present (LaTeX is optional)
-2. Set up the analysis environment (above): `python3 -m venv .venv` and `renv::init()`
+2. Set up the analysis environment (above): `octavo env`
 3. Put your raw data in `data/raw/` and record its provenance in `data/raw/README.md`
 4. Replace `analysis/analysis.qmd` with your own analysis
 5. `octavo analysis run`, then `octavo values` to confirm the numbers came out

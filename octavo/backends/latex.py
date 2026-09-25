@@ -14,8 +14,9 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from .. import crossref as xref
 from .. import md as mdlib
-from .base import Backend, Ctx, apply_crossrefs
+from .base import Backend, Ctx
 from ..i18n import t, tag
 
 
@@ -27,8 +28,6 @@ class LatexBackend(Backend):
     table_ext = '.tex'
     default_figure_ext = '.pdf'
     min_pandoc = (2, 8)
-    uses_table_map = True
-    auto_numbers_captions = True
     wants_abstract_file = True      # main.tex が \input{abstract} で受ける
     anonymous_guard = '\\ifanonymous'
     main_name = 'main.tex'
@@ -46,6 +45,11 @@ class LatexBackend(Backend):
             for opt in ctx.cfg['latex_classoptions']:
                 args += ['-V', f'classoption={opt}']
             args += ['--include-in-header', str(ctx.template('handout/handout-header.tex'))]
+            # 番号の振り方（節ごと／通し）。main.tex を持たないので、ここで前置きに足す
+            ctx.out_dir.mkdir(parents=True, exist_ok=True)
+            cr = ctx.out_dir / f'{ctx.doc_name}-crossref.tex'
+            cr.write_text(crossref_tex(ctx), encoding='utf-8')
+            args += ['--include-in-header', str(cr)]
             args += no_babel_for_japanese(ctx)
             if ctx.profile_opt('toc'):
                 args += ['--toc', f'--toc-depth={ctx.cfg["toc_depth"]}']
@@ -54,24 +58,28 @@ class LatexBackend(Backend):
         return args
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_table(self, m: re.Match, name, ctx: Ctx) -> str:
-        if not name:
-            return self.markdown_table(m, ctx)
+    def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
+        """分析が書いた表の中身（tables/<名前>.tex）を、table 環境・キャプション・
+        ラベルで包んで入れる。中身の読み込みは \\inputtable（無ければ目印を出す）。"""
         rel = ctx.rel(ctx.table_path(name))[:-len(self.table_ext)]
-        ctx.say(f'{tag("table")} {m.group("num")} -> \\inputtable{{{rel}}}  '
-                f'«{m.group("cap").strip()[:40]}»')
-        return f'\n```{{=latex}}\n\\inputtable{{{rel}}}\n```\n'
+        if not ctx.table_path(name).is_file():
+            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
+                                           'ov_table() in the .qmd)',
+                                           path=ctx.cfg.rel(ctx.table_path(name))))
+        ctx.say(f'{tag("table")} {label} -> \\inputtable{{{rel}}}')
+        return ('\n```{=latex}\n\\begin{table}[htbp]\n\\centering\n'
+                f'\\caption{{{tex_escape(caption)}}}\\label{{{label}}}\n'
+                f'\\inputtable{{{rel}}}\n\\end{{table}}\n```\n')
 
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
-        f, num = m.group('file'), m.group('num')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        ctx.say(f'{tag("figure")} {num} -> {rel}')
-        width = ctx.cfg['figure_width']
-        return ('\n```{=latex}\n\\begin{figure}[htbp]\n\\centering\n'
-                f'\\includegraphics[width={width}\\textwidth]{{{rel}}}\n'
-                f'\\caption{{{tex_escape(cap)}}}\n\\label{{fig:{f}}}\n'
-                '\\end{figure}\n```\n')
+    def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
+        return f'`{latex_ref(item, short, ctx)}`{{=latex}}'
+
+    def includes_appendix(self, layout: str) -> bool:
+        code = '\n'.join(split_comment(l)[0] for l in layout.split('\n'))
+        return bool(re.search(r'\\(?:input|include)\{appendix(?:\.tex)?\}', code))
+
+    def crossref_files(self, ctx: Ctx) -> list:
+        return [('crossref.tex', crossref_tex(ctx))]
 
     def uses_anonymous_guard(self, text: str) -> bool:
         code = '\n'.join(split_comment(l)[0] for l in text.split('\n'))
@@ -114,44 +122,10 @@ class LatexBackend(Backend):
         return '\n'.join(out), refs
 
     # -- 変換後 -------------------------------------------------------------
-    def crossrefs(self, tex: str, ctx: Ctx) -> str:
-        def label_of(name: str) -> str:
-            """外部の表ファイルが実際に張っているラベルを読む（推測しない）。"""
-            p = ctx.cfg['table_dir'] / f'{name}.tex'
-            if p.exists():
-                m = re.search(r'\\label\{([^}]+)\}', p.read_text(encoding='utf-8'))
-                if m:
-                    return m.group(1)
-            return f'tab:{name}'
-
-        def figure_labels(text):
-            out = {}
-            for f in re.findall(r'\\label\{fig:([\w.-]+)\}', text):
-                m = re.match(r'fig([A-Z]?\d+)[_-]', f)
-                if m:
-                    out[m.group(1)] = f
-            return out
-
-        def wrap(lang, kind, ref):
-            """原稿の書き方（日本語/英語）をそのまま保つ。"""
-            if lang == 'ja':
-                return {'table': f'表{ref}', 'figure': f'図{ref}',
-                        'section': f'第{ref}節'}[kind]
-            return {'table': f'Table~{ref}', 'figure': f'Figure~{ref}',
-                    'section': f'Section~{ref}'}[kind]
-
-        return apply_crossrefs(
-            tex, ctx,
-            table_ref=lambda lg, num, name: wrap(lg, 'table',
-                                                 f'\\ref{{{label_of(name)}}}'),
-            figure_ref=lambda lg, num, lab: wrap(lg, 'figure', f'\\ref{{fig:{lab}}}'),
-            section_ref=lambda lg, a, b: wrap(
-                lg, 'section', f'\\ref{{sec:{a}{"-" + b if b else ""}}}'),
-            figure_labels=figure_labels)
-
     def postprocess(self, tex: str, ctx: Ctx) -> str:
         # pandoc 2.x の hypertarget ラッパを外す
         tex = re.sub(r'\\hypertarget\{[^}]*\}\{%\n(.*?)\}\n', r'\1\n', tex, flags=re.S)
+        tex = numbered_equations(tex)
 
         # キャプションの無い表に番号を消費させない
         def unnumber(m):
@@ -195,6 +169,39 @@ class LatexBackend(Backend):
 
 
 # ---------------------------------------------------------------- 補助（他形式でも使う）
+
+def latex_ref(item, short: bool, ctx: Ctx) -> str:
+    """`図\\ref{fig-x}` / `Figure~\\ref{fig-x}`。式は \\eqref（括弧付きの番号）。"""
+    ref = (f'\\eqref{{{item.label}}}' if item.kind == 'eq'
+           else f'\\ref{{{item.label}}}')
+    if short:
+        return ref
+    ja = ctx.lang == 'ja'
+    if item.kind == 'sec':
+        if item.appendix:
+            return f'付録{ref}' if ja else f'Appendix~{ref}'
+        return f'第{ref}節' if ja else f'Section~{ref}'
+    word = {'fig': ('図', 'Figure'), 'tbl': ('表', 'Table'), 'eq': ('式', 'Equation')}
+    return f'{word[item.kind][0]}{ref}' if ja else f'{word[item.kind][1]}~{ref}'
+
+
+def crossref_tex(ctx: Ctx) -> str:
+    """番号の振り方。節ごと（既定）なら図・表・式を \\section ごとに数え直す。"""
+    lines = ['% octavo build が毎回書き換える。手で直さない（振り方は crossref_numbering）。',
+             '\\usepackage{amsmath}']
+    if ctx.numbering_mode() == 'section':
+        lines += ['\\counterwithin{figure}{section}',
+                  '\\counterwithin{table}{section}',
+                  '\\numberwithin{equation}{section}']
+    return '\n'.join(lines) + '\n'
+
+
+def numbered_equations(tex: str) -> str:
+    """pandoc は別行の数式を `\\[ … \\]`（番号なし）で出す。ラベルのあるものだけ
+    equation 環境にして番号を付ける。"""
+    return re.sub(r'\\\[((?:(?!\\\]).)*?\\label\{eq-[^}]+\}(?:(?!\\\]).)*?)\\\]',
+                  r'\\begin{equation}\1\\end{equation}', tex, flags=re.S)
+
 
 def no_babel_for_japanese(ctx: Ctx) -> list:
     """日本語のとき babel / polyglossia を読み込ませない。
@@ -254,7 +261,11 @@ def check_assets(ctx: Ctx, tables, figures, refs=()) -> None:
         miss += not p.exists()
         ctx.say(_mark(p) + f'{p.parent.name}/{p.name}')
     for f in sorted(set(figures)):
-        p = ctx.figure_path(Path(f).stem)
+        p = Path(ctx.cfg['figure_dir']) / (Path(f).stem + ctx.backend.figure_ext(ctx.cfg))
+        # figures/ の外の図は、出力に書いたパスが辿れれば足りる（下で見る）
+        if not p.exists() and any(Path(r).name == Path(f).name and _resolves(ctx, r)
+                                  for r in refs):
+            continue
         miss += not p.exists()
         ctx.say(_mark(p) + f'{p.parent.name}/{p.name}')
     if miss:

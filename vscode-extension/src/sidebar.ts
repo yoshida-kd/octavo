@@ -227,8 +227,12 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                   command: 'octavo.analysisRun', icon: 'graph' },
                 { kind: 'action', label: vscode.l10n.t('Check the Bibliography (checkbib)'),
                   command: 'octavo.checkbib', icon: 'book' },
+                { kind: 'action', label: vscode.l10n.t('Set Up This Project\'s Analysis Environment (env)'),
+                  command: 'octavo.envSetup', icon: 'package' },
                 { kind: 'action', label: vscode.l10n.t('Diagnose the Environment (doctor)'),
                   command: 'octavo.doctor', icon: 'pulse' },
+                { kind: 'action', label: vscode.l10n.t('Install or Update the Tools (setup)'),
+                  command: 'octavo.setup', icon: 'tools' },
             ];
         }
         return [];

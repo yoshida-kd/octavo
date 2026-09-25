@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -151,6 +151,18 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.setup",
+        "title": "%command.setup.title%",
+        "category": "Octavo",
+        "icon": "$(tools)"
+      },
+      {
+        "command": "octavo.envSetup",
+        "title": "%command.envSetup.title%",
+        "category": "Octavo",
+        "icon": "$(package)"
+      },
+      {
         "command": "octavo.selftest",
         "title": "%command.selftest.title%",
         "category": "Octavo"
@@ -237,6 +249,13 @@
         },
         {
           "command": "octavo.doctor"
+        },
+        {
+          "command": "octavo.setup"
+        },
+        {
+          "command": "octavo.envSetup",
+          "when": "octavo.hasConfig"
         },
         {
           "command": "octavo.selftest"
@@ -413,7 +432,7 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run assets && npm run compile",
-    "assets": "node scripts/copy-pdfjs.mjs && node scripts/check-media.mjs",
+    "assets": "node scripts/copy-pdfjs.mjs && node scripts/copy-setup.mjs && node scripts/check-media.mjs",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "package": "vsce package"

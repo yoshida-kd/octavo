@@ -72,7 +72,6 @@ CONFIG = {
     # Language
     # ================================================================
     'lang': 'en',                 # 'ja' | 'en'
-    'crossref_vocab': 'both',     # recognize both "Table 1" and Japanese "表1"
     # 'east_asian_line_breaks': True,   # don't insert spaces at Japanese line breaks
 
     # ================================================================
@@ -83,13 +82,9 @@ CONFIG = {
     # 'figure_width': 1.0,              # fraction of \textwidth
     # 'figure_ext': {'latex': '.pdf', 'docx': '.png'},   # override the defaults
 
-    # Only needed if an analysis pipeline (R / Python / qmd) writes tables
-    # directly as .tex or .typ. Maps "table number in the text" -> "filename
-    # under tables/ (no extension)". Leave empty and the Markdown table in
-    # the source is used as-is. Word and slide decks can't embed external
-    # table files, so the Markdown table is used there regardless.
-    'table_map': {},              # e.g. {'1': 'tbl1_summary', '2': 'tbl2_models'}
-    'appendix_table_map': {},     # e.g. {'A1': 'appA1_robustness'}
+    # Figure, table and equation numbers. The manuscript never types them; it
+    # labels things ({#fig-…}) and refers to them by name (@fig-…)
+    'crossref_numbering': 'section',  # 'section' (Figure 2.1) | 'document' (Figure 1)
 
     # ================================================================
     # Analysis (Quarto .qmd)
@@ -97,9 +92,10 @@ CONFIG = {
     # The .qmd files that produce the paper's numbers, figures and tables.
     # octavo build runs `quarto render` on any .qmd that is newer than its
     # output (with quarto missing it warns and carries on).
-    #   analysis side: ov_value("n_obs", nrow(d)) / ov_figure(p, "fig1_x")
-    #                  ov_table(tab, "tbl1_summary")   <- helpers from octavo.R
-    #   manuscript:    {{n_obs}} / ![](figures/fig1_x.png) / table_map
+    #   analysis side: ov_value("n_obs", nrow(d)) / ov_figure(p, "trend")
+    #                  ov_table(tab, "summary")        <- helpers from octavo.R
+    #   manuscript:    {{n_obs}} / ![Trend](figures/trend.png){#fig-trend} /
+    #                  `: Descriptive statistics {#tbl-summary}` (the table goes there)
     'analysis': [],               # e.g. ['analysis/*.qmd']
     # To watch data files too, make an entry a dict instead of a string
     # 'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],

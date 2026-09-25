@@ -24,32 +24,31 @@ from your Quarto analysis instead of typed by hand.
 
 ## Requirements
 
-The extension drives the `octavo` command; it does not bundle it. On
 Linux, macOS, WSL2 (Ubuntu) or a server reached through Remote-SSH (on macOS,
-install [Homebrew](https://brew.sh) first):
+install [Homebrew](https://brew.sh) first). **That is all you need to have:**
+the first time the extension starts, it checks what is installed and, if
+anything is missing, offers **Set up**. That runs the setup script it carries in
+a terminal, asks for your password once (sudo), and installs pandoc, Typst,
+quarto, the fonts, R (the latest from CRAN), renv, [uv](https://docs.astral.sh/uv/)
+and the `octavo` command. Over Remote-SSH or in a WSL window it installs on
+that machine. Close the terminal when it is done, and the extension checks
+again.
 
-```bash
-git clone https://github.com/yoshida-kd/octavo.git ~/octavo
-bash ~/octavo/setup.sh      # octavo itself + pandoc, Typst, quarto, fonts
-octavo doctor               # tells you anything that is still missing
-```
-
-or, if you install pandoc (3.1+) and Typst (0.12+) yourself:
-
-```bash
-pipx install octavo-kit     # the command is octavo
-```
-
-TeX is optional — only the LaTeX and Beamer outputs need it. See the
+Run it again any time from the sidebar (**Tools → Install or Update the
+Tools**) or the command palette (**Octavo: Install or Update the Tools**) — for
+example after updating the extension, so the `octavo` command follows. TeX is
+not installed; only the LaTeX and Beamer outputs need it (`octavo setup
+--with-tex` from a terminal). See the
 [Octavo README](https://github.com/yoshida-kd/octavo#readme) for the full
-picture.
+picture, including installing from a terminal.
 
 ## Getting started
 
 1. Command palette → **Octavo: New Project (init)**, and open the folder it
    makes.
 2. **Octavo: Add a Manuscript (new)** — a paper, a slide deck or lecture
-   notes.
+   notes. If the project has an analysis, **Tools → Set Up This Project's
+   Analysis Environment** in the sidebar makes its `.venv` (uv) and renv.
 3. Open the manuscript and click the PDF icon in the editor title bar
    (**Octavo: Open the Live Preview**). Save, and the PDF follows.
 
@@ -59,7 +58,12 @@ The extension switches itself on in any workspace that has a
 ## Features
 
 - **Command palette** (`Octavo:`) for `build`, `watch`, `check`,
-  `checkbib`, `doctor`, `selftest`, `init`, `new` and `analysis run`.
+  `checkbib`, `doctor`, `selftest`, `init`, `new`, `analysis run`, `env` and
+  `setup`.
+- **Setup.** Checks the tools on first start (`octavo doctor --json`) and
+  offers to install what is missing; the setup script is bundled, so the
+  extension is the only thing you install by hand. The per-project analysis
+  environment (`.venv` with uv, renv with knitr and rmarkdown) is one click too.
 - **Sidebar.** Manuscripts (click to open; PDF and build buttons on each;
   lecture notes list their sessions and jump to them), settings (language,
   citation style, slide aspect / accent colour / running header / divider
@@ -98,17 +102,24 @@ underlines can never disagree with what the command says.
 
 ## macOS and Windows
 
-Octavo runs on Linux and macOS (on a Mac the extension simply calls
-`octavo`; if it says the command is not found, put the full path, e.g.
-`~/.local/bin/octavo`, in `octavo.command`). With VS Code on Windows you
-have two options:
+Octavo runs on Linux and macOS (the extension calls `octavo`, and looks in
+`~/.local/bin` — where the setup puts it — even when that is not on VS Code's
+`PATH`; an `octavo` kept elsewhere can be named in full in `octavo.command`).
+Windows comes after them — it works, with less attention. With VS Code on
+Windows:
 
 1. **Open the folder through Remote-WSL** (recommended). The extension then
-   runs inside WSL and calls `octavo` directly.
-2. **Open a Windows folder directly.** The extension runs `octavo` through
-   `wsl.exe` (`octavo.executionMode: "auto"`), translating paths
-   (`C:\Users\you\proj` ⇄ `/mnt/c/Users/you/proj`). `octavo` must be on the
-   WSL-side `PATH`.
+   runs inside WSL and everything is the Linux path.
+2. **Open a Windows folder, with WSL installed.** The extension runs `octavo`
+   through `wsl.exe` (`octavo.executionMode: "auto"` picks this when WSL has a
+   distribution), translating paths (`C:\Users\you\proj` ⇄
+   `/mnt/c/Users/you/proj`). **Set up** installs into WSL.
+3. **Directly on Windows, no WSL.** `auto` picks this when WSL has no
+   distribution (or set `octavo.executionMode` to `"local"`). **Set up** then
+   runs the bundled `setup.ps1`: winget installs pandoc, Typst, quarto and R,
+   BIZ UD and Inter go into your user fonts, and uv installs `octavo`. Windows
+   may ask for permission for some installers. The extension's terminals are
+   PowerShell. TeX is not installed on Windows.
 
 ## Settings
 

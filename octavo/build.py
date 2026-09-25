@@ -17,6 +17,7 @@ from pathlib import Path
 
 from . import backends as be
 from . import bib as bibmod
+from . import crossref as xref
 from . import csl as cslmod
 from . import md as mdlib
 from . import pandocrun
@@ -51,11 +52,6 @@ def sync_layout(cfg, doc, ctx: Ctx) -> None:
     src = Path(doc.src).parent / name
     dest = ctx.out_dir / name
     if not src.is_file():
-        # 昔のプロジェクト（out_dir に直接置いてある）はそのまま使えるようにする
-        if dest.is_file():
-            ctx.say(f'{tag("layout")} ' + t('using {path} (move it to {to} and it '
-                                            'survives deleting build/)',
-                                            path=cfg.rel(dest), to=cfg.rel(src)))
         return
     text = src.read_text(encoding='utf-8')
     if not dest.is_file() or dest.read_text(encoding='utf-8') != text:
@@ -76,6 +72,9 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
         ctx.meta['lang_short'] = str(ctx.meta['lang'])[:2]
 
     body = mdlib.drop_references(body)
+    # 数式のマクロは抜いておき、最後に頭へ付け直す（要旨にも）
+    body = mdlib.drop_math_macros(body)
+    macros = '\n'.join(ctx.math_macros)
 
     abstract = ''
     if ctx.profile_opt('abstract'):
@@ -90,14 +89,12 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     body = mdlib.replace_theorem_divs(body, cfg['theorem_envs'],
                                       raw=backend.name == 'latex', report=ctx.report)
     body = mdlib.replace_poscite(body, lambda k: backend.fmt_poscite(k, ctx))
-    body = mdlib.replace_tables(body, ctx.table_map,
-                                lambda m, n: backend.fmt_table(m, n, ctx), ctx.report)
-    body = mdlib.replace_figures(body, lambda m: backend.fmt_figure(m, ctx), ctx.report)
     if doc.profile in ('paper', 'handout') and backend.tidy_headings:
         body = mdlib.tidy_headings(body)
-        # Word は節番号を振らないので、原稿が持っていた番号を戻す
-        if not backend.auto_numbers_sections and cfg['number_sections'] is not False:
-            body = mdlib.restore_heading_numbers(body, ctx.lang)
+    body, known = apply_crossrefs(body, doc, backend, ctx)
+    if abstract:
+        abstract = xref.replace_references(
+            abstract, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report)
 
     # 見出しの深さ: `# 見出し` があるならそのまま、無ければ `##` を最上位とみなす
     ctx.shift_headings = 0 if re.search(r'^# \S', body, re.M) else -1
@@ -109,9 +106,115 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
         lead = '#' if ctx.shift_headings == 0 else '##'
         body = f'{lead} {head} {{.unnumbered}}\n\n{abstract}\n\n{body}'
 
+    if macros:
+        body = f'{macros}\n\n{body}'
+        if abstract:
+            abstract = f'{macros}\n\n{abstract}'
     if ctx.standalone:
         body = mdlib.to_yaml_block(_pandoc_meta(cfg, ctx)) + body
     return body, abstract
+
+
+def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
+    """図・表・式・節のラベルと参照（crossref.py）。(本文, 知っているラベル) を返す。
+
+    1. この原稿を文書の順に数える（番号を組版側が振らない形式のために）
+    2. Word など番号を振らない形式なら、見出し・キャプション・式に番号を文字で入れる
+    3. 本文の `@fig-…` を形式ごとの参照に
+    4. 図を形式に合わせ、分析が書いた表（中身の無いキャプション）を差し込む
+    どの段も行を増減させないので、1 で覚えた行番号が 2 まで使える（4 は最後）。
+    """
+    top = 1 if ctx.crossref_section is not None else xref.top_level(body)
+    nums = xref.number(body, ctx.numbering_mode(), appendix=ctx.appendix, top=top,
+                       section=ctx.crossref_section)
+    for lab in nums.duplicates():
+        ctx.say(f'{tag("crossref")} ' + t('the label {label} is used twice', label='#' + lab))
+    here = nums.labels()
+    ctx.crossref_local |= set(here)
+    known = {**ctx.crossrefs, **here}
+
+    lines = body.split('\n')
+    if not backend.numbers_itself:
+        for it in nums.items:
+            lines[it.line] = _number_in_text(lines[it.line], it, ctx)
+        body = xref.label_equations('\n'.join(lines),
+                                    tag_for=lambda lab: f'({known[lab].number})')
+    else:
+        body = xref.label_equations(body)
+    body = xref.replace_references(
+        body, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report)
+
+    lines = body.split('\n')
+    external = {it.line: it for it in nums.items if it.external}
+    for i, line in xref._lines_outside_code(body):
+        s = line.strip()
+        m = xref.IMAGE.match(s)
+        if m:
+            lines[i] = backend.fmt_figure(m, xref.label_in(m.group('attr'), 'fig'), ctx)
+            continue
+        it = external.get(i)
+        if it:
+            cap = xref.TABLE_CAPTION.match(s).group('cap')
+            lines[i] = backend.fmt_external_table(it.label[len('tbl-'):], cap, it.label, ctx)
+    return '\n'.join(lines), known
+
+
+def _number_in_text(line: str, it, ctx: Ctx) -> str:
+    """番号を振らない形式（Word）のために、見出し・キャプションへ番号を書き込む。"""
+    if it.kind == 'sec':
+        if ctx.profile == 'slides':
+            return line
+        m = xref.HEADING.match(line)
+        if it.appendix and it.level == 1:
+            head = f'付録{it.number}．' if ctx.lang == 'ja' else f'Appendix {it.number}. '
+        elif it.level == 1:
+            head = f'{it.number}. '
+        else:
+            head = f'{it.number}　' if ctx.lang == 'ja' else f'{it.number} '
+        return f'{m.group("hash")} {head}{line[m.start("title"):].lstrip()}'
+    if it.kind == 'fig':
+        return re.sub(r'!\[', '![' + xref.caption_head('fig', it.number, ctx.lang), line, count=1)
+    if it.kind == 'tbl':
+        return re.sub(r'^(\s*(?:Table)?:[ \t]+)',
+                      lambda m: m.group(1) + xref.caption_head('tbl', it.number, ctx.lang),
+                      line, count=1)
+    return line
+
+
+def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
+    """この出力の外にあるラベル（論文の付録／本文、講義のほかの回）を ctx に入れる。
+
+    論文の本文と付録は、main.* が付録を読み込んでいれば1つの文書なので、互いの
+    参照は組版側が張れる（local）。読み込んでいない（同梱の main.* の既定）か、
+    Word のように別のファイルになるなら、番号を文字で書く — そうしないと組版が
+    「ラベルが無い」で止まり、Word ではリンクが切れる。講義の回ごとのデッキも別の
+    PDF なので、ほかの回への参照は番号を文字で書く。
+    """
+    def prepared(path: Path, is_appendix: bool) -> str:
+        _, body = mdlib.split_front_matter(mdlib.read(path))
+        body = mdlib.drop_math_macros(mdlib.drop_references(body))
+        if doc.profile == 'paper' and not is_appendix:
+            _, body = mdlib.split_abstract(body)
+            body = mdlib.strip_title_block(body)
+        return mdlib.filter_divs(body, ctx.keep_classes, keep_notes=backend.keeps_notes)
+
+    mode = ctx.numbering_mode()
+    if doc.part is not None and not appendix:
+        whole = mdlib.read(Path(doc.src))
+        keys = [k for k, _ in mdlib.section_keys(whole)]
+        if doc.part in keys:
+            ctx.crossref_section = keys.index(doc.part) + 1
+        ctx.crossrefs = xref.number(prepared(Path(doc.src), False), mode).labels()
+        return
+    other = doc.src if appendix else doc.appendix
+    if doc.profile == 'paper' and other and Path(other).is_file():
+        items = xref.number(prepared(Path(other), not appendix), mode,
+                            appendix=not appendix).labels()
+        ctx.crossrefs = items
+        layout = Path(doc.src).parent / backend.main_name if backend.main_name else None
+        if layout and layout.is_file() and backend.includes_appendix(
+                layout.read_text(encoding='utf-8')):
+            ctx.crossref_local |= set(items)
 
 
 def _pandoc_meta(cfg, ctx: Ctx) -> dict:
@@ -186,6 +289,10 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     sync_layout(cfg, doc, ctx)
 
     raw = mdlib.read(Path(src))
+    # 数式のマクロは本文と付録で共有する（回ごとに分ける前の、ファイル全体から集める）
+    ctx.math_macros = mdlib.math_macros(*(
+        mdlib.read(Path(p)) for p in (doc.src, doc.appendix) if p and Path(p).exists()))
+    sibling_crossrefs(cfg, doc, backend, ctx, appendix)
     if doc.part is not None and not appendix:
         raw = mdlib.section_part(raw, doc.part)
         if raw is None:
@@ -245,8 +352,8 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             pandocrun.run_to_file(body, args, out_path, cwd=out_dir)
             text = ''
         else:
-            text = pandocrun.run(body, args, cwd=out_dir)
-            text = backend.crossrefs(text, ctx)
+            text = mdlib.drop_output_macros(pandocrun.run(body, args, cwd=out_dir),
+                                            ctx.math_macros)
             text = backend.postprocess(text, ctx)
             out_path.write_text(text, encoding='utf-8')
     except pandocrun.PandocError as e:
@@ -264,6 +371,11 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     if flags and not ctx.standalone:
         (out_dir / flags[0]).write_text(flags[1], encoding='utf-8')
         res.outputs.append(out_dir / flags[0])
+    # 番号と参照の体裁（main.* が読み込む）。これも毎回書く
+    if not ctx.standalone:
+        for name, text_ in backend.crossref_files(ctx):
+            (out_dir / name).write_text(text_, encoding='utf-8')
+            res.outputs.append(out_dir / name)
 
     # ---- 要旨を別ファイルに出す形式 --------------------------------------
     if abstract and backend.wants_abstract_file and not appendix:
@@ -277,7 +389,8 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                 cfg['bib_file'], ctx.csl, cfg['csl_locale'], None,
                 cfg['link_citations'], suppress_bibliography=True)
         try:
-            ab = pandocrun.run(abstract, ab_args, cwd=out_dir, quiet=True)
+            ab = mdlib.drop_output_macros(
+                pandocrun.run(abstract, ab_args, cwd=out_dir, quiet=True), ctx.math_macros)
         except pandocrun.PandocError:
             ab = abstract
         ab = re.sub(r'\\hypertarget\{[^}]*\}\{%\n(.*?)\}\n', r'\1\n', ab, flags=re.S)
@@ -289,8 +402,8 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     # ---- 分量 ------------------------------------------------------------
     if doc.profile == 'paper' and not appendix:
         # 数値を入れたあとの本文で数える（`{{n_obs}}` のままでは字数が狂う）
-        counted = mdlib.drop_references(
-            valmod.substitute(mdlib.read(Path(src)), ctx.values, cfg))
+        counted = mdlib.drop_math_macros(mdlib.drop_references(
+            valmod.substitute(mdlib.read(Path(src)), ctx.values, cfg)))
         excl, incl = mdlib.word_count(counted)
         chars = mdlib.char_count(counted)
         ctx.say(f'{tag("length")} ' + t(

@@ -3,7 +3,7 @@
 # 配布名だけが octavo-kit（PyPI が octavo という名前を許さないため）。
 # コマンドとパッケージ（octavo/）の名前は octavo。
 #
-#   pipx install octavo-kit    ->  octavo コマンドが入る
+#   uv tool install octavo-kit    ->  octavo コマンドが入る（pipx でも同じ）
 #
 # clone して setup.sh でシンボリックリンクを張る従来のやり方も変わらない。
 # どちらで入れても同梱物の場所は octavo/paths.py が吸収する。
@@ -61,6 +61,8 @@ packages = ["octavo"]
 "templates" = "octavo/templates"
 "config.example.py" = "octavo/config.example.py"
 "config.example.ja.py" = "octavo/config.example.ja.py"
+"setup.sh" = "octavo/setup.sh"
+"setup.ps1" = "octavo/setup.ps1"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -71,6 +73,7 @@ include = [
     "config.example.ja.py",
     "bin",
     "setup.sh",
+    "setup.ps1",
     "README.md",
     "README.ja.md",
     "CONTRIBUTING.md",

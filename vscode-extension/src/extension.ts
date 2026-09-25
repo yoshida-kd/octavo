@@ -7,6 +7,7 @@
 //   diagnostics.ts  無い引用キー・書誌の傷への警告
 //   values.ts       `octavo values --json` のキャッシュ
 //   valueui.ts      {{名前}} の補完・ホバー・未解決への警告
+//   setup.ts        道具がそろっているかを見て、足りなければ setup.sh を走らせる
 
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -16,7 +17,11 @@ import { CitationCompletionProvider, CitationHoverProvider, insertCitationComman
 import { DiagnosticsManager } from './diagnostics';
 import { PreviewManager } from './preview';
 import { OctavoTree, Setting } from './sidebar';
-import { describeMode, dirOf, findConfig, resolvePathFromTool, runInTerminal } from './runner';
+import {
+    describeMode, dirOf, extraPathDirs, findConfig, refreshWindowsPath, resolvePathFromTool,
+    runInTerminal,
+} from './runner';
+import { SetupManager } from './setup';
 import { ValuesCache } from './values';
 import { ValueCompletionProvider, ValueDiagnostics, ValueHoverProvider } from './valueui';
 
@@ -49,6 +54,20 @@ export function activate(context: vscode.ExtensionContext): void {
     const tree = new OctavoTree((line) => output.appendLine(line));
     context.subscriptions.push(valuesCache, valueDiagnostics, preview, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree));
+    const setup = new SetupManager(context, output, () => {
+        tree.refresh();
+        void cache.refresh(true);
+        void valuesCache.refresh(true);
+    });
+
+    // 準備が octavo と uv を入れる ~/.local/bin を、VS Code のターミナルにも足す
+    // （ログインし直すまでは PATH に入っていないことが多い）。
+    const extra = extraPathDirs();
+    context.environmentVariableCollection.clear();
+    if (extra.length) {
+        context.environmentVariableCollection.prepend(
+            'PATH', extra.join(path.delimiter) + path.delimiter);
+    }
 
     const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 100);
     statusBar.command = 'octavo.build';
@@ -481,6 +500,16 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
 
         vscode.commands.registerCommand('octavo.showOutput', () => output.show()),
+
+        vscode.commands.registerCommand('octavo.setup', () => setup.runSetup()),
+
+        vscode.commands.registerCommand('octavo.envSetup', async () => {
+            const configUri = await requireConfig();
+            if (!configUri) return;
+            if (await setup.setupProjectEnv(dirOf(configUri))) {
+                tree.refreshAnalysis();
+            }
+        }),
     );
 
     // .qmd の「この分析を走らせる」ボタンは Octavo のプロジェクトの中だけに出す
@@ -493,6 +522,10 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(cfgWatcher, cfgWatcher.onDidCreate(syncHasConfig),
                                cfgWatcher.onDidDelete(syncHasConfig));
     syncHasConfig();
+
+    // 道具がそろっていなければ「準備する」を出す（そろっていれば黙っている）。
+    // Windows では先に PATH を読み直す（winget で入れた直後でも見つかるように）。
+    void refreshWindowsPath().then(() => setup.checkOnStartup());
 
     // 起動時に一度だけ静かに温めておく（補完・ホバーをすぐ使えるように）。
     void findConfig().then((u) => {

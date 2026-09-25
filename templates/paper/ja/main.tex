@@ -66,13 +66,12 @@
   {\end{list}\par}
 \makeatother
 
-% 外部の表ファイル。Octavo が相対パス込みで \inputtable{../../../tables/xxx} と書く。
+% 分析が書いた表の中身。Octavo が table 環境・キャプション・ラベルで包み、
+% 相対パス込みで \inputtable{../../../tables/xxx} と書く。
 \newcommand{\inputtable}[1]{%
   \IfFileExists{#1.tex}{\input{#1}}{%
-    \begin{table}[htbp]\centering\fbox{\parbox{0.8\textwidth}{\centering
-      \textbf{表が無い:} \texttt{\detokenize{#1}.tex}}}
-    \caption{[missing]}
-    \end{table}}}
+    \fbox{\parbox{0.8\textwidth}{\centering
+      \textbf{表が無い:} \texttt{\detokenize{#1}.tex}}}}}
 
 % ---- CSL で組んだ書誌を受ける定義 -------------------------------------
 % pandoc の standalone テンプレートが持つものと同じ。
@@ -110,6 +109,9 @@
 % Undefined control sequence で止まる）。
 \newif\ifanonymous\anonymousfalse
 \IfFileExists{flags.tex}{\input{flags}}{}
+
+% 図・表・式の番号（既定は節ごと 2.1）。crossref.tex は octavo build が毎回書く
+\IfFileExists{crossref.tex}{\input{crossref}}{}
 
 \title{論文タイトル}
 \ifanonymous

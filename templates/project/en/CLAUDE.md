@@ -106,28 +106,34 @@ build and typesets there (what it writes is `body.typ`, `abstract.typ` and the l
 - `octavo checkbib` — are the cited keys in the `.bib`, and is the `.bib` well-formed
 - Findings you've decided not to fix go in `bib_accepted` in `octavo.config.py`, with a reason
 
-## 5. Figure and table naming (get it wrong and cross-references break)
+## 5. Figures, tables, equations and sections are referred to by label, not number
 
-Octavo turns "Figure 1" / "Table 1" in the prose into real typeset cross-references,
-and it **reads the number out of the file name**. Off-convention names don't link.
+Numbers (the "2." of a heading, the "Figure 1" of a caption) are **never typed in
+the manuscript**. They are assigned when typeset, by section (Figure 2.1, Table 2.1,
+Equation (2.1)). In the manuscript, give things a label and refer to them by name:
 
-| | Naming | Example | In the prose |
-|---|---|---|---|
-| Figure | `fig<number>_<slug>` | `fig1_trend` | `![](../../figures/fig1_trend.png)` + `**Figure 1.** Trend` |
-| Table | `tbl<number>_<slug>` | `tbl1_summary` | `**Table 1. ...**` + `table_map` in the config |
-| Appendix figure | `fig<letter><number>_...` | `figA1_balance` | "Figure A1" |
+| | How to write it | Referring to it |
+|---|---|---|
+| Section | `## Analysis {#sec-analysis}` | `@sec-analysis` → Section 2 |
+| Figure | `![Trend](../../figures/trend.png){#fig-trend}` | `@fig-trend` → Figure 2.1 |
+| Table (typed in the manuscript) | a Markdown table + `: Descriptive statistics {#tbl-desc}` right below it | `@tbl-desc` → Table 2.1 |
+| Table (made by the analysis) | just the line `: Descriptive statistics {#tbl-summary}` (`tables/summary.*` goes there) | `@tbl-summary` |
+| Equation | `$$ … $$ {#eq-model}` | `@eq-model` → Equation (2.1) |
+
+- Labels start with `fig-` `tbl-` `eq-` `sec-` and use letters, digits, `-` and `_`.
+  `[-@fig-trend]` gives the number alone ("2.1")
+- Adding or reordering sections and figures **never means fixing references**.
+  `octavo check` stops on a reference to a missing label and on a label used twice
+- Name figures (`ov_figure(p, "trend")`) and tables (`ov_table(tab, "summary")`) by
+  their content, never with a number. Label the table `tbl-<table name>` and the
+  analysis's table is put there
 
 Reference the `.png` in the manuscript; Octavo finds the `.pdf` for LaTeX on its own.
 `ov_figure()` writes both. Write the path relative to the manuscript (`../../figures/`
-from a paper, `../figures/` from slides and lectures) so editor previews work; Octavo
-looks at **the file name only** and finds it in `figures/`.
+from a paper, `../figures/` from slides and lectures) so editor previews work.
 
 Figures, tables and `{{...}}` values are shared by every manuscript. To show a
 paper's figure on a slide, point at the same file in `figures/` — don't copy it.
-
-To swap a table for an external file in `tables/`, map "table number → file name"
-in `table_map` in `octavo.config.py`. Without an entry, the Markdown table in the
-manuscript is typeset as-is (which is always what Word and slides get).
 
 ## 6. The templates are marked as templates
 
@@ -138,7 +144,8 @@ Once you replace it with your own content, **delete the mark too.**
 |---|---|---|
 | a `octavo:example` comment | manuscripts, appendix, `analysis.qmd`, `literature.bib` | delete it by hand |
 | `_placeholder` | `results/analysis.json` | `octavo analysis run` rewrites the file |
-| a figure that is a box with an × | `figures/fig1_trend.*` | `ov_figure()` rewrites it |
+| a figure that is a box with an × | `figures/trend.*` | `ov_figure()` rewrites it |
+| a table with nothing in it | `tables/summary.*` | `ov_table()` rewrites it |
 
 **The placeholder values are the dangerous one.** Every `{{...}}` resolves even
 though the analysis has never run, so **a PDF full of fake numbers typesets
@@ -169,13 +176,25 @@ A new `.qmd` is picked up by the `analysis` glob in `octavo.config.py`
 environment, and every package used is recorded. Without that, neither you in six
 months nor a reviewer can reproduce the result.
 
-- Python: run inside `.venv` (`source .venv/bin/activate`), and add each package
-  to `requirements.txt` with its version
-- R: run in a project where `renv::init()` has been done, and always follow
-  `install.packages()` with `renv::snapshot()` (commit `renv.lock`)
+- Set it up (or restore it after a clone) with `octavo env`: `.venv` via uv
+  plus `requirements.txt`, and renv with knitr / rmarkdown
+- Python: run inside `.venv` (`source .venv/bin/activate` or `uv run`). Add each
+  package to `requirements.txt` with its version, then `octavo env` — don't
+  `pip install` into anything else
+- R: run in the renv project, and always follow `install.packages()` with
+  `renv::snapshot()` (commit `renv.lock`)
 
 `.venv/` and `renv/library/` are not in git. **Only the records
 (`requirements.txt` / `renv.lock`) are**, so failing to record loses the environment.
+
+The project has to work on Linux, macOS and Windows alike:
+
+- Paths are relative and written with `/` — in the manuscript, the `.qmd` and
+  the config. Never a drive letter or a `\`
+- In Python, open text files with `encoding="utf-8"` (Windows defaults to its
+  own code page)
+- A file's name, upper and lower case included, is exactly what the manuscript
+  and the code write (Windows would forgive `Fig1.png` for `fig1.png`; Linux won't)
 
 ## Splitting the analysis across several .qmd files
 
@@ -208,24 +227,22 @@ Analysis section).
 ## Adding an appendix to a paper
 
 Write the appendix in `appendix.md` in the paper's folder. Being next to
-`paper.md` is enough to attach it (delete it if you don't need one). To swap
-appendix tables for external files:
-
-```python
-'appendix_table_map': {'A1': 'tblA1_robustness'},   # appendix tables use their own map
-```
+`paper.md` is enough to attach it (delete it if you don't need one).
 
 ```bash
 octavo build <name> --appendix
 ```
 
-Then uncomment `#include "appendix.typ"` in `papers/<name>/main.typ`
-(or `\appendix` and `\input{appendix}` in `main.tex` for LaTeX).
+Then uncomment `#show: octavo-appendix` and `#include "appendix.typ"` in
+`papers/<name>/main.typ` (or `\appendix` and `\input{appendix}` in `main.tex`
+for LaTeX).
 
 The appendix gets **the same treatment** as the body: values, citations and
 cross-references all work, and `octavo values`, `octavo checkbib` and
-`octavo outline` read it. Number it separately from the body
-(`## Appendix A. ...`, figures as `figA1_balance`, tables as `tblA1_robustness`).
+`octavo outline` read it. Don't write "Appendix A" in the headings: its sections
+are lettered A, B, … when typeset, and its figures, tables and equations
+numbered A.1, … Labels work across the paper and the appendix (the paper can
+refer to `@tbl-definitions`).
 
 ## Writing and revising
 
@@ -344,7 +361,7 @@ may be redistributed.
 ```bash
 octavo build <name> --compile          # typeset main.typ into a PDF
 octavo build <name> --to docx          # Word, to send to coauthors
-# submitting in LaTeX (needs TeX: setup.sh --with-tex)
+# submitting in LaTeX (needs TeX: octavo setup --with-tex)
 octavo build <name> --to latex && cd build/latex/<name> && latexmk -lualatex main.tex
 ```
 

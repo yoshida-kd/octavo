@@ -32,7 +32,8 @@
 |---|---|---|
 | `octavo:example` のコメント | 原稿・付録・`analysis.qmd`・`literature.bib` | 中身を書いたらコメントごと削除 |
 | `_placeholder` | `results/analysis.json` | `octavo analysis run`（分析が書き直す） |
-| 枠と × だけの図 | `figures/fig1_trend.*` | `.qmd` の `ov_figure()` が書き直す |
+| 枠と × だけの図 | `figures/trend.*` | `.qmd` の `ov_figure()` が書き直す |
+| 中身の無い表 | `tables/summary.*` | `.qmd` の `ov_table()` が書き直す |
 
 `octavo check` が残りを数える。とくに **`results/analysis.json` の仮の値は
 「致命的」**で、分析を1度も走らせないまま組むと本文に嘘の数字が入るため。
@@ -93,40 +94,32 @@ octavo build example-lecture --to typst-slides --compile   # 講義ノートを�
 ## 分析の環境（.venv と renv）
 
 分析はプロジェクトごとの環境で走らせる。**素の R / Python では走らせない。**
+環境はコマンド1つで作れる（VS Code なら Octavo のサイドバーの **「ツール →
+このプロジェクトの分析の環境を用意する」**）:
 
 ```bash
-python3 -m venv .venv                  # 最初の1回
-source .venv/bin/activate              # 作業のたび（.qmd を render する前にも）
-pip install -r requirements.txt
+octavo env
 ```
 
-```r
-renv::init()       # 最初の1回（renv.lock と .Rprofile ができる）
-renv::snapshot()   # install.packages() したあと必ず
-```
+uv で `.venv` を作って `requirements.txt` に書いたものを入れ、R では renv
+（`renv.lock` と `.Rprofile`）を用意して、quarto が要る knitr と rmarkdown を入れる。
+clone してきた直後なら `renv.lock` から同じパッケージを戻す。何度走らせても平気。
 
-renv そのものは R に付いてこない。`there is no package called ‘renv’` と
-出たら、先にマシンに1度だけ入れる（個人用ライブラリのフォルダが無いと
-`install.packages()` が書き込めずに失敗するので、それも作る）:
+- Python: パッケージを `requirements.txt` に書いて、もう一度 `octavo env`。
+  `octavo analysis run` は `.venv` を勝手に使う。ターミナルでその中で作業するなら
+  `source .venv/bin/activate`（か `uv run python …`）
+- R: プロジェクトの中で `install.packages()` したら、必ず `renv::snapshot()`
 
-```bash
-mkdir -p "$(Rscript -e 'cat(Sys.getenv("R_LIBS_USER"))')"
-Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
-```
+`.venv/` と `renv/library/` は git に入らないので、**記録
+（`requirements.txt` / `renv.lock`）だけが環境の正本**になる。
 
-入っているかは `octavo doctor` の「分析」の欄に出る。
-
-パッケージを入れたら `requirements.txt` / `renv.lock` に記録する。`.venv/` と
-`renv/library/` は git に入らないので、**記録だけが環境の正本**になる。
-
-Octavo 本体（pandoc・Typst・quarto）はプロジェクトの外、マシンに1つ。
-Octavo のリポジトリで `bash setup.sh`。LaTeX / Beamer で出すなら
-`bash setup.sh --with-tex`。
+Octavo 本体（pandoc・Typst・quarto・R・uv）はプロジェクトの外、マシンに1つ。
+VS Code の拡張機能の「準備する」か、ターミナルで `octavo setup`。
 
 ## 最初にやること
 
 1. `octavo doctor` — pandoc / Typst / quarto / R が揃っているか見る（LaTeX は任意）
-2. 分析の環境を作る（上の「分析の環境」）— `python3 -m venv .venv` と `renv::init()`
+2. 分析の環境を作る（上の「分析の環境」）— `octavo env`
 3. `data/raw/` に原データを置き、`data/raw/README.md` に出所を書く
 4. `analysis/analysis.qmd` を自分の分析に書き換える
 5. `octavo analysis run` → `octavo values` で数値が出ているか確かめる

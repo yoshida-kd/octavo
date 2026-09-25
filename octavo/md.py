@@ -21,31 +21,6 @@ ABSTRACT_HEADS = ('Abstract', '要旨', '概要', 'アブストラクト')
 REFERENCES_HEADS = ('References', 'Bibliography', 'Works Cited',
                     '参考文献', '引用文献', '文献')
 
-CROSSREF_PATTERNS = {
-    'en': {
-        'table': re.compile(r'\bTable (\w+)\b(?!\.)'),
-        'figure': re.compile(r'\bFigure (\w+)\b(?!\.)'),
-        'section': re.compile(r'\bSection\s*(?:~|\\textasciitilde\{\})?\s*(\d+)(?:\.(\d+))?\b'),
-    },
-    'ja': {
-        'table': re.compile(r'表\s*([A-Z]?\d+)(?![.．:：0-9])'),
-        'figure': re.compile(r'図\s*([A-Z]?\d+)(?![.．:：0-9])'),
-        'section': re.compile(r'第?\s*(\d+)(?:[.．](\d+))?\s*節'),
-    },
-}
-
-
-def crossref_patterns(vocab: str) -> dict:
-    """{種類: [(語彙, 正規表現), …]} を返す。
-
-    語彙（'ja' / 'en'）を一緒に返すのは、置き換えるときに「表\\ref{…}」と
-    「Table~\\ref{…}」を書き分けるため。原稿の書き方をそのまま保つ。
-    """
-    langs = ('ja', 'en') if vocab == 'both' else (vocab,)
-    return {kind: [(lg, CROSSREF_PATTERNS[lg][kind]) for lg in langs]
-            for kind in ('table', 'figure', 'section')}
-
-
 # ---------------------------------------------------------------- front matter
 
 FRONT_MATTER = re.compile(r'\A---\s*\n(.*?)\n---\s*\n', re.S)
@@ -129,17 +104,18 @@ def _yq(v) -> str:
 
 # ---------------------------------------------------------------- 本文の切り分け
 
-FIRST_SECTION = r'^#{1,3} (?:\d+[.．]?[ 　]|Appendix |付録)'
-
-
-def strip_title_block(md: str, first_section_pat: str = FIRST_SECTION) -> str:
+def strip_title_block(md: str) -> str:
     """本文より前（タイトル・著者・草稿注記）を捨てる。
 
-    本文の先頭は `first_section_pat` にマッチする最初の見出し（既定は
-    「## 1. …」のような番号付き見出し）。見つからなければ何もしない
-    （番号を振らない原稿もあるため）。
+    本文の先頭は最初の見出し（要旨は先に切り離してある）。ただし `# 題` が
+    **1つだけ**あって、その後に `##` の節が続くなら、それは題なので `##` から。
+    見出しが無ければ何もしない。
     """
-    m = re.search(first_section_pat, md, re.M)
+    h1 = list(re.finditer(r'^#[ \t]+\S', md, re.M))
+    sub = re.search(r'^#{2,3}[ \t]+\S', md, re.M)
+    if len(h1) == 1 and sub and h1[0].start() < sub.start():
+        return md[sub.start():]
+    m = re.search(r'^#{1,3}[ \t]+\S', md, re.M)
     return md[m.start():] if m else md
 
 
@@ -249,118 +225,19 @@ def section_part(md: str, key: str) -> str | None:
     return None
 
 
-NUMBERED_HEADING = re.compile(
-    r'^(?P<hash>\#{1,5})[ 　]+(?P<num>\d+(?:[.．]\d+)*)(?:[.．][ 　]*|[ 　]+)'
-    r'(?P<title>\S.*?)(?P<attr>\s*\{[^}]*\})?\s*$', re.M)
-
-APPENDIX_HEADING = re.compile(
-    r'^(?P<hash>\#{1,5})\s+(?:Appendix|付録)\s*(?P<let>[A-Z])[.．]?[ 　]*'
-    r'(?P<title>.*?)(?P<attr>\s*\{[^}]*\})?\s*$', re.M)
-
-APPENDIX_SUB = re.compile(
-    r'^(?P<hash>\#{2,5})[ 　]+(?P<let>[A-Z])[.．](?P<num>\d+)[.．]?[ 　]*'
-    r'(?P<title>\S.*?)(?P<attr>\s*\{[^}]*\})?\s*$', re.M)
-
-
 def tidy_headings(md: str) -> str:
-    """節番号は組版系に振らせ、原稿の番号は `{#sec:…}` ラベルとして残す。
+    """論文・プリントの本文から、組版に要らない行を落とす（水平線と作業用の注記）。
 
-    「## 1. はじめに」「# 2. 本題」「### 1.2 用語」「## 付録A．追加分析」の
-    どれでも拾う。見出しの深さは問わない（原稿によって `#` から始まったり
-    `##` から始まったりするため）。既に `{#…}` が付いている見出しは触らない。
+    見出しの番号は原稿に書かない（組版が振る）。参照は `{#sec-…}` のラベルで。
     """
     md = re.sub(r'^\s*---\s*$', '', md, flags=re.M)                       # 水平線
     md = re.sub(r'^\*\((?:In the )?(?:LaTeX|Typst|Word|Beamer).*?\)\*\s*$', '',
                 md, flags=re.M | re.I)                                    # 作業用の注記
-
-    def numbered(m):
-        if m.group('attr'):
-            return m.group(0)
-        label = re.sub(r'[.．]', '-', m.group('num'))
-        return f'{m.group("hash")} {m.group("title")} {{#sec:{label}}}'
-
-    def appendix(m):
-        if m.group('attr'):
-            return m.group(0)
-        title = m.group('title').strip() or ('付録' + m.group('let'))
-        return f'{m.group("hash")} {title} {{#sec:app{m.group("let")}}}'
-
-    def appendix_sub(m):
-        if m.group('attr'):
-            return m.group(0)
-        return (f'{m.group("hash")} {m.group("title")} '
-                f'{{#sec:app{m.group("let")}-{m.group("num")}}}')
-
-    md = APPENDIX_HEADING.sub(appendix, md)
-    md = APPENDIX_SUB.sub(appendix_sub, md)
-    md = NUMBERED_HEADING.sub(numbered, md)
     md = re.sub(r'\n{3,}', '\n\n', md)
     return md.strip() + '\n'
 
 
-SEC_LABELLED = re.compile(r'^(?P<hash>\#{1,5})[ 　]+(?P<title>.*?)[ 　]*'
-                          r'\{#sec:(?P<num>[\w-]+)\}[ 　]*$', re.M)
-
-
-def restore_heading_numbers(md: str, lang: str = 'ja') -> str:
-    """`## はじめに {#sec:1}` を `## 1. はじめに {#sec:1}` に戻す。
-
-    Word は節番号を自分では振らない。pandoc の `--number-sections` は Word では
-    効かない（Word 側のスタイルに任せる作りのため）。かといって番号が無いと、
-    本文の「第2節」という言及の相手が消える。
-
-    そこで **原稿が持っていた番号をそのまま戻す**。数え直さないので、
-    「1, 2, 付録A」のような並びも原稿どおりになる。
-    """
-    def sub(m):
-        num = m.group('num')
-        if num.startswith('app'):
-            rest = num[3:]
-            letter, _, sub_no = rest.partition('-')
-            if sub_no:
-                head = f'{letter}.{sub_no}　' if lang == 'ja' else f'{letter}.{sub_no} '
-            else:
-                head = f'付録{letter}．' if lang == 'ja' else f'Appendix {letter}. '
-        else:
-            dotted = num.replace('-', '.')
-            head = f'{dotted}. ' if '.' not in dotted else f'{dotted} '
-        return f'{m.group("hash")} {head}{m.group("title")} {{#sec:{num}}}'
-
-    return SEC_LABELLED.sub(sub, md)
-
-
 # ---------------------------------------------------------------- 表・図
-
-TABLE_CAPTION = re.compile(
-    r'^\*\*(?:Table|表)\s*(?P<num>[A-Z]?\d+)\s*[.．:：]\s*(?P<cap>[^*]+)\*\*\s*\n+'
-    r'(?P<body>(?:\|.*\n)+)'
-    r'(?P<note>(?:\n?\*[^\n]*\*\s*\n)?)',
-    re.M)
-
-FIGURE_BLOCK = re.compile(
-    r'!\[[^\]]*\]\((?P<dir>[\w./-]*?)(?P<file>[\w.-]+?)\.(?:png|pdf|jpg|jpeg|svg)\)\s*\n+'
-    r'\*\*(?:Figure|図)\s*(?P<num>[A-Z]?\d+)\s*[.．:：]\*\*\s*(?P<cap>.+?)(?=\n\s*\n|\Z)', re.S)
-
-
-def replace_tables(md: str, table_map: dict, formatter, report: list) -> str:
-    """`**Table N. Caption**` + マークダウン表 + 任意の注 を formatter で置き換える。
-
-    formatter(match, name) の name は table_map の値。対応が無ければ None を渡す
-    （バックエンドはマークダウンの表をそのまま使うか、キャプションを付け直す）。
-    """
-    hit = [0]
-
-    def sub(m):
-        hit[0] += 1
-        return formatter(m, table_map.get(m.group('num')))
-
-    new_md, n = TABLE_CAPTION.subn(sub, md)
-    if table_map and not n:
-        report.append(f'{tag("table")} ' + t(
-            'table_map is set but not one `**Table N. …**` caption was found — '
-            'check the format'))
-    return new_md
-
 
 # 画像リンク: `![alt](path)` / `![alt](path "title")` / `![alt](<path>)`
 IMAGE_LINK = re.compile(r'(!\[[^\]]*\]\()\s*(<[^>]*>|[^)\s]+)((?:\s+"[^"]*")?\s*\))')
@@ -410,15 +287,6 @@ def rebase_links(md: str, src_dir: Path, out_dir: Path) -> str:
         return m.group(1) + (f'<{rel}>' if target.startswith('<') else rel) + m.group(3)
 
     return valmod.unmask_code(IMAGE_LINK.sub(one, md), kept)
-
-
-def replace_figures(md: str, formatter, report: list) -> str:
-    new_md, n = FIGURE_BLOCK.subn(formatter, md)
-    if not n and '![' in md:
-        report.append(f'{tag("figure")} ' + t(
-            'no figure with a `**Figure N.**` caption was found '
-            '(a bare image link passes through unchanged)'))
-    return new_md
 
 
 # ---------------------------------------------------------------- 条件付きブロック
@@ -633,7 +501,9 @@ def cited_keys(md: str) -> set:
     body = re.sub(r'`[^`\n]*`', '', body)          # インラインコード内は無視
     body = re.sub(r'^```.*?^```', '', body, flags=re.S | re.M)
     keys = set(CITE_KEY.findall(body)) | set(POSCITE.findall(body))
-    return {k.rstrip('.,;:') for k in keys}
+    # `@fig-…` などは相互参照で、引用ではない（crossref.py）
+    return {k.rstrip('.,;:') for k in keys
+            if not re.match(r'(?:fig|tbl|eq|sec)-', k)}
 
 
 # ---------------------------------------------------------------- 検査
@@ -649,6 +519,52 @@ def cjk_lines(text: str) -> list:
     return [' '.join(l.split())[:70] for l in text.split('\n') if CJK.search(l)]
 
 
+# ---------------------------------------------------------------- 数式のマクロ
+# `\newcommand{\E}{\mathbb{E}}` のような1行の定義。pandoc（latex_macros）が数式の
+# 中で展開するので、どの形式でも効く。ただし論文の要旨・付録・講義の回ごとの
+# デッキは別々に pandoc に通すので、定義を集めてそれぞれの頭に付け直す
+# （そうしないと、定義が本文の頭にあれば要旨で、要旨の前にあれば本文で効かない）。
+MACRO_LINE = re.compile(r'^\\(?:newcommand|renewcommand|providecommand|'
+                        r'DeclareMathOperator\*?)(?![A-Za-z]).*$')
+
+
+def _macro_lines(md: str):
+    """コードブロックの外にある定義の行を (行番号, 行) で。"""
+    fence = None
+    for i, line in enumerate(md.split('\n')):
+        m = FENCE_LINE.match(line)
+        if m:
+            fence = None if fence == m.group(1) else (fence or m.group(1))
+            continue
+        if fence is None and MACRO_LINE.match(line.strip()):
+            yield i, line.strip()
+
+
+def math_macros(*texts: str) -> list:
+    """原稿（と付録）にある数式のマクロの定義。同じ行は1回だけ、書いた順に。"""
+    return list(dict.fromkeys(line for md in texts for _, line in _macro_lines(md)))
+
+
+def drop_math_macros(md: str) -> str:
+    """定義の行を抜く（付け直すので二重にしない。pandoc は再定義を警告して無視する）。"""
+    drop = {i for i, _ in _macro_lines(md)}
+    if not drop:
+        return md
+    return '\n'.join(l for i, l in enumerate(md.split('\n')) if i not in drop)
+
+
+def drop_output_macros(text: str, macros: list) -> str:
+    """pandoc の LaTeX 出力に素通りした定義の行を抜く。
+
+    数式の中は pandoc がもう展開している。本文・要旨・付録のそれぞれに付け直した
+    定義を残すと、main.tex が全部を読んだところで同じ名前の二重定義になる。
+    """
+    if not macros:
+        return text
+    want = set(macros)
+    return '\n'.join(l for l in text.split('\n') if l.strip() not in want)
+
+
 COMMENT = re.compile(r'<!--.*?-->', re.S)
 
 
@@ -662,9 +578,18 @@ def strip_comments(md: str) -> str:
     return COMMENT.sub('', md)
 
 
+def _prose(md: str) -> str:
+    """分量を数える対象だけにする。コメント、`{#fig-…}` などの属性、リンク先
+    （図のファイル名・URL）は組まれた本文に出ないので数えない（リンクの文字は残す）。"""
+    md = strip_comments(md)
+    md = re.sub(r'\{[#.][^}\n]*\}', '', md)
+    md = re.sub(r'(!?\[[^\]\n]*\])\([^)\n]*\)', r'\1', md)
+    return re.sub(r'!?\[([^\]\n]*)\]', r'\1', md)
+
+
 def word_count(md: str) -> tuple[int, int]:
     """語数（表を除く / 含む）。日本語混じりでは目安。"""
-    md = strip_comments(md)
+    md = _prose(md)
 
     def wc(t: str) -> int:
         return len(re.sub(r'[*_>#`]', ' ', t).split())
@@ -674,7 +599,7 @@ def word_count(md: str) -> tuple[int, int]:
 
 def char_count(md: str) -> int:
     """日本語論文向け: 空白・改行・マークダウン記号を除いた文字数。"""
-    return len(re.sub(r'[\s*_>#`|]', '', strip_comments(md)))
+    return len(re.sub(r'[\s*_>#`|]', '', _prose(md)))
 
 
 def read(path: Path) -> str:

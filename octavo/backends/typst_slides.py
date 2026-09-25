@@ -30,7 +30,7 @@ import re
 from .base import Ctx
 from ..i18n import t, tag
 from .latex import check_assets, check_cjk
-from .typst import TypstBackend, font_expr, typst_escape
+from .typst import TypstBackend, crossref_rules, font_expr, typst_escape
 
 META_KEYS = ('title', 'subtitle', 'author', 'institute', 'date')
 
@@ -40,8 +40,6 @@ class TypstSlidesBackend(TypstBackend):
     label = 'Typst slides'
     always_standalone = True
     is_slides = True
-    uses_table_map = False         # スライドに外部の表ファイルを持ち込まない
-    auto_numbers_captions = False  # スライドの図表は通し番号を出さない
     wants_abstract_file = False
 
     def pandoc_args(self, ctx: Ctx) -> list:
@@ -50,51 +48,42 @@ class TypstSlidesBackend(TypstBackend):
                 '--top-level-division=section']
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
+    figure_box = 'height: 1fr'      # 残りの高さいっぱい（台本は決め打ちの高さ）
+
+    def fmt_figure(self, m: re.Match, label, ctx: Ctx) -> str:
         """スライドの図は「枠に収まること」が最優先。残りの高さいっぱいに置く。
 
-        番号は自動では振らない（スライドに通し番号の相互参照は無い）。ただし
-        原稿が `**図1．…**` とキャプションを書いたのなら、それは見せたくて
-        書いたものなので、図の下に小さく出す。黙って捨てない。
+        キャプション（画像の alt）かラベルがあれば番号付きの図にする（プリントと
+        同じ番号。原稿の @fig-… がこれを指す）。どちらも無ければ画像だけ。
         """
-        f, num = m.group('file'), m.group('num')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        ctx.say(f'{tag("figure")} {num} -> {rel}')
-        block = ('\n```{=typst}\n'
-                 '#block(width: 100%, height: 1fr, align(center + horizon,\n'
-                 f'  image("{rel}", width: 100%, height: 100%, fit: "contain")))\n')
-        if not cap:
-            return block + '```\n'
-        label = self.caption_label(m, num, ctx)
-        return (block
-                + '#align(center, text(size: 0.62em, fill: luma(60))'
-                + f'[*{typst_escape(label)}* {typst_escape(cap)}])\n'
-                + '```\n')
-
-    @staticmethod
-    def caption_label(m: re.Match, num: str, ctx: Ctx) -> str:
-        """図の見出し。原稿が書いた語に合わせる（「図1．」/「Figure 1.」）。
-
-        英語でも「図」の書式で組んでいて、Figure1． と全角の句点が付いていた。"""
-        word = re.search(r'\*\*(Figure|図)', m.group(0))
-        english = word.group(1) == 'Figure' if word else ctx.lang != 'ja'
-        return f'Figure {num}.' if english else f'図{num}．'
+        rel = ctx.figure_target(m.group('path'))
+        cap = ' '.join(m.group('alt').split())
+        ctx.say(f'{tag("figure")} {label or cap[:30] or "-"} -> {rel}')
+        img = (f'block(width: 100%, {self.figure_box}, align(center + horizon,\n'
+               f'  image("{rel}", width: 100%, height: 100%, fit: "contain")))')
+        if not cap and not label:
+            return f'\n```{{=typst}}\n#{img}\n```\n'
+        tail = f' <{label}>' if label else ''
+        return ('\n```{=typst}\n#figure(\n'
+                f'  {img},\n  caption: [{typst_escape(cap)}],\n){tail}\n```\n')
 
     # -- 変換後 -------------------------------------------------------------
-    def crossrefs(self, typ: str, ctx: Ctx) -> str:
-        # スライドの図表には番号もラベルも付けないので、「図1」は文字のまま残す
-        return typ
-
     def postprocess(self, typ: str, ctx: Ctx) -> str:
         body = super().postprocess(typ, ctx)
         levels = {heading_level(l) for l in body.split('\n')} - {None}
         slide_level = 2 if {1, 2} <= levels else (min(levels) if levels else 1)
         if slide_level == 2:
             body = promote_sections_with_content(body)
+        # 図表・式の番号: 見出しが2段なら「#」の節ごと、講義の回のデッキならその回の
+        # 番号（プリントと同じ「2.1」になる）、見出しが1段だけなら通し番号
+        if ctx.crossref_section is not None:
+            section = str(ctx.crossref_section)
+        else:
+            section = 'auto' if slide_level == 2 else 'none'
         return (f'// octavo build --to {self.name} が作った。手で直さない。\n'
                 + self.meta_block(ctx, slide_level) + '\n'
                 + self.template(ctx).rstrip() + '\n\n'
+                + crossref_rules(ctx, section) + '\n'
                 + body)
 
     def meta_block(self, ctx: Ctx, slide_level: int) -> str:
@@ -132,7 +121,8 @@ class TypstSlidesBackend(TypstBackend):
         check_cjk(typ, ctx, '.typ',
                   t('the CJK font in typst_slides_font must be installed '
                     '(check with: typst fonts)'),
-                  templates=[ctx.template('slides/typst-slides.typ')])
+                  templates=[ctx.template('slides/typst-slides.typ'),
+                             ctx.template('typst/crossref.typ')])
         m = re.search(r'slide-level: (\d)', typ)
         level = int(m.group(1)) if m else 1
         slides = sum(1 for l in typ.split('\n') if heading_level(l) == level)

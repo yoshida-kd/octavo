@@ -18,7 +18,7 @@ in Word.
 
 <!-- octavo:example end -->
 
-## 1. Introduction
+## Introduction {#sec-intro}
 
 <!-- octavo:example start — how citations are written: `@<key>` in text and
      `[@<key>; @<key2>]` in parentheses. For the possessive ("Yamada's (2020)")
@@ -29,34 +29,37 @@ This paper follows \poscite{yamada2020} framework.
 
 <!-- octavo:example end -->
 
-## 2. Analysis
+## Analysis {#sec-analysis}
 
 <!-- octavo:example start — numbers and cross-references. Numbers are not typed:
      register them with `ov_value()` in the .qmd and call them as `{{name}}`
-     (`{{coef_x:.2f}}` sets the digits). Writing "Section 1" and "Figure 1"
-     makes links in Typst / LaTeX ("Table 1" does once an external table is in
-     table_map; Word always keeps plain text). Until you run the analysis these
-     are octavo init's placeholders, i.e. fake. -->
-As stated in Section 1, the sample has {{n_obs}} cases. The coefficient on
-x is {{coef_x}} (*p* {{p_x}}). Table 1 reports descriptive
-statistics and Figure 1 the trend.
+     (`{{coef_x:.2f}}` sets the digits). Headings carry no numbers (the
+     typesetter numbers them). Label figures, tables, equations and sections
+     with `{#fig-…}` `{#tbl-…}` `{#eq-…}` `{#sec-…}` and refer to them by name,
+     like `@fig-trend` (typeset as "Figure 2.1", "Section 1"). Until you run the
+     analysis these numbers are octavo init's placeholders, i.e. fake. -->
+As stated in @sec-intro, the sample has {{n_obs}} cases. We estimate @eq-model;
+the coefficient on x is {{coef_x}} (*p* {{p_x}}). @tbl-summary reports
+descriptive statistics and @fig-trend the trend.
+
+$$
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
+$$ {#eq-model}
 
 <!-- octavo:example end -->
 
-<!-- octavo:example start — how a table and a figure look. The numbers are fake -->
-**Table 1. Descriptive statistics**
+<!-- octavo:example start — how a table and a figure are written. The table is
+     what the analysis (ov_table()) wrote to tables/summary.*; this one line
+     puts it here with its caption. A table you type yourself is a Markdown
+     table with `: Caption {#tbl-name}` right below it -->
+: Descriptive statistics {#tbl-summary}
 
-| Variable | Mean | SD |
-|---|---|---|
-| x | 1.2 | 0.3 |
-| y | 3.4 | 0.8 |
-
-![](../../figures/fig1_trend.png)
-
-**Figure 1.** Trend
+![Trend](../../figures/trend.png){#fig-trend}
 
 <!-- octavo:example end -->
 
-## 3. Conclusion
+## Conclusion {#sec-conclusion}
 
 ## References
+
+(This section is dropped at conversion time; the bibliography is built from literature.bib.)

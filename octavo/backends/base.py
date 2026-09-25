@@ -13,8 +13,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import bib as bibmod
+from .. import crossref as xref
 from ..i18n import t, tag
-from .. import md as mdlib
 from .. import tmpl
 
 
@@ -52,6 +52,12 @@ class Ctx:
     report: list = field(default_factory=list)
     shift_headings: int = -1
     anonymous: bool = False                         # 匿名審査用に組むか
+    # 相互参照: ラベル -> crossref.Item（この原稿と、付録／ほかの回の分も）。
+    # local は、この出力の中で組版側が参照を張れるラベル（論文なら本文と付録）
+    crossrefs: dict = field(default_factory=dict)
+    crossref_local: set = field(default_factory=set)
+    crossref_section: int | None = None             # 講義の回ごとのデッキの節番号
+    math_macros: list = field(default_factory=list)  # 数式のマクロの定義（本文と付録から）
 
     # -- 素性 ---------------------------------------------------------------
     @property
@@ -82,8 +88,8 @@ class Ctx:
         override = self.cfg.get('number_sections')
         if override is not None:
             return override
-        if not self.backend.auto_numbers_sections:
-            return False           # 番号はマークダウン段階で戻してある
+        if not self.backend.numbers_itself:
+            return False           # 番号はマークダウン段階で入れてある
         return PROFILES[self.profile]['number_sections']
 
     @property
@@ -107,12 +113,6 @@ class Ctx:
         return keep
 
     @property
-    def table_map(self) -> dict:
-        if not self.backend.uses_table_map:
-            return {}
-        return self.cfg['appendix_table_map'] if self.appendix else self.cfg['table_map']
-
-    @property
     def lang(self) -> str:
         return self.meta.get('lang_short') or self.cfg['lang']
 
@@ -120,11 +120,25 @@ class Ctx:
     def rel(self, p: Path) -> str:
         return relpath(p, self.out_dir)
 
-    def figure_path(self, name: str) -> Path:
-        return self.cfg['figure_dir'] / f'{name}{self.backend.figure_ext(self.cfg)}'
+    def figure_target(self, path: str) -> str:
+        """原稿の図のパス（out_dir からの相対に直したもの）を、この形式の拡張子に。
 
-    def table_path(self, name: str) -> Path:
-        return self.cfg['table_dir'] / f'{name}{self.backend.table_ext}'
+        figures/ の中の図だけ付け替える（ov_figure は .pdf と .png の両方を書く。
+        LaTeX は .pdf、ほかは .png）。URL や figures/ の外の図はそのまま。
+        """
+        bare = path[1:-1] if path.startswith('<') else path
+        if '://' in bare or bare.startswith(('data:', '#')):
+            return path
+        p = (self.out_dir / bare).resolve()
+        if p.parent != Path(self.cfg['figure_dir']).resolve():
+            return path
+        return self.rel(p.with_suffix(self.backend.figure_ext(self.cfg)))
+
+    def table_path(self, name: str, ext: str | None = None) -> Path:
+        return self.cfg['table_dir'] / f'{name}{ext or self.backend.table_ext}'
+
+    def numbering_mode(self) -> str:
+        return self.cfg['crossref_numbering']
 
     def template(self, rel: str) -> Path:
         """ひな型の実際のパス。プロジェクト・ユーザーの上書きがあればそちら（tmpl.py）。"""
@@ -145,9 +159,9 @@ class Backend:
     min_pandoc = (2, 8)
     binary = False                # pandoc に直接ファイルを書かせるか
     always_standalone = False     # profile によらず完結した文書を出すか
-    uses_table_map = True         # 外部の表ファイル（.tex/.typ）を取り込めるか
-    auto_numbers_captions = True  # 組版側がキャプションに番号を振るか
-    auto_numbers_sections = True  # 組版側が節番号を振るか（LaTeX/Typst は振る）
+    # 図表・式・節の番号を組版側が振るか（LaTeX/Typst は振る）。振らない形式（Word）は
+    # Octavo が数えて、見出し・キャプション・式・参照に文字で入れる
+    numbers_itself = True
     wants_abstract_file = False   # 要旨を別ファイルに書き出すか
     tidy_headings = True
     is_slides = False             # スライドか（条件付きブロックの 'slides' 印を持つ）
@@ -172,18 +186,43 @@ class Backend:
         return ['-t', self.pandoc_to, '--wrap=preserve']
 
     # -- 差し替え（マークダウン段階）---------------------------------------
-    def fmt_table(self, m: re.Match, name: str | None, ctx: Ctx) -> str:
-        return self.markdown_table(m, ctx)
+    def fmt_figure(self, m: re.Match, label: str | None, ctx: Ctx) -> str:
+        """段落に1つだけの画像（crossref.IMAGE）。既定は画像リンクのまま pandoc に
+        図にさせる（ラベルもキャプションの書式もそのまま渡る）。拡張子を形式に
+        合わせ、幅の指定が無ければ figure_width を足す。"""
+        attr = (m.group('attr') or '').strip()
+        if 'width=' not in attr:
+            w = int(float(ctx.cfg['figure_width']) * 100)
+            attr = f'{attr} width={w}%'.strip()
+        path = ctx.figure_target(m.group('path'))
+        ctx.say(f'{tag("figure")} {label or m.group("alt")[:30] or "-"} -> {path}')
+        return f'![{m.group("alt")}]({path}{m.group("title") or ""}){{{attr}}}'
 
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
-        """既定は素のマークダウン画像に直す（pandoc の figure 扱いに任せる）。"""
-        f, num = m.group('file'), m.group('num')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        head = '' if self.auto_numbers_captions else (
-            f'図{num}．' if ctx.lang == 'ja' else f'Figure {num}. ')
-        ctx.say(f'{tag("figure")} {num} -> {rel}')
-        return f'\n![{head}{cap}]({rel}){{#fig:{f}}}\n'
+    def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
+        """分析が書いた表（tables/<名前>）を差し込む。既定は Markdown 版（.md）を
+        本文の表として入れ、キャプションを付ける（Word はこれ）。"""
+        p = ctx.table_path(name, '.md')     # Word など、.typ も .tex も読めない形式
+        if not p.is_file():
+            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
+                                           'ov_table() in the .qmd)', path=ctx.cfg.rel(p)))
+            return f'**[{name}.md ?]**\n\n: {caption} {{#{label}}}'
+        ctx.say(f'{tag("table")} {label} -> {ctx.cfg.rel(p)}')
+        return p.read_text(encoding='utf-8').strip() + f'\n\n: {caption} {{#{label}}}'
+
+    def fmt_ref(self, item: 'xref.Item', short: bool, ctx: Ctx) -> str:
+        """本文の `@fig-…`。既定は番号を文字で書く（組版側が番号を振らない形式）。"""
+        return xref.text_of(item, ctx.lang, short)
+
+    def includes_appendix(self, layout: str) -> bool:
+        """体裁のファイル（main.*）が付録を実際に読み込んでいるか（コメント行は数えない）。
+
+        読み込んでいれば本文と付録は1つの文書なので、互いの参照を組版側が張れる。
+        そうでなければ（Word は本文と付録が別のファイル）番号を文字で書く。"""
+        return False
+
+    def crossref_files(self, ctx: Ctx) -> list:
+        """main.* 方式のとき out_dir に書く、番号と参照の体裁のファイル [(名前, 中身)]。"""
+        return []
 
     def fmt_poscite(self, key: str, ctx: Ctx) -> str:
         """所有格引用。CSL に一本化しているので、著者名は .bib から自前で作り、
@@ -197,9 +236,6 @@ class Backend:
         return f'{who}[-@{key}]' if lang == 'ja' else f'{who} [-@{key}]'
 
     # -- 変換後 ------------------------------------------------------------
-    def crossrefs(self, text: str, ctx: Ctx) -> str:
-        return text
-
     def postprocess(self, text: str, ctx: Ctx) -> str:
         return re.sub(r'\n{3,}', '\n\n', text).strip() + '\n'
 
@@ -255,67 +291,3 @@ class Backend:
 
     def next_step(self, ctx: Ctx) -> str:
         return ''
-
-    # -- 共通のマークダウン表（table_map を使わない/使えないとき）-----------
-    def markdown_table(self, m: re.Match, ctx: Ctx) -> str:
-        """`**Table N. cap**` + 表 を pandoc のキャプション付き表に直す。
-
-        組版側が番号を振る形式（LaTeX/Typst）では番号を落とし、振らない
-        形式（Word）では番号を残す。表が本文の順に並んでいる限り、どちらでも
-        本文中の「表3」という言及と実際の番号は一致する。
-        """
-        num, cap = m.group('num'), ' '.join(m.group('cap').split())
-        body, note = m.group('body'), (m.group('note') or '').strip()
-        head = '' if self.auto_numbers_captions else (
-            f'表{num}．' if ctx.lang == 'ja' else f'Table {num}. ')
-        out = f'\n{body}\n: {head}{cap}\n'
-        if note:
-            out += f'\n{note}\n'
-        return out
-
-
-# ---------------------------------------------------------------- 相互参照の共通処理
-
-def apply_crossrefs(text: str, ctx: Ctx, *, table_ref, figure_ref, section_ref,
-                    figure_labels) -> str:
-    """「Table 3」「表3」「Section 4.1」「4.1節」を各形式の参照に変える。
-
-    **pandoc の後に走らせること。**マークダウン段階でやると記号がエスケープされる。
-    表は table_map に対応があるものだけ置き換える（マークダウンの表は組版側が
-    番号を振るので、地の文は素のテキストのままにしておくのが正しい）。
-    """
-    pats = mdlib.crossref_patterns(ctx.cfg['crossref_vocab'])
-    n = [0]
-    tmap = {**ctx.cfg['table_map'], **ctx.cfg['appendix_table_map']} \
-        if ctx.backend.uses_table_map else {}
-
-    def sub_all(kind, make):
-        nonlocal text
-        for lang, pat in pats[kind]:
-            text = pat.sub(lambda m, lg=lang: make(lg, m), text)
-
-    def tab(lang, m):
-        name = tmap.get(m.group(1))
-        if not name:
-            return m.group(0)
-        n[0] += 1
-        return table_ref(lang, m.group(1), name)
-    sub_all('table', tab)
-
-    bynum = figure_labels(text)
-
-    def fig(lang, m):
-        if m.group(1) not in bynum:
-            return m.group(0)
-        n[0] += 1
-        return figure_ref(lang, m.group(1), bynum[m.group(1)])
-    sub_all('figure', fig)
-
-    def sec(lang, m):
-        n[0] += 1
-        return section_ref(lang, m.group(1), m.group(2))
-    sub_all('section', sec)
-
-    if n[0]:
-        ctx.say(f'{tag("crossref")} ' + t('turned {n} into {n|a reference|references}', n=n[0]))
-    return text

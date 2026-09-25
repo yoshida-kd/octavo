@@ -17,7 +17,7 @@ Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節�
 
 <!-- octavo:example ここまで -->
 
-## 1. はじめに
+## はじめに {#sec-intro}
 
 <!-- octavo:example ここから ─ 引用の書き方の見本。`@キー` で地の文に、
      `[@キー; @キー2]` で括弧に入る。所有格（「山田の(2020)」）は
@@ -28,35 +28,35 @@ Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節�
 
 <!-- octavo:example ここまで -->
 
-## 2. 分析
+## 分析 {#sec-analysis}
 
 <!-- octavo:example ここから ─ 数値と相互参照の見本。数値は原稿に書かず、
      `.qmd` の `ov_value()` に登録して `{{名前}}` で呼ぶ（桁は `{{coef_x:.2f}}`）。
-     「第1節」「図1」と書けば Typst / LaTeX では自動でリンクになる
-     （「表1」は table_map に外部の表を登録したとき。Word では常に文字のまま）。
+     見出しの番号は書かない（組むときに振られる）。図・表・式・節には
+     `{#fig-…}` `{#tbl-…}` `{#eq-…}` `{#sec-…}` でラベルを付け、本文では
+     `@fig-trend` のように名前で指す（組むと「図2.1」「第1節」になる）。
+     ラベルの名前は英数字で終わるので、日本語は空けずに続けて書ける（@fig-trendに）。
      分析を走らせる前の数字は仮の値、つまり嘘。 -->
-第1節で述べたとおり、標本は {{n_obs}} 件である。x の係数は
-{{coef_x}}（*p* {{p_x}}）だった。記述統計を表1に、推移を図1に示す。
+@sec-introで述べたとおり、標本は {{n_obs}} 件である。推定したのは@eq-modelで、
+x の係数は {{coef_x}}（*p* {{p_x}}）だった。記述統計を@tbl-summaryに、推移を
+@fig-trendに示す。
+
+$$
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
+$$ {#eq-model}
 
 <!-- octavo:example ここまで -->
 
-<!-- octavo:example ここから ─ 表と図の書き方の見本。中身は嘘の数値 -->
-**表1．記述統計**
+<!-- octavo:example ここから ─ 表と図の書き方の見本。表は分析（ov_table()）が
+     tables/summary.* に書いた中身が、この1行の場所に表題つきで入る。原稿に
+     自分で書く表は、マークダウンの表のすぐ下に `: 表題 {#tbl-名前}` を置く -->
+: 記述統計 {#tbl-summary}
 
-| 変数 | 平均 | 標準偏差 |
-|---|---|---|
-| x | 1.2 | 0.3 |
-| y | 3.4 | 0.8 |
-
-*注: サンプルは …*
-
-![](../../figures/fig1_trend.png)
-
-**図1．** 推移
+![推移](../../figures/trend.png){#fig-trend}
 
 <!-- octavo:example ここまで -->
 
-## 3. おわりに
+## おわりに {#sec-conclusion}
 
 ## 参考文献
 

@@ -7,7 +7,7 @@ ov_table がやる）:
 
     results/<原稿名>.json    本文の {{…}} に入る数値
     figures/<名前>.pdf/.png  図
-    tables/<名前>.tex/.typ   表（table_map で本文に差し込む）
+    tables/<名前>.tex/.typ/.md   表の中身（本文の `: 表題 {#tbl-<名前>}` に差し込む）
 
 octavo build は変換の前に .qmd の更新時刻を見て、**古ければ走らせる**。
 判定の記録は `results/.analysis-stamp.json`。データ（.csv 等）も見たいなら
@@ -141,7 +141,7 @@ def quarto_version() -> str:
     if not shutil.which('quarto'):
         return ''
     try:
-        r = subprocess.run(['quarto', '--version'], capture_output=True,
+        r = subprocess.run([quarto_exe(), '--version'], capture_output=True,
                            text=True, encoding='utf-8', errors='replace',
                            timeout=30)
     except (OSError, subprocess.TimeoutExpired):
@@ -149,17 +149,35 @@ def quarto_version() -> str:
     return (r.stdout or '').strip().split('\n')[0] if r.returncode == 0 else ''
 
 
+def venv_python(venv: Path) -> Path:
+    """venv の中の python（Windows では Scripts\\python.exe）。"""
+    return venv / 'Scripts' / 'python.exe' if os.name == 'nt' else venv / 'bin' / 'python'
+
+
+def quarto_exe() -> str:
+    """quarto の実体。Windows では quarto.cmd のこともあり、名前だけでは起動できない。"""
+    return shutil.which('quarto') or 'quarto'
+
+
 def _env(cfg) -> dict:
-    """.qmd 側（octavo.R）が置き場所を迷わないように渡す。"""
-    return {**os.environ,
-            'OCTAVO_ROOT': str(cfg.root),
-            'OCTAVO_RESULTS_DIR': str(cfg['results_dir']),
-            'OCTAVO_FIGURE_DIR': str(cfg['figure_dir']),
-            'OCTAVO_TABLE_DIR': str(cfg['table_dir'])}
+    """.qmd 側（octavo.R）が置き場所を迷わないように渡す。
+
+    プロジェクトに `.venv` があれば、Python の .qmd はその Python で動かす
+    （QUARTO_PYTHON）。VS Code から走らせると venv を activate する場面が無いので。
+    """
+    env = {**os.environ,
+           'OCTAVO_ROOT': str(cfg.root),
+           'OCTAVO_RESULTS_DIR': str(cfg['results_dir']),
+           'OCTAVO_FIGURE_DIR': str(cfg['figure_dir']),
+           'OCTAVO_TABLE_DIR': str(cfg['table_dir'])}
+    py = venv_python(Path(cfg.root) / '.venv')
+    if py.exists() and not env.get('QUARTO_PYTHON'):
+        env['QUARTO_PYTHON'] = str(py)
+    return env
 
 
 def render(cfg, u: Unit, report: list) -> bool:
-    cmd = ['quarto', 'render', str(u.src)]
+    cmd = [quarto_exe(), 'render', str(u.src)]
     if cfg['analysis_to']:
         cmd += ['--to', str(cfg['analysis_to'])]
     cmd += [str(a) for a in (cfg['analysis_args'] or ())]

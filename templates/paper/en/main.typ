@@ -27,9 +27,9 @@
 //    - `typst fonts` lists what is installed
 //    - Libertinus Serif ships with Typst; the CJK fallback does not
 //      (on Linux: sudo apt install fonts-morisawa-bizud-mincho fonts-noto-cjk;
-//       on macOS: brew install --cask font-biz-udmincho; bash setup.sh installs
+//       on macOS: brew install --cask font-biz-udmincho; octavo setup installs
 //       them, Noto takes over if BIZ UD is missing, and Hiragino — which every
-//       Mac has — if Noto is missing too)
+//       Mac has — or Yu Mincho — which every Windows has — if Noto is missing too)
 //    - to use fonts kept with the project:
 //      typst compile --root ../../.. --font-path ../../../fonts main.typ
 // =====================================================================
@@ -38,11 +38,17 @@
 #set page(paper: "a4", margin: 1in, numbering: "1")
 // Latin first, with a CJK face behind it for the occasional Japanese word
 #set text(font: ("Libertinus Serif", "BIZ UDMincho", "Noto Serif CJK JP",
-                 "Hiragino Mincho ProN"),
+                 "Hiragino Mincho ProN", "Yu Mincho", "Yu Gothic"),
           lang: "en", size: 11pt)
 #set par(justify: true, leading: 0.8em)
 #set heading(numbering: "1.1")
 #show figure.caption: set text(size: 9pt)
+
+// Figure, table and equation numbers (by section: 2.1) and how @fig-… references
+// read. octavo build writes crossref.typ every time (crossref_numbering in
+// octavo.config.py picks by section or straight through).
+#import "crossref.typ": octavo-crossref, octavo-appendix
+#show: octavo-crossref
 
 // Blind review. flags.typ is rewritten on every build
 // (#let anonymous = true / false), so a normal build always clears it.
@@ -72,6 +78,9 @@
 // #bibliography("../../../literature.bib", style: "chicago-author-date",
 //               title: "References")
 
-// If there is an appendix (run octavo build <name> --to typst --appendix first)
+// If there is an appendix (run octavo build <name> --to typst --appendix first).
+// From octavo-appendix on, sections are A, B, … and figures, tables and
+// equations A.1, …
 // #pagebreak()
+// #show: octavo-appendix
 // #include "appendix.typ"

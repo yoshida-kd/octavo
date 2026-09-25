@@ -36,7 +36,8 @@ class ReleaseError(Exception):
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess:
-    return subprocess.run(['git', '-C', str(root), *args], capture_output=True, text=True)
+    return subprocess.run(['git', '-C', str(root), *args], capture_output=True, text=True,
+                          encoding='utf-8', errors='replace')
 
 
 def tag_name(doc: str, label: str) -> str:
@@ -115,7 +116,8 @@ def notes(cfg, tag: str, sha: str, files: list) -> str:
         pandoc = pandocrun.version_str()
     except Exception:
         pandoc = '?'
-    typst = subprocess.run(['typst', '--version'], capture_output=True, text=True).stdout.strip() \
+    typst = subprocess.run(['typst', '--version'], capture_output=True, text=True,
+                           encoding='utf-8', errors='replace').stdout.strip() \
         if shutil.which('typst') else '-'
     lines = [
         f'`{tag}` — commit `{sha}`',
@@ -184,7 +186,8 @@ def run(cfg, doc_name: str, label: str, targets=None, anonymous: bool = False,
         r = subprocess.run(['gh', 'release', 'create', tag, *upload,
                             '--title', f'{doc_name} {label}',
                             '--notes-file', str(tmpd / 'notes.md')],
-                           cwd=root, capture_output=True, text=True)
+                           cwd=root, capture_output=True, text=True,
+                           encoding='utf-8', errors='replace')
     if r.returncode != 0:
         print(r.stderr + '\n' + t('the tag {tag} is pushed, but the release was not '
                                   'made. Run octavo release again after deleting the '

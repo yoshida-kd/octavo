@@ -48,9 +48,8 @@
 #set enum(spacing: 0.6em, indent: 1.1em)
 #show link: set text(fill: accent)
 
-// スライドと同じく、組版側の図表番号は振らない（番号は原稿のキャプションが持つ）
-#show figure: set figure(numbering: none, supplement: none)
-#show figure.where(kind: table): set figure.caption(position: top)
+// 図表・式の番号と参照の体裁は、この前に Octavo が埋め込む crossref.typ が持つ
+#show figure.caption: set text(size: 0.8em, fill: luma(60))
 #set heading(numbering: octavo.numbering)
 
 // -- 発表者ノート -------------------------------------------------------

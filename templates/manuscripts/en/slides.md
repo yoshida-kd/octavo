@@ -34,10 +34,9 @@ Speaker notes. Never on the projected deck; they go in the speaker script (octav
 ## Results
 
 The sample has {{n_obs}} cases (numbers come from the analysis, not from typing).
+@fig-trend shows the trend.
 
-![](../figures/fig1_trend.png)
-
-**Figure 1.** Trend
+![Trend](../figures/trend.png){#fig-trend}
 
 <!-- octavo:example end -->
 

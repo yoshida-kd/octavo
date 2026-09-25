@@ -83,6 +83,10 @@ jobs:
           cd /tmp
           octavo --version
           octavo doctor || true
+          # 拡張機能が読む形。version と、準備が要るかの判断に使う項目
+          octavo doctor --json | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['version'] and 'ready' in d and 'analysis' in d, d"
+          # setup.sh は wheel の中から走る（--check なので何も入れない）
+          octavo setup --check --no-r
           octavo init proj
           cd proj
           octavo new paper smoke
@@ -104,6 +108,115 @@ jobs:
           name: octavo-dist
           path: dist/*
 
+  # 拡張機能の「準備する」と同じ道: clone の外に置いた setup.sh を空の環境で走らせ、
+  # R（CRAN）・renv・uv・octavo（PyPI）まで入ることを見る。そのあと、このブランチの
+  # octavo を入れ直して、octavo env（uv の .venv と renv）→ 分析 → 組版を通す。
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: setup.sh from outside a clone (as the extension runs it)
+        run: |
+          mkdir -p /tmp/ext
+          cp setup.sh /tmp/ext/
+          OCTAVO_LANG=en bash /tmp/ext/setup.sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # setup.sh は PyPI の公開版を入れる。以下はこのブランチの octavo で確かめる
+      - name: This branch's octavo
+        run: uv tool install --force .
+
+      - name: Everything the extension asks about is there
+        run: |
+          octavo doctor --json | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          print(d['missing'], d['analysis'])
+          assert d['ready'], d['missing']
+          assert all(d['analysis'].values()), d['analysis']
+          "
+          Rscript -e 'cat(getOption("repos"), "\n")' | grep packagemanager.posit.co
+
+      - name: octavo env and the analysis
+        run: |
+          cd /tmp
+          octavo init envproj --lang en
+          cd envproj
+          echo 'numpy' >> requirements.txt
+          octavo env
+          test -f renv.lock
+          .venv/bin/python -c 'import numpy'
+          octavo analysis run
+          octavo new paper smoke
+          octavo build --compile --no-analysis
+          test -f build/typst/smoke/main.pdf
+
+  # Windows（Linux・macOS の次の扱い）。setup.ps1 を winget で本当に走らせ、
+  # このブランチの octavo に入れ替えて、テスト一式・octavo env・分析・組版を通す。
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: setup.ps1 (winget)
+        run: |
+          $before = $env:Path -split ';'
+          powershell -NoProfile -ExecutionPolicy Bypass -File setup.ps1
+          # setup.ps1 が PATH に足した場所だけを、この先のステップに渡す（全部を渡すと
+          # Microsoft Store の python の代役が setup-python の Python より前に来る）
+          $machine = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+          $user = [Environment]::GetEnvironmentVariable('Path', 'User')
+          ("$HOME\.local\bin;$machine;$user" -split ';') |
+            Where-Object { $_ -and ($before -notcontains $_) -and ($_ -notlike '*WindowsApps*') } |
+            ForEach-Object { $_ | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
+
+      # quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
+      - name: R packages for the knitr engine
+        run: Rscript -e 'install.packages(c("knitr", "rmarkdown"), lib = Sys.getenv("R_LIBS_USER"), repos = "https://cloud.r-project.org")'
+
+      - name: This branch's octavo
+        run: uv tool install --force .
+
+      - name: Everything the extension asks about is there
+        run: |
+          octavo doctor
+          octavo doctor --json | python -c "import json,sys; d=json.load(sys.stdin); print(d['missing'], d['analysis']); assert d['ready'], d['missing']; assert all(d['analysis'].values()), d['analysis']"
+
+      # BIZ UD と Inter（利用者のフォント）と游書体が、書いてある名前で Typst に見えること
+      - name: Fonts are visible to Typst under the names octavo uses
+        run: |
+          typst fonts | Out-File -Encoding utf8 fonts.txt
+          python -c "import sys; sys.path.insert(0, '.'); from octavo.backends.typst import FONTS, PLATFORM_FALLBACKS as P, OPTIONAL_FONTS as O; seen={l.strip() for l in open('fonts.txt', encoding='utf-8-sig')}; want={n for l, c in FONTS.values() for n in (l, *c)} - set(P['darwin']) - set(O) - {'Noto Serif CJK JP', 'Noto Sans CJK JP'}; lack=sorted(want-seen); print('missing:', lack or 'none'); sys.exit(1 if lack else 0)"
+
+      # テストは関数を直に呼んで標準出力に日本語を書くので UTF-8 にする（octavo
+      # コマンドとして動くときは cli.main が自分で UTF-8 に切り替える）
+      - name: Run unit tests
+        env:
+          PYTHONUTF8: '1'
+        run: python tests/test_octavo.py
+
+      - name: A project from scratch outside the repo, with octavo env and the analysis
+        run: |
+          Set-Location $env:RUNNER_TEMP
+          octavo init winproj --lang ja
+          Set-Location winproj
+          octavo new paper smoke
+          octavo new slides deck
+          octavo env
+          if (-not (Test-Path renv.lock)) { throw 'no renv.lock' }
+          octavo analysis run
+          octavo build --compile
+          if (-not (Test-Path build\typst\smoke\main.pdf)) { throw 'no PDF' }
+          if (-not (Test-Path build\typst-slides\deck.typ)) { throw 'no deck' }
+
   # macOS。setup.sh の Homebrew の道をそのまま走らせ（pandoc・Typst・quarto・
   # フォント）、テスト一式と、wheel からの init → 組版をリポジトリの外で通す。
   # 書体の名前（typst.FONTS）が Mac で本当にその名前で見えるかもここで確かめる。
@@ -119,6 +232,11 @@ jobs:
       - name: setup.sh (Homebrew)
         run: bash setup.sh
 
+      # quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
+      - name: R packages for the knitr engine
+        run: |
+          Rscript -e 'lib <- Sys.getenv("R_LIBS_USER"); dir.create(lib, recursive = TRUE, showWarnings = FALSE); install.packages(c("knitr", "rmarkdown"), lib = lib, repos = "https://cloud.r-project.org")'
+
       # 既定の書体とヒラギノ（最後の受け皿）が、書いてある名前で Typst に見えること
       - name: Fonts are visible to Typst under the names octavo uses
         run: |
@@ -126,9 +244,10 @@ jobs:
           python3 - <<'PY'
           import sys
           sys.path.insert(0, '.')
-          from octavo.backends.typst import FONTS
+          from octavo.backends.typst import FONTS, PLATFORM_FALLBACKS
           seen = {l.strip() for l in open('/tmp/fonts.txt')}
           want = {n for latin, cjk in FONTS.values() for n in (latin, *cjk)}
+          want -= set(PLATFORM_FALLBACKS['win32'])   # 游明朝・游ゴシックは Windows の受け皿
           lack = sorted(want - seen)
           print('missing:', lack or 'none')
           sys.exit(1 if lack else 0)

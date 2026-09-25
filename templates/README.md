@@ -23,12 +23,13 @@ bundled version since you copied it.
 
 | Folder | Used by | What |
 |---|---|---|
-| `project/common/`, `project/<lang>/` | `octavo init` | the project skeleton, copied as a tree (`gitignore` becomes `.gitignore`, a trailing `.tmpl` is dropped). A file you **add** under your own `project/<lang>/` is written into every new project too |
+| `project/common/`, `project/<lang>/` | `octavo init` | the project skeleton, copied as a tree (`gitignore` becomes `.gitignore`, a trailing `.tmpl` is dropped; the placeholder values, figures and `tables/summary.*` are marked `octavo:placeholder`). A file you **add** under your own `project/<lang>/` is written into every new project too |
 | `manuscripts/<lang>/` | `octavo new` | `paper.md`, `appendix.md`, `slides.md`, `lecture.md` |
 | `paper/<lang>/` | `octavo new paper` | the layout `main.typ` / `main.tex` copied next to each paper |
 | `paper/csl-preamble.tex` | — | the `CSLReferences` definition, for a journal's own `main.tex` |
 | `slides/` | `octavo build` | the Typst deck and speaker script, and the Beamer header |
 | `handout/` | `octavo build` | the LaTeX header for handouts |
+| `typst/crossref.typ` | `octavo build` | how figures, tables, equations and sections are numbered and how `@fig-…` references read, in every Typst output (papers import it as `crossref.typ`) |
 | `replication/<lang>/` | `octavo bundle --replication` | the README that goes into the replication package |
 
 In the text files, `@@NAME@@` becomes the project or document name and

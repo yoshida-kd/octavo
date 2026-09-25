@@ -33,11 +33,9 @@ date: 2026-01-01
 <!-- octavo:example ここから -->
 ## 結果
 
-標本は {{n_obs}} 件（数値は原稿に書かず、分析から差し込む）。
+標本は {{n_obs}} 件（数値は原稿に書かず、分析から差し込む）。推移は@fig-trend。
 
-![](../figures/fig1_trend.png)
-
-**図1．** 推移
+![推移](../figures/trend.png){#fig-trend}
 
 <!-- octavo:example ここまで -->
 

@@ -34,26 +34,10 @@ class TypstNotesBackend(TypstSlidesBackend):
     notes_wrap = ('```{=typst}\n#octavo-note[\n```',
                   '```{=typst}\n]\n```')
 
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
-        """A4 の紙にノートと同居するので、図は高さを決め打ちで抑える。
-
-        スライド側の `height: 1fr`（残り全部）をそのまま使うと、図のある回は
-        ノートが次のページへ押し出される。
-        """
-        f, num = m.group('file'), m.group('num')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        ctx.say(f'{tag("figure")} {num} -> {rel}')
-        block = ('\n```{=typst}\n'
-                 '#block(width: 100%, align(center,\n'
-                 f'  image("{rel}", width: 100%, height: 6cm, fit: "contain")))\n')
-        if not cap:
-            return block + '```\n'
-        label = self.caption_label(m, num, ctx)
-        return (block
-                + '#align(center, text(size: 0.8em, fill: luma(60))'
-                + f'[*{typst_escape(label)}* {typst_escape(cap)}])\n'
-                + '```\n')
+    # A4 の紙にノートと同居するので、図は高さを決め打ちで抑える。スライド側の
+    # `height: 1fr`（残り全部）をそのまま使うと、図のある回はノートが次のページへ
+    # 押し出される。
+    figure_box = 'height: 6cm'
 
     def template(self, ctx: Ctx) -> str:
         return ctx.template('slides/typst-notes.typ').read_text(encoding='utf-8')
@@ -65,7 +49,8 @@ class TypstNotesBackend(TypstSlidesBackend):
         check_cjk(typ, ctx, '.typ',
                   t('the CJK font in typst_slides_font must be installed '
                     '(check with: typst fonts)'),
-                  templates=[ctx.template('slides/typst-notes.typ')])
+                  templates=[ctx.template('slides/typst-notes.typ'),
+                             ctx.template('typst/crossref.typ')])
         m = re.search(r'slide-level: (\d)', typ)
         level = int(m.group(1)) if m else 1
         slides = sum(1 for l in typ.split('\n') if heading_level(l) == level)

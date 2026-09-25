@@ -97,28 +97,34 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 - `octavo checkbib` — 本文が引いているキーが `.bib` にあるか、書誌が壊れていないか
 - 直さないと決めた指摘は `octavo.config.py` の `bib_accepted` に理由付きで書く
 
-## 5. 図・表の名前の付け方（相互参照が壊れる）
+## 5. 図・表・式・節は、番号ではなくラベルで指す
 
-Octavo は本文の「図1」「表1」を組版の相互参照に変換する。そのとき
-**ファイル名から番号を読む**ので、命名を外すと参照が繋がらない。
+番号（見出しの「2.」、キャプションの「図1」）は**原稿に書かない**。組むときに
+節ごと（図2.1・表2.1・式(2.1)）に振られる。原稿ではラベルを付けて、名前で指す:
 
-| | 命名 | 例 | 本文 |
-|---|---|---|---|
-| 図 | `fig<番号>_<内容>` | `fig1_trend` | `![](../../figures/fig1_trend.png)` + `**図1．** 推移` |
-| 表 | `tbl<番号>_<内容>` | `tbl1_summary` | `**表1．記述統計**` + config の `table_map` |
-| 付録の図 | `fig<英字><番号>_…` | `figA1_balance` | 「図A1」 |
+| | 書き方 | 本文での参照 |
+|---|---|---|
+| 節 | `## 分析 {#sec-analysis}` | `@sec-analysis` → 第2節 |
+| 図 | `![推移](../../figures/trend.png){#fig-trend}` | `@fig-trend` → 図2.1 |
+| 表（原稿に書く） | マークダウンの表 + すぐ下に `: 記述統計 {#tbl-desc}` | `@tbl-desc` → 表2.1 |
+| 表（分析が作る） | `: 記述統計 {#tbl-summary}` の1行だけ（`tables/summary.*` が入る） | `@tbl-summary` |
+| 式 | `$$ … $$ {#eq-model}` | `@eq-model` → 式(2.1) |
+
+- ラベルは `fig-` `tbl-` `eq-` `sec-` で始め、英数字と `-` `_` で書く。英数字以外で
+  終わるので、日本語は空けずに続けてよい（`@fig-trendに示す`）。`[-@fig-trend]` は
+  番号だけ（「2.1」）
+- 節や図を足したり並べ替えたりしても、**参照を直す必要は無い**。無いラベルへの
+  参照と、二重に付けたラベルは `octavo check` が止める
+- 図の名前（`ov_figure(p, "trend")`）と表の名前（`ov_table(tab, "summary")`）は
+  内容で付ける。番号は入れない。表のラベルは `tbl-<表の名前>` にすると、分析の
+  表がそこに差し込まれる
 
 図は `.png` を原稿に貼れば足りる（LaTeX 用の `.pdf` は Octavo が自動で探す）。
 `ov_figure()` は両方を書き出す。パスは原稿から見た相対パスで書く（論文なら
 `../../figures/`、スライド・講義なら `../figures/`。エディタのプレビューに出る）。
-Octavo は**ファイル名だけ**を見て `figures/` から探す。
 
 図・表・`{{…}}` は全部の原稿で共有する。論文の図をスライドに貼るときも、同じ
 `figures/` のファイルを指せばよい（複製しない）。
-
-表を `tables/` の外部ファイルに差し替えるには、`octavo.config.py` の
-`table_map` に「本文の表番号 → ファイル名」を書く。書かなければ原稿の
-マークダウン表がそのまま組まれる（Word とスライドは常にこちら）。
 
 ## 6. ひな型は、ひな型だと分かるようにしてある
 
@@ -129,7 +135,8 @@ Octavo は**ファイル名だけ**を見て `figures/` から探す。
 |---|---|---|
 | `octavo:example` のコメント | 原稿・付録・`analysis.qmd`・`literature.bib` | 手で消す |
 | `_placeholder` | `results/analysis.json` | `octavo analysis run` が書き直す |
-| 枠と × だけの図 | `figures/fig1_trend.*` | `ov_figure()` が書き直す |
+| 枠と × だけの図 | `figures/trend.*` | `ov_figure()` が書き直す |
+| 中身の無い表 | `tables/summary.*` | `ov_table()` が書き直す |
 
 **`results/analysis.json` の仮の値は特に危ない。**分析を1度も走らせていなくても
 `{{…}}` が全部解決してしまい、**嘘の数字の入った PDF が組める**。そうならないよう:
@@ -159,13 +166,25 @@ Octavo は**ファイル名だけ**を見て `figures/` から探す。
 使ったパッケージを記録に残す。そうしないと、半年後の自分にも査読者にも
 同じ結果が出せない。
 
-- Python: `.venv` の中でだけ動かす（`source .venv/bin/activate`）。
-  入れたら `requirements.txt` に版つきで足す
-- R: `renv::init()` 済みのプロジェクトで動かす。`install.packages()` の
-  あとは必ず `renv::snapshot()`（`renv.lock` を commit する）
+- 用意する（clone のあとに戻す）のは `octavo env`: uv で `.venv` と
+  `requirements.txt`、renv に knitr / rmarkdown
+- Python: `.venv` の中でだけ動かす（`source .venv/bin/activate` か `uv run`）。
+  パッケージは `requirements.txt` に版つきで足してから `octavo env`。
+  ほかの場所に `pip install` しない
+- R: renv のプロジェクトとして動かす。`install.packages()` のあとは必ず
+  `renv::snapshot()`（`renv.lock` を commit する）
 
 `.venv/` と `renv/library/` は git に入らない。**入るのは記録
 （`requirements.txt` / `renv.lock`）だけ**なので、記録を怠ると環境が失われる。
+
+プロジェクトは Linux・macOS・Windows のどれでも同じに動くように保つ:
+
+- パスは相対パスで、`/` で書く（原稿・`.qmd`・設定のどこでも）。ドライブ名や
+  `\` は書かない
+- Python でテキストファイルを開くときは `encoding="utf-8"` を書く（Windows の
+  既定はシステムの文字コード）
+- ファイル名は大文字・小文字まで、原稿とコードに書いたとおりにする（Windows は
+  `Fig1.png` と `fig1.png` を取り違えても通すが、Linux は通さない）
 
 ## 分析を複数の .qmd に分ける
 
@@ -197,22 +216,19 @@ Octavo は**ファイル名だけ**を見て `figures/` から探す。
 ## 論文に付録を足す
 
 付録は論文のフォルダの `appendix.md` に書く。同じフォルダにあれば自動で本文と
-結びつく（要らなければ消してよい）。付録の表を外部ファイルに差し替えるなら:
-
-```python
-'appendix_table_map': {'A1': 'tblA1_robustness'},   # 付録の表は別の対応表
-```
+結びつく（要らなければ消してよい）。
 
 ```bash
 octavo build <name> --appendix
 ```
 
-`papers/<name>/main.typ` の `#include "appendix.typ"` のコメントを外す
-（LaTeX なら `main.tex` の `\appendix` と `\input{appendix}`）。
+`papers/<name>/main.typ` の `#show: octavo-appendix` と `#include "appendix.typ"`
+のコメントを外す（LaTeX なら `main.tex` の `\appendix` と `\input{appendix}`）。
 
 付録も本文と**同じ扱い**を受ける。`{{…}}` も引用も相互参照もそのまま働き、
-`octavo values` `octavo checkbib` `octavo outline` は付録も見る。番号は本文と
-分けること（`## 付録A．…`、図は `figA1_balance`、表は `tblA1_robustness`）。
+`octavo values` `octavo checkbib` `octavo outline` は付録も見る。見出しに
+「付録A」とは書かない: 付録の節は組むときに A, B, … と振られ、付録の図・表・式は
+A.1 になる。ラベルは本文と付録をまたいで使える（本文から `@tbl-definitions`）。
 
 ## 原稿を書く・直す
 
@@ -326,7 +342,7 @@ octavo bundle --replication          # 複製パッケージ（投稿用とは�
 ```bash
 octavo build <name> --compile           # main.typ を組んで PDF にする
 octavo build <name> --to docx           # 共著者に回す Word
-# LaTeX で投稿するとき（TeX が要る。setup.sh --with-tex）
+# LaTeX で投稿するとき（TeX が要る。octavo setup --with-tex）
 octavo build <name> --to latex && cd build/latex/<name> && latexmk -lualatex main.tex
 ```
 

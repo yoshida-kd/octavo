@@ -9,15 +9,16 @@ pandoc が .docx を直接書く（中間の .tex は作らない）。見た目
 で作り、Word で「見出し 1」「本文」「表のキャプション」等のスタイルを直してから
 `docx_reference` に指定する。中身は空でよい（スタイルだけ使う）。
 
-Word には LaTeX のような自動採番の相互参照が無いので、**図表番号はキャプションに
-文字として入れる**（auto_numbers_captions = False）。本文の「表3」という言及は
-そのままの文字列で残る。原稿の並び順どおりに番号を振っているかぎり食い違わない。
+Word には自動採番の相互参照が無い（pandoc も振らない）ので、**節・図・表・式の
+番号は Octavo が数えて文字で入れる**（numbers_itself = False、数え方は crossref.py）。
+本文の `@fig-trend` は「図2.1」になり、図のブックマークへのリンクが付く。
 """
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
+from .. import crossref as xref
 from .. import md as mdlib
 from .base import Backend, Ctx
 from ..i18n import t, tag
@@ -28,13 +29,12 @@ class DocxBackend(Backend):
     label = 'Word (.docx)'
     pandoc_to = 'docx'
     ext = '.docx'
+    table_ext = '.md'               # 分析が書いた表は Markdown 版を本文に入れる
     default_figure_ext = '.png'
     min_pandoc = (2, 8)
     binary = True
     always_standalone = True
-    uses_table_map = False          # .tex / .typ の外部表は取り込めない
-    auto_numbers_captions = False
-    auto_numbers_sections = False   # Word は節番号を振らない -> pandoc に振らせる
+    numbers_itself = False          # 番号は Octavo が文字で入れる
 
     def input_extras(self) -> tuple:
         return ('fenced_divs',)
@@ -58,13 +58,13 @@ class DocxBackend(Backend):
         return args
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_table(self, m: re.Match, name, ctx: Ctx) -> str:
-        """table_map があっても Word では使えないので、必ずマークダウンの表を使う。"""
-        if name:
-            ctx.say(f'{tag("table")} ' + t('{num}: Word cannot include an external '
-                                           '{name}.tex — using the Markdown table',
-                                           num=m.group('num'), name=name))
-        return self.markdown_table(m, ctx)
+    def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
+        """番号を文字で書き、図・表・節にはそのブックマーク（pandoc が張る）へリンクを
+        付ける。式にはブックマークが無いので文字だけ。"""
+        text = xref.text_of(item, ctx.lang, short)
+        if item.kind == 'eq' or item.label not in ctx.crossref_local:
+            return text
+        return f'[{text}](#{item.label})'
 
     def check(self, text: str, ctx: Ctx) -> None:
         pass

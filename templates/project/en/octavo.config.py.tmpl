@@ -29,8 +29,9 @@ CONFIG = {
     # are newer than the last run.
     'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
 
-    # When the analysis writes a table, tie it to the paper's table number
-    # 'table_map': {'1': 'tbl1_summary'},
+    # Figure, table and equation numbers: 'section' (Figure 2.1) or
+    # 'document' (Figure 1, straight through)
+    # 'crossref_numbering': 'section',
 
     # ---- Word ----------------------------------------------------------
     # Make a style template with octavo reference-docx reference.docx,

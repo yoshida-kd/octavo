@@ -58,8 +58,6 @@ DEFAULTS: dict = {
     # 「本文の表番号」->「tables/ 内のファイル名（拡張子なし）」。
     # Word / スライドは外部 .tex を取り込めないので、対応があっても
     # マークダウンの表をそのまま使う。
-    'table_map': {},
-    'appendix_table_map': {},
     'table_dir': 'tables',
     'figure_dir': 'figures',
     # 形式ごとに使う図の拡張子。書かなければ latex/beamer=.pdf、他=.png
@@ -121,7 +119,7 @@ DEFAULTS: dict = {
 
     # ---- 言語・語彙 -------------------------------------------------------
     'lang': 'ja',                  # 'ja' | 'en'
-    'crossref_vocab': 'both',      # 'ja' | 'en' | 'both'
+    'crossref_numbering': 'section',   # 図表・式の番号: 'section'（節ごと 2.1）| 'document'（通し）
     'east_asian_line_breaks': True,
 
     # ---- 見出し・目次（profile の既定を上書きしたいときだけ）--------------
@@ -391,8 +389,8 @@ class Config:
                        key=k, allowed=allowed, got=repr(v[k])))
         if v['lang'] not in ('ja', 'en'):
             bad('lang', t("'ja' or 'en'"))
-        if v['crossref_vocab'] not in ('ja', 'en', 'both'):
-            bad('crossref_vocab', "'ja'/'en'/'both'")
+        if v['crossref_numbering'] not in ('section', 'document'):
+            bad('crossref_numbering', "'section'/'document'")
         if v['typst_citations'] not in ('csl', 'native'):
             bad('typst_citations', t("'csl' or 'native'"))
         if v['typst_slides_aspect'] not in ('16-9', '4-3'):
@@ -444,16 +442,6 @@ def load(path: str | Path = 'octavo.config.py') -> Config:
     if p.is_dir():
         p = p / 'octavo.config.py'
     if not p.exists():
-        # 旧名（Galley / Galleykit）のころのプロジェクト。読みはしない（互換の
-        # 仕組みは持たない）が、何をすればよいかは言う
-        for stem in ('galleykit', 'galley'):
-            old = p.with_name(f'{stem}.config.py')
-            if p.name == 'octavo.config.py' and old.exists():
-                sys.exit(t('{old} is from before the rename to Octavo — rename it to '
-                           '{new}, analysis/{helper} to analysis/octavo.R, and in each '
-                           '.qmd the source() line and gl_value() / gl_figure() / '
-                           'gl_table() to ov_value() / ov_figure() / ov_table()',
-                           old=old, new=p.name, helper=f'{stem}.R'))
         example = paths.example_config()
         sys.exit(t('no config file at {path}', path=p) + '\n'
                  + f'  cp {example} {p}\n  '

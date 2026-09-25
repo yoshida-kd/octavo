@@ -68,7 +68,6 @@ CONFIG = {
     # 言語
     # ================================================================
     'lang': 'ja',                 # 'ja' | 'en'
-    'crossref_vocab': 'both',     # 「表1」も "Table 1" も拾う
     # 'east_asian_line_breaks': True,   # 日本語の行間改行で空白を入れない
 
     # ================================================================
@@ -79,22 +78,18 @@ CONFIG = {
     # 'figure_width': 1.0,              # \textwidth に対する比
     # 'figure_ext': {'latex': '.pdf', 'docx': '.png'},   # 既定を変えるとき
 
-    # 分析スクリプト（R / Python / qmd）が表を .tex や .typ で直接吐く運用の
-    # ときだけ書く。「本文の表番号」->「tables/ の中のファイル名（拡張子なし）」。
-    # 空なら原稿のマークダウンの表がそのまま組まれる。
-    # Word / スライドは外部 .tex を取り込めないので、その場合も
-    # マークダウンの表が使われる。
-    'table_map': {},              # 例: {'1': 'tbl1_summary', '2': 'tbl2_models'}
-    'appendix_table_map': {},     # 例: {'A1': 'appA1_robustness'}
+    # 図・表・式の番号。原稿には番号を書かず {#fig-…} などのラベルで指す（@fig-…）
+    'crossref_numbering': 'section',  # 'section'（節ごと 図2.1）| 'document'（通し 図1）
 
     # ================================================================
     # 分析（Quarto の .qmd）
     # ================================================================
     # 論文に出す数値・図・表を作る .qmd。octavo build は .qmd が新しければ
     # 自動で quarto render を走らせる（quarto が無ければ警告して素通り）。
-    #   分析側: ov_value("n_obs", nrow(d)) / ov_figure(p, "fig1_x")
-    #           ov_table(tab, "tbl1_summary")     ← octavo.R のヘルパー
-    #   原稿側: {{n_obs}} / ![](figures/fig1_x.png) / table_map
+    #   分析側: ov_value("n_obs", nrow(d)) / ov_figure(p, "trend")
+    #           ov_table(tab, "summary")          ← octavo.R のヘルパー
+    #   原稿側: {{n_obs}} / ![推移](figures/trend.png){#fig-trend} /
+    #           `: 記述統計 {#tbl-summary}`（分析が作った表がここに入る）
     'analysis': [],               # 例: ['analysis/*.qmd']
     # データの更新も見張るなら、要素を辞書にする
     # 'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],

@@ -70,10 +70,8 @@
 
 \newcommand{\inputtable}[1]{%
   \IfFileExists{#1.tex}{\input{#1}}{%
-    \begin{table}[htbp]\centering\fbox{\parbox{0.8\textwidth}{\centering
-      \textbf{MISSING TABLE:} \texttt{\detokenize{#1}.tex}}}
-    \caption{[missing]}
-    \end{table}}}
+    \fbox{\parbox{0.8\textwidth}{\centering
+      \textbf{MISSING TABLE:} \texttt{\detokenize{#1}.tex}}}}}
 
 % ---- CSL bibliography support ----------------------------------------
 \makeatletter
@@ -108,6 +106,10 @@
 % stops with Undefined control sequence.
 \newif\ifanonymous\anonymousfalse
 \IfFileExists{flags.tex}{\input{flags}}{}
+
+% Figure, table and equation numbers (by section by default: 2.1).
+% octavo build writes crossref.tex every time.
+\IfFileExists{crossref.tex}{\input{crossref}}{}
 
 \title{Paper Title}
 \ifanonymous

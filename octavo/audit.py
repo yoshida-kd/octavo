@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import analysis as anamod
 from . import backends as be
+from . import crossref as xref
 from . import check as checkmod
 from . import dataset
 from . import lint as lintmod
@@ -49,44 +50,55 @@ class Item:
 def figure_problems(cfg) -> list:
     """本文が貼っている図で、実ファイルが無いものを返す。
 
-    出力形式ごとに拡張子が違う（LaTeX は .pdf、Word は .png）ので、
-    **その文書が出す形式の分だけ**見る。
+    figures/ の中の図は、出力形式ごとに拡張子が違う（LaTeX は .pdf、Word は .png）
+    ので、**その文書が出す形式の分だけ**見る。それ以外の図は書いたとおりのパス。
     """
+    fig_dir = Path(cfg['figure_dir']).resolve()
     need: dict = {}
     for name, src, _ in cfg.sources():
         doc = cfg.documents[name]
         exts = {be.get(x).figure_ext(cfg) for x in doc.targets}
-        for m in mdlib.FIGURE_BLOCK.finditer(mdlib.read(src)):
-            need.setdefault(m.group('file'), set()).update(exts)
+        text = mdlib.read(src)
+        for _, line in xref._lines_outside_code(text):
+            m = xref.IMAGE.match(line.strip())
+            if not m or '://' in m.group('path'):
+                continue
+            p = (Path(src).parent / m.group('path').strip('<>')).resolve()
+            if p.parent == fig_dir:
+                need.setdefault(p.with_suffix(''), set()).update(exts)
+            else:
+                need.setdefault(p, {''})
     missing = []
     for stem in sorted(need):
         for ext in sorted(need[stem]):
-            p = Path(cfg['figure_dir']) / f'{stem}{ext}'
+            p = Path(str(stem) + ext) if ext else stem
             if not p.exists():
                 missing.append(p)
     return missing
 
 
 def placeholder_figures(cfg) -> list:
-    """`octavo init` が置いた仮の図（枠と×だけ）のままのものを返す。"""
-    d = Path(cfg['figure_dir'])
-    if not d.is_dir():
-        return []
-    return [cfg.rel(p) for p in sorted(d.iterdir())
-            if p.is_file() and scaffold.is_placeholder(p)]
+    """`octavo init` が置いた仮の図・表（枠と×の図、中身の無い表）のままのものを返す。"""
+    out = []
+    for key in ('figure_dir', 'table_dir'):
+        d = Path(cfg[key])
+        if d.is_dir():
+            out += [cfg.rel(p) for p in sorted(d.iterdir())
+                    if p.is_file() and scaffold.is_placeholder(p)]
+    return out
 
 
 def table_problems(cfg) -> list:
-    """table_map が指している外部の表で、実ファイルが無いものを返す。"""
-    names = set(cfg['table_map'].values()) | set(cfg['appendix_table_map'].values())
-    if not names:
-        return []
-    exts = {b.table_ext for b in be.REGISTRY.values() if b.uses_table_map}
+    """分析が書いたはずの表（本文の `: 表題 {#tbl-名前}`）で、実ファイルが無いもの。
+
+    形式ごとに読むファイルが違う（Typst は .typ、LaTeX は .tex、Word は .md）ので、
+    その文書が出す形式の分だけ見る。
+    """
     missing = []
-    for stem in sorted(names):
-        for ext in sorted(exts):
+    for name, _, stem in xref.external_tables(cfg):
+        for ext in sorted({be.get(x).table_ext for x in cfg.documents[name].targets}):
             p = Path(cfg['table_dir']) / f'{stem}{ext}'
-            if not p.exists():
+            if p not in missing and not p.exists():
                 missing.append(p)
     return missing
 
@@ -105,7 +117,7 @@ def length_problems(cfg) -> list:
             continue                      # 付録に規定があることは稀
         if cfg.documents[name].profile != 'paper':
             continue                      # 規定は投稿する論文のもの。スライド・講義は見ない
-        raw = valmod.substitute(mdlib.read(src), vals, cfg)
+        raw = mdlib.drop_math_macros(valmod.substitute(mdlib.read(src), vals, cfg))
         abstract, body = mdlib.split_abstract(mdlib.drop_references(raw))
         body = mdlib.strip_title_block(body)
         pairs = (
@@ -212,20 +224,39 @@ def collect(cfg, anonymous: bool = False) -> list:
     items.append(Item(
         ok=not tbls, fatal=True, label=t('table files'),
         detail=t('{n} missing', n=len(tbls)) if tbls
-               else (t('table_map is empty (the Markdown tables are used)')
-                     if not cfg['table_map'] and not cfg['appendix_table_map']
-                     else t('every table table_map points at is there')),
+               else t('every table from the analysis is there'),
         lines=[str(p) for p in tbls], hint='octavo analysis run'))
+
+    # -- 相互参照 -----------------------------------------------------------
+    xr = xref.collect(cfg)
+    bad = xr['missing'] + xr['duplicate']
+    items.append(Item(
+        ok=not bad, fatal=True, label=t('cross-references'),
+        detail=(t('{n} {n|reference points|references point} at no label',
+                  n=len(xr['missing']))
+                + (' / ' + t('{n} {n|label is|labels are} used twice', n=len(xr['duplicate']))
+                   if xr['duplicate'] else '')) if bad
+               else t('every @fig- / @tbl- / @eq- / @sec- has its label'),
+        lines=[f'{at}  {what}' for at, what in bad],
+        hint=t('write the label on the figure, table, equation or heading: {example}',
+               example='{#fig-name}')))
+    items.append(Item(
+        ok=not xr['unused'], fatal=False, label=t('unused labels'),
+        detail=(t('{n} {n|figure, table or equation is|figures, tables or equations are} '
+                  'never referred to', n=len(xr['unused']))
+                if xr['unused'] else t('every labelled figure, table and equation is referred to')),
+        lines=[f'{at}  {what}' for at, what in xr['unused']],
+        hint=t('refer to it with @label, or drop the label')))
 
     # -- 直書きの数値 -------------------------------------------------------
     found = lintmod.collect(cfg)
     phf = placeholder_figures(cfg)
     items.append(Item(
-        ok=not phf, fatal=False, label=t('placeholder figures'),
+        ok=not phf, fatal=False, label=t('placeholder figures and tables'),
         detail=(t('{n} {n|is still a placeholder|are still the placeholders} octavo init wrote', n=len(phf))
                 if phf else t('no placeholders left')),
         lines=phf,
-        hint=t('replace them with real ones from ov_figure() in the .qmd')))
+        hint=t('octavo analysis run (ov_figure() / ov_table() in the .qmd rewrite them)')))
 
     left = lintmod.leftovers(cfg)
     items.append(Item(

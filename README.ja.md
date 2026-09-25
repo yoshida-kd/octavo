@@ -44,14 +44,32 @@ TeX Live を足す（`bash setup.sh --with-tex`）。
 ## 1. 入れる
 
 動く環境は Linux（Ubuntu/Debian 系のマシン、Ubuntu サーバ、または Windows 上の
-WSL2/Ubuntu）と macOS。`setup.sh` は Linux では apt、macOS では
-[Homebrew](https://brew.sh) で入れる（Mac では先に Homebrew を入れておく）。
+WSL2/Ubuntu）と macOS（Mac では先に [Homebrew](https://brew.sh) を入れておく）。
+
+**VS Code で使うなら、拡張機能を入れるだけでよい。**
+[Octavo の拡張機能](vscode-extension/README.ja.md)は最初に起動したときに道具が
+そろっているかを確かめ、足りなければ **「準備する」** を出す。押すとターミナルで
+`setup.sh`（拡張機能に同梱してある）が走り、パスワードを1回聞いたあと、pandoc・
+Typst・quarto・フォント・R（CRAN の最新）・renv・uv・`octavo` コマンドそのものを
+入れる。clone も pip も要らない。Remote-SSH や WSL のウィンドウなら、その先の
+マシンに入る。拡張機能を更新したときなどは、Octavo のサイドバーの
+**「ツール → 道具を入れる・更新する」** からいつでも走らせ直せる。
+
+**ターミナルから**なら、同じことが `octavo setup`:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # uv（まだ無ければ）
+uv tool install octavo-kit                        # octavo コマンド
+octavo setup                                      # pandoc / Typst / quarto / フォント / R / renv
+octavo doctor                                     # 足りないものを言う
+octavo selftest                                   # 実際に1本通して引用の組み方を見る
+```
+
+clone して使うこともできる（`setup.sh` が `~/.local/bin/octavo` を clone に向ける）:
 
 ```bash
 git clone https://github.com/yoshida-kd/octavo.git ~/octavo
-bash ~/octavo/setup.sh     # pandoc / Typst / quarto / 日本語フォント
-octavo doctor                    # 足りないものを言う
-octavo selftest                  # 実際に1本通して引用の組み方を見る
+bash ~/octavo/setup.sh
 ```
 
 `octavo selftest` は一時ディレクトリに小さな原稿（日本語と英語の文献、団体著者、
@@ -79,31 +97,39 @@ shell の設定に `export OCTAVO_LANG=ja` を1行書いておくのが確実。
 ひな型・生成される CLAUDE.md や README・引用の locale を決める。
 「画面は日本語、論文は英語」はごく普通の組み合わせ。
 
-### pip で入れる
+### `setup.sh` がすること
 
-外部の道具まで入れてくれるので、ふだんは上の `setup.sh` + シンボリックリンクが
-よい。変換器だけ欲しくて pandoc / Typst / quarto は自分で入れるなら、`octavo` は
-ふつうの Python パッケージとしても入る。
+`octavo setup` も拡張機能も、`setup.sh`（パッケージに同梱）を走らせる。何度
+走らせても平気で、入っていて十分新しいものは飛ばす。Linux では apt で:
 
-```bash
-pipx install octavo-kit    # 仮想環境の中なら pip install octavo-kit でもよい
-octavo doctor
-```
+- pandoc・Typst・quarto を動作を確かめた版で（それより新しければそのまま）、
+  それとフォント
+- **R は CRAN の最新**。Ubuntu では CRAN の apt リポジトリを足す（ほかの Debian 系は
+  そのディストリの `r-base`）。tidyverse などのパッケージが要る開発用ライブラリも
+  一緒に入れる。さらに R のパッケージの取得先を
+  [Posit Package Manager](https://packagemanager.posit.co) にする
+  （`/etc/R/Rprofile.site`）ので、Linux でも renv が**ビルド済みのパッケージ**を
+  入れ、コンパイルを待たずに済む
+- renv（利用者の R ライブラリへ）と [uv](https://docs.astral.sh/uv/)
+  （`~/.local/bin` へ）
+- `octavo` コマンドを PyPI から `uv tool install` で。ただし clone から走らせたとき、
+  または `~/.local/bin/octavo` がすでに clone を指しているときは、そちらを残す
 
-（最近の Ubuntu / Debian では、仮想環境の外での素の `pip install` は PEP 668 で
-断られる。`pipx` はコマンドごとに専用の環境を作って入れるので、それを勧めている。）
+macOS では同じことを Homebrew で: `brew install pandoc typst`、
+`brew install --cask quarto r`（`r` は CRAN の公式ビルド）と書体
+（`font-biz-udmincho` など）。`octavo doctor` の案内も Mac では `brew` の書き方に
+なる。CI の `macos` ジョブが、Homebrew で入れるところから組版まで毎回通している。
 
-**Python の依存パッケージは無く**（標準ライブラリだけ）、テンプレートも同梱
-するので `octavo init` / `octavo new` はそのまま動く。入らないのは `setup.sh`
-そのもので、`octavo doctor` が「足すなら clone してこれを走らせろ」と案内する。
-PyPI での配布名は `octavo-kit`（`octavo` という名前は PyPI が使わせない）で、
-コマンドと Python のパッケージ名は `octavo`。
+Windows で直接使うときは、`setup.ps1` が同じことを winget でする（下の Windows を参照）。
 
-`setup.sh` は何度走らせても平気。既定では TeX Live を入れない。LaTeX や
-Beamer も使うなら `bash setup.sh --with-tex`（数 GB ある）。`octavo doctor` は
-TeX が無いことを「不足」ではなく「注意」として出す。分析（`.qmd`）を render する
-quarto は既定で入る（要らなければ `--no-quarto`）。R や Python の処理系そのものは
-入れない（どちらを使うかはプロジェクト次第）。
+TeX Live は入れない。LaTeX や Beamer も使うなら `--with-tex`（数 GB。Mac では
+MacTeX）。`octavo doctor` は TeX が無いことを「不足」ではなく「注意」として出す。
+`--no-quarto` と `--no-r` でそれぞれを外せ、`--check` は何をするかを見るだけ。
+
+`octavo` のパッケージ自体は **Python の依存パッケージが無く**（標準ライブラリだけ）、
+テンプレートも同梱している。PyPI での配布名は `octavo-kit`（`octavo` という名前は
+PyPI が使わせない）で、コマンドと Python のパッケージ名は `octavo`。uv の代わりに
+`pipx install octavo-kit` でも入る。
 
 必要な版:
 
@@ -114,42 +140,58 @@ quarto は既定で入る（要らなければ `--no-quarto`）。R や Python �
 | LuaLaTeX（任意） | — | TeX Live 2021+ | `texlive-lang-japanese` が要る |
 | Typst | — | 0.15 | Typst スライドは 0.12 以上。日本語フォントは同梱されない（`setup.sh` が入れる） |
 
-macOS では `setup.sh` が `brew install pandoc typst`、`brew install --cask quarto`
-と書体（`font-biz-udmincho` など）を入れ、`--with-tex` で MacTeX
-（`mactex-no-gui`。日本語の LuaLaTeX と Beamer がすべて入っている）を足す。
-`octavo doctor` の案内も Mac では `brew` の書き方になる。CI の `macos`
-ジョブが、Homebrew で入れるところから組版まで毎回通している。
+### Windows
 
-Windows から使う場合は WSL2（Ubuntu）上で動かすのが確実。原稿ファイルは
-Linux 側のファイルシステム（または `/mnt/...` にマウントした Windows 側の
-フォルダ）に置くとパス解決で困らない。
+優先するのは Linux、次が macOS、Windows はその次（動くが、手のかけ方は2つより
+少ない）。使い方は2通り:
+
+- **WSL2（Ubuntu）で使う（おすすめ）**。すべて上の Linux の手順になる。VS Code
+  では Remote-WSL でフォルダを開き、ファイルは Linux 側（か `/mnt/...` の下）に置く。
+- **Windows で直接使う**。`octavo setup`（と、WSL にディストリが無いときの拡張機能の
+  「準備する」）は `setup.sh` の代わりに `setup.ps1` を走らせる。winget で pandoc・
+  Typst・quarto・R（CRAN の最新。R のインストーラーは `PATH` を触らないので、R の
+  `bin` を利用者の `PATH` に足す）を入れ、BIZ UD と Inter を利用者のフォントとして
+  入れ（管理者は要らない。無ければ游明朝・游ゴシックで組む）、renv を R の
+  ライブラリに、`octavo` コマンドを uv で入れる。Windows では TeX は入れない（LaTeX / Beamer が要るなら
+  MiKTeX か TeX Live を自分で）。CI の `windows` ジョブが `setup.ps1` を本当に
+  走らせ、テスト・`octavo env`・分析・PDF まで通している。
+
+  ```powershell
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # uv
+  uv tool install octavo-kit                                   # octavo コマンド
+  octavo setup                                                 # setup.ps1 を走らせる
+  ```
+
+原稿と分析の書き方はどの OS でも同じ。プロジェクトをどこでも動くように保つ
+習慣が2つある: パスは `/` で書く（`../figures/fig1.png`。Windows もこれを読む。
+`\` は Markdown では記号の打ち消しになる）、Python でテキストファイルを開くときは
+`encoding="utf-8"` を書く（Windows の既定はシステムの文字コード）。ファイル名の
+大文字・小文字も原稿の書き方とそろえる（Windows は `Fig1.png` と `fig1.png` を
+区別しないが、Linux は区別する）。
 
 ### 分析の環境はプロジェクトごとに（.venv と renv）
 
-pandoc・Typst・quarto・Octavo はマシンに1つ（上の `setup.sh`）。**分析に使う
-パッケージはプロジェクトごとに持つ。**`octavo init` は Python 側の足場として
-`requirements.txt` を置き、`.gitignore` に `.venv/` と `renv/library/` を入れる。
+pandoc・Typst・quarto・R・Octavo はマシンに1つ（上の `setup.sh`）。**分析に使う
+パッケージはプロジェクトごとに持ち**、それを用意するのはコマンド1つ:
 
 ```bash
 cd 2026-research
-python3 -m venv .venv && source .venv/bin/activate  # Python
-pip install -r requirements.txt
-Rscript -e 'renv::init()'                           # R
+octavo env      # uv で .venv（+ requirements.txt）、renv（+ knitr, rmarkdown）
 ```
 
-renv は R に付いてこないので、マシンに1度だけ入れておく（`octavo doctor` の
-「分析」欄に有無が出る。個人用ライブラリのフォルダが無いと入れられないので、
-それも作る）:
-
-```bash
-mkdir -p "$(Rscript -e 'cat(Sys.getenv("R_LIBS_USER"))')"
-Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
-```
+VS Code なら Octavo のサイドバーの **「ツール → このプロジェクトの分析の環境を
+用意する」**。`octavo env` は uv で `.venv` を作って `requirements.txt` に書いた
+ものを入れ、R では `renv::init()`（`.qmd` がすでに使っているパッケージも入る）の
+あとに knitr と rmarkdown（quarto が R の `.qmd` を render するのに要る）を足して
+`renv.lock` を書く。clone してきたプロジェクトなら `renv.lock` から戻す。何度
+走らせても平気で、`requirements.txt` に足したものを入れるのもこれ。
 
 git に入るのは**記録だけ**（`requirements.txt` / `renv.lock`）で、環境の中身は
-入らない。パッケージを入れたら `pip install` のあとに `requirements.txt` へ、
-`install.packages()` のあとに `renv::snapshot()` へ。生成されるプロジェクトの
-`README.md` / `CLAUDE.md` にも同じ約束が書いてある。
+入らない。Python のパッケージは `requirements.txt` に書いて `octavo env`、R では
+`install.packages()` のあとに `renv::snapshot()`。Python の `.qmd` はプロジェクトの
+`.venv` で動く（`QUARTO_PYTHON` を渡す）ので、`octavo analysis run` の前に
+activate する必要は無い。生成されるプロジェクトの `README.md` / `CLAUDE.md` にも
+同じ約束が書いてある。
 
 ### 書体
 
@@ -334,22 +376,108 @@ Speaker notes (in the speaker script and in Beamer; never on the projected deck)
 
 | 要素 | 書き方 | 備考 |
 |---|---|---|
-| 見出し | `## 1. 節題` / `### 1.1 小節` / `# 2. …` | 番号は `{#sec:1}` ラベルになり、組版側が振り直す |
-| 付録 | `## 付録A．…` / `## Appendix A. …` | `{#sec:appA}` |
+| 見出し | `## 分析 {#sec-analysis}` | 番号は書かない（組版が振る）。ラベルで参照できる |
+| 付録 | 別ファイルの `appendix.md`（§4.4） | 節は A, B, …、図などは A.1, … になる |
 | 要旨 | `## Abstract` / `## 要旨` / `## 概要` | `*Word count: N words*` 行があれば一緒に切り離す |
 | 参考文献節 | `## References` / `## 参考文献` | 変換時に落とす（書誌は `.bib` から組む） |
 | 引用 | `@key`（地の文）、`[@key; @key2]`（括弧） | |
 | 所有格引用 | `\poscite{key}` | "Smith and Taylor's (2003)" / 「山田・田中(2020)」 |
 | 分析の数値 | `{{n_obs}}` / `{{coef:.2f}}` | `.qmd` が `results/*.json` に出した値が入る（§4） |
-| 表 | `**表1．キャプション**` + マークダウン表 | `table_map` に対応があれば外部 `.tex`/`.typ` に差し替え |
-| 図 | `![](figures/fig1_x.png)` + `**図1．** 説明` | 拡張子は形式ごとに付け替える（LaTeX は `.pdf`） |
-| 相互参照 | 「表3」「図1」「第4.1節」「Table 3」「Section 4.1」 | LaTeX/Typst では自動でリンクになる |
+| 数式 | `$\hat\beta$`（文中）、`$$ … $$`（別行） | LaTeX の書き方。どの形式にも変換される（下の「数式」） |
+| 表 | マークダウンの表 + すぐ下に `: 表題 {#tbl-desc}` | 分析が書いた表なら表題の行だけ（§4） |
+| 式 | `$$ … $$ {#eq-model}` | ラベルを付ければ番号が付く |
+| 図 | `![表題](figures/trend.png){#fig-trend}` | 拡張子は形式ごとに付け替える（LaTeX は `.pdf`） |
+| 相互参照 | `@fig-trend` `@tbl-desc` `@eq-model` `@sec-analysis` | 「図2.1」「表2.1」「式(2.1)」「第2節」（下の「相互参照」） |
 | 題扉 | 先頭の YAML front matter | `title` / `author` / `institute` / `date` |
 
-日本語と英語の語彙はどちらも既定で拾う（`crossref_vocab: 'both'`）。
-相互参照は**原稿の言い回しを保つ**ので、「第2節」は `第\ref{sec:2}節`、
-"Section 2" は `Section~\ref{sec:2}` になる。Typst では `#ref(<sec:2>)` の形で
-出す（`@sec:2` と書くと、続く日本語までラベル名として飲み込まれる）。
+### 相互参照
+
+**番号は原稿に書かない** — 見出しにも、キャプションにも、地の文にも。図・表・式・節に
+ラベルを付けて名前で指せば、番号は組むときに振られる。節や図を足しても、動かしても、
+消しても、参照を直す必要は無い。
+
+```markdown
+## Analysis {#sec-analysis}
+
+@fig-trend shows the trend and @tbl-desc the descriptive statistics.
+We estimate @eq-model (see also [-@eq-model]).
+
+![Trend](../../figures/trend.png){#fig-trend}
+
+| Variable | Mean |
+|----------|------|
+| x        | 1.2  |
+
+: Descriptive statistics {#tbl-desc}
+
+$$
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
+$$ {#eq-model}
+```
+
+- ラベルは Quarto と同じ書き方: `fig-` `tbl-` `eq-` `sec-` のあとに英数字と `-` `_`。
+  それ以外の文字でラベルは終わるので、日本語は空けずに続けて書ける（`@fig-trendに示す`）。
+- `@fig-trend` は「図2.1」（英語の文書では "Figure 2.1"）、`@tbl-desc` は「表2.1」、
+  `@eq-model` は「式(2.1)」、`@sec-analysis` は「第2節」、付録の節は「付録A」になる。
+  `[-@eq-model]` は番号だけ（「(2.1)」）。
+- **既定は節ごとの番号**: 第3節の2つめの図は 3.2 で、式も節ごとに振り直す。
+  `crossref_numbering: 'document'` にすれば通し番号（図1, 2, …）。
+- 番号が付くのは、見出し（`{.unnumbered}` を除く）、キャプションのある図、キャプションの
+  ある表、ラベルのある式。
+- ラベルは論文と付録、講義ノートの回どうしをまたいで使える（回ごとのデッキでは、
+  ほかの回への参照は、プリントでの番号を文字で書く）。
+- `octavo check` は、無いラベルへの参照（変換では `??` になる）と、2回付けたラベルで
+  止める。どこからも参照されていない図・表・式のラベルは注意として出す。
+
+形式ごとのやり方: **Typst と LaTeX は組版側が番号を振る**。体裁は `crossref.typ` /
+`crossref.tex` にあり、`octavo build` がビルドのフォルダに書く（論文は `main.typ` /
+`main.tex` が読み込み、プリントとスライドには埋め込まれる。体裁を変えるなら
+`octavo template copy typst/crossref.typ`）。**Word は何も番号を振らない**ので、
+Octavo が見出し・キャプション・式に番号を文字で入れ、参照はそこへのリンクにする。
+**スライド**もプリントと同じ番号で図・表・式を振る。講義の回ごとのデッキはプリントでの
+節の番号を引き継ぐので、「図2.1」は投影でも紙でも同じ図を指す。
+
+### 数式
+
+数式は LaTeX の書き方で、ドル記号で囲んで書く（pandoc の読み方）。Typst（論文・
+プリント・スライド・台本）では Typst の数式に、Word では Word の数式に、LaTeX /
+Beamer ではそのまま出る。1つの原稿から全部に効く。
+
+```markdown
+The estimate is $\hat\beta = {{coef_x:.3f}}$, with $y_i \sim \mathcal{N}(\mu, \sigma^2)$.
+
+$$
+\hat\beta = (X^\top X)^{-1} X^\top y
+$$
+
+$$
+\begin{aligned}
+y_i &= \beta_0 + \beta_1 x_i + \varepsilon_i \\
+\operatorname{Var}(\varepsilon_i) &= \sigma^2
+\end{aligned}
+$$
+```
+
+- **文中** `$…$`: ドルのすぐ内側に空白を入れない（`$x$`。`$ x $` は数式にならない）。
+  閉じの `$` の直後に数字を続けない。ドル記号そのものは `\$`（`\$20`）。
+- **別行** `$$…$$`: 前後に空行を置いて、独立した行に書く。`aligned`・`cases`・
+  `matrix` / `pmatrix`・`\frac`・`\sum_{i=1}^{N}`・`\left( … \right)`・
+  `\underbrace{…}_{…}`・`\mathbb`・`\mathcal`・`\operatorname`・`\text{…}`
+  （`\text` の中の日本語も可）はどれも通る。複数行は `align` ではなく `aligned` で
+  （`$$` の中の `align` は、Typst と Word は通しても LaTeX ではエラーになる）。
+- **マクロ**: 1行の `\newcommand{\E}{\mathbb{E}}` を原稿のどこかに書けば、どの形式でも
+  効く。Octavo は定義を原稿と付録から集め、別々に変換する部分（本文・要旨・付録・
+  講義ノートの回ごとのスライド）のそれぞれに渡すので、冒頭に1組書けば足りる。
+  演算子名は `\DeclareMathOperator` ではなく `\newcommand{\Cov}{\operatorname{Cov}}`
+  と書く（LaTeX では前者はプリアンブルでしか使えない）。
+- **分析の数値**は数式の中にも書ける: `$\hat\beta = {{coef_x}}$` は pandoc に渡る前に
+  `$\hat\beta = 0.342$` になる。桁区切りのある値は数式の外に出すほうがよい
+  （`$N$ = {{n_obs}}`）。数式の中ではカンマが区切り記号として組まれ、`1, 523` になる。
+- **`octavo lint` は数式の中も見る**: 手で打った `$\hat\beta = 0.418$` は地の文の結果と
+  同じく指摘される。`$\alpha = 0.05$`・`$x^2$`・`$\beta_1$` は指摘しない。
+- **番号付きの式**: 閉じの `$$` の後ろにラベルを付けると（`$$ … $$ {#eq-model}`）、
+  式に番号（節ごとに (2.1)）が付き、`@eq-model` で参照できる。ラベルの無い別行の
+  数式には番号を付けない。
 
 ### 図の拡張子
 
@@ -357,26 +485,24 @@ Speaker notes (in the speaker script and in Beamer; never on the projected deck)
 
 | 形式 | 探すファイル |
 |---|---|
-| `latex` / `beamer` | `figures/fig1_x.pdf` |
-| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/fig1_x.png` |
+| `latex` / `beamer` | `figures/trend.pdf` |
+| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/trend.png` |
 
 `figure_ext` で変えられる。足りないファイルは変換時に「欠落」として出る。
 
-### 表を外部ファイルにする（分析スクリプト連携）
+### 分析が作った表
 
-R や Python が表を `.tex` / `.typ` で直接吐く運用なら、`table_map` に
-「本文の表番号 → `tables/` のファイル名」を書く。
+分析が作った表も、原稿には書き写さない。`ov_table()` が表の中身を `tables/<名前>.typ`・
+`.tex`・`.md` に書き、原稿には表題の行だけを、ラベル `tbl-<名前>` を付けて置く:
 
-```python
-'table_map': {'1': 'tbl1_summary', '2': 'tbl2_models'},
+```markdown
+: Descriptive statistics {#tbl-summary}
 ```
 
-LaTeX なら `\inputtable{../../tables/tbl1_summary}`、Typst なら
-`#include "../../tables/tbl1_summary.typ"` に差し替わり、相互参照は
-**ファイルが実際に張っている `\label` を読んで**繋ぐ（推測しない）。
-
-Word・スライドは外部 `.tex` を取り込めないので、その場合は
-`table_map` があってもマークダウンの表がそのまま使われる。
+上にも下にも表が無い表題の行は、「分析の表 `summary` をここに入れる」という意味になる。
+Typst は `.typ` を読み込み、LaTeX は `.tex` を表題とラベルつきの `table` 環境の中に
+`\inputtable` し、Word には Markdown 版が入る。`@tbl-summary` でほかの表と同じく
+参照できる。原稿が出す形式に要るファイルが無ければ `octavo check` が止める。
 
 ---
 
@@ -408,18 +534,18 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 | 渡すもの | 分析側（.qmd） | 原稿側（.md） |
 |---|---|---|
 | 数値 | `ov_value("n_obs", nrow(d))` | `{{n_obs}}` |
-| 図 | `ov_figure(p, "fig1_trend")` | `![](figures/fig1_trend.png)` + `**図1．** 説明` |
-| 表 | `ov_table(tab, "tbl1_summary")` | `**表1．…**` ＋ config の `table_map: {'1': 'tbl1_summary'}` |
+| 図 | `ov_figure(p, "trend")` | `![推移](../../figures/trend.png){#fig-trend}` |
+| 表 | `ov_table(tab, "summary")` | `: 記述統計 {#tbl-summary}`（表題の行だけ） |
 
 - `ov_value(name, x, fmt = NULL, note = NULL)` — 値を1つ登録する。
   `results/<この .qmd の名前>.json` に貯まる。`ov_values(a = 1, b = 2)` でまとめ書きも可。
 - `ov_figure(x, name, width, height, dpi)` — `figures/` に **`.pdf` と `.png` の両方**を
   書く。LaTeX は `.pdf`、Word と Typst は `.png` を使う既定にそのまま乗る。
   `x` は ggplot でも、base graphics を描く関数でもよい。
-- `ov_table(x, name, caption, notes, align)` — `tables/` に **`.tex` と `.typ` の
-  両方**を書く。`x` は data.frame か、出来合いの文字列を入れた
-  `list(tex = …, typ = …)`。LaTeX には `\label{tab:<name>}`、Typst には
-  `<name>` のラベルが入るので、本文の「表1」がそのまま参照として繋がる。
+- `ov_table(x, name, notes, align)` — `tables/` に表の**中身**を `.tex`・`.typ`・`.md`
+  で書く。`x` は data.frame か、出来合いの文字列を入れた
+  `list(tex = …, typ = …, md = …)`。表題とラベルは原稿が持つ（`: 表題 {#tbl-<name>}`）
+  ので、`caption` の引数は無い。
 - `ov_pval(p)` — p 値を慣例どおり（`0.023` → `.023`、`< .001`）文字にする。
 
 ### 4.2 数値の書式
@@ -541,23 +667,18 @@ VS Code ならサイドバーのボタン。整形が走って `data/derived/` �
 付録は論文のフォルダの `appendix.md` に書く（`octavo new paper` が置く）。
 `documents` の `'appendix': 'papers/*/appendix.md'` が、同じフォルダの論文と結ぶ。
 
-```python
-  # 付録の表を外部ファイルにするなら、本文とは別の対応表を使う
-'appendix_table_map': {'A1': 'tblA1_robustness'},
-```
-
 ```bash
 octavo build example-paper --to typst --appendix  # body.typ と appendix.typ の両方を作る
 ```
 
-`papers/example-paper/main.typ` 側の `#include "appendix.typ"`（LaTeX なら `main.tex` の
-`\appendix` と `\input{appendix}`）のコメントを外す。
+`papers/example-paper/main.typ` 側の `#show: octavo-appendix` と `#include "appendix.typ"`
+（LaTeX なら `main.tex` の `\appendix` と `\input{appendix}`）のコメントを外す。
 
 付録も本文と**同じ扱い**を受ける。`{{…}}` の差し込み、引用の解決、
 条件付きブロック、相互参照はそのまま働き、`octavo values` `octavo checkbib`
 `octavo outline` も付録を見る（表示では `example-paper (付録)` と出る）。
-番号は本文と分けて `付録A．` `図A1` `表A1`、ファイル名は
-`figA1_balance` / `tblA1_robustness` にする。
+見出しに「付録A」とは書かない: 付録の節は組むときに A, B, … と振られ、付録の
+図・表・式は A.1, … になる。ラベルは本文と付録をまたいで使える。
 
 ### 4.5 R 以外で書く
 
@@ -662,7 +783,9 @@ octavo data [status|hash]                      データの指紋（sha256）
 octavo checkbib [--list] [--unused]
 octavo bib clean                           .bib から組版に要らない項目を落とした軽量版を作る
 octavo csl get|list|which [ID]
-octavo doctor
+octavo doctor [--json]
+octavo setup [--with-tex] [--no-quarto] [--no-r] [--check]   道具を入れる（setup.sh を走らせる）
+octavo env                                     プロジェクトの .venv（uv）と renv を用意する
 octavo init <dir> [--lang ja|en]
 octavo new paper|slides|lecture <name>        原稿を足す
 octavo template list|copy|diff [name] [--user]  自分用のひな型（§7）
@@ -959,14 +1082,10 @@ pandoc の既定の雛形が出るので、Word で「見出し 1」「本文」
 'docx_reference': 'reference.docx',
 ```
 
-中身は空でよい（スタイル定義だけ使う）。Word には LaTeX のような自動採番の
-相互参照が無いので、**図表番号はキャプションに文字として入る**
-（「表1．記述統計」）。本文の「表3」という言及はそのままの文字列で残る。
-原稿の並び順どおりに番号を振っているかぎり食い違わない。
-
-節番号も同じで、**原稿が持っていた番号（`## 1. はじめに` の「1.」）を
-そのまま文字として戻す**。pandoc の `--number-sections` は Word では効かず、
-数え直すと「1, 2, 付録A」のような並びが崩れるため、原稿の番号を使う。
+中身は空でよい（スタイル定義だけ使う）。Word は自分では何も番号を振らないので、
+**番号は Octavo が文字で入れる**: 見出し（「2. 分析」）、キャプション（「表2.1　記述統計」）、
+式（「(2.1)」）、そして本文の `@ラベル`（「表2.1」。その表へのリンクつき）。数え方は
+Typst・LaTeX と同じ。
 
 ---
 
@@ -975,10 +1094,10 @@ pandoc の既定の雛形が出るので、Word で「見出し 1」「本文」
 | | LaTeX | Typst | Word |
 |---|---|---|---|
 | 日本語フォント | haranoaji が TeX Live 同梱。設定不要 | **同梱されない。**`setup.sh` が入れる（「書体」の節。`typst fonts` で確認） | Word 側の設定 |
-| 節番号 | 組版側が振る | 組版側が振る | **原稿の番号を文字で戻す** |
-| 図表番号 | 自動 | 自動 | キャプションに文字で入れる |
-| 相互参照 | `\ref` でリンク | `#ref(<label>)` でリンク | 文字のまま |
-| 外部の表ファイル | `\inputtable` | `#include` | 使えない |
+| 節番号 | 組版側が振る | 組版側が振る | **Octavo が文字で入れる** |
+| 図・表・式の番号 | 自動（`crossref.tex`） | 自動（`crossref.typ`） | Octavo が文字で入れる |
+| 相互参照（`@fig-…`） | `\ref` / `\eqref` | `#ref(<label>)` | 番号を文字で。リンクつき |
+| 分析が作った表 | `.tex` を `\inputtable` | `.typ` を `include` | `.md` |
 | キャプション中の `**強調**` | 文字どおり出る | 実際に太字になる | — |
 | 書誌 | `CSLReferences` 環境（`main.tex` に定義が要る） | 本文に埋まる | 段落として入る |
 
@@ -1064,7 +1183,9 @@ luatexja が見るので babel は要らない）。
 octavo/
   octavo                   入口（これを PATH に通す）
   pyproject.toml           pip で入れるための設定（配布名 octavo-kit・コマンド octavo）
-  setup.sh                 Linux / WSL2（apt）と macOS（Homebrew）への導入
+  setup.sh                 Linux / WSL2（apt）と macOS（Homebrew）に道具を入れる。
+                           octavo setup も拡張機能の「準備する」もこれを走らせる
+  setup.ps1                同じことを Windows で直接（winget）
   config.example.py        設定のひな形（英語）
   config.example.ja.py     同じひな形の日本語版。キーは英語版と1対1で揃える
   octavo/
@@ -1089,7 +1210,8 @@ octavo/
     i18n.py                表示の言語（OCTAVO_LANG）。画面に出す文字列は t() を通す
     lang_ja.py             その日本語訳（コードに書く原文は英語）
     check.py               octavo checkbib
-    doctor.py              octavo doctor
+    doctor.py              octavo doctor（--json は拡張機能が読む）
+    envsetup.py            octavo env（プロジェクトの .venv と renv）
     selftest.py            octavo selftest
     scaffold.py            octavo init（研究プロジェクト一式・仮の図）と octavo new（原稿を足す）
     backends/
@@ -1171,7 +1293,9 @@ python3 tests/test_octavo.py       # 足りない道具が要る項目は自動�
 マークダウン上で `@` と打つと `.bib` の文献を補完し、`{{` と打つと分析が
 出した値を補完する。無い引用キーと、解決できない `{{…}}` には赤波線が出る
 （判定は `octavo checkbib --json` と `octavo values --json` を読むだけで、
-Python 側とロジックが二重にならないようにしてある）。Windows の VS Code から使う場合は
+Python 側とロジックが二重にならないようにしてある）。最初に起動したときに道具が
+そろっているかを確かめ（`octavo doctor --json`）、足りなければ同梱の `setup.sh` を
+走らせる（§1）。Windows の VS Code から使う場合は
 `wsl.exe` 経由で自動的に WSL 内の `octavo` を呼ぶ。詳しくは
 `vscode-extension/README.md`。**プレビュー**もここにある — 原稿の隣の列に
 組み上がった PDF が出て保存のたびに組み直し、講義ノートなら3列目にカーソルの

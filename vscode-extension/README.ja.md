@@ -20,23 +20,20 @@ Beamer を作るコマンドラインの道具で、引用は .bib と CSL で�
 
 ## 必要なもの
 
-この拡張は `octavo` コマンドを動かすもので、コマンドそのものは同梱していない。
-Linux、macOS、WSL2（Ubuntu）、または Remote-SSH でつなぐサーバーで
-（macOS では先に [Homebrew](https://brew.sh) を入れておく）:
+Linux、macOS、WSL2（Ubuntu）、または Remote-SSH でつなぐサーバー（macOS では
+先に [Homebrew](https://brew.sh) を入れておく）。**用意するのはこれだけ**で、
+拡張機能は最初に起動したときに道具がそろっているかを確かめ、足りなければ
+**「準備する」** を出す。押すと同梱の準備用スクリプトがターミナルで走り、
+パスワードを1回聞いたあと（sudo）、pandoc・Typst・quarto・フォント・
+R（CRAN の最新）・renv・[uv](https://docs.astral.sh/uv/)・`octavo` コマンドを入れる。
+Remote-SSH や WSL のウィンドウなら、その先のマシンに入る。終わったらターミナルを
+閉じると、拡張機能がもう一度確かめる。
 
-```bash
-git clone https://github.com/yoshida-kd/octavo.git ~/octavo
-bash ~/octavo/setup.sh      # octavo 本体と pandoc・Typst・quarto・フォント
-octavo doctor               # まだ足りないものを教えてくれる
-```
-
-pandoc（3.1 以上）と Typst（0.12 以上）を自分で入れるなら:
-
-```bash
-pipx install octavo-kit     # コマンドは octavo
-```
-
-TeX は任意で、LaTeX と Beamer の出力にだけ要る。全体像は
+サイドバーの **「ツール → 道具を入れる・更新する」** やコマンドパレットの
+**「Octavo: 道具を入れる・更新する」** からいつでも走らせ直せる（拡張機能を
+更新したら、`octavo` コマンドもそれに合わせて上がる）。TeX は入れない。LaTeX と
+Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex`）。ターミナルから
+入れる方法も含めた全体像は
 [Octavo の README](https://github.com/yoshida-kd/octavo/blob/HEAD/README.ja.md) を参照。
 
 ## 始め方
@@ -44,6 +41,8 @@ TeX は任意で、LaTeX と Beamer の出力にだけ要る。全体像は
 1. コマンドパレット →「**Octavo: 新しいプロジェクトを作る (init)**」で作り、
    できたフォルダを開く。
 2. 「**Octavo: 新しい原稿を足す (new)**」で論文・スライド・講義ノートを足す。
+   分析を使うなら、サイドバーの **「ツール → このプロジェクトの分析の環境を
+   用意する」** で `.venv`（uv）と renv ができる。
 3. 原稿を開き、エディタ右上の PDF のアイコン（「**Octavo: プレビューを開く**」）
    を押す。保存すれば PDF がついてくる。
 
@@ -52,7 +51,11 @@ TeX は任意で、LaTeX と Beamer の出力にだけ要る。全体像は
 ## できること
 
 - **コマンドパレット**（`Octavo:`）から `build`・`watch`・`check`・`checkbib`・
-  `doctor`・`selftest`・`init`・`new`・`analysis run`。
+  `doctor`・`selftest`・`init`・`new`・`analysis run`・`env`・`setup`。
+- **準備**: 最初に起動したときに道具を確かめ（`octavo doctor --json`）、足りない
+  ものを入れるかを聞く。準備用のスクリプトを同梱しているので、手で入れるのは
+  拡張機能だけ。プロジェクトごとの分析の環境（uv の `.venv`、knitr と rmarkdown
+  入りの renv）もボタン1つ。
 - **サイドバー**: 原稿（クリックで開く。それぞれに PDF と組版のボタン。
   講義ノートは回の一覧が出てその回へ飛べる）、設定（言語・引用の書式・
   スライドの縦横比／差し色／左上の節名／節の扉／見出しの番号・投稿規定の上限。
@@ -85,16 +88,21 @@ TeX は任意で、LaTeX と Beamer の出力にだけ要る。全体像は
 
 ## macOS・Windows で使う
 
-Octavo は Linux と macOS で動く（Mac ではそのまま `octavo` を呼ぶ。
-`octavo` が見つからないと言われたら、`octavo.command` に
-`~/.local/bin/octavo` のようなフルパスを書く）。Windows の VS Code からは2通り:
+Octavo は Linux と macOS で動く（拡張は `octavo` を呼び、準備が入れる先の
+`~/.local/bin` は VS Code の `PATH` に無くても探す。ほかの場所に置いた `octavo` は
+`octavo.command` にフルパスで書く）。Windows はその次の扱い（動くが、手のかけ方は少ない）。Windows の VS Code からは:
 
 1. **Remote-WSL でフォルダを開く**（おすすめ）。拡張が WSL の中で動き、
-   `octavo` を直接呼ぶ。
-2. **Windows のフォルダをそのまま開く**。拡張は `wsl.exe` 経由で `octavo` を
-   呼び（`octavo.executionMode: "auto"`）、パスを変換する
-   （`C:\Users\you\proj` ⇄ `/mnt/c/Users/you/proj`）。WSL 側の `PATH` に
-   `octavo` が要る。
+   すべて Linux と同じになる。
+2. **WSL を入れた Windows で、Windows のフォルダを開く**。拡張は `wsl.exe` 経由で
+   `octavo` を呼び（WSL にディストリがあれば `octavo.executionMode: "auto"` が
+   これを選ぶ）、パスを変換する（`C:\Users\you\proj` ⇄ `/mnt/c/Users/you/proj`）。
+   「準備する」は WSL の中に入れる。
+3. **WSL を使わず Windows で直接**。WSL にディストリが無ければ `auto` がこれを選ぶ
+   （`octavo.executionMode` を `"local"` にしてもよい）。「準備する」は同梱の
+   `setup.ps1` を走らせ、winget で pandoc・Typst・quarto・R を、利用者のフォントに
+   BIZ UD と Inter を、uv で `octavo` を入れる。インストーラーによっては Windows が
+   許可を求める。拡張が開くターミナルは PowerShell。Windows では TeX は入れない。
 
 ## 設定
 

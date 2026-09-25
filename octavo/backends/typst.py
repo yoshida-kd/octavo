@@ -20,7 +20,8 @@ import re
 from pathlib import Path
 
 from .. import pandocrun
-from .base import Backend, Ctx, apply_crossrefs
+from .. import crossref as xref
+from .base import Backend, Ctx
 from ..i18n import t, tag
 from .latex import check_assets, check_cjk
 
@@ -33,8 +34,6 @@ class TypstBackend(Backend):
     table_ext = '.typ'
     default_figure_ext = '.png'
     min_pandoc = (3, 1)
-    uses_table_map = True
-    auto_numbers_captions = True
     wants_abstract_file = True      # main.typ が #include "abstract.typ" で受ける
     anonymous_guard = '#if anonymous'
     main_name = 'main.typ'
@@ -63,7 +62,8 @@ class TypstBackend(Backend):
             # 候補の並び（欧文と和文を分ける covers を含む）は前置きの #set で渡す。
             # mainfont を渡さなければテンプレートは font を上書きしない。
             font = font_expr(ctx.lang, 'serif', ctx.cfg['typst_mainfont'])
-            args += ['--standalone', '-V', f'header-includes=#set text(font: {font})']
+            args += ['--standalone', '-V', f'header-includes=#set text(font: {font})',
+                     '-V', 'header-includes=' + crossref_rules(ctx)]
             if ctx.profile_opt('toc'):
                 args += ['--toc', f'--toc-depth={ctx.cfg["toc_depth"]}']
         if ctx.profile_opt('number_sections'):
@@ -71,24 +71,42 @@ class TypstBackend(Backend):
         return args
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_table(self, m: re.Match, name, ctx: Ctx) -> str:
-        if not name:
-            return self.markdown_table(m, ctx)
-        rel = ctx.rel(ctx.table_path(name))
-        ctx.say(f'{tag("table")} {m.group("num")} -> #include "{rel}"  '
-                f'«{m.group("cap").strip()[:40]}»')
-        return f'\n```{{=typst}}\n#include "{rel}"\n```\n'
-
-    def fmt_figure(self, m: re.Match, ctx: Ctx) -> str:
-        f, num = m.group('file'), m.group('num')
-        cap = ' '.join(m.group('cap').split())
-        rel = ctx.rel(ctx.figure_path(f))
-        ctx.say(f'{tag("figure")} {num} -> {rel}')
-        w = int(float(ctx.cfg['figure_width']) * 100)
+    def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
+        """分析が書いた表の中身（tables/<名前>.typ）を、キャプションとラベルを付けて入れる。"""
+        p = ctx.table_path(name)
+        if not p.is_file():
+            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
+                                           'ov_table() in the .qmd)', path=ctx.cfg.rel(p)))
+        rel = ctx.rel(p)
+        ctx.say(f'{tag("table")} {label} -> #include "{rel}"')
         return ('\n```{=typst}\n#figure(\n'
-                f'  image("{rel}", width: {w}%),\n'
-                f'  caption: [{typst_escape(cap)}],\n'
-                f') <fig:{f}>\n```\n')
+                f'  include "{rel}",\n'
+                f'  caption: [{typst_escape(caption)}],\n'
+                f'  kind: table,\n) <{label}>\n```\n')
+
+    def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
+        """`#ref(<label>)`。体裁（「図2.1」など）は crossref.typ の show ref が決める。
+
+        **`@label` ではなく `#ref(<label>)` で書く。** `@label` のラベル名は非 ASCII
+        でも続く限り伸びるので、「@fig-trendに示す」が存在しないラベルになる。
+        この出力の中に無い相手（講義のほかの回）は番号を文字で書く。
+        """
+        if item.label not in ctx.crossref_local:
+            return xref.text_of(item, ctx.lang, short)
+        sup = ', supplement: []' if short else ''
+        return f'`#ref(<{item.label}>{sup})`{{=typst}}'
+
+    def includes_appendix(self, layout: str) -> bool:
+        code = '\n'.join(l.split('//', 1)[0] for l in layout.split('\n'))
+        return bool(re.search(r'#include\s+"appendix\.typ"', code))
+
+    def crossref_files(self, ctx: Ctx) -> list:
+        return [('crossref.typ',
+                 '// octavo build が毎回書き換える。体裁を変えるなら\n'
+                 '// octavo template copy typst/crossref.typ\n\n'
+                 + crossref_template(ctx)
+                 + '\n#let octavo-crossref = octavo-crossref-rules.with('
+                 + crossref_args(ctx) + ')\n')]
 
     def fmt_poscite(self, key: str, ctx: Ctx) -> str:
         if self.uses_citeproc(ctx):
@@ -119,44 +137,23 @@ class TypstBackend(Backend):
         for line in text.split('\n'):
             if not line.lstrip().startswith('//'):
                 line = re.sub(r'(?P<head>image\()"(?P<path>[^"]+)"', quoted, line)
-                line = re.sub(r'(?P<head>#include\s+)"(?P<path>[^"]+)"', quoted, line)
+                line = re.sub(r'(?P<head>(?<![\w-])#?include\s+)"(?P<path>[^"]+)"', quoted, line)
                 line = re.sub(r'(?P<head>#bibliography\()"(?P<path>[^"]+)"', quoted, line)
             out.append(line)
         return '\n'.join(out), refs
 
     # -- 変換後 -------------------------------------------------------------
-    def crossrefs(self, typ: str, ctx: Ctx) -> str:
-        def figure_labels(text):
-            out = {}
-            for f in re.findall(r'<fig:([\w.-]+)>', text):
-                m = re.match(r'fig([A-Z]?\d+)[_-]', f)
-                if m:
-                    out[m.group(1)] = f
-            return out
-
-        # Typst は参照だけで「図1」「Figure 1」に整形する（supplement）ので、
-        # LaTeX と違って「図」「Table」を自分では付けない。
-        #
-        # **`@label` ではなく `#ref(<label>)` で書く。** `@label` のラベル名は
-        # 非 ASCII でも続く限り伸びるので、「@fig:fig1_trendに示す」が
-        # `<fig:fig1_trendに示す>` という存在しないラベルになって組版が止まる。
-        # 日本語では参照の直後に助詞が来るのがふつうなので、これは例外ではない。
-        # `#ref(…)` は閉じ括弧で必ず終わる。
-        return apply_crossrefs(
-            typ, ctx,
-            table_ref=lambda lg, num, name: f'#ref(<{name}>)',
-            figure_ref=lambda lg, num, lab: f'#ref(<fig:{lab}>)',
-            section_ref=lambda lg, a, b: f'#ref(<sec:{a}{"-" + b if b else ""}>)',
-            figure_labels=figure_labels)
-
     def check(self, typ: str, ctx: Ctx) -> None:
         check_assets(ctx,
-                     tables=re.findall(r'#include "[^"]*?/?([\w.-]+)\.typ"', typ),
+                     tables=re.findall(r'(?<![\w-])#?include "[^"]*?/?([\w.-]+)\.typ"', typ),
                      figures=re.findall(r'image\("[^"]*?/?([\w.-]+\.\w+)"', typ),
                      refs=(re.findall(r'image\("([^"]+)"', typ)
-                           + re.findall(r'#include "([^"]+)"', typ)))
+                           + re.findall(r'(?<![\w-])#?include "([^"]+)"', typ)))
+        # A4 プリントは番号の体裁（crossref.typ）を頭に埋め込んでいる。その中の
+        # 「図」「表」は英語の文書では組まれないので数えない
         check_cjk(typ, ctx, '.typ', t('main.typ must set a CJK font '
-                                      '(check it is installed with: typst fonts)'))
+                                      '(check it is installed with: typst fonts)'),
+                  templates=[ctx.template('typst/crossref.typ')] if ctx.standalone else [])
 
     @staticmethod
     def root_arg(ctx: Ctx) -> str:
@@ -198,8 +195,10 @@ class TypstBackend(Backend):
 # templates/main_*.typ に同じ並びを書いてある（変えるなら両方）。
 #
 #   和文: 等幅の BIZ UD（プロポーショナルの BIZ UDP は使わない）-> 無ければ Noto CJK
-#         -> それも無ければヒラギノ（macOS に最初から入っている。何も足していない
-#            Mac で和文が豆腐にならないための最後の受け皿）
+#         -> それも無ければヒラギノ（macOS）・游明朝／游ゴシック（Windows。游明朝が
+#            無い Windows もあるので明朝の最後にも游ゴシック）。どちらも
+#            その OS に最初から入っていて、何も足していない機械で和文が豆腐に
+#            ならないための最後の受け皿
 #   欧文: 和文フォントの欧文字形を使わず、欧文フォントで組む
 #
 # 日本語の文書では欧文フォントに `covers: "latin-in-cjk"` を付ける。これで
@@ -207,9 +206,20 @@ class TypstBackend(Backend):
 # 和文フォントのまま残る。英語の文書では欧文フォントをそのまま先頭に置く。
 # 候補の後ろは、その機械に無ければ順に落ちるための保険。
 FONTS = {
-    'serif': ('Libertinus Serif', ('BIZ UDMincho', 'Noto Serif CJK JP', 'Hiragino Mincho ProN')),
-    'sans': ('Inter', ('BIZ UDGothic', 'Noto Sans CJK JP', 'Hiragino Kaku Gothic ProN')),
+    'serif': ('Libertinus Serif', ('BIZ UDMincho', 'Noto Serif CJK JP', 'Hiragino Mincho ProN',
+                                   'Yu Mincho', 'Yu Gothic')),
+    'sans': ('Inter', ('BIZ UDGothic', 'Noto Sans CJK JP', 'Hiragino Kaku Gothic ProN',
+                       'Yu Gothic')),
 }
+# OS ごとの最後の受け皿（その OS に最初から入っている和文書体）。ほかの OS では
+# 見えないのが当たり前なので、「書体が見えるか」を確かめるときは除く。
+PLATFORM_FALLBACKS = {
+    'darwin': ('Hiragino Mincho ProN', 'Hiragino Kaku Gothic ProN'),
+    'win32': ('Yu Mincho', 'Yu Gothic'),
+}
+# 游明朝は日本語の言語機能を足したときに入る追加フォントで、英語の Windows には
+# 無いことがある（游ゴシックは常にある）。だから明朝の並びの最後にも游ゴシック。
+OPTIONAL_FONTS = ('Yu Mincho',)
 
 
 def font_expr(lang: str, kind: str, override=None) -> str:
@@ -235,3 +245,26 @@ def typst_escape(s: str) -> str:
     """
     return (s.replace('\\', '\\\\').replace('#', '\\#')
              .replace('@', '\\@').replace('<', '\\<').replace('$', '\\$'))
+
+
+# ---------------------------------------------------------------- 番号と参照の体裁
+
+def crossref_template(ctx: Ctx) -> str:
+    return ctx.template('typst/crossref.typ').read_text(encoding='utf-8')
+
+
+def crossref_args(ctx: Ctx, section: str = 'auto') -> str:
+    within = 'true' if ctx.numbering_mode() == 'section' else 'false'
+    slides = 'true' if ctx.backend.is_slides else 'false'
+    return (f'lang: "{ctx.lang}", within: {within}, section: {section}, '
+            f'count-unnumbered: {slides}')
+
+
+def crossref_rules(ctx: Ctx, section: str = 'auto') -> str:
+    """文書に埋め込む形（A4 プリント・スライド）。
+
+    スライドでは体裁のテンプレートの**後ろ**に置く。テンプレートの show heading は
+    見出しを作り直す（`it` を返さない）ので、先にあると節を数える処理まで届かない。
+    """
+    return (crossref_template(ctx)
+            + f'\n#show: octavo-crossref-rules.with({crossref_args(ctx, section)})\n')

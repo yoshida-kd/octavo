@@ -71,10 +71,11 @@ p <- function() {
        xlab = "x", ylab = "y")
   abline(m, lwd = 2)
 }
-ov_figure(p, "fig1_trend")      # figures/fig1_trend.pdf and .png
+ov_figure(p, "trend")      # figures/trend.pdf and .png
 ```
 
-In the manuscript, write `![](figures/fig1_trend.png)` and `**Figure 1.** Caption`.
+In the manuscript, write `![Trend](../../figures/trend.png){#fig-trend}` and
+refer to it as `@fig-trend` (it is numbered when typeset: Figure 2.1).
 
 ## Table
 
@@ -85,11 +86,10 @@ tab <- data.frame(
   Mean = c(mean(d$x), mean(d$y)),
   SD = c(sd(d$x), sd(d$y))
 )
-ov_table(tab, "tbl1_summary", caption = "Descriptive statistics",
+ov_table(tab, "summary",
          notes = paste0("Note: N = ", nrow(d), "."))
 ```
 
-With `'table_map': {'1': 'tbl1_summary'}` in `octavo.config.py`, the
-**Table 1. …** in the manuscript is replaced with this file
-(tables/tbl1_summary.tex / .typ). Without it, the manuscript's own Markdown
-table is used.
+This writes the table's contents (tables/summary.typ / .tex / .md). In the
+manuscript, the one line `: Descriptive statistics {#tbl-summary}` puts it
+there with its caption, and `@tbl-summary` refers to it.

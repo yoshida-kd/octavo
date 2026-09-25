@@ -33,11 +33,13 @@ def version() -> tuple:
     if not exe:
         raise PandocError(t('pandoc not found.') + '\n'
                           '  Ubuntu/WSL: sudo apt install pandoc\n'
-                          '  macOS: brew install pandoc\n  '
+                          '  macOS: brew install pandoc\n'
+                          '  Windows: winget install JohnMacFarlane.Pandoc\n  '
                           + t('For a newer one, take the .deb from '
                               'https://github.com/jgm/pandoc/releases '
                               "(apt's is often old)"))
-    out = subprocess.run([exe, '-v'], capture_output=True, text=True).stdout
+    out = subprocess.run([exe, '-v'], capture_output=True, text=True,
+                         encoding='utf-8', errors='replace').stdout
     return _vtuple(out.split('\n')[0].split()[1])
 
 
@@ -73,8 +75,8 @@ def writer_extensions(fmt: str) -> frozenset:
     exe = shutil.which('pandoc')
     if not exe:
         return frozenset()
-    out = subprocess.run([exe, f'--list-extensions={fmt}'],
-                         capture_output=True, text=True).stdout
+    out = subprocess.run([exe, f'--list-extensions={fmt}'], capture_output=True,
+                         text=True, encoding='utf-8', errors='replace').stdout
     return frozenset(l[1:] for l in out.split() if l[:1] in '+-')
 
 

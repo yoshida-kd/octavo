@@ -233,11 +233,11 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
         (dest / d / '.gitkeep').touch()
 
     # 原稿のテンプレートが参照している図。差し替える前でも組版が通るように置いておく。
-    if not (dest / 'figures' / 'fig1_trend.png').exists() or force:
-        write_placeholder_png(dest / 'figures' / 'fig1_trend.png')
-        write_placeholder_pdf(dest / 'figures' / 'fig1_trend.pdf')
+    if not (dest / 'figures' / 'trend.png').exists() or force:
+        write_placeholder_png(dest / 'figures' / 'trend.png')
+        write_placeholder_pdf(dest / 'figures' / 'trend.pdf')
         made.append('  ' + t('made')
-                    + '  ' + t('figures/fig1_trend.png (and .pdf — placeholders)'))
+                    + '  ' + t('figures/trend.png (and .pdf — placeholders)'))
 
     if quiet:
         return 0
@@ -247,9 +247,7 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     print('\n' + t('Next:'))
     print(f'  cd {dest}')
     print('  octavo doctor'.ljust(38) + '# ' + t('see whether the tools are there'))
-    print('  python3 -m venv .venv && source .venv/bin/activate'.ljust(38)
-          + '   # ' + t('the analysis environment (Python)'))
-    print("  Rscript -e 'renv::init()'".ljust(38) + '# ' + t('the analysis environment (R)'))
+    print('  octavo env'.ljust(38) + '# ' + t('the analysis environment (.venv and renv)'))
     print(('  octavo new paper <' + t('name') + '>').ljust(38)
           + '# ' + t('add a manuscript (as many as you like)'))
     print('  octavo new slides <' + t('name') + '>')

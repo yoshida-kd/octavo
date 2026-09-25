@@ -86,12 +86,10 @@
 // 差し色を設定しないときは black になるので、見た目は従来どおり
 #show link: set text(fill: accent)
 
-// スライドの図表に組版側の通し番号は振らない。番号を出したいときは原稿の
-// キャプション（`**表1．…**` / `**図1．** …`）が持つ。両方が振ると
-// 「表 4: 表4．…」と二重になる。
-#show figure: set figure(numbering: none, supplement: none)
-// 表のキャプションは表の上（和文の慣行）
-#show figure.where(kind: table): set figure.caption(position: top)
+// 図表・式の番号と参照の体裁は、この前に Octavo が埋め込む crossref.typ が持つ
+// （原稿の @fig-… が指す番号と、キャプションの番号が一致する）。スライドでは
+// キャプションを小さく出す
+#show figure.caption: set text(size: 0.62em, fill: luma(60))
 
 // 見出しの番号（octavo.numbering が none なら振らない）
 #set heading(numbering: octavo.numbering)

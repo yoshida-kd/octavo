@@ -48,14 +48,34 @@ in sync.
 ## 1. Install
 
 Octavo runs on Linux — a native Ubuntu/Debian box, an Ubuntu server, or
-Ubuntu-on-WSL2 on Windows — and on macOS. `setup.sh` installs with apt on Linux
-and with [Homebrew](https://brew.sh) on macOS (install Homebrew first).
+Ubuntu-on-WSL2 on Windows — and on macOS (install [Homebrew](https://brew.sh)
+first there).
+
+**With VS Code, installing the extension is all there is to it.** The first time
+the [Octavo extension](vscode-extension/README.md) starts, it checks what is
+installed and, if anything is missing, offers **Set up**. That runs `setup.sh`
+(it ships inside the extension) in a terminal, asks for your password once, and
+installs pandoc, Typst, quarto, the fonts, R (the latest from CRAN), renv, uv
+and the `octavo` command itself — no clone and no pip. Over Remote-SSH or in a
+WSL window it installs on that machine. Run it again any time from the Octavo
+sidebar (**Tools → Install or Update the Tools**), e.g. after updating the
+extension.
+
+**From a terminal**, the same thing is `octavo setup`:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # uv, if you don't have it yet
+uv tool install octavo-kit                        # the octavo command
+octavo setup                                      # pandoc / Typst / quarto / fonts / R / renv
+octavo doctor                                     # reports anything still missing
+octavo selftest                                   # one real end-to-end citation check
+```
+
+or from a clone (`setup.sh` then links `~/.local/bin/octavo` to it):
 
 ```bash
 git clone https://github.com/yoshida-kd/octavo.git ~/octavo
-bash ~/octavo/setup.sh      # installs pandoc / Typst / quarto / CJK fonts
-octavo doctor                     # reports anything still missing
-octavo selftest                   # one real end-to-end citation check
+bash ~/octavo/setup.sh
 ```
 
 `octavo selftest` builds a small sample document in a temp directory
@@ -82,33 +102,43 @@ in is a separate setting — `lang` in `octavo.config.py`, which `octavo init
 CLAUDE.md and README, and the citation locale. A Japanese interface with an
 English paper is a perfectly ordinary combination.
 
-### Installing with pip instead
+### What `setup.sh` does
 
-`setup.sh` + the symlink it makes is the recommended route, because it also
-installs the external tools. If you only want the converter and will install
-pandoc / Typst / quarto yourself, `octavo` is a normal Python package:
+`octavo setup` runs `setup.sh` (the package carries it), and so does the
+extension. It is idempotent — safe to re-run; what is already there and new
+enough is skipped. On Linux it uses apt:
 
-```bash
-pipx install octavo-kit     # or `pip install octavo-kit` inside a virtualenv
-octavo doctor
-```
+- pandoc, Typst and quarto at the versions Octavo was tested with (newer ones
+  are kept), plus the fonts;
+- **R, the latest release from CRAN**: on Ubuntu it adds CRAN's apt repository
+  (other Debian-likes get the distribution's `r-base`), together with the
+  development libraries packages such as the tidyverse need. It also points R at
+  [Posit Package Manager](https://packagemanager.posit.co) (in
+  `/etc/R/Rprofile.site`), so renv installs **prebuilt binaries** on Linux and
+  nothing has to be compiled;
+- renv (into your personal R library) and [uv](https://docs.astral.sh/uv/)
+  (into `~/.local/bin`);
+- the `octavo` command, from PyPI with `uv tool install` — unless it runs from a
+  clone, or `~/.local/bin/octavo` already points at one, in which case it leaves
+  that alone.
 
-(A plain `pip install` outside a virtualenv is refused on recent Ubuntu/Debian —
-PEP 668 — which is why `pipx` is the suggestion: it gives the command its own
-environment.)
+On macOS it does the same with Homebrew: `brew install pandoc typst`,
+`brew install --cask quarto r` (`r` is CRAN's own build) and the font casks
+(`font-biz-udmincho` and friends). `octavo doctor` gives its hints as `brew`
+commands there. The CI `macos` job goes from a Homebrew install to typeset PDFs
+on every push.
 
-It has **no Python dependencies** (standard library only) and carries its own
-templates, so `octavo init` / `octavo new` work the same way. What you don't
-get is `setup.sh` itself — `octavo doctor` then tells you to clone the repo for
-it. On PyPI it is `octavo-kit` (PyPI does not allow the name `octavo`); the command
-and the Python module are `octavo`.
+On Windows itself, `setup.ps1` does the same with winget (see Windows below).
 
-`setup.sh` is idempotent — safe to re-run. It does not install TeX Live by
-default; add it with `bash setup.sh --with-tex` (several GB) if you also use
-LaTeX or Beamer. `octavo doctor` reports a missing TeX as a warning, not as
-something missing. quarto (which renders the `.qmd` analysis) is installed by
-default; skip it with `--no-quarto`. R and Python themselves are not installed —
-which one a project uses is the project's business.
+TeX Live is left out; add it with `--with-tex` (several GB; MacTeX on macOS) if
+you also use LaTeX or Beamer. `octavo doctor` reports a missing TeX as a warning,
+not as something missing. `--no-quarto` and `--no-r` leave those out, and
+`--check` only shows what would be done.
+
+The `octavo` package itself has **no Python dependencies** (standard library
+only) and carries its own templates. On PyPI it is `octavo-kit` (PyPI does not
+allow the name `octavo`); the command and the Python module are `octavo`.
+`pipx install octavo-kit` works as well as uv.
 
 Version requirements:
 
@@ -119,43 +149,63 @@ Version requirements:
 | LuaLaTeX (optional) | — | TeX Live 2021+ | needs `texlive-lang-japanese` for Japanese documents |
 | Typst | — | 0.15 | Typst slides need 0.12+. CJK fonts aren't bundled (`setup.sh` installs them) |
 
-On macOS, `setup.sh` runs `brew install pandoc typst`, `brew install --cask quarto`
-and the font casks (`font-biz-udmincho` and friends), and `--with-tex` adds MacTeX
-(`mactex-no-gui`, which has Japanese LuaLaTeX and Beamer included). `octavo doctor`
-gives its hints as `brew` commands there. The CI `macos` job goes from a Homebrew
-install to typeset PDFs on every push.
+### Windows
 
-If you're on Windows, running Octavo inside WSL2 (Ubuntu) works well;
-just make sure your source files live on the Linux filesystem (or a
-Windows-side folder mounted under `/mnt/...`) so paths resolve normally.
+Linux comes first, macOS second, and Windows third: it works, but it gets less
+attention than the other two. There are two ways:
+
+- **WSL2 (Ubuntu), the recommended way.** Everything is the Linux path above.
+  In VS Code, open the folder through Remote-WSL; keep the files on the Linux
+  side (or under `/mnt/...`).
+- **Directly on Windows.** `octavo setup` — and the extension's **Set up** when
+  WSL has no distribution — runs `setup.ps1` instead of `setup.sh`: winget
+  installs pandoc, Typst, quarto and R (the latest from CRAN; the R installer does
+  not touch `PATH`, so the script adds R's `bin` to your user `PATH`), BIZ UD and
+  Inter go into your user fonts (no administrator needed; Yu Mincho / Yu Gothic
+  are the fallback), renv goes into your R library, and uv installs the
+  `octavo` command.
+  TeX is not installed on Windows (install MiKTeX or TeX Live yourself if you
+  need LaTeX / Beamer). The CI `windows` job runs `setup.ps1` for real and
+  goes on to the tests, `octavo env`, the analysis and a PDF.
+
+  ```powershell
+  powershell -c "irm https://astral.sh/uv/install.ps1 | iex"   # uv
+  uv tool install octavo-kit                                   # the octavo command
+  octavo setup                                                 # runs setup.ps1
+  ```
+
+Manuscripts and analyses are written the same way on every system. Two habits
+keep a project portable: write paths with `/` (`../figures/fig1.png`, which
+Windows reads too — a `\` is an escape in Markdown), and in Python open text
+files with `encoding="utf-8"` (on Windows the default is the system code page).
+Keep file names' upper and lower case exactly as the manuscript writes them:
+Windows does not tell `Fig1.png` from `fig1.png`, Linux does.
 
 ### The analysis environment is per project (.venv and renv)
 
-pandoc, Typst, quarto and Octavo live once per machine (`setup.sh` above).
-**The packages an analysis uses belong to the project.** `octavo init` lays the
-Python groundwork — a `requirements.txt`, plus `.venv/` and `renv/library/` in
-the project's `.gitignore`.
+pandoc, Typst, quarto, R and Octavo live once per machine (`setup.sh` above).
+**The packages an analysis uses belong to the project**, and one command sets
+them up:
 
 ```bash
 cd 2026-research
-python3 -m venv .venv && source .venv/bin/activate   # Python
-pip install -r requirements.txt
-Rscript -e 'renv::init()'                            # R
+octavo env      # .venv with uv (+ requirements.txt), renv (+ knitr, rmarkdown)
 ```
 
-renv does not come with R, so install it once per machine (`octavo doctor`
-shows whether it is there, under "Analysis"; the personal library folder has to
-exist first or `install.packages()` has nowhere to write):
-
-```bash
-mkdir -p "$(Rscript -e 'cat(Sys.getenv("R_LIBS_USER"))')"
-Rscript -e 'install.packages("renv", repos = "https://cloud.r-project.org")'
-```
+In VS Code it is **Tools → Set Up This Project's Analysis Environment** in the
+Octavo sidebar. `octavo env` creates `.venv` with uv and installs what
+`requirements.txt` lists, and for R runs `renv::init()` (which installs the
+packages the `.qmd` already uses), adds knitr and rmarkdown — quarto needs
+them to render an R `.qmd` — and writes `renv.lock`. In a project you cloned it
+restores from `renv.lock` instead. It is safe to run again, and that is how you
+install what you just added to `requirements.txt`.
 
 Git holds **only the records** (`requirements.txt` / `renv.lock`), never the
-environment itself. Add a package to `requirements.txt` after `pip install`, and
-run `renv::snapshot()` after `install.packages()`. The generated project's
-`README.md` / `CLAUDE.md` say the same thing.
+environment itself. Add a Python package to `requirements.txt` and run
+`octavo env`; after `install.packages()` in R, run `renv::snapshot()`. The
+analysis runs a Python `.qmd` with the project's `.venv` on its own
+(`QUARTO_PYTHON`), so nothing has to be activated for `octavo analysis run`. The
+generated project's `README.md` / `CLAUDE.md` say the same thing.
 
 ### Typefaces
 
@@ -355,23 +405,122 @@ unchanged.
 
 | Element | Syntax | Notes |
 |---|---|---|
-| Heading | `## 1. Section Title` / `### 1.1 Subsection` / `# 2. ...` | numbers become `{#sec:1}` labels; the typesetting engine renumbers them |
-| Appendix | `## Appendix A. ...` (or `## 付録A．…`) | becomes `{#sec:appA}` |
+| Heading | `## Analysis {#sec-analysis}` | no number typed — the typesetter numbers it; the label makes it referable |
+| Appendix | a separate `appendix.md` (§4.4) | its sections become A, B, …, its figures A.1, … |
 | Abstract | `## Abstract` (or `## 要旨` / `## 概要`) | a `*Word count: N words*` line, if present, is split out with it |
 | References heading | `## References` (or `## 参考文献`) | dropped at conversion time — the bibliography is built from `.bib` instead |
 | Citation | `@key` (inline), `[@key; @key2]` (parenthetical) | |
 | Possessive citation | `\poscite{key}` | e.g. "Smith and Taylor's (2003)" |
 | Analysis value | `{{n_obs}}` / `{{coef:.2f}}` | filled in from what the `.qmd` wrote to `results/*.json` (§4) |
-| Table | `**Table 1. Caption**` + a Markdown table | replaced with an external `.tex`/`.typ` file if `table_map` has an entry |
-| Figure | `![](figures/fig1_x.png)` + `**Figure 1.** Caption` | the extension is swapped per output format (LaTeX gets `.pdf`) |
-| Cross-reference | "Table 3", "Figure 1", "Section 4.1" (in either language) | becomes an automatic link in LaTeX/Typst |
+| Math | `$\hat\beta$` (inline), `$$ … $$` (display) | LaTeX notation, converted for every format (see Math below) |
+| Table | a Markdown table + `: Caption {#tbl-desc}` right below it | or the caption line alone for a table the analysis wrote (§4) |
+| Figure | `![Caption](figures/trend.png){#fig-trend}` | the extension is swapped per output format (LaTeX gets `.pdf`) |
+| Equation | `$$ … $$ {#eq-model}` | numbered when labelled |
+| Cross-reference | `@fig-trend`, `@tbl-desc`, `@eq-model`, `@sec-analysis` | "Figure 2.1", "Table 2.1", "Equation (2.1)", "Section 2" (below) |
 | Title block | YAML front matter at the top of the file | `title` / `author` / `institute` / `date` |
 
-Both English and Japanese cross-reference phrasing are recognized by
-default (`crossref_vocab: 'both'`), and the **source's own wording is
-preserved**: "Section 2" becomes `Section~\ref{sec:2}`, while a Japanese
-"第2節" becomes `第\ref{sec:2}節`. Typst gets the `#ref(<sec:2>)` form, because
-`@sec:2` would swallow any Japanese that follows it into the label name.
+### Cross-references
+
+**Numbers are never typed in the manuscript** — not in headings, not in
+captions, not in the prose. Give a figure, table, equation or section a label
+and refer to it by name; the numbers are assigned when it is typeset, so adding,
+moving or deleting a section or a figure never means fixing references.
+
+```markdown
+## Analysis {#sec-analysis}
+
+@fig-trend shows the trend and @tbl-desc the descriptive statistics.
+We estimate @eq-model (see also [-@eq-model]).
+
+![Trend](../../figures/trend.png){#fig-trend}
+
+| Variable | Mean |
+|----------|------|
+| x        | 1.2  |
+
+: Descriptive statistics {#tbl-desc}
+
+$$
+y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
+$$ {#eq-model}
+```
+
+- The labels are the ones Quarto uses: `fig-`, `tbl-`, `eq-` or `sec-`, then
+  letters, digits, `-` and `_`. A label ends at the first other character, so
+  Japanese can follow without a space (`@fig-trendに示す`).
+- `@fig-trend` reads "Figure 2.1" ("図2.1" in a Japanese document), `@tbl-desc`
+  "Table 2.1", `@eq-model` "Equation (2.1)", `@sec-analysis` "Section 2" ("第2節"),
+  and a section of the appendix "Appendix A". `[-@eq-model]` gives the number
+  alone: "(2.1)".
+- **Numbered by section by default**: the second figure of Section 3 is 3.2, and
+  equations restart in each section too. `crossref_numbering: 'document'` numbers
+  straight through instead (Figure 1, 2, …).
+- What gets a number: headings (not `{.unnumbered}` ones), figures with a caption,
+  tables with a caption, and equations with a label.
+- Labels work across a paper and its appendix, and across a lecture's sessions
+  (a session's deck writes a reference to another session as plain text, with
+  the number the handout gives it).
+- `octavo check` stops on a reference to a label that doesn't exist (a build
+  writes it as `??`) and on a label used twice, and notes labelled figures,
+  tables and equations nothing refers to.
+
+How each format does it: **Typst and LaTeX number things themselves** — the
+look lives in `crossref.typ` / `crossref.tex`, which `octavo build` writes into
+the build folder (the paper's `main.typ` / `main.tex` reads it; handouts and
+slides have it built in; `octavo template copy typst/crossref.typ` to restyle).
+**Word doesn't number anything**, so Octavo writes the numbers into the headings,
+captions and equations as text and turns each reference into a link. **Slides**
+number figures, tables and equations the same way as the handout — a lecture's
+session deck keeps the handout's section number, so "Figure 2.1" is the same
+figure on the projector and on paper.
+
+### Math
+
+Write math in LaTeX notation between dollar signs, the way pandoc reads it. It
+comes out as Typst math in Typst (papers, handouts, slides, scripts), as native
+equations in Word, and as itself in LaTeX / Beamer — one source for all of them.
+
+```markdown
+The estimate is $\hat\beta = {{coef_x:.3f}}$, with $y_i \sim \mathcal{N}(\mu, \sigma^2)$.
+
+$$
+\hat\beta = (X^\top X)^{-1} X^\top y
+$$
+
+$$
+\begin{aligned}
+y_i &= \beta_0 + \beta_1 x_i + \varepsilon_i \\
+\operatorname{Var}(\varepsilon_i) &= \sigma^2
+\end{aligned}
+$$
+```
+
+- **Inline** `$…$`: no space just inside the dollars (`$x$`, not `$ x $`), and
+  the closing `$` must not be followed by a digit. A literal dollar sign is `\$`
+  (`\$20`).
+- **Display** `$$…$$`: on lines of their own, with a blank line before and
+  after. `aligned`, `cases`, `matrix` / `pmatrix`, `\frac`, `\sum_{i=1}^{N}`,
+  `\left( … \right)`, `\underbrace{…}_{…}`, `\mathbb`, `\mathcal`,
+  `\operatorname` and `\text{…}` (Japanese inside `\text` works) all come
+  through. For several lines use `aligned`, not `align` (`align` inside `$$`
+  is an error in LaTeX, though Typst and Word would take it).
+- **Macros**: a one-line `\newcommand{\E}{\mathbb{E}}` anywhere in the
+  manuscript works in every format. Octavo gathers the definitions from the
+  manuscript and its appendix and gives them to every part it converts
+  separately — the body, the abstract, the appendix and each session deck of
+  lecture notes — so one set at the top is enough. For an operator name, write
+  `\newcommand{\Cov}{\operatorname{Cov}}` rather than `\DeclareMathOperator`
+  (LaTeX allows that one only in the preamble).
+- **Values from the analysis** can go inside math: `$\hat\beta = {{coef_x}}$`
+  becomes `$\hat\beta = 0.342$` before pandoc sees it. A value with a thousands
+  separator is better outside the math — `$N$ = {{n_obs}}` — because inside it
+  the comma is set as punctuation (`1, 523`).
+- **`octavo lint` reads math too**: `$\hat\beta = 0.418$` typed by hand is
+  reported like any other result in the prose, while `$\alpha = 0.05$`,
+  `$x^2$` and `$\beta_1$` are not.
+- **Numbered equations**: put a label after the closing `$$`
+  (`$$ … $$ {#eq-model}`) and the equation is numbered — (2.1) by section —
+  and `@eq-model` refers to it. Display math without a label stays unnumbered.
 
 ### Figure extensions
 
@@ -380,28 +529,27 @@ looks for its preferred extension automatically:
 
 | Format | Looks for |
 |---|---|
-| `latex` / `beamer` | `figures/fig1_x.pdf` |
-| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/fig1_x.png` |
+| `latex` / `beamer` | `figures/trend.pdf` |
+| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/trend.png` |
 
 Configurable via `figure_ext`. A missing file is reported as a "missing
 figure" at build time rather than failing silently.
 
-### External table files (for analysis-script pipelines)
+### Tables from the analysis
 
-If an R or Python script writes tables directly as `.tex` / `.typ`, map
-table numbers to filenames under `tables/` with `table_map`:
+A table the analysis made is not typed into the manuscript either. `ov_table()`
+writes its contents to `tables/<name>.typ`, `.tex` and `.md`, and the manuscript
+has only the caption line, with the label `tbl-<name>`:
 
-```python
-'table_map': {'1': 'tbl1_summary', '2': 'tbl2_models'},
+```markdown
+: Descriptive statistics {#tbl-summary}
 ```
 
-For LaTeX this becomes `\inputtable{../../tables/tbl1_summary}`; for Typst,
-`#include "../../tables/tbl1_summary.typ"`. Cross-references are resolved
-by **reading the `\label` the external file actually defines**, not by
-guessing.
-
-Word and slide decks can't embed external table files, so the Markdown
-table is used as a fallback there even when `table_map` has an entry.
+A caption line with no table above or below it means "put the analysis's table
+`summary` here". Typst includes the `.typ`, LaTeX `\inputtable`s the `.tex` inside
+a `table` environment with the caption and label, and Word gets the Markdown
+version. `@tbl-summary` refers to it like any other table; `octavo check` stops
+if a file one of your formats needs is missing.
 
 ---
 
@@ -434,8 +582,8 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 | What | In the analysis (.qmd) | In the manuscript (.md) |
 |---|---|---|
 | A number | `ov_value("n_obs", nrow(d))` | `{{n_obs}}` |
-| A figure | `ov_figure(p, "fig1_trend")` | `![](figures/fig1_trend.png)` + `**Figure 1.** Caption` |
-| A table | `ov_table(tab, "tbl1_summary")` | `**Table 1. ...**` plus `table_map: {'1': 'tbl1_summary'}` in the config |
+| A figure | `ov_figure(p, "trend")` | `![Trend](../../figures/trend.png){#fig-trend}` |
+| A table | `ov_table(tab, "summary")` | `: Descriptive statistics {#tbl-summary}` (the caption line alone) |
 
 - `ov_value(name, x, fmt = NULL, note = NULL)` — registers one value into
   `results/<name of this .qmd>.json`. `ov_values(a = 1, b = 2)` registers several.
@@ -443,10 +591,11 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
   into `figures/`, which is exactly what the default `figure_ext` mapping
   expects (LaTeX takes the PDF; Word and Typst take the PNG). `x` may be a
   ggplot or a function that draws with base graphics.
-- `ov_table(x, name, caption, notes, align)` — writes **both `.tex` and `.typ`**
-  into `tables/`. `x` is a data frame, or `list(tex = ..., typ = ...)` if you
-  already have rendered strings. The LaTeX file carries `\label{tab:<name>}`
-  and the Typst file carries `<name>`, so "Table 1" in the prose resolves to it.
+- `ov_table(x, name, notes, align)` — writes the table's **contents** as `.tex`,
+  `.typ` and `.md` into `tables/`. `x` is a data frame, or
+  `list(tex = ..., typ = ..., md = ...)` if you already have rendered strings.
+  The caption and the label belong to the manuscript (`: Caption {#tbl-<name>}`),
+  so there is no `caption` argument.
 - `ov_pval(p)` — formats a p-value by convention (`0.023` → `.023`, `< .001`).
 
 ### 4.2 Number formatting
@@ -574,24 +723,21 @@ Keep the appendix in `appendix.md` in the paper's folder (`octavo new paper`
 puts one there). `'appendix': 'papers/*/appendix.md'` in `documents` attaches it
 to the paper in the same folder.
 
-```python
-# external table files for the appendix use their own map
-'appendix_table_map': {'A1': 'tblA1_robustness'},
-```
-
 ```bash
 octavo build example-paper --to typst --appendix   # writes both body.typ and appendix.typ
 ```
 
-Then uncomment `#include "appendix.typ"` in `papers/example-paper/main.typ`
-(or `\appendix` and `\input{appendix}` in `main.tex`).
+Then uncomment `#show: octavo-appendix` and `#include "appendix.typ"` in
+`papers/example-paper/main.typ` (or `\appendix` and `\input{appendix}` in
+`main.tex`).
 
 The appendix gets **exactly the same treatment** as the body: value
 substitution, citation resolution, conditional blocks and cross-references all
 work, and `octavo values`, `octavo checkbib` and `octavo outline` all read it
-(shown as `example-paper (appendix)`). Number it separately from the body — `Appendix A.`,
-"Figure A1", "Table A1" — with file names like `figA1_balance` and
-`tblA1_robustness`.
+(shown as `example-paper (appendix)`). Don't write "Appendix A" into its
+headings: its sections are lettered A, B, … when typeset and its figures,
+tables and equations numbered A.1, …, and labels work across the paper and the
+appendix.
 
 ### 4.5 Using something other than R
 
@@ -706,7 +852,9 @@ octavo data [status|hash]                      fingerprint the data (sha256)
 octavo checkbib [--list] [--unused]
 octavo bib clean                           a lighter copy of the .bib without fields typesetting ignores
 octavo csl get|list|which [ID]
-octavo doctor
+octavo doctor [--json]
+octavo setup [--with-tex] [--no-quarto] [--no-r] [--check]   install the tools (runs setup.sh)
+octavo env                                     set up the project's .venv (uv) and renv
 octavo init <dir> [--lang ja|en]
 octavo new paper|slides|lecture <name>        add a manuscript
 octavo template list|copy|diff [name] [--user]  your own templates (§7)
@@ -1014,17 +1162,10 @@ and point the config at it:
 ```
 
 Its actual content doesn't matter — only the style definitions are used.
-Word has no LaTeX-style auto-numbered cross-references, so **table/figure
-numbers are written into the caption as literal text** (e.g. "Table 1.
-Descriptive Statistics"), and in-text mentions like "Table 3" stay as
-plain text too. As long as the numbering in your source is sequential,
-these stay consistent.
-
-Section numbers work the same way: **the numbers already present in the
-source** (the "1." in `## 1. Introduction`) are restored as literal text.
-pandoc's `--number-sections` doesn't work for Word, and renumbering from
-scratch would break sequences like "1, 2, Appendix A" — so the source's
-own numbering is used instead.
+Word numbers nothing by itself, so **Octavo writes the numbers in as text**:
+the headings ("2. Analysis"), the captions ("Table 2.1. Descriptive
+statistics"), the equations ("(2.1)"), and every `@label` ("Table 2.1", linked
+to the table). They are counted the same way Typst and LaTeX count them.
 
 ---
 
@@ -1033,10 +1174,10 @@ own numbering is used instead.
 | | LaTeX | Typst | Word |
 |---|---|---|---|
 | Japanese fonts | `haranoaji` ships with TeX Live — no setup needed | **not bundled** — `setup.sh` installs them (see Typefaces; check with `typst fonts`) | handled by Word itself |
-| Section numbers | typesetting engine numbers them | typesetting engine numbers them | **source's own numbers restored as text** |
-| Table/figure numbers | automatic | automatic | written into the caption as text |
-| Cross-references | linked via `\ref` | linked via `#ref(<label>)` | plain text |
-| External table files | `\inputtable` | `#include` | not supported |
+| Section numbers | typesetting engine numbers them | typesetting engine numbers them | **written in by Octavo as text** |
+| Figure/table/equation numbers | automatic (`crossref.tex`) | automatic (`crossref.typ`) | written in by Octavo as text |
+| Cross-references (`@fig-…`) | `\ref` / `\eqref` | `#ref(<label>)` | the number as text, linked |
+| Tables from the analysis | `.tex` via `\inputtable` | `.typ` via `include` | `.md` |
 | `**bold**` inside captions | rendered literally | rendered as actual bold | — |
 | Bibliography | `CSLReferences` environment (needs a definition in `main.tex`) | embedded in the body | plain paragraphs |
 
@@ -1128,7 +1269,9 @@ a broken line in the process (Japanese typesetting is handled by
 octavo/
   octavo                   entry point (put this on your PATH)
   pyproject.toml           packaging (pip install; distribution octavo-kit, command octavo)
-  setup.sh                 install script for Linux / WSL2 (apt) and macOS (Homebrew)
+  setup.sh                 installs the tools on Linux / WSL2 (apt) and macOS (Homebrew);
+                           octavo setup and the extension's "Set up" both run it
+  setup.ps1                the same for Windows itself (winget)
   config.example.py        configuration template (English)
   config.example.ja.py     the same template in Japanese — keep the two in key-for-key sync
   octavo/
@@ -1153,7 +1296,8 @@ octavo/
     i18n.py                the display language (OCTAVO_LANG); t() wraps every message
     lang_ja.py             the Japanese of every message (the source strings are English)
     check.py               octavo checkbib
-    doctor.py              octavo doctor
+    doctor.py              octavo doctor (--json is what the extension reads)
+    envsetup.py            octavo env (the project's .venv and renv)
     selftest.py            octavo selftest
     scaffold.py            octavo init (the research project tree, placeholder figures) and octavo new (add a manuscript)
     backends/
@@ -1247,7 +1391,9 @@ adds command-palette access to `build` / `checkbib` / `doctor` and friends,
 `{{`-triggered completion and hovers for the values your analysis produced,
 and red squiggles under citation keys and `{{...}}` names that don't resolve. All validation logic
 lives in the Python side (`octavo checkbib --json`) — the extension is a
-thin client, not a second implementation. When VS Code itself runs on
+thin client, not a second implementation. On first start it checks the tools
+(`octavo doctor --json`) and, if something is missing, offers to run `setup.sh`,
+which it carries — see §1. When VS Code itself runs on
 Windows, the extension shells out through `wsl.exe` to run `octavo` inside
 WSL automatically. It also has a **live preview**: the typeset PDF sits in the
 column beside the manuscript and rebuilds on every save, and lecture notes get

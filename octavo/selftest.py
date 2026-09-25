@@ -68,13 +68,13 @@ date: 2026-01-01
 
 引用が組めているかを見るための短い要旨。@smith2003 を1つだけ引く。
 
-## 1. はじめに
+## はじめに {#sec-intro}
 
 地の文の引用は @yamada2020 のように書く。括弧に入れるなら
 [@smith2003; @exampleorg2011] とする。所有格は \\poscite{smith2003}の議論、
 日本語なら\\poscite{yamada2020}の指摘、のように書く。
 
-参照の言い回しは残る: 第2節、表1、図1、Section 2、Table 1。
+相互参照はラベルで書く: @sec-analysis、@tbl-desc、@fig-trend、@eq-model。
 
 ::: notes
 発表者ノート。typst-slides では落ち、typst-notes では台本に残る。
@@ -83,20 +83,22 @@ date: 2026-01-01
 分析が出した数値は {{n_obs}} 件、係数 {{coef_x}}（*p* {{p_x}}）のように
 差し込まれる（results/selftest.json から）。
 
-## 2. 分析
-
-**表1．記述統計**
+## 分析 {#sec-analysis}
 
 | 変数 | 平均 | 標準偏差 |
 |---|---|---|
 | x | 1.2 | 0.3 |
 | y | 3.4 | 0.8 |
 
+: 記述統計 {#tbl-desc}
+
 *注: 架空の数値。*
 
-![](figures/fig1_trend.png)
+$$
+y_i = \\beta_0 + \\beta_1 x_i
+$$ {#eq-model}
 
-**図1．** 推移
+![推移](figures/trend.png){#fig-trend}
 
 ## 参考文献
 '''
@@ -151,16 +153,20 @@ CHECKS = {
          lambda t: '1,523' in t and '{{n_obs}}' not in t),
         ('citations are resolved', lambda t: '@smith2003' not in t and 'Smith' in t),
         ('the bibliography is there', lambda t: 'CSLReferences' in t),
-        ('cross-references are \\ref', lambda t: r'\ref{sec:2}' in t),
-        ('the figure is in, with its number', lambda t: r'\label{fig:fig1_trend}' in t),
+        ('cross-references are \\ref', lambda t: r'第\ref{sec-analysis}節' in t
+         and r'式\eqref{eq-model}' in t),
+        ('the figure is in, with its label', lambda t: r'\label{fig-trend}' in t),
+        ('the labelled equation is numbered', lambda t: r'\begin{equation}' in t),
     ],
     'typst': [
         ('the analysis values are filled in',
          lambda t: '1,523' in t and '{{n_obs}}' not in t),
         ('citations are resolved by CSL',
          lambda t: '@smith2003' not in t and '#cite(' not in t and 'Smith' in t),
-        ('cross-references are #ref(<label>)', lambda t: '#ref(<sec:2>)' in t),
-        ('the figure is in', lambda t: '<fig:fig1_trend>' in t),
+        ('cross-references are #ref(<label>)',
+         lambda t: '#ref(<sec-analysis>)' in t and '#ref(<eq-model>)' in t),
+        ('the figure, table and equation carry their labels',
+         lambda t: '<fig-trend>' in t and '<tbl-desc>' in t and '<eq-model>' in t),
     ],
     'typst-slides': [
         ('the analysis values are filled in',
@@ -188,6 +194,8 @@ CHECKS = {
         ('citations are resolved', lambda t: 'Smith' in t and '@smith2003' not in t),
         ('the bibliography is there', lambda t: 'Journal of Examples' in t),
         ('the Japanese text is there', lambda t: '山田' in t),
+        ('numbers are written in (Word does not number)',
+         lambda t: '図2.1' in t and '表2.1' in t and '(2.1)' in t),
     ],
 }
 
@@ -202,8 +210,8 @@ def run(targets=None, csl: str = 'chicago-author-date', keep: bool = False,
     (proj / 'octavo.config.py').write_text(CONFIG.format(csl=csl), encoding='utf-8')
     (proj / 'results').mkdir()
     (proj / 'results' / 'selftest.json').write_text(VALUES, encoding='utf-8')
-    _placeholder_png(proj / 'figures' / 'fig1_trend.png')
-    _placeholder_pdf(proj / 'figures' / 'fig1_trend.pdf')
+    _placeholder_png(proj / 'figures' / 'trend.png')
+    _placeholder_pdf(proj / 'figures' / 'trend.pdf')
 
     cfg = configmod.load(proj / 'octavo.config.py')
     doc = cfg.document('paper')

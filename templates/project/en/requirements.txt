@@ -1,11 +1,10 @@
 # Python packages the analysis uses. **Add one here when you install it.**
 #
-#   python3 -m venv .venv          # once
-#   source .venv/bin/activate      # every session (and before rendering a .qmd)
-#   pip install -r requirements.txt
+#   octavo env                     # makes .venv with uv and installs this file
+#                                  # (again after every change here)
 #
 # Add packages by hand and pin their versions rather than running
-# `pip freeze > requirements.txt` (freeze writes out every dependency and the
+# `uv pip freeze > requirements.txt` (freeze writes out every dependency and the
 # file becomes unreadable). On the R side renv does the same job (renv.lock).
 
 # pandas==2.3.1

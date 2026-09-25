@@ -7,8 +7,14 @@
 // 直接実行すればよい（`vscode.env.remoteName === 'wsl'` で判別できる）。
 //
 // Windows のパス（C:\Users\...）は wsl.exe に渡す前に /mnt/c/... に変換する。
+//
+// Windows で WSL を使わずに直接動かすこともできる（Linux・macOS の次の扱い）。
+// 'auto' は、WSL にディストリが入っていれば今までどおり wsl.exe 越し、無ければ直接。
+// 直接のときのターミナルは PowerShell にし、コマンドもその書き方で組む。
 
 import * as cp from 'child_process';
+import * as fs from 'fs';
+import * as os from 'os';
 import * as path from 'path';
 import * as vscode from 'vscode';
 
@@ -24,16 +30,43 @@ function cfg() {
     return vscode.workspace.getConfiguration('octavo');
 }
 
+let wslDistroCache: boolean | undefined;
+
+/** WSL にディストリが1つでも入っているか（登録簿の Lxss の下を見る。一度だけ）。 */
+function hasWslDistro(): boolean {
+    if (wslDistroCache === undefined) {
+        try {
+            const out = cp.execFileSync('reg', ['query',
+                'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss'],
+                { encoding: 'utf8', timeout: 3000, windowsHide: true });
+            wslDistroCache = /\\Lxss\\\{/i.test(out);
+        } catch {
+            wslDistroCache = false;
+        }
+    }
+    return wslDistroCache;
+}
+
 /** 'auto' を実際のモードに解決する。Remote-WSL の中では常に local 扱い。 */
 export function resolveMode(): 'local' | 'wsl' {
     const mode = cfg().get<ExecutionMode>('executionMode', 'auto');
     if (mode !== 'auto') {
         return mode;
     }
-    if (vscode.env.remoteName === 'wsl') {
+    if (vscode.env.remoteName === 'wsl' || process.platform !== 'win32') {
         return 'local';
     }
-    return process.platform === 'win32' ? 'wsl' : 'local';
+    return hasWslDistro() ? 'wsl' : 'local';
+}
+
+/** Windows で WSL を通さず直接動かしているか（ターミナルは PowerShell）。 */
+export function isWindowsNative(): boolean {
+    return process.platform === 'win32' && resolveMode() === 'local';
+}
+
+/** PowerShell の単一引用符。中の ' は '' にする。 */
+export function psq(s: string): string {
+    return `'${s.replace(/'/g, "''")}'`;
 }
 
 /** `C:\Users\me\proj` -> `/mnt/c/Users/me/proj`（wsl.exe に渡すときだけ使う）。 */
@@ -49,8 +82,75 @@ export function toWslPath(winPath: string): string {
 }
 
 /** シェルに渡すための POSIX シングルクォート引用。 */
-function shq(s: string): string {
+export function shq(s: string): string {
     return `'${s.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * 準備（setup.sh）が octavo と uv を入れる場所。ログインし直す前の VS Code や
+ * Remote-SSH のサーバはこれを PATH に持っていないことが多いので、こちらで足す。
+ * macOS では Homebrew の場所も（Dock から開いた VS Code には無いことがある）。
+ */
+export function extraPathDirs(): string[] {
+    const dirs = [path.join(os.homedir(), '.local', 'bin')];
+    if (process.platform === 'darwin') {
+        dirs.push('/opt/homebrew/bin', '/usr/local/bin');
+    }
+    if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+        // winget が入れる単体のプログラム（Typst など）の置き場
+        dirs.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links'));
+    }
+    const have = currentPath().split(path.delimiter);
+    return dirs.filter((d) => !have.includes(d) && fs.existsSync(d));
+}
+
+/** Windows では環境変数の名前は Path のことが多い（大文字小文字を区別しない）。 */
+function pathKey(env: NodeJS.ProcessEnv): string {
+    return Object.keys(env).find((k) => k.toUpperCase() === 'PATH') ?? 'PATH';
+}
+
+// Windows の準備（winget）が書き換えた PATH は、VS Code を開き直すまで
+// このプロセスに届かない。登録簿から読み直したものを持っておく。
+let windowsPath: string | undefined;
+
+function currentPath(): string {
+    return windowsPath ?? process.env[pathKey(process.env)] ?? '';
+}
+
+/** Windows で、登録簿の（いまの）PATH を読み直す。ほかの OS では何もしない。 */
+export function refreshWindowsPath(): Promise<void> {
+    if (process.platform !== 'win32') {
+        return Promise.resolve();
+    }
+    const script = "[Environment]::GetEnvironmentVariable('Path','Machine') + ';' + "
+        + "[Environment]::GetEnvironmentVariable('Path','User')";
+    return new Promise((resolve) => {
+        cp.execFile('powershell.exe', ['-NoProfile', '-Command', script],
+            { timeout: 15000, windowsHide: true }, (err, stdout) => {
+                if (!err && stdout.trim()) {
+                    windowsPath = stdout.trim();
+                }
+                resolve();
+            });
+    });
+}
+
+/** 子プロセスに渡す環境（表示の言語と、足りない PATH）。 */
+function childEnv(): NodeJS.ProcessEnv {
+    const env: NodeJS.ProcessEnv = { ...process.env, OCTAVO_LANG: octavoLang() };
+    env[pathKey(env)] = [...extraPathDirs(), currentPath()].join(path.delimiter);
+    return env;
+}
+
+/** wsl.exe の bash -lc に渡す1行。~/.local/bin はログインシェルでも入っていないことがある。 */
+function wslInner(cwd: string, command: string, args: string[]): string {
+    return `export PATH="$HOME/.local/bin:$PATH"; cd ${shq(cwd)} && OCTAVO_LANG=${octavoLang()} `
+        + `${shq(command)} ${args.map(shq).join(' ')}`;
+}
+
+function wslArgs(inner: string): string[] {
+    const distro = cfg().get<string>('wslDistro', '') || '';
+    return distro ? ['-d', distro, '-e', 'bash', '-lc', inner] : ['-e', 'bash', '-lc', inner];
 }
 
 export interface Target {
@@ -80,12 +180,18 @@ export function buildShellCommand(cwd: string, args: string[], commandOverride?:
     const target = resolveTarget(cwd);
     const argStr = args.map(shq).join(' ');
 
+    if (target.mode === 'local' && process.platform === 'win32') {
+        // Windows で直接: ターミナルは PowerShell（runInTerminal がそう作る）
+        return `Set-Location -LiteralPath ${psq(target.resolvedCwd)}; `
+            + `& ${psq(command)} ${args.map(psq).join(' ')}`;
+    }
     if (target.mode === 'local') {
         return `cd ${shq(target.resolvedCwd)} && ${shq(command)} ${argStr}`;
     }
 
     const distro = cfg().get<string>('wslDistro', '') || '';
-    const inner = `cd ${shq(target.resolvedCwd)} && ${shq(command)} ${argStr}`;
+    const inner = `export PATH="$HOME/.local/bin:$PATH"; cd ${shq(target.resolvedCwd)} && `
+        + `${shq(command)} ${argStr}`;
     const distroArgs = distro ? ` -d ${shq(distro)}` : '';
     return `wsl.exe${distroArgs} -e bash -lc ${shq(inner)}`;
 }
@@ -98,7 +204,13 @@ export function runInTerminal(
 ): void {
     let term = terminals.get(name);
     if (!term || term.exitStatus !== undefined) {
-        term = vscode.window.createTerminal({ name: `Octavo: ${name}` });
+        // Windows で直接動かすときは、コマンドの書き方に合わせて PowerShell を開く
+        // （既定のシェルが cmd や Git Bash のこともあるので決め打ちにする）
+        term = isWindowsNative()
+            ? vscode.window.createTerminal({
+                name: `Octavo: ${name}`, shellPath: 'powershell.exe', shellArgs: ['-NoLogo'],
+                env: { OCTAVO_LANG: octavoLang() } })
+            : vscode.window.createTerminal({ name: `Octavo: ${name}` });
         terminals.set(name, term);
     }
     if (reveal) {
@@ -113,7 +225,7 @@ export function runInTerminal(
  * そこに書いた OCTAVO_LANG は効かず、サイドバーやプレビューのエラーが
  * VS Code と違う言語で出てしまう。ここで決めて渡す。
  */
-function octavoLang(): string {
+export function octavoLang(): string {
     return vscode.env.language.toLowerCase().startsWith('ja') ? 'ja' : 'en';
 }
 
@@ -121,8 +233,7 @@ function octavoLang(): string {
 export function runCapture(cwd: string, args: string[], timeoutMs = 20000): Promise<RunResult> {
     const command = cfg().get<string>('command', 'octavo') || 'octavo';
     const target = resolveTarget(cwd);
-    const execOpts = { timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024,
-                       env: { ...process.env, OCTAVO_LANG: octavoLang() } };
+    const execOpts = { timeout: timeoutMs, maxBuffer: 32 * 1024 * 1024, env: childEnv() };
 
     return new Promise((resolve) => {
         // execFile のエラー型（ExecFileException）は code が number|string の
@@ -135,12 +246,8 @@ export function runCapture(cwd: string, args: string[], timeoutMs = 20000): Prom
         if (target.mode === 'local') {
             cp.execFile(command, args, { ...execOpts, cwd: target.resolvedCwd }, done);
         } else {
-            const distro = cfg().get<string>('wslDistro', '') || '';
-            const inner = `cd ${shq(target.resolvedCwd)} && OCTAVO_LANG=${octavoLang()} `
-                + `${shq(command)} ${args.map(shq).join(' ')}`;
-            const wslArgs = distro ? ['-d', distro, '-e', 'bash', '-lc', inner]
-                                   : ['-e', 'bash', '-lc', inner];
-            cp.execFile('wsl.exe', wslArgs, execOpts, done);
+            cp.execFile('wsl.exe', wslArgs(wslInner(target.resolvedCwd, command, args)),
+                        execOpts, done);
         }
     });
 }
@@ -153,16 +260,12 @@ export function runStreaming(cwd: string, args: string[], onText: (s: string) =>
                              token?: vscode.CancellationToken): Promise<number | null> {
     const command = cfg().get<string>('command', 'octavo') || 'octavo';
     const target = resolveTarget(cwd);
-    const env = { ...process.env, OCTAVO_LANG: octavoLang() };
+    const env = childEnv();
     let child: cp.ChildProcess;
     if (target.mode === 'local') {
         child = cp.spawn(command, args, { cwd: target.resolvedCwd, env });
     } else {
-        const distro = cfg().get<string>('wslDistro', '') || '';
-        const inner = `cd ${shq(target.resolvedCwd)} && OCTAVO_LANG=${octavoLang()} `
-            + `${shq(command)} ${args.map(shq).join(' ')}`;
-        child = cp.spawn('wsl.exe', distro ? ['-d', distro, '-e', 'bash', '-lc', inner]
-                                           : ['-e', 'bash', '-lc', inner], { env });
+        child = cp.spawn('wsl.exe', wslArgs(wslInner(target.resolvedCwd, command, args)), { env });
     }
     child.stdout?.on('data', (b: Buffer) => onText(b.toString()));
     child.stderr?.on('data', (b: Buffer) => onText(b.toString()));
@@ -227,11 +330,8 @@ export function resolvePathFromTool(toolPath: string): vscode.Uri | undefined {
 
 /** wsl.exe の中で1行のコマンドを走らせて標準出力を取る（octavo 以外を呼ぶとき）。 */
 function runInWsl(inner: string, timeoutMs: number): Promise<RunResult> {
-    const distro = cfg().get<string>('wslDistro', '') || '';
-    const args = distro ? ['-d', distro, '-e', 'bash', '-lc', inner]
-                        : ['-e', 'bash', '-lc', inner];
     return new Promise((resolve) => {
-        cp.execFile('wsl.exe', args, { timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
+        cp.execFile('wsl.exe', wslArgs(inner), { timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
             (err, stdout, stderr) => resolve({ code: err ? 1 : 0, stdout, stderr }));
     });
 }
@@ -270,4 +370,44 @@ export function describeMode(): string {
     return distro
         ? vscode.l10n.t('through wsl.exe ({0})', distro)
         : vscode.l10n.t('through wsl.exe');
+}
+
+/**
+ * setup.sh をターミナルで走らせる（sudo のパスワードを打ってもらうのでターミナル）。
+ * 終わったら Enter で閉じる。閉じたら onClose が呼ばれる。
+ */
+export function runSetupScript(dir: string, version: string, pressEnter: string,
+                               onClose: () => void): vscode.Terminal {
+    const target = resolveTarget(os.homedir());
+    let term: vscode.Terminal;
+    if (isWindowsNative()) {
+        // Windows で直接: setup.ps1（winget）
+        const script = path.join(dir, 'setup.ps1');
+        const line = `& ${psq(script)} -OctavoVersion ${psq(version)}; `
+            + `Write-Host ''; Read-Host ${psq(pressEnter)}`;
+        term = vscode.window.createTerminal({
+            name: 'Octavo: setup', shellPath: 'powershell.exe',
+            shellArgs: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', line],
+            env: { OCTAVO_LANG: octavoLang() } });
+    } else {
+        const script = path.join(dir, 'setup.sh');
+        const scriptPath = target.mode === 'wsl' ? toWslPath(script) : script;
+        const line = `bash ${shq(scriptPath)} --octavo-version ${shq(version)}; `
+            + `echo; read -r -p ${shq(pressEnter)} _`;
+        term = target.mode === 'local'
+            ? vscode.window.createTerminal({
+                name: 'Octavo: setup', shellPath: '/bin/bash', shellArgs: ['-c', line],
+                env: { OCTAVO_LANG: octavoLang() } })
+            : vscode.window.createTerminal({
+                name: 'Octavo: setup', shellPath: 'wsl.exe',
+                shellArgs: wslArgs(`OCTAVO_LANG=${octavoLang()} ${line}`) });
+    }
+    const sub = vscode.window.onDidCloseTerminal((t) => {
+        if (t === term) {
+            sub.dispose();
+            onClose();
+        }
+    });
+    term.show();
+    return term;
 }

@@ -124,5 +124,21 @@
   "Octavo: the analysis is already running.": "Octavo: 分析はもう走っている。",
   "Run the analysis": "分析を走らせる",
   "Show the output": "出力を見る",
-  "Quarto is not installed, so nothing can be run (see Diagnose the Environment).": "Quarto が入っていないので走らせられない（「環境を診断」を見る）。"
+  "Quarto is not installed, so nothing can be run (see Diagnose the Environment).": "Quarto が入っていないので走らせられない（「環境を診断」を見る）。",
+  "Set Up This Project's Analysis Environment (env)": "このプロジェクトの分析の環境を用意する (env)",
+  "Install or Update the Tools (setup)": "道具を入れる・更新する (setup)",
+  "Octavo: the tools it needs (pandoc, Typst, quarto, R, …) are not installed yet.": "Octavo: 使う道具（pandoc・Typst・quarto・R など）がまだ入っていない。",
+  "Octavo: the octavo command ({0}) is older than this extension ({1}).": "Octavo: octavo コマンド（{0}）がこの拡張機能（{1}）より古い。",
+  "Octavo: some tools are missing: {0}": "Octavo: 足りない道具がある: {0}",
+  "Set up": "準備する",
+  "Don't ask again": "今後は聞かない",
+  "Octavo: the setup is already running.": "Octavo: 準備はもう走っている。",
+  "Press Enter to close this terminal": "Enter でこのターミナルを閉じる",
+  "Octavo: everything is ready.": "Octavo: 準備ができた。",
+  "Run it again": "もう一度走らせる",
+  "Octavo: setting up this project's analysis environment": "Octavo: このプロジェクトの分析の環境を用意している",
+  "Octavo: the analysis environment is ready (.venv and renv). Commit requirements.txt and renv.lock.": "Octavo: 分析の環境ができた（.venv と renv）。requirements.txt と renv.lock を commit する。",
+  "Octavo: setting up the analysis environment failed.": "Octavo: 分析の環境を用意できなかった。",
+  "Octavo: the setup runs in the terminal. It asks for your password once (sudo). Close the terminal when it is done.": "Octavo: 準備をターミナルで走らせている。パスワードを1回聞かれる（sudo）。終わったらターミナルを閉じる。",
+  "Octavo: the setup runs in the terminal. Windows may ask for permission for some installers. Close the terminal when it is done.": "Octavo: 準備をターミナルで走らせている。インストーラーによっては Windows が許可を求める。終わったらターミナルを閉じる。"
 }

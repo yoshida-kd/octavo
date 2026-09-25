@@ -46,11 +46,9 @@ date: 2026-04-10
 <!-- octavo:example ここから -->
 ## 具体例
 
-@yamada2020 の例を見る。調査の標本は {{n_obs}} 件。
+@yamada2020 の例を見る。調査の標本は {{n_obs}} 件で、推移は@fig-trendのとおり。
 
-![](../figures/fig1_trend.png)
-
-**図1．** 推移
+![推移](../figures/trend.png){#fig-trend}
 
 ## まとめと課題
 

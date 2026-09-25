@@ -28,8 +28,8 @@ CONFIG = {
     # 作る。octavo build は .qmd か deps が新しければ自動で quarto render する。
     'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
 
-    # 分析が表を出したら、論文の表番号と結びつける
-    # 'table_map': {'1': 'tbl1_summary'},
+    # 図表・式の番号: 'section'（節ごと 図2.1）か 'document'（通し 図1）
+    # 'crossref_numbering': 'section',
 
     # ---- Word ----------------------------------------------------------
     # octavo reference-docx reference.docx で雛形を作り、Word で整えてから指定

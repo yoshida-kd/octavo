@@ -12,14 +12,13 @@
 #      ov_value("n_obs", nrow(d))                    -> 本文の {{n_obs}}
 #      ov_value("coef_x", coef(m)[["x"]])        -> 本文の {{coef_x}}
 #      ov_value("p_x", ov_pval(pv))                -> 本文の {{p_x}}
-#      ov_figure(gg, "fig1_trend")                   -> figures/fig1_trend.{pdf,png}
-#      ov_table(tab, "tbl1_summary", caption = "記述統計")
-#                                                    -> tables/tbl1_summary.{tex,typ}
+#      ov_figure(gg, "trend")                        -> figures/trend.{pdf,png}
+#      ov_table(tab, "summary")                      -> tables/summary.{tex,typ,md}
 #
 #  数値は results/<この .qmd の名前>.json に貯まる。octavo build が読んで
-#  本文の {{…}} に差し込む。図は原稿に ![](figures/fig1_trend.png) と
-#  **図1．説明** を書けば拾われ、表は octavo.config.py の table_map に
-#  {'1': 'tbl1_summary'} と書けば差し込まれる。
+#  本文の {{…}} に差し込む。図は原稿に ![推移](../../figures/trend.png){#fig-trend}
+#  と書けば入り、表は原稿に `: 記述統計 {#tbl-summary}` の1行を書けばそこに
+#  入る。キャプションと番号は原稿の側（@fig-trend / @tbl-summary で参照できる）。
 #
 #  **整数と小数を区別する。**R の整数（nrow() など）は桁区切り付きで
 #  「1,523」、小数（coef() など）は既定 3 桁で「0.342」になる。書式を
@@ -212,12 +211,19 @@ ov_pval <- function(p, digits = 3) {
 # ---------------------------------------------------------------- 図
 
 ov_device <- function(path, fmt, width, height, dpi) {
-  cairo <- isTRUE(capabilities("cairo"))
+  # macOS の CRAN 版 R の cairo は XQuartz が無いと動かない。Mac 標準の quartz で
+  # 書く（和文もそのまま出る）
+  mac <- identical(Sys.info()[["sysname"]], "Darwin")
+  cairo <- !mac && isTRUE(capabilities("cairo"))
   if (fmt == "pdf") {
-    if (cairo) grDevices::cairo_pdf(path, width = width, height = height)
+    if (mac) grDevices::quartz(file = path, type = "pdf", width = width, height = height)
+    else if (cairo) grDevices::cairo_pdf(path, width = width, height = height)
     else grDevices::pdf(path, width = width, height = height)
   } else if (fmt == "png") {
-    if (cairo) {
+    if (mac) {
+      grDevices::png(path, width = width * dpi, height = height * dpi,
+                     res = dpi, type = "quartz")
+    } else if (cairo) {
       grDevices::png(path, width = width * dpi, height = height * dpi,
                      res = dpi, type = "cairo")
     } else {
@@ -317,65 +323,69 @@ ov_align <- function(x, align) {
   vapply(x, function(col) if (is.numeric(col)) "r" else "l", character(1))
 }
 
-ov_tex_table <- function(cells, align, caption, notes, label) {
+# 表の**中身だけ**を書く。キャプションとラベル（#tbl-<名前>）は原稿の
+# `: 表題 {#tbl-<名前>}` が持ち、Octavo が組むときに包む。
+ov_tex_table <- function(cells, align, notes) {
   head_row <- paste(paste0("\\textbf{", ov_tex_escape(colnames(cells)), "}"),
                     collapse = " & ")
   body <- apply(cells, 1, function(r) paste(ov_tex_escape(r), collapse = " & "))
   paste0(
     "% octavo.R の ov_table() が作ったファイル。手で直さない。\n",
-    "\\begin{table}[htbp]\n\\centering\n",
-    if (!is.null(caption)) paste0("\\caption{", ov_tex_escape(caption), "}\n") else "",
-    "\\label{", label, "}\n",
     "\\begin{tabular}{", paste(align, collapse = ""), "}\n",
     "\\toprule\n", head_row, " \\\\\n\\midrule\n",
     paste(body, collapse = " \\\\\n"), " \\\\\n",
     "\\bottomrule\n\\end{tabular}\n",
     if (!is.null(notes)) {
       paste0("\\par\\vspace{2pt}\n{\\footnotesize ", ov_tex_escape(notes), "}\n")
-    } else "",
-    "\\end{table}\n")
+    } else "")
 }
 
-ov_typ_table <- function(cells, align, caption, notes, label) {
+ov_typ_table <- function(cells, align, notes) {
   typ_align <- c(l = "left", r = "right", c = "center")[align]
   cell <- function(v) paste0("[", ov_typ_escape(v), "]")
   head_row <- paste(paste0("[*", ov_typ_escape(colnames(cells)), "*]"), collapse = ", ")
-  body <- apply(cells, 1, function(r) paste0("    ", paste(vapply(r, cell, ""), collapse = ", "), ","))
+  body <- apply(cells, 1, function(r) paste0("  ", paste(vapply(r, cell, ""), collapse = ", "), ","))
   tbl <- paste0(
-    "  table(\n",
-    "    columns: ", ncol(cells), ",\n",
-    "    align: (", paste(typ_align, collapse = ", "), "),\n",
-    "    stroke: none,\n",
-    "    table.hline(),\n",
-    "    ", head_row, ",\n",
-    "    table.hline(stroke: 0.5pt),\n",
+    "#table(\n",
+    "  columns: ", ncol(cells), ",\n",
+    "  align: (", paste(typ_align, collapse = ", "), "),\n",
+    "  stroke: none,\n",
+    "  table.hline(),\n",
+    "  ", head_row, ",\n",
+    "  table.hline(stroke: 0.5pt),\n",
     paste(body, collapse = "\n"), "\n",
-    "    table.hline(),\n",
-    "  )")
-  inner <- if (is.null(notes)) {
-    paste0("#figure(\n", tbl, ",\n")
-  } else {
-    paste0("#figure(\n  [\n  #", sub("^  ", "", tbl), "\n",
-           "  #v(2pt)\n  #text(size: 8pt)[", ov_typ_escape(notes), "]\n  ],\n")
-  }
+    "  table.hline(),\n",
+    ")\n")
   paste0(
     "// octavo.R の ov_table() が作ったファイル。手で直さない。\n",
-    inner,
-    if (!is.null(caption)) paste0("  caption: [", ov_typ_escape(caption), "],\n") else "",
-    ") <", label, ">\n")
+    tbl,
+    if (!is.null(notes)) paste0("#v(2pt)\n#text(size: 8pt)[", ov_typ_escape(notes), "]\n") else "")
 }
 
-#' 表を tables/ に保存する（.tex と .typ）。octavo.config.py の table_map に
-#' {'1': '<name>'} と書けば、本文の **表1．…** がこのファイルに差し替わる。
+# Word 用（Octavo が本文の表として入れる）。セルの | は打ち消す
+ov_md_table <- function(cells, align, notes) {
+  esc <- function(v) gsub("|", "\\|", v, fixed = TRUE)
+  rule <- c(l = ":---", r = "---:", c = ":---:")[align]
+  row <- function(v) paste0("| ", paste(esc(v), collapse = " | "), " |")
+  paste0(
+    "<!-- octavo.R の ov_table() が作ったファイル。手で直さない。 -->\n\n",
+    row(colnames(cells)), "\n",
+    "|", paste(rule, collapse = "|"), "|\n",
+    paste(apply(cells, 1, row), collapse = "\n"), "\n",
+    if (!is.null(notes)) paste0("\n*", notes, "*\n") else "")
+}
+
+#' 表を tables/ に保存する（.tex・.typ・.md。Typst・LaTeX・Word がそれぞれ読む）。
+#' 本文に `: 表題 {#tbl-<name>}` の1行を書けば、Octavo がそこに差し込み、
+#' @tbl-<name> で参照できる。キャプションは本文が持つ（ここでは付けない）。
 #'
-#' @param x       data.frame / matrix、あるいは list(tex = "…", typ = "…")
+#' @param x       data.frame / matrix、あるいは list(tex = "…", typ = "…", md = "…")
 #'                （modelsummary 等が作った文字列をそのまま渡すとき）
 #' @param name    ファイル名（拡張子なし）
-#' @param caption 表題
 #' @param notes   表の下に小さく出す注
 #' @param align   "lrrr" のように列ごとの寄せを決める。省略なら数値は右
-ov_table <- function(x, name, caption = NULL, notes = NULL, align = NULL,
-                     digits = 3, formats = c("tex", "typ")) {
+ov_table <- function(x, name, notes = NULL, align = NULL,
+                     digits = 3, formats = c("tex", "typ", "md")) {
   dir <- ov_dir("tables")
   out <- character(0)
 
@@ -383,7 +393,7 @@ ov_table <- function(x, name, caption = NULL, notes = NULL, align = NULL,
 
   if (is.list(x) && !is.data.frame(x)) {
     if (is.null(names(x)) || any(!nzchar(names(x)))) {
-      stop("ov_table: 出来合いの文字列を渡すときは list(tex = …, typ = …) の形にする")
+      stop("ov_table: 出来合いの文字列を渡すときは list(tex = …, typ = …, md = …) の形にする")
     }
     for (fmt in names(x)) {
       path <- file.path(dir, paste0(name, ".", fmt))
@@ -393,7 +403,7 @@ ov_table <- function(x, name, caption = NULL, notes = NULL, align = NULL,
     missing <- setdiff(formats, names(x))
     if (length(missing)) {
       warning("ov_table: ", name, " に ", paste(missing, collapse = "/"),
-              " が無い。その形式では本文のマークダウン表が使われる")
+              " が無い。その形式では表が入らない")
     }
     return(invisible(out))
   }
@@ -403,11 +413,11 @@ ov_table <- function(x, name, caption = NULL, notes = NULL, align = NULL,
   for (fmt in formats) {
     path <- file.path(dir, paste0(name, ".", fmt))
     txt <- if (fmt == "tex") {
-      ov_tex_table(cells, al, caption, notes, paste0("tab:", name))
+      ov_tex_table(cells, al, notes)
     } else if (fmt == "typ") {
-      # Typst 側のラベルは**ファイル名そのもの**。Octavo の相互参照
-      # （@tbl1_summary）がこの名前を指すため、変えないこと。
-      ov_typ_table(cells, al, caption, notes, name)
+      ov_typ_table(cells, al, notes)
+    } else if (fmt == "md") {
+      ov_md_table(cells, al, notes)
     } else {
       stop("ov_table: 知らない形式 ", fmt)
     }
