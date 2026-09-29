@@ -102,6 +102,14 @@ jobs:
           octavo template list
           octavo build --compile
           test -f build/typst/smoke/main.pdf
+          # 見本つき（既定は見本を置かない）。見本の論文がそのまま組める
+          cd /tmp
+          octavo init demo --example
+          cd demo
+          octavo new slides talk --example
+          octavo build --compile --no-analysis
+          test -f build/typst/example-paper/main.pdf
+          test -f build/typst-slides/talk.pdf
 
       - uses: actions/upload-artifact@v4
         with:
@@ -141,7 +149,7 @@ jobs:
       - name: octavo env and the analysis
         run: |
           cd /tmp
-          octavo init envproj --lang en
+          octavo init envproj --lang en --with analysis
           cd envproj
           echo 'numpy' >> requirements.txt
           octavo env
@@ -206,7 +214,7 @@ jobs:
       - name: A project from scratch outside the repo, with octavo env and the analysis
         run: |
           Set-Location $env:RUNNER_TEMP
-          octavo init winproj --lang ja
+          octavo init winproj --lang ja --with analysis
           Set-Location winproj
           octavo new paper smoke
           octavo new slides deck
@@ -269,11 +277,9 @@ jobs:
           /tmp/venv/bin/pip install --quiet dist/*.whl
           export PATH=/tmp/venv/bin:$PATH
           cd /tmp
-          octavo init proj
+          # 部品を init でまとめて置く道（--with）も通す
+          octavo init proj --with analysis,paper=smoke,slides=deck,lecture=course
           cd proj
-          octavo new paper smoke
-          octavo new slides deck
-          octavo new lecture course
           octavo build --compile --no-analysis
           test -f build/typst/smoke/main.pdf
           test -f build/typst-slides/deck.pdf
@@ -308,7 +314,7 @@ jobs:
           name: octavo-vsix
           path: vscode-extension/octavo.vsix
 
-  # 分析の側（quarto + R + templates/project/common/analysis/octavo.R）を実際に走らせる。
+  # 分析の側（quarto + R + templates/analysis/common/analysis/octavo.R）を実際に走らせる。
   # ここが通らないかぎり octavo.R は「書いただけ」の状態なので、
   # 1つの job を丸ごとこれに充てている。
   analysis:

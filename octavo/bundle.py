@@ -193,7 +193,7 @@ def check_anonymous(cfg, target: str, dest: Path, res: Result) -> None:
 # 手順書の中の短い文言。手順書そのものは templates/replication/<lang>/README.md。
 REPLICATION_NOTES = {
     'ja': {'packages': '（パッケージ {n} 件）',
-           'no_session': ('（記録が無い。`octavo analysis run` を1度走らせると '
+           'no_session': ('（記録がない。`octavo analysis run` を1度実行すると '
                           '`results/*.json` に `_session` として残る）'),
            'no_raw': '（原データは含めていない）'},
     'en': {'packages': ' ({n} packages)',

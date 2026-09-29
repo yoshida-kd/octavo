@@ -173,19 +173,19 @@ CHECKS = {
          lambda t: '1,523' in t and '{{n_obs}}' not in t),
         ('citations are resolved by CSL',
          lambda t: '#cite(' not in t and 'Smith' in t),
-        ('the look template is in', lambda t: '#let octavo = (' in t),
+        ('the layout template is included', lambda t: '#let octavo = (' in t),
         ('the speaker notes are dropped', lambda t: '#octavo-note[' not in t),
     ],
     'typst-notes': [
         ('the analysis values are filled in',
          lambda t: '1,523' in t and '{{n_obs}}' not in t),
-        ('the look template is in', lambda t: '#let octavo = (' in t),
+        ('the layout template is included', lambda t: '#let octavo = (' in t),
         ('the speaker notes are kept', lambda t: '#octavo-note[' in t),
     ],
     'beamer': [
         ('the analysis values are filled in',
          lambda t: '1,523' in t and '{{n_obs}}' not in t),
-        ('frames are made', lambda t: r'\begin{frame}' in t),
+        ('frames are created', lambda t: r'\begin{frame}' in t),
         ('citations are resolved', lambda t: '@smith2003' not in t and 'Smith' in t),
     ],
     'docx': [

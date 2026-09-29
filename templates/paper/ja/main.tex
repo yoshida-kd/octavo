@@ -3,7 +3,7 @@
 %
 %  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ papers/<名前>/ に
 %  置くので、タイトル・著者・体裁を書き換える。組版のたびに build/latex/<名前>/ へ
-%  写されるので、直すのは papers/ の側。body.tex / abstract.tex は Octavo が
+%  コピーされるので、直すのは papers/ の側。body.tex / abstract.tex は Octavo が
 %  自動生成するので直接編集しない（次の変換で消える）。
 %
 %    octavo build <名前> --to latex
@@ -71,7 +71,7 @@
 \newcommand{\inputtable}[1]{%
   \IfFileExists{#1.tex}{\input{#1}}{%
     \fbox{\parbox{0.8\textwidth}{\centering
-      \textbf{表が無い:} \texttt{\detokenize{#1}.tex}}}}}
+      \textbf{表がない:} \texttt{\detokenize{#1}.tex}}}}}
 
 % ---- CSL で組んだ書誌を受ける定義 -------------------------------------
 % pandoc の standalone テンプレートが持つものと同じ。
@@ -104,7 +104,7 @@
 
 % =====================================================================
 % 匿名審査の切り替え。octavo build --anonymous のたびに flags.tex が
-% 書き換わる（\anonymoustrue / \anonymousfalse）。無ければ通常版。
+% 書き換わる（\anonymoustrue / \anonymousfalse）。なければ通常版。
 % **\title より前に置くこと**（\newif の前に \ifanonymous を使うと
 % Undefined control sequence で止まる）。
 \newif\ifanonymous\anonymousfalse
@@ -126,14 +126,14 @@
 
 \begin{abstract}
 \noindent
-\IfFileExists{abstract.tex}{\input{abstract}}{[abstract.tex が無い]}
+\IfFileExists{abstract.tex}{\input{abstract}}{[abstract.tex がない]}
 \end{abstract}
 
 \clearpage
 % body.tex の末尾に「参考文献」節と書誌一覧（CSLReferences）が入っている。
 \input{body}
 
-% 付録があるなら次を有効にし、先に octavo build --to latex --appendix を走らせる。
+% 付録があるなら次を有効にし、先に octavo build --to latex --appendix を実行する。
 % \clearpage
 % \appendix
 % \input{appendix}

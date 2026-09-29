@@ -155,7 +155,7 @@ DEFAULTS: dict = {
     'typst_slides_numbering': None,
     # 「#」の節を扉のスライドにするか。False なら扉を出さず、番号を進めるだけ
     # （節で区切りたいが枚数は増やしたくないとき）。
-    'typst_slides_section_slides': True,
+    'typst_slides_section_slides': False,
     # 差し色。'#0e2f92' のような16進。題・箇条書きの印・罫に使う。
     # None なら色を使わない（黒のまま）。既定は海の青（#25 で入れた「差し色を
     # 設定したときだけ体裁が変わる」ゲートにより、None にすればいつでも従来
@@ -185,6 +185,60 @@ DEFAULTS: dict = {
 PATH_KEYS = ('draft', 'appendix', 'slides', 'handout', 'table_dir', 'figure_dir',
              'results_dir', 'bib_file', 'docx_reference')
 
+# 原稿の冒頭（front matter）に書けば、その文書だけ設定より優先する鍵。
+# 投稿先・発表ごとに変わるもの。書かなければ octavo.config.py の値が効く。
+DOC_KEYS = ('csl', 'targets', 'word_limit', 'char_limit', 'abstract_word_limit',
+            'abstract_char_limit', 'typst_slides_aspect', 'typst_slides_accent',
+            'typst_slides_running_header', 'typst_slides_section_slides',
+            'typst_slides_numbering')
+INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit')
+BOOL_DOC_KEYS = ('typst_slides_running_header', 'typst_slides_section_slides')
+
+
+def doc_settings(src: Path, text: str | None = None) -> dict:
+    """原稿の冒頭に書いてある文書ごとの設定（DOC_KEYS だけ、型をそろえて）。
+
+    冒頭は Octavo の小さな YAML 読み（md.split_front_matter）で読むので値は文字列か
+    文字列の並び。数・真偽・「無し」はここで直す。読めない値は SystemExit。
+    """
+    from . import md as mdlib
+    if text is None:
+        try:
+            text = Path(src).read_text(encoding='utf-8')
+        except OSError:
+            return {}
+    meta, _ = mdlib.split_front_matter(text)
+    out: dict = {}
+    for k in DOC_KEYS:
+        if k not in meta:
+            continue
+        v = meta[k]
+        if k == 'targets':
+            v = [v] if isinstance(v, str) else list(v)
+            bad = [x for x in v if x not in BACKENDS]
+            if bad or not v:
+                sys.exit(t('{file}: targets has unknown formats: {bad}',
+                           file=src, bad=', '.join(bad) or '[]'))
+            out[k] = tuple(v)
+            continue
+        s = str(v).strip()
+        if s.lower() in ('none', 'null', '~', ''):
+            out[k] = None
+        elif k in INT_DOC_KEYS:
+            try:
+                out[k] = int(s.replace(',', ''))
+            except ValueError:
+                sys.exit(t('{file}: {key} must be a whole number (got {got})',
+                           file=src, key=k, got=repr(s)))
+        elif k in BOOL_DOC_KEYS:
+            if s.lower() not in ('true', 'false', 'yes', 'no'):
+                sys.exit(t('{file}: {key} must be true or false (got {got})',
+                           file=src, key=k, got=repr(s)))
+            out[k] = s.lower() in ('true', 'yes')
+        else:
+            out[k] = s
+    return out
+
 
 @dataclass
 class Document:
@@ -200,6 +254,8 @@ class Document:
     split_slides: bool = False
     # 分けたうちの1つなら、その回の印（'01' か見出しの {#id}）
     part: str | None = None
+    # 設定ファイルの documents に書いた出力形式（原稿の冒頭の targets が無いときの値）
+    config_targets: tuple = ('typst',)
 
     def exists(self) -> bool:
         return self.src.is_file()
@@ -211,6 +267,7 @@ class Config:
         self.source = source
         # 設定ファイルに**書いてある**鍵（既定のままのものとの区別。octavo config が使う）
         self.explicit = frozenset(values)
+        self.doc_explicit: frozenset = frozenset()     # for_document() が埋める
         unknown = sorted(set(values) - set(DEFAULTS))
         if unknown:
             print(t('warning: unknown keys in the config (ignored): {keys}',
@@ -245,6 +302,23 @@ class Config:
 
     def get(self, k, default=None):
         return self._v.get(k, default)
+
+    def for_document(self, doc: Document) -> 'Config':
+        """その文書の設定。原稿の冒頭に書いた DOC_KEYS を、プロジェクトの設定に重ねる。
+
+        変換はこれを使うので、スライドの体裁・CSL・投稿規定の上限を読む側は
+        `cfg[鍵]` のままでよい。`doc_explicit` は原稿に書いてある鍵。
+        """
+        import copy
+        own = doc_settings(doc.src)
+        view = copy.copy(self)
+        view._v = {**self._v, **own}
+        view.doc_explicit = frozenset(own)
+        try:
+            view._validate()
+        except SystemExit as e:
+            sys.exit(f'{self.rel(doc.src)}: {e.code}')
+        return view
 
     def out_dir(self, backend: str, doc: Document | None = None) -> Path:
         """出力先。main.* 方式（論文を完結させずに組む形式）は文書ごとにフォルダを分ける。
@@ -308,6 +382,7 @@ class Config:
         for key, _title in mdlib.section_keys(mdlib.read(doc.src)):
             out.append(Document(name=f'{doc.name}-{key}', src=doc.src,
                                 profile=doc.profile, targets=doc.targets,
+                                config_targets=doc.config_targets,
                                 out=doc.out, meta=dict(doc.meta), part=key))
         return out
 
@@ -342,7 +417,10 @@ class Config:
                         sys.exit(t('two documents share the name {name}', name=nm)
                                  + f'\n  {docs[nm].src}\n  {src}\n  '
                                  + t('rename one of the manuscripts (or its folder)'))
-                    docs[nm] = Document(name=nm, src=src, appendix=appendix, **common)
+                    own = doc_settings(src).get('targets')      # 原稿の冒頭が優先
+                    docs[nm] = Document(name=nm, src=src, appendix=appendix,
+                                        config_targets=common['targets'],
+                                        **{**common, **({'targets': own} if own else {})})
 
                 # src にワイルドカードが使える。同じ扱いの原稿がたくさんある
                 # （スライド10本、論文が数本）場合、1つ書けば全部登録される。
@@ -446,7 +524,7 @@ def load(path: str | Path = 'octavo.config.py') -> Config:
         sys.exit(t('no config file at {path}', path=p) + '\n'
                  + f'  cp {example} {p}\n  '
                  + t('then edit draft and bib_file in it.') + '\n  '
-                 + t('Starting from nothing: octavo init my-paper'))
+                 + t('To start from scratch: octavo init my-paper'))
 
     spec = importlib.util.spec_from_file_location('octavo_config', p)
     mod = importlib.util.module_from_spec(spec)

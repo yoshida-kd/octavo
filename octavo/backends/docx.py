@@ -48,7 +48,7 @@ class DocxBackend(Backend):
             ctx.say(f'{tag("Word")} ' + t('using the styles from {file}', file=Path(ref).name))
         elif ref:
             ctx.say(f'{tag("Word")} ' + t('no reference document at {path} — '
-                                           "pandoc's default look it is", path=ref))
+                                           "using pandoc's default look", path=ref))
         if ctx.profile_opt('toc'):
             args += ['--toc', f'--toc-depth={ctx.cfg["toc_depth"]}']
         if ctx.profile_opt('number_sections'):

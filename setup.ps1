@@ -69,7 +69,7 @@ function Winget-Install([string]$cmd, [string[]]$arg, [string]$id, [string]$want
     if ($Check) { Info "(実行しない) winget $($wargs -join ' ')" "(not run) winget $($wargs -join ' ')"; return }
     & winget @wargs
     if ($LASTEXITCODE -ne 0) {
-        Info "入らなかった（後で winget install --id $id）" "failed (later: winget install --id $id)"
+        Info "入らなかった（後で winget install --id ${id}）" "failed (later: winget install --id $id)"
     }
     Update-Path
 }
@@ -245,7 +245,7 @@ if ((Get-Command octavo -ErrorAction SilentlyContinue) -and -not $Check) {
                    'american-sociological-association', 'ieee') {
         & octavo csl get $s *> $null
         if ($LASTEXITCODE -eq 0) { Info "取れた: $s" "fetched: $s" }
-        else { Info "取れなかった（後で octavo csl get $s）: $s" "failed (later: octavo csl get $s): $s" }
+        else { Info "取れなかった（後で octavo csl get ${s}）: $s" "failed (later: octavo csl get $s): $s" }
     }
     Say '診断' 'Diagnosis'
     $env:OCTAVO_LANG = if ($JA) { 'ja' } else { 'en' }

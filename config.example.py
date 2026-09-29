@@ -155,7 +155,7 @@ CONFIG = {
     # 'latex_classoptions': ['11pt', 'a4paper'],
     # The preamble: octavo template copy handout/handout-header.tex, then edit it
 
-    # 事例/論点/注意のような番号付きdivを使うなら（README §2参照）:
+    # 事例/論点/注意のような番号付きdivを使うなら（the guide, §2）:
     # 'theorem_envs': {'case': '事例', 'question': '論点', 'nb': '注意'},
 
     # ================================================================
@@ -173,8 +173,8 @@ CONFIG = {
     # 'typst_slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
     # Number the headings (a Typst numbering string). None = no numbers
     # 'typst_slides_numbering': '1.1',
-    # Let a '#' section advance the counter without a divider slide
-    # 'typst_slides_section_slides': False,
+    # Give each '#' section a divider slide (default: no divider, the counter still advances)
+    # 'typst_slides_section_slides': True,
     # Accent colour. **Setting this switches the look**: titles in colour rather
     # than bold, ▶ list markers, "4 / 11" page numbers, coloured links.
     # Defaults to this blue; set to None for plain black instead
@@ -182,7 +182,7 @@ CONFIG = {
     # The current '#' section small in the top-left corner (on by default;
     # the deck's title where there is no section)
     # 'typst_slides_running_header': False,
-    # To change the whole look, copy the bundled template and edit it (README §7):
+    # To change the whole look, copy the bundled template and edit it (the guide, §7):
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================

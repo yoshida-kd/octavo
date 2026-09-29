@@ -12,11 +12,13 @@ handouts, slides), Word, and — if you have TeX — LaTeX and Beamer, with
 .bib/CSL citations and the numbers, figures and tables pulled straight
 from your Quarto analysis instead of typed by hand.
 
+![A paper page and a slide built by Octavo from its example project](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/showcase-en.png)
+
 - **Live PDF preview** — the manuscript on the left, the PDF on the right.
   Lecture notes get a third column: the slide deck (or the speaker script)
   for the session the cursor is in.
-- **Octavo in the activity bar** — your manuscripts, the common settings and
-  the usual checks in one sidebar.
+- **Octavo in the activity bar** — your manuscripts (each with its own
+  settings), the analysis, and the tools in the order you use them.
 - **Citations** — `@key` completion and hover from your `.bib`, and a
   squiggle under every key that doesn't exist.
 - **Analysis values** — completion, hover and diagnostics for the
@@ -39,21 +41,26 @@ Tools**) or the command palette (**Octavo: Install or Update the Tools**) — fo
 example after updating the extension, so the `octavo` command follows. TeX is
 not installed; only the LaTeX and Beamer outputs need it (`octavo setup
 --with-tex` from a terminal). See the
-[Octavo README](https://github.com/yoshida-kd/octavo#readme) for the full
+[Octavo guide](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#1-install) for the full
 picture, including installing from a terminal.
 
 ## Getting started
 
 1. Command palette → **Octavo: New Project (init)**, and open the folder it
-   makes.
-2. **Octavo: Add a Manuscript (new)** — a paper, a slide deck or lecture
-   notes. If the project has an analysis, **Tools → Set Up This Project's
-   Analysis Environment** in the sidebar makes its `.venv` (uv) and renv.
+   makes. Pick what to start with — an analysis, a paper, slides, lecture
+   notes, any of them or none — and whether they are **examples** to look at
+   first or **empty**, holding only what you keep using.
+2. Add more from the Octavo sidebar: **Add a manuscript…** (a paper, a slide
+   deck or lecture notes, opened as soon as it is made) and **Add an analysis
+   (.qmd)…**, and on a paper **Add an appendix** / right-click **Add main.tex
+   (LaTeX)**. With an analysis, **Tools → Set Up This Project's Analysis
+   Environment** makes its `.venv` (uv) and renv.
 3. Open the manuscript and click the PDF icon in the editor title bar
    (**Octavo: Open the Live Preview**). Save, and the PDF follows.
 
-The extension switches itself on in any workspace that has a
-`octavo.config.py`.
+The extension switches itself on in any workspace that has an
+`octavo.config.py`. A workspace may hold several projects: the extension uses
+the one the file you are editing belongs to.
 
 ## Features
 
@@ -64,13 +71,18 @@ The extension switches itself on in any workspace that has a
   offers to install what is missing; the setup script is bundled, so the
   extension is the only thing you install by hand. The per-project analysis
   environment (`.venv` with uv, renv with knitr and rmarkdown) is one click too.
-- **Sidebar.** Manuscripts (click to open; PDF and build buttons on each;
-  lecture notes list their sessions and jump to them), settings (language,
-  citation style, slide aspect / accent colour / running header / divider
-  slides / heading numbers, submission limits — click one to change it), and
-  tools. A setting is changed by `octavo config set`, which rewrites just
-  that line of `octavo.config.py`, keeps its comment, and refuses a value the
-  config would reject.
+- **Sidebar**, top to bottom: **Manuscripts** (click to open; PDF and build
+  buttons on each; lecture notes list their sessions; a paper shows its
+  appendix or a button to add one; **Settings for this document** — citation
+  style, output formats, slide look or submission limits, written at the top
+  of that manuscript), **Analysis** (each `.qmd` and whether it is stale),
+  **Tools** in the order you use them (install → diagnose → analysis
+  environment → run the analysis → check the bibliography → check before
+  submitting), and **Settings**, the project's defaults, folded away. The
+  citation style is picked from a list (or typed), output formats are ticked.
+  A change goes through `octavo config set`, which rewrites just that one line
+  (of the manuscript, or of `octavo.config.py`, keeping its comment) and
+  refuses a value the config would reject.
 - **Live preview.** Rebuilds on save, keeps your scroll position across
   rebuilds, and shows build errors in the panel rather than swallowing them.
   "Preview: What Goes in the Third Column…" switches lecture notes between

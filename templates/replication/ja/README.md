@@ -1,18 +1,18 @@
-# 複製パッケージ — @@TITLE@@
+# 再現用パッケージ — @@TITLE@@
 
-このパッケージだけで、論文に出ている数値・図・表をもう一度出せる。
+このパッケージだけで、論文に載っている数値・図・表をもう一度作れる。
 
 ## 中身
 
     analysis/       分析（Quarto の .qmd）とヘルパー octavo.R
     data/           データ@@RAWNOTE@@
-    data/HASHES.json  使ったデータの指紋（sha256）
+    data/HASHES.json  使ったデータのハッシュ値（sha256）
     results/        分析が出した数値（本文に入るもの）と実行環境の記録
     figures/ tables/  分析が出した図と表
     octavo.config.py  設定
     literature.bib    書誌
 
-## もう一度走らせる
+## もう一度実行する
 
     quarto render analysis/*.qmd
 
@@ -25,7 +25,7 @@
 
 @@SESSION@@
 
-## データの指紋
+## データのハッシュ値
 
 `data/HASHES.json` に、そのとき使ったデータの sha256 が入っている。
 手元のデータが同じものか確かめるには:

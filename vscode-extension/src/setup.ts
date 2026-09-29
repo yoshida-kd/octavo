@@ -12,6 +12,8 @@ import { refreshWindowsPath, runCapture, runSetupScript, runStreaming } from './
 /** `octavo doctor --json` のうち、ここで読むもの。 */
 export interface DoctorReport {
     version: string;
+    /** clone から動いていればその場所。setup は clone を入れ替えない。 */
+    clone: string | null;
     ready: boolean;
     missing: string[];
     analysis: Record<string, boolean>;
@@ -20,7 +22,7 @@ export interface DoctorReport {
 export type ToolState =
     | { kind: 'ok'; report: DoctorReport }
     | { kind: 'no-cli' }
-    | { kind: 'outdated'; have: string }
+    | { kind: 'outdated'; have: string; clone?: string }
     | { kind: 'incomplete'; report: DoctorReport; lacks: string[] };
 
 /** '0.1.10' と '0.1.9' を数として比べる。a < b なら負。 */
@@ -59,7 +61,7 @@ export class SetupManager {
         try {
             const report = JSON.parse(at >= 0 ? text.slice(at + 1) : text) as DoctorReport;
             if (compareVersions(report.version, this.version) < 0) {
-                return { kind: 'outdated', have: report.version };
+                return { kind: 'outdated', have: report.version, clone: report.clone ?? undefined };
             }
             const lacks = [...report.missing,
                 ...Object.entries(report.analysis).filter(([, ok]) => !ok).map(([k]) => k)];
@@ -77,6 +79,11 @@ export class SetupManager {
             case 'no-cli':
                 return vscode.l10n.t('Octavo: the tools it needs (pandoc, Typst, quarto, R, …) are not installed yet.');
             case 'outdated':
+                if (state.clone) {
+                    return vscode.l10n.t('Octavo: the octavo command ({0}) is older than this extension ({1}). '
+                        + 'It runs from the git clone {2}, which the setup leaves alone: update it with git pull.',
+                        state.have, this.version, state.clone);
+                }
                 return vscode.l10n.t('Octavo: the octavo command ({0}) is older than this extension ({1}).',
                     state.have, this.version);
             case 'incomplete':
@@ -98,15 +105,27 @@ export class SetupManager {
             await this.remember('octavo.setupDone');
             return;
         }
-        const setUp = vscode.l10n.t('Set up');
         const later = vscode.l10n.t('Not now');
         const never = vscode.l10n.t('Don\'t ask again');
-        const picked = await vscode.window.showWarningMessage(this.describe(state), setUp, later, never);
-        if (picked === setUp) {
-            this.runSetup();
+        // clone は setup では更新されないので、「準備する」の代わりに git pull を渡す
+        const clone = state.kind === 'outdated' ? state.clone : undefined;
+        const act = clone ? vscode.l10n.t('Copy the git pull command') : vscode.l10n.t('Set up');
+        const picked = await vscode.window.showWarningMessage(this.describe(state), act, later, never);
+        if (picked === act) {
+            if (clone) {
+                await this.copyPull(clone);
+            } else {
+                this.runSetup();
+            }
         } else if (picked === never) {
             await this.remember('octavo.setupDismissed');
         }
+    }
+
+    private async copyPull(clone: string): Promise<void> {
+        await vscode.env.clipboard.writeText(`git -C "${clone}" pull`);
+        void vscode.window.showInformationMessage(vscode.l10n.t(
+            'Octavo: copied. Run it in a terminal, then reload the window.'));
     }
 
     private async remember(key: string): Promise<void> {
@@ -144,6 +163,23 @@ export class SetupManager {
             await this.remember('octavo.setupDone');
             void vscode.window.showInformationMessage(vscode.l10n.t('Octavo: everything is ready.'));
             this.onReady();
+            return;
+        }
+        if (state.kind === 'outdated' && !state.clone) {
+            // doctor --json を知らない古い clone だと、どこから動いているかは分からない
+            void vscode.window.showWarningMessage(vscode.l10n.t(
+                'Octavo: the octavo command is still {0} after the setup. If it runs from a git clone, '
+                + 'the setup leaves it alone (the terminal says where): update the clone with git pull.',
+                state.have));
+            return;
+        }
+        if (state.kind === 'outdated' && state.clone) {
+            const copy = vscode.l10n.t('Copy the git pull command');
+            const clone = state.clone;
+            const p = await vscode.window.showWarningMessage(this.describe(state), copy);
+            if (p === copy) {
+                await this.copyPull(clone);
+            }
             return;
         }
         const again = vscode.l10n.t('Run it again');

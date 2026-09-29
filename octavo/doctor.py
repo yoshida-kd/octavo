@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import __version__
 from . import csl as cslmod
+from . import paths
 from . import pandocrun
 from .i18n import language, t
 
@@ -33,6 +34,57 @@ def _run(cmd, timeout=20) -> tuple:
         return r.returncode, (r.stdout or '') + (r.stderr or '')
     except (OSError, subprocess.TimeoutExpired) as e:
         return 1, str(e)
+
+
+# R を上げると、前の R 向けにビルドしたパッケージが残る（apt の r-cran-* や
+# /usr/local/lib/R/site-library）。コンパイルした部分を持つものは読めなくなることがある
+# （rlang が R 4.5 で消えた関数を呼んで落ち、それを使う rmarkdown も使えなくなった）。
+# **版が違うだけでは言わない**: CRAN の apt が配る最新版も1つ前の R でビルドされていて、
+# それは読める。入れ直しても消えない注意は無視されるようになるので、版の違う
+# コンパイル済みのものを実際に読み込んでみて、読めなかったものだけを数える。
+# ライブラリごとに「数・どの R 向けか・書き込めるか」をタブ区切りで出す。
+# --vanilla で走らせるので、renv のプロジェクトの中でも R 本体のライブラリを見る。
+# setup.sh にも同じものがある（R_STALE）。
+R_STALE = r"""
+v <- paste(R.version$major, sub("[.].*", "", R.version$minor), sep = ".")
+ip <- installed.packages(fields = "NeedsCompilation")
+b <- sub("^R ([0-9]+[.][0-9]+).*", "\\1", ip[, "Built"])
+hit <- b != v & ip[, "NeedsCompilation"] %in% "yes"
+hit[hit] <- !vapply(ip[hit, "Package"], function(p) isTRUE(tryCatch(
+  suppressMessages(suppressWarnings(!is.null(loadNamespace(p)))),
+  error = function(e) FALSE)), logical(1))
+old <- ip[hit, , drop = FALSE]
+for (lib in unique(old[, "LibPath"])) {
+  s <- old[, "LibPath"] == lib
+  cat(lib, sum(s), paste(sort(unique(b[hit][s])), collapse = ","),
+      file.access(lib, 2) == 0, sep = "\t")
+  cat("\n")
+}
+"""
+
+# collect() が見つけたもの。report() が直し方を出すのに使う
+LAST_R_STALE: list = []
+
+
+def stale_r_libraries() -> list:
+    """[(ライブラリ, 数, 'どの R 向けか', 書き込めるか)]。R が無ければ空。"""
+    if not shutil.which('Rscript'):
+        return []
+    _, out = _run(['Rscript', '--vanilla', '-e', R_STALE], timeout=60)
+    rows = []
+    for line in out.splitlines():
+        parts = line.split('\t')
+        if len(parts) == 4 and parts[1].isdigit():
+            rows.append((parts[0], int(parts[1]), parts[2], parts[3] == 'TRUE'))
+    return rows
+
+
+def rebuild_command(lib: str, writable: bool) -> str:
+    """古い R 向けのパッケージを入れ直すコマンド。"""
+    if lib.startswith('/usr/lib/R/') and not is_macos() and not is_windows():
+        return 'sudo apt upgrade'          # apt の r-cran-*（CRAN の apt リポジトリが新しい版を持つ）
+    cmd = f'Rscript -e "update.packages(lib.loc=\'{lib}\', checkBuilt=TRUE, ask=FALSE)"'
+    return cmd if writable or is_windows() else 'sudo ' + cmd
 
 
 def _first_line(s: str) -> str:
@@ -118,6 +170,13 @@ def collect() -> dict:
                        'cat(requireNamespace("renv", quietly = TRUE))'])
         has = out.strip().endswith('TRUE')
         f['renv'] = (has, t('installed') if has else t('not installed'))
+        stale = stale_r_libraries()
+        LAST_R_STALE[:] = stale
+        n = sum(r[1] for r in stale)
+        f['r_packages'] = (not stale, t('all load') if not stale else t(
+            '{n} {n|package|packages} built for an older R ({versions}) {n|does|do} not load',
+            n=n,
+            versions=', '.join(sorted({v for r in stale for v in r[2].split(',')}))))
     else:
         f['R'] = (False, t('not found (only needed if the .qmd is R)'))
         f['renv'] = (False, t('not installed'))
@@ -313,6 +372,7 @@ LABELS = {
     'quarto': 'Quarto',
     'R': '  └ R (Rscript)',
     'renv': '      └ renv',
+    'r_packages': '      └ packages',
     'uv': '  └ uv (Python)',
     'pandoc': 'pandoc',
     'pandoc_citeproc': '  └ CSL citations',
@@ -349,7 +409,7 @@ def report(verbose: bool = False) -> int:
 
     head = '\n== ' + t('Analysis (only when you use a .qmd)') + ' '
     print(head + '=' * max(4, 59 - len(head)))
-    for k in ANALYSIS_TOOLS:
+    for k in ('quarto', 'R', 'renv', 'r_packages', 'uv'):
         if k not in f:
             continue
         ok, detail = f[k]
@@ -379,7 +439,7 @@ def report(verbose: bool = False) -> int:
             if tex_lack:
                 tex_missing = True
                 print(f'[{WARN}] {target:<13} ' + t(
-                    'add TeX and this works (missing: {what})',
+                    'install TeX to use this (missing: {what})',
                     what=', '.join(t(NEED_LABELS.get(n, n)) for n in tex_lack)))
             else:
                 missing_all += lack
@@ -397,6 +457,12 @@ def report(verbose: bool = False) -> int:
     if lack:
         print('\n  ' + t('For the analysis ({what}): {cmd}',
                          what=', '.join(t(LABELS[k]).strip(' └') for k in lack), cmd=run))
+    if LAST_R_STALE:
+        # renv のプロジェクトは自分のライブラリを持つので困らない。困るのはその外
+        print('\n  ' + t('To rebuild the R packages built for an older R (projects with '
+                         'renv are not affected):'))
+        for cmd in dict.fromkeys(rebuild_command(lib, w) for lib, _, _, w in LAST_R_STALE):
+            print('    ' + cmd)
     if 'typst_default_fonts' in f and not f['typst_default_fonts'][0]:
         print('\n  ' + t('For the default typefaces:') + ' '
               + t(hint('typst_default_fonts')))
@@ -413,7 +479,7 @@ def report(verbose: bool = False) -> int:
                 print('  ' + t(h))
         print('\n  ' + t('To install them all: {cmd}', cmd=run))
     else:
-        print('\n  ' + t('Every everyday format (typst / docx) works.'))
+        print('\n  ' + t('Every common format (typst / docx) works.'))
     return 1 if missing_all else 0
 
 
@@ -428,6 +494,9 @@ def as_json() -> dict:
             missing += [n for n in lack if n not in missing]
     return {
         'version': __version__,
+        # clone から動いていればその場所。setup は clone を入れ替えないので、
+        # 古いときに拡張機能は「準備する」ではなく git pull を案内する。
+        'clone': str(paths.REPO) if paths.is_clone() else None,
         'ready': not missing,
         'missing': [t(NEED_LABELS.get(n, n)) for n in missing],
         'analysis': {k: bool(f.get(k, (False, ''))[0]) for k in ANALYSIS_TOOLS},

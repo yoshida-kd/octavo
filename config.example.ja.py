@@ -116,7 +116,7 @@ CONFIG = {
     # 'abstract_word_limit': 150,
     # 'abstract_char_limit': 400,
 
-    # 匿名審査（octavo build --anonymous）で題扉から落とすメタデータ。
+    # 匿名審査（octavo build --anonymous）でタイトル部分から落とすメタデータ。
     # 原稿側は  ::: {.no-anonymous} … :::  で謝辞などを囲む。
     # 'anonymous_drop_meta': ['author', 'institute', 'thanks', 'email'],
 
@@ -125,7 +125,7 @@ CONFIG = {
     # 'replication_exclude': ['data/derived/巨大な中間ファイル.rds'],
 
     # ================================================================
-    # 題扉（原稿の YAML front matter が優先。ここは既定値）
+    # タイトル部分（原稿の YAML front matter が優先。ここは既定値）
     # ================================================================
     'meta': {
         # 'title': '論文タイトル',
@@ -144,7 +144,7 @@ CONFIG = {
     # 'latex_engine': 'lualatex',
     # 'latex_documentclass': 'ltjsarticle',   # 既定は lang から
     # 'latex_classoptions': ['11pt', 'a4paper'],
-    # プリアンブルは octavo template copy handout/handout-header.tex で写して直す
+    # プリアンブルは octavo template copy handout/handout-header.tex でコピーして直す
 
     # ================================================================
     # Typst
@@ -161,15 +161,15 @@ CONFIG = {
     # 'typst_slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
     # 見出しに番号を振る（Typst の numbering 文字列）。None なら振らない
     # 'typst_slides_numbering': '1.1',
-    # '#' の節を扉のスライドにしない（番号だけ進める）
-    # 'typst_slides_section_slides': False,
-    # 差し色。**これを書くと体裁が切り替わる**（題を色で立てて太字をやめる、
+    # '#' の節ごとに扉のスライドを作る（既定は作らず、番号だけ進める）
+    # 'typst_slides_section_slides': True,
+    # アクセントカラー。**これを書くと体裁が切り替わる**（題を色で立てて太字をやめる、
     # 箇条書きの印を ▶ に、ページ番号を「4 / 11」に、リンクにも色）。
     # 既定はこの青。従来どおり黒一色にしたいときは None にする
     # 'typst_slides_accent': '#0e2f92',
-    # 左上にいまの '#' の節を小さく出す（既定で出る。節が無ければデッキの題）
+    # 左上にいまの '#' の節を小さく出す（既定で出る。節が無ければデッキのタイトル）
     # 'typst_slides_running_header': False,
-    # 体裁ごと変えるなら、同梱のひな型を写して直す（README §7）:
+    # 体裁を丸ごと変えるなら、同梱のテンプレートをコピーして直す（手引き §7）:
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================
@@ -177,7 +177,7 @@ CONFIG = {
     # ::: notes を付けて組む。上の typst_slides_* はそのまま効く。
     # 毎回作るなら文書の targets に足す。要るときだけなら
     #   octavo build <名前> --to typst-notes
-    # 体裁は octavo template copy slides/typst-notes.typ で写して直す
+    # 体裁は octavo template copy slides/typst-notes.typ でコピーして直す
     # ================================================================
 
     # ================================================================

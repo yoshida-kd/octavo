@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -178,6 +178,17 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.addAppendix",
+        "title": "%command.addAppendix.title%",
+        "category": "Octavo",
+        "icon": "$(file-add)"
+      },
+      {
+        "command": "octavo.addTex",
+        "title": "%command.addTex.title%",
+        "category": "Octavo"
+      },
+      {
         "command": "octavo.bibPull",
         "title": "%command.bibPull.title%",
         "category": "Octavo"
@@ -211,9 +222,11 @@
         { "command": "octavo.openConfig", "when": "view == octavo.project", "group": "navigation" }
       ],
       "view/item/context": [
-        { "command": "octavo.previewDoc", "when": "view == octavo.project && viewItem == octavo.doc", "group": "inline" },
-        { "command": "octavo.buildDoc", "when": "view == octavo.project && viewItem == octavo.doc", "group": "inline" },
-        { "command": "octavo.analysisRunOne", "when": "view == octavo.project && viewItem == octavo.analysisUnit", "group": "inline" }
+        { "command": "octavo.previewDoc", "when": "view == octavo.project && viewItem =~ /^octavo\\.doc/", "group": "inline" },
+        { "command": "octavo.buildDoc", "when": "view == octavo.project && viewItem =~ /^octavo\\.doc/", "group": "inline" },
+        { "command": "octavo.analysisRunOne", "when": "view == octavo.project && viewItem == octavo.analysisUnit", "group": "inline" },
+        { "command": "octavo.addAppendix", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@1" },
+        { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" }
       ],
       "commandPalette": [
         { "command": "octavo.editSetting", "when": "false" },
@@ -265,6 +278,14 @@
         },
         {
           "command": "octavo.new"
+        },
+        {
+          "command": "octavo.addAppendix",
+          "when": "false"
+        },
+        {
+          "command": "octavo.addTex",
+          "when": "false"
         },
         {
           "command": "octavo.bibPull"

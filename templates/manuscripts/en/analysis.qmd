@@ -1,0 +1,31 @@
+---
+title: "Analysis"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- The numbers, figures and tables in the paper are made here, not in the
+     manuscript. octavo build watches the .qmd and runs quarto render when needed. -->
+
+```{r}
+#| label: setup
+#| include: false
+# Load octavo.R from this same analysis/ folder. When octavo build runs this,
+# OCTAVO_ROOT is set, so it is found wherever it runs from.
+root <- Sys.getenv("OCTAVO_ROOT", unset = "")
+source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+```
+
+```{r}
+#| label: data
+# Raw data goes in data/raw/ (never modified), cleaned data in data/derived/.
+#   d <- read.csv(file.path(ov_root(), "data", "raw", "<file>.csv"))
+#
+# Register what the manuscript shows, and call it by name there:
+#   ov_value("n_obs", nrow(d))        # {{n_obs}} in the manuscript
+#   ov_figure(p, "trend")             # figures/trend.pdf and .png
+#   ov_table(tab, "summary")          # tables/summary.typ / .tex / .md
+```

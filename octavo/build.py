@@ -52,6 +52,10 @@ def sync_layout(cfg, doc, ctx: Ctx) -> None:
     src = Path(doc.src).parent / name
     dest = ctx.out_dir / name
     if not src.is_file():
+        # main.tex は既定では作らない（TeX は任意）。足し方をここで言う
+        cmd = f'octavo new paper {doc.name}' + (' --tex' if name.endswith('.tex') else '')
+        ctx.say(f'{tag("layout")} ' + t('no {file} beside the manuscript — add it with: {cmd}',
+                                         file=cfg.rel(src), cmd=cmd))
         return
     text = src.read_text(encoding='utf-8')
     if not dest.is_file() or dest.read_text(encoding='utf-8') != text:
@@ -265,12 +269,20 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         res.report.append(f'{tag("stopped")} ' + t('no manuscript at {path}', path=src))
         return res
 
+    # 原稿の冒頭に書いた文書ごとの設定（CSL・上限・スライドの体裁）を重ねる。
+    # 付録も本体の原稿の設定で組む
+    cfg = cfg.for_document(doc)
+
     out_dir = cfg.out_dir(target, doc)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     ctx = Ctx(cfg=cfg, backend=backend, out_dir=out_dir, profile=doc.profile,
               doc_name=doc.name if not appendix else f'{doc.name}-appendix',
               appendix=appendix, anonymous=anonymous)
+    if cfg.doc_explicit:
+        ctx.say(f'{tag("settings")} ' + t('from the manuscript: {settings}', settings=', '.join(
+            f'{k}: {cfg[k]}' for k in sorted(cfg.doc_explicit) if k != 'targets')
+            or 'targets'))
     if anonymous:
         ctx.say(f'{tag("anonymous")} ' + t('building with anything identifying hidden '
                                           '(::: {.no-anonymous} blocks and the '
@@ -329,9 +341,18 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         # 出したいときは slides.md の末尾に見出しと `::: {#refs}` を置き、
         # config の slides_bibliography を True にする。
         suppress = (doc.profile == 'slides' and not cfg['slides_bibliography'])
+        ref_title = cfg['reference_section_title'] or None
+        if ref_title and not suppress and ctx.shift_headings < 0 \
+                and not re.search(r'\{#refs\}', body):
+            # 見出しを `##` で書く原稿は段を1つ上げて変換する。pandoc が差し込む書誌の
+            # 見出しにもそれが効いて0段目（ただの段落）になるので、1段深い見出しと
+            # 書誌の置き場所を自分で書き足す（上げたあとでちょうど1段目になる）
+            body = (body.rstrip('\n') + f"\n\n{'#' * (1 - ctx.shift_headings)} {ref_title}"
+                    " {.unnumbered}\n\n::: {#refs}\n:::\n")
+            ref_title = None
         cite_args = pandocrun.citeproc_args(
             cfg['bib_file'], ctx.csl, cfg['csl_locale'],
-            cfg['reference_section_title'] or None, cfg['link_citations'],
+            ref_title, cfg['link_citations'],
             suppress_bibliography=suppress)
         ctx.say(f'{tag("bib")} {Path(cfg["bib_file"]).name} + '
                 + (ctx.csl.name if ctx.csl
@@ -378,6 +399,11 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             res.outputs.append(out_dir / name)
 
     # ---- 要旨を別ファイルに出す形式 --------------------------------------
+    # 要旨がまだ空でも書く。main.* が読むので無ければ組めず、前の中身が残れば古い要旨が出る
+    if not abstract and backend.wants_abstract_file and not appendix and not ctx.standalone:
+        p = out_dir / f'abstract{backend.ext}'
+        p.write_text('', encoding='utf-8')
+        res.outputs.append(p)
     if abstract and backend.wants_abstract_file and not appendix:
         ab_args = ['-f', fmt] + backend.pandoc_args(ctx)
         drop = ('--standalone', '--toc', '--number-sections', '-s')

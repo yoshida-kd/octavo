@@ -60,5 +60,5 @@ class TypstNotesBackend(TypstSlidesBackend):
         ctx.say(f'{tag("script")} ' + t('{slides} {slides|slide|slides} / {notes} {notes|note|notes}',
                                          slides=slides, notes=notes))
         if slides and not notes:
-            ctx.say(f'{tag("script")} ' + t('not one `::: notes` — this is just the '
+            ctx.say(f'{tag("script")} ' + t('no `::: notes` — this is just the '
                                              'deck on paper'))

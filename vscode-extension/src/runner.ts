@@ -287,13 +287,38 @@ export async function findConfig(): Promise<vscode.Uri | undefined> {
         return vscode.Uri.joinPath(folders[0].uri, explicit);
     }
     const hits = await vscode.workspace.findFiles('**/octavo.config.py',
-        '**/{node_modules,build,.git}/**', 5);
+        '**/{node_modules,build,.git,renv,.venv}/**', 50);
     if (hits.length === 0) {
+        lastConfig = undefined;
         return undefined;
     }
-    // ルートに近いものを優先する。
-    hits.sort((a, b) => a.fsPath.split(path.sep).length - b.fsPath.split(path.sep).length);
-    return hits[0];
+    lastConfig = pickConfig(hits.map((u) => u.fsPath),
+                            vscode.window.activeTextEditor?.document.uri, lastConfig);
+    return vscode.Uri.file(lastConfig);
+}
+
+/** 直前に選んだ設定（別のプロジェクトのファイルに移るまでは、それを使い続ける）。 */
+let lastConfig: string | undefined;
+
+/** 1つのワークスペースに Octavo のプロジェクトがいくつもあるとき、どれを使うか。
+ *  いま開いているファイルが入っているもの（入れ子なら一番近いもの）、無ければ
+ *  直前に使っていたもの、それも無ければルートに近いもの。 */
+export function pickConfig(configs: string[], active?: vscode.Uri, last?: string): string {
+    const byDepth = [...configs].sort(
+        (a, b) => a.split(path.sep).length - b.split(path.sep).length);
+    if (active && active.scheme === 'file') {
+        const inside = byDepth.filter((c) => {
+            const dir = path.dirname(c) + path.sep;
+            return active.fsPath.startsWith(dir);
+        });
+        if (inside.length) {
+            return inside[inside.length - 1];
+        }
+    }
+    if (last && configs.includes(last)) {
+        return last;
+    }
+    return byDepth[0];
 }
 
 export function dirOf(uri: vscode.Uri): string {

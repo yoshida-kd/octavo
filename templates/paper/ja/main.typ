@@ -3,12 +3,12 @@
 //
 //  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ
 //  papers/<名前>/ に置くので、タイトル・著者・体裁を書き換える。組版のたびに
-//  build/typst/<名前>/ へ写されるので、直すのは papers/ の側。body.typ /
+//  build/typst/<名前>/ へコピーされるので、直すのは papers/ の側。body.typ /
 //  abstract.typ は Octavo が自動生成するので直接編集しない。
 //
 //    octavo build <名前> --to typst
 //    cd build/typst/<名前> && typst compile --root ../../.. main.typ
-//    （--root が無いと ../../../figures を読めない。octavo build --compile なら自動）
+//    （--root がないと ../../../figures を読めない。octavo build --compile なら自動）
 //
 //  引用の扱いは octavo.config.py の typst_citations で決まる:
 //
@@ -23,14 +23,14 @@
 //    - `typst fonts` で一覧を確認
 //    - Linux なら sudo apt install fonts-morisawa-bizud-mincho fonts-noto-cjk
 //      macOS なら brew install --cask font-biz-udmincho
-//      （octavo setup が入れる。BIZ UD が無ければ Noto、それも無ければ
+//      （octavo setup が入れる。BIZ UD がなければ Noto、それもなければ
 //       ヒラギノ（macOS）か游明朝（Windows）に落ちる）
 //    - 手元のフォントを使うなら typst compile --root ../../.. --font-path ../../../fonts main.typ
 // =====================================================================
 
 #set document(title: "論文タイトル", author: "著者名")
 #set page(paper: "a4", margin: 25mm, numbering: "1")
-// 欧文は Libertinus Serif、和文は等幅の BIZ UD明朝（無ければ Noto Serif CJK JP、
+// 欧文は Libertinus Serif、和文は等幅の BIZ UD明朝（なければ Noto Serif CJK JP、
 // 何も足していなければ macOS はヒラギノ明朝、Windows は游明朝）。
 // covers: "latin-in-cjk" で英字・数字だけを欧文フォントに回し、「」、。などの
 // 約物は和文フォントのまま残す。Octavo の A4 プリントと同じ並び。

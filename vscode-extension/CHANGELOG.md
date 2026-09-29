@@ -3,6 +3,64 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.3.0
+
+- **The README is now an overview** — what Octavo does, a diagram, an example
+  of the output, install and getting started. The full manual moved to
+  [docs/guide.md](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md)
+  ([日本語](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md)).
+- The Japanese wording was reviewed throughout (the CLI, the extension, the
+  templates and the documentation), and the extension's Japanese messages are
+  now polite form.
+- **`octavo init` writes only the frame; the rest are parts you add.**
+  An analysis is now added like a manuscript, with `octavo new analysis
+  <name>` (the first one brings `octavo.R`, `data/`, `tables/` and
+  `requirements.txt`), so a project that is only slides has no analysis in
+  it. To start with parts, name them: `octavo init study --with
+  analysis,paper`, `--with slides=talk`, or `--all` for all four. The
+  project's `CLAUDE.md` gets a section for each kind of part as it is added.
+  `octavo check` and `octavo env` say nothing about an analysis a project
+  does not have.
+- **Nothing written by default has to be deleted later.** No made-up
+  analysis, placeholder values, figure or table, example bibliography,
+  `notes/` or `refs/`; the project README is a few lines to finish yourself;
+  a manuscript is bare headings. `--example` (on `init` and `new`) brings
+  the examples back — an example manuscript also brings the example analysis
+  and references it uses when the project has none.
+- **Settings per document.** The citation style, output formats, submission
+  limits and the look of slides can be written at the top of a manuscript
+  (`csl: apa`, `targets: [typst, docx]`, `word_limit: 8000`, …) and then apply
+  to that document only; `octavo config --doc <name>` shows and changes them.
+- **The sidebar, reordered:** manuscripts, analysis, tools in the order they are
+  used, then the project settings folded away. Each manuscript has **Settings
+  for this document**; the citation style is picked from a list; adding a
+  manuscript and adding an analysis are separate buttons.
+- `octavo new paper` writes `appendix.md` only with `--appendix` and `main.tex`
+  only with `--tex`; both can be run again on an existing paper to add just the
+  missing file. A LaTeX build without `main.tex` says how to add it.
+- **The extension:** New Project asks what to start with (any of the four
+  parts, or none) and whether they are examples. The sidebar adds manuscripts
+  and analyses and opens what it made (through `octavo new --json`), shows a
+  paper's appendix or a button to add one, and adds `main.tex` from a paper's
+  right-click menu.
+- **Several projects in one workspace:** the extension uses the project of the
+  file you are editing (the nearest `octavo.config.py` above it), stays with it
+  while you look at files outside any project, and reloads the sidebar,
+  citations and values when you move to another project. The sidebar shows
+  which project it is on.
+- `octavo doctor` and `setup.sh` notice R packages that were built for an older
+  R and no longer load — left behind when R is upgraded, they break the
+  analysis outside renv projects — and print the command that rebuilds them.
+- `typst_slides_section_slides` now defaults to `False`: a `#` section no
+  longer gets a divider slide of its own (it still advances the counter).
+  Set it to `True` for the old behaviour.
+- Fixed: a captioned figure on a slide was pushed onto a page of its own
+  with no title; a paper's bibliography heading came out as a plain line of
+  text (in Typst, LaTeX and Word).
+- Fixed: an empty `## Abstract` swallowed the next section's heading, so the
+  body's numbering started at 0.1; and an empty abstract now clears the
+  previous `abstract.typ` / `abstract.tex`.
+
 ## 0.2.0
 
 - **Installing the extension is enough.** On first start it checks the tools

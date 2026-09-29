@@ -16,6 +16,7 @@ import { BibCache } from './bib';
 import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
 import { PreviewManager } from './preview';
+import { AddKind, addToProject, initProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
 import {
     describeMode, dirOf, extraPathDirs, findConfig, refreshWindowsPath, resolvePathFromTool,
@@ -54,6 +55,12 @@ export function activate(context: vscode.ExtensionContext): void {
     const tree = new OctavoTree((line) => output.appendLine(line));
     context.subscriptions.push(valuesCache, valueDiagnostics, preview, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree));
+    // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
+    const afterAdding = (): void => {
+        tree.refresh();
+        void cache.refresh(true);
+        void valuesCache.refresh(true);
+    };
     const setup = new SetupManager(context, output, () => {
         tree.refresh();
         void cache.refresh(true);
@@ -281,8 +288,8 @@ export function activate(context: vscode.ExtensionContext): void {
         // -- アクティビティバー ------------------------------------------------
         vscode.commands.registerCommand('octavo.sidebarRefresh', () => tree.refresh()),
         vscode.commands.registerCommand('octavo.openConfig', () => tree.openConfig()),
-        vscode.commands.registerCommand('octavo.editSetting', async (s: Setting) => {
-            if (s && await tree.edit(s)) {
+        vscode.commands.registerCommand('octavo.editSetting', async (s: Setting, doc?: string) => {
+            if (s && await tree.edit(s, doc)) {
                 await preview.rebuildIfOpen();      // 変えた結果がすぐ見えるように
             }
         }),
@@ -392,65 +399,29 @@ export function activate(context: vscode.ExtensionContext): void {
             runInTerminal('selftest', cwd, ['selftest']);
         }),
 
-        vscode.commands.registerCommand('octavo.init', async () => {
-            const parents = await vscode.window.showOpenDialog({
-                canSelectFiles: false, canSelectFolders: true, canSelectMany: false,
-                openLabel: vscode.l10n.t('Create it here'),
-                defaultUri: vscode.workspace.workspaceFolders?.[0]?.uri,
-            });
-            if (!parents || parents.length === 0) return;
+        vscode.commands.registerCommand('octavo.init', () => initProject()),
 
-            const name = await vscode.window.showInputBox({
-                title: vscode.l10n.t('Project name (becomes the folder name)'),
-                placeHolder: vscode.l10n.t('e.g. 2026-example-lecture'),
-                validateInput: (v) => (v.trim() ? undefined
-                    : vscode.l10n.t('It cannot be empty')),
-            });
-            if (!name) return;
-
-            const lang = await vscode.window.showQuickPick(
-                [{ label: 'ja', value: 'ja' }, { label: 'en', value: 'en' }],
-                { title: vscode.l10n.t('Main language') });
-            if (!lang) return;
-
-            runInTerminal('init', parents[0].fsPath,
-                ['init', name, '--lang', lang.value]);
-
-            const open = await vscode.window.showInformationMessage(
-                vscode.l10n.t(
-                    'Made {0}. Add a manuscript with "Add a Manuscript". Open the folder?',
-                    name),
-                vscode.l10n.t('Open'), vscode.l10n.t('Later'));
-            if (open === vscode.l10n.t('Open')) {
-                const newUri = vscode.Uri.joinPath(parents[0], name);
-                await vscode.commands.executeCommand('vscode.openFolder', newUri, false);
+        // 原稿・分析を足す。サイドバーからは種類を決めて呼ばれる（'analysis' など）
+        vscode.commands.registerCommand('octavo.new', async (kind?: unknown) => {
+            // サイドバーの「原稿を足す」は 'manuscript'、「分析を足す」は 'analysis'
+            const preset = typeof kind === 'string' ? { kind: kind as AddKind } : {};
+            if (await addToProject((line) => output.appendLine(line), preset)) {
+                afterAdding();
             }
         }),
-
-        vscode.commands.registerCommand('octavo.new', async () => {
-            const configUri = await requireConfig();
-            if (!configUri) return;
-            // 種類の違いは原稿のテンプレートだけ。どれも何本でも足せる
-            const kind = await vscode.window.showQuickPick(
-                [
-                    { label: 'paper', description: vscode.l10n.t('A paper — papers/<name>/paper.md'), value: 'paper' },
-                    { label: 'slides', description: vscode.l10n.t('Talk slides — slides/<name>.md'), value: 'slides' },
-                    { label: 'lecture', description: vscode.l10n.t('Lecture notes (an A4 handout + a deck per session) — lectures/<name>.md'), value: 'lecture' },
-                ],
-                { title: vscode.l10n.t('What kind of manuscript?') });
-            if (!kind) return;
-
-            const name = await vscode.window.showInputBox({
-                title: vscode.l10n.t(
-                    'Document name (becomes the file or folder name; octavo build <name>)'),
-                placeHolder: vscode.l10n.t('e.g. example-paper / example-talk / example-lecture'),
-                validateInput: (v) => (/^[^\s/\\.][^\s/\\]*$/.test(v.trim())
-                    ? undefined : vscode.l10n.t(
-                        'No spaces, no / or \\, and it cannot start with a dot')),
-            });
-            if (!name) return;
-
-            runInTerminal('new', dirOf(configUri), ['new', kind.value, name.trim()]);
+        vscode.commands.registerCommand('octavo.addAppendix', async (node: { doc?: { name: string } }) => {
+            if (!node?.doc) return;
+            if (await addToProject((line) => output.appendLine(line),
+                                   { kind: 'paper', name: node.doc.name, appendix: true })) {
+                afterAdding();
+            }
+        }),
+        vscode.commands.registerCommand('octavo.addTex', async (node: { doc?: { name: string } }) => {
+            if (!node?.doc) return;
+            if (await addToProject((line) => output.appendLine(line),
+                                   { kind: 'paper', name: node.doc.name, tex: true })) {
+                afterAdding();
+            }
         }),
 
         vscode.commands.registerCommand('octavo.bibPull', async () => {
@@ -522,6 +493,21 @@ export function activate(context: vscode.ExtensionContext): void {
     context.subscriptions.push(cfgWatcher, cfgWatcher.onDidCreate(syncHasConfig),
                                cfgWatcher.onDidDelete(syncHasConfig));
     syncHasConfig();
+
+    // ワークスペースにプロジェクトがいくつもあるとき、別のプロジェクトのファイルに
+    // 移ったら、サイドバー・引用・値をそのプロジェクトで読み直す
+    let current: string | undefined;
+    void findConfig().then((u) => { current = u?.fsPath; });
+    context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(async () => {
+        const u = await findConfig();
+        if (u?.fsPath !== current) {
+            current = u?.fsPath;
+            tree.refresh();
+            void cache.refresh(true);
+            void valuesCache.refresh(true);
+            syncHasConfig();
+        }
+    }));
 
     // 道具がそろっていなければ「準備する」を出す（そろっていれば黙っている）。
     // Windows では先に PATH を読み直す（winget で入れた直後でも見つかるように）。

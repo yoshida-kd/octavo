@@ -13,7 +13,7 @@
 //
 //    octavo.title / subtitle / author / institute / date   題扉（無ければ none）
 //    octavo.lang          "ja" | "en"
-//    octavo.slide-level   1 なら見出し1つが1枚。2 なら「#」が節の扉、「##」が1枚
+//    octavo.slide-level   1 なら見出し1つが1枚。2 なら「#」が節（扉は section-slides のとき）、「##」が1枚
 //    octavo.aspect        "16-9" | "4-3"（typst_slides_aspect）
 //    octavo.numbering     見出しの番号（typst_slides_numbering）。none なら振らない
 //    octavo.section-slides 「#」の節を扉のスライドにするか（typst_slides_section_slides）

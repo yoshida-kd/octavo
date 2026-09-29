@@ -164,7 +164,7 @@ class LatexBackend(Backend):
         if ctx.standalone:
             return f'cd {ctx.out_dir} && latexmk -{ctx.cfg["latex_engine"]} {self.out_name(ctx)}'
         return (f'cd {ctx.out_dir} && latexmk -{ctx.cfg["latex_engine"]} main.tex'
-                + '   ' + t('({name} lives beside the manuscript; octavo new writes it if missing)',
+                + '   ' + t('({name} lives beside the manuscript)',
                           name='main.tex'))
 
 

@@ -1,0 +1,31 @@
+---
+title: "分析"
+format: html
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- 論文に出す数値・図・表は、原稿ではなくここで作る。
+     octavo build が `.qmd` の更新を見て、必要なら quarto render を実行する。 -->
+
+```{r}
+#| label: setup
+#| include: false
+# 同じ analysis/ にある octavo.R を読む。octavo build から呼ばれたときは
+# OCTAVO_ROOT が入っているので、どこから実行しても当たる。
+root <- Sys.getenv("OCTAVO_ROOT", unset = "")
+source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+```
+
+```{r}
+#| label: data
+# 原データは data/raw/（書き換えない）、整形したものは data/derived/ に書く。
+#   d <- read.csv(file.path(ov_root(), "data", "raw", "<ファイル>.csv"))
+#
+# 本文に出すものは登録して、原稿からは名前で呼ぶ:
+#   ov_value("n_obs", nrow(d))        # 本文では {{n_obs}}
+#   ov_figure(p, "trend")             # figures/trend.pdf と .png
+#   ov_table(tab, "summary")          # tables/summary.typ / .tex / .md
+```

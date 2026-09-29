@@ -173,7 +173,7 @@ def run(cfg, doc_name: str, label: str, targets=None, anonymous: bool = False,
         return 1
     r = _git(root, 'push', 'origin', f'refs/tags/{tag}')
     if r.returncode != 0:
-        print(r.stderr + '\n' + t('the tag was made here but not pushed: '
+        print(r.stderr + '\n' + t('the tag was created locally but not pushed: '
                                   'git push origin {tag}', tag=tag), file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmp:

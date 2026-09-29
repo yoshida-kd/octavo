@@ -4,3 +4,7 @@ csl/*.csl
 .DS_Store
 dist/
 *.egg-info/
+# 手元の VS Code の設定（octavo.command に手元の絶対パスを書くので、公開してはいけない）
+/.vscode/
+# 開発版を試すためのプロジェクト置き場（中身は octavo init で作る。git には入れない）
+/sandbox/

@@ -117,18 +117,20 @@ def length_problems(cfg) -> list:
             continue                      # 付録に規定があることは稀
         if cfg.documents[name].profile != 'paper':
             continue                      # 規定は投稿する論文のもの。スライド・講義は見ない
+        # 上限は投稿先ごと。原稿の冒頭に書いてあればそれ、無ければプロジェクトの設定
+        lim = cfg.for_document(cfg.documents[name])
         raw = mdlib.drop_math_macros(valmod.substitute(mdlib.read(src), vals, cfg))
         abstract, body = mdlib.split_abstract(mdlib.drop_references(raw))
         body = mdlib.strip_title_block(body)
         pairs = (
-            (t('body word count'), mdlib.word_count(body)[0], cfg['word_limit'],
+            (t('body word count'), mdlib.word_count(body)[0], lim['word_limit'],
              t(' words')),
-            (t('body character count'), mdlib.char_count(body), cfg['char_limit'],
+            (t('body character count'), mdlib.char_count(body), lim['char_limit'],
              t(' characters')),
             (t('abstract word count'), mdlib.word_count(abstract)[0] if abstract else 0,
-             cfg['abstract_word_limit'], t(' words')),
+             lim['abstract_word_limit'], t(' words')),
             (t('abstract character count'), mdlib.char_count(abstract) if abstract else 0,
-             cfg['abstract_char_limit'], t(' characters')),
+             lim['abstract_char_limit'], t(' characters')),
         )
         for label, got, limit, unit in pairs:
             if limit:
@@ -151,8 +153,10 @@ def collect(cfg, anonymous: bool = False) -> list:
                'documents in octavo.config.py')))
 
     # -- 分析 ---------------------------------------------------------------
-    if cfg['analysis']:
-        rows = anamod.status(cfg)
+    # 分析の無いプロジェクト（スライドだけ、など）には分析の行を出さない
+    rows = anamod.status(cfg) if cfg['analysis'] else []
+    has_analysis = bool(rows) or bool(valmod.files(cfg))
+    if has_analysis:
         stale = [u for u, exists, old in rows if not exists or old]
         items.append(Item(
             ok=not stale, fatal=False, label=t('analysis freshness'),
@@ -187,13 +191,14 @@ def collect(cfg, anonymous: bool = False) -> list:
 
     # -- 書誌 ---------------------------------------------------------------
     r = checkmod.collect(cfg)
-    if cfg['analysis']:
+    if has_analysis:
         ph = valmod.placeholder_files(cfg)
         items.append(Item(
             ok=not ph, fatal=True, label=t('placeholder values'),
             detail=(t('the analysis has never run: {files} {n|is|are} the starter '
                       'values octavo init wrote', files=', '.join(ph), n=len(ph))
-                    if ph else t('these are real values')),
+                    if ph else t('these are real values') if valmod.files(cfg)
+                    else t('no values yet (the analysis writes them)')),
             lines=ph,
             hint=t('run the analysis with octavo analysis run — as it is, the '
                    'numbers that get typeset are fake')))
@@ -313,7 +318,7 @@ def collect(cfg, anonymous: bool = False) -> list:
                    '— it depends on the journal')))
 
     # -- 再現性 -------------------------------------------------------------
-    if cfg['analysis']:
+    if has_analysis:
         sess = valmod.session_info(cfg)
         items.append(Item(
             ok=bool(sess), fatal=False, label=t('environment record'),

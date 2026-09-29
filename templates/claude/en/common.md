@@ -1,0 +1,155 @@
+<!-- octavo:section common -->
+# About this repository
+
+The "@@NAME@@" project. **Writing (Markdown) and typesetting (Typst / Word / LaTeX /
+Beamer) live in this one repository**, and an analysis (Quarto `.qmd`) can be added.
+Conversion is done by the `octavo` command from
+[Octavo](https://github.com/yoshida-kd/octavo).
+
+```
+figures/          figures (<name>.pdf and .png), written by the analysis or added by hand
+refs/             (make it when needed) material from elsewhere (codebooks, questionnaires, guidelines). kept in git
+notes/            (make it when needed) things you wrote (reading, referee, working notes). never part of the manuscript
+literature.bib    bibliography. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
+templates/        this project's own versions of Octavo's templates (absent = the bundled ones; octavo template list)
+octavo.config.py  this project's configuration (sources, styling, analysis registration)
+build/            generated output. **nothing here is written by hand; delete it freely**
+```
+
+The rules for an analysis, papers, and slides and lecture notes are appended to
+this file as sections when each is first added.
+
+## Adding things
+
+Manuscripts (papers, slides, lecture notes) and analyses (`.qmd`) are added with
+`octavo new`, **any number of each** (two papers, ten talks, three analyses). The
+analysis, bibliography, figures and tables are shared by every manuscript.
+
+```bash
+octavo new paper example-paper         # papers/example-paper/paper.md and main.typ
+octavo new paper example-paper --appendix   # add appendix.md (to an existing paper too)
+octavo new paper example-paper --tex        # add main.tex for LaTeX (to an existing paper too)
+octavo new slides example-talk           # slides/example-talk.md
+octavo new lecture example-lecture    # lectures/example-lecture.md
+octavo new analysis model             # analysis/model.qmd (and data/ etc. the first time)
+```
+
+`octavo new` writes bare headings only. Add `--example` to get an example that
+shows how things are written (with the example analysis and bibliography it uses).
+
+- **A document's name is its folder name (papers) or file name (slides, lectures).**
+  `octavo build <name>` and friends take that name. Names must not collide, even
+  across kinds
+- `documents` and `analysis` in `octavo.config.py` pick up whole folders, so **they
+  need no editing** — but a file placed elsewhere is not picked up
+- To remove a manuscript, delete its file (a paper: its folder)
+- Settings that change per journal or talk (`csl`, `targets`, limits such as
+  `word_limit`, `typst_slides_*`) go **at the top of that manuscript**; anything not
+  written there follows `octavo.config.py` (`octavo config --doc <name>` lists and changes them)
+
+# Rules
+
+## Don't edit build output
+
+Whatever `octavo build` generates (the contents of `build/typst/`,
+`build/typst-slides/`, `build/word/` and so on) **is erased by the next build.**
+The thing to fix is the manuscript (or the `.qmd`). Nothing under `build/` is
+written by hand, so the whole directory can be deleted (git does not track it).
+
+## The reference manager owns literature.bib
+
+`literature.bib` is exported from the reference manager (e.g. Zotero), and the next export
+**overwrites the file wholesale**, so hand-edits are lost. Fix bibliographic errors there.
+
+- `octavo checkbib` — are the cited keys in the `.bib`, and is the `.bib` well-formed
+- Findings you've decided not to fix go in `bib_accepted` in `octavo.config.py`, with a reason
+
+## Figures, tables, equations and sections are referred to by label, not number
+
+Numbers (the "2." of a heading, the "Figure 1" of a caption) are **never typed in
+the manuscript**. They are assigned when typeset, by section (Figure 2.1, Table 2.1,
+Equation (2.1)). In the manuscript, give things a label and refer to them by name:
+
+| | How to write it | Referring to it |
+|---|---|---|
+| Section | `## Analysis {#sec-analysis}` | `@sec-analysis` → Section 2 |
+| Figure | `![Trend](../../figures/trend.png){#fig-trend}` | `@fig-trend` → Figure 2.1 |
+| Table (typed in the manuscript) | a Markdown table + `: Descriptive statistics {#tbl-desc}` right below it | `@tbl-desc` → Table 2.1 |
+| Table (made by the analysis) | just the line `: Descriptive statistics {#tbl-summary}` (`tables/summary.*` goes there) | `@tbl-summary` |
+| Equation | `$$ … $$ {#eq-model}` | `@eq-model` → Equation (2.1) |
+
+- Labels start with `fig-` `tbl-` `eq-` `sec-` and use letters, digits, `-` and `_`.
+  `[-@fig-trend]` gives the number alone ("2.1")
+- Adding or reordering sections and figures **never means fixing references**.
+  `octavo check` stops on a reference to a missing label and on a label used twice
+
+Reference the `.png` in the manuscript; Octavo finds the `.pdf` for LaTeX on its own.
+Write the path relative to the manuscript (`../../figures/` from a paper,
+`../figures/` from slides and lectures) so editor previews work. Figures are shared
+by every manuscript: to show a paper's figure on a slide, point at the same file in
+`figures/` — don't copy it.
+
+## The examples are marked as examples
+
+By default `octavo init` / `octavo new` write only what you keep using (bare
+headings, an empty bibliography, the frame of the analysis). **Examples** come only
+with `--example`, and say so. Once you replace one with your own content, **delete
+the mark too.**
+
+| Mark | Where | How it goes away |
+|---|---|---|
+| an `octavo:example` comment | manuscripts, appendix, `.qmd`, `literature.bib` | delete it by hand |
+| `_placeholder` | `results/*.json` | `octavo analysis run` rewrites the file |
+| a figure that is a box with an × | `figures/trend.*` | `ov_figure()` rewrites it |
+| a table with nothing in it | `tables/summary.*` | `ov_table()` rewrites it |
+
+**Placeholder values (`_placeholder`) are the dangerous one.** Every `{{...}}`
+resolves even though the analysis has never run, so **a PDF full of fake numbers
+typesets cleanly.** So `octavo check` treats them as **fatal**, and `octavo build`
+and `octavo values` say so every time.
+
+While marks remain, `octavo check` counts them as leftovers. **Get that to zero
+before you finish.**
+
+# How to work
+
+## Writing and revising
+
+```bash
+octavo build                   # convert every manuscript (a stale analysis runs first)
+octavo build <name>            # just one
+octavo checkbib                # are the cited keys in the .bib?
+octavo outline                 # show the heading structure
+```
+
+`octavo build --no-citations` skips citation resolution for a fast look.
+
+## Before you finish
+
+```bash
+octavo check          # every check in one pass (non-zero exit on fatal findings)
+octavo lint           # just the numbers typed into the prose, in detail
+```
+
+**Do not submit or hand out anything while something is marked fatal.** Warnings are
+for you to judge.
+
+# Never
+
+- **Never hand-edit `build/` output.** The thing to fix is always the manuscript.
+- **Never hand-edit `literature.bib`** (fix it in the reference manager).
+- Never dump `octavo lint` findings into `lint_accepted` without checking them.
+  That list is only for things you have decided are not results.
+- **Never put a manuscript outside the places `octavo new` uses** (`octavo.config.py` won't pick it up).
+- **Don't delete an `octavo:example` mark without replacing the content.** The mark
+  records that a passage is still an example; it goes when the content does.
+- Don't invent new keys in `octavo.config.py` — unknown keys are warned about at startup.
+
+# When something is wrong
+
+```bash
+octavo doctor       # is pandoc / LaTeX / Typst / quarto / R present?
+octavo selftest     # see how citations actually typeset, on real output
+```
+
+For the `octavo` command itself, see Octavo's guide: https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md

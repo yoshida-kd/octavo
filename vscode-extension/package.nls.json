@@ -10,7 +10,7 @@
   "command.doctor.title": "Diagnose the Environment (doctor)",
   "command.selftest.title": "Check How Citations Come Out (selftest)",
   "command.init.title": "New Project (init)",
-  "command.new.title": "Add a Manuscript (new)",
+  "command.new.title": "Add a Manuscript or an Analysis (new)",
   "command.bibPull.title": "Pull References from Zotero (bib pull)",
   "command.insertCitation.title": "Insert a Citation…",
   "command.refreshBib.title": "Refresh the Bibliography Cache",
@@ -42,5 +42,7 @@
   "command.buildDoc.title": "Build to PDF",
   "command.check.title": "Check Before Submitting (check)",
   "command.analysisRunOne.title": "Run This Analysis (.qmd)",
-  "command.analysisRun.title": "Run the Analysis (analysis run)"
+  "command.analysisRun.title": "Run the Analysis (analysis run)",
+  "command.addAppendix.title": "Add an Appendix",
+  "command.addTex.title": "Add main.tex (LaTeX)"
 }

@@ -126,6 +126,12 @@ def r_env(root: Path) -> bool | None:
 
 def run(cfg) -> int:
     root = Path(cfg.root)
+    # 分析の無いプロジェクト（スライドだけ、など）には環境を作らない
+    from . import analysis as anamod
+    if not (cfg['analysis'] and anamod.status(cfg)):
+        _say(t('There is no analysis in this project, so there is nothing to set up. '
+               'Add one with: {cmd}', cmd='octavo new analysis <name>'))
+        return 0
     results = [python_env(root), r_env(root)]
     if any(r is False for r in results):
         _say('\n' + t('Something failed (see above). Fix it and run octavo env again.'))

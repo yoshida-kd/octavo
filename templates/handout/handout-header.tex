@@ -14,7 +14,7 @@
   {\IfFileExists{luatexja-fontspec.sty}{\usepackage{luatexja-fontspec}}{}}
   {\IfFileExists{luatexja-preset.sty}
      {\usepackage[haranoaji]{luatexja-preset}}
-     {\PackageWarningNoLine{octavo}{luatexja が無い。日本語は組めない。
+     {\PackageWarningNoLine{octavo}{luatexja が見つからない。日本語は組めない。
        sudo apt install texlive-lang-japanese (macOS: MacTeX)}}}
 \makeatother
 
@@ -42,7 +42,7 @@
 \let\endoldtabular\endtabular
 \renewenvironment{tabular}{\adjustbox{max width=\linewidth}\bgroup\oldtabular}
                           {\endoldtabular\egroup}
-\newcommand{\inputtable}[1]{\IfFileExists{#1.tex}{\input{#1}}{\textbf{[表が無い: #1]}}}
+\newcommand{\inputtable}[1]{\IfFileExists{#1.tex}{\input{#1}}{\textbf{[表が見つからない: #1]}}}
 
 % ---- 書き込み欄 -------------------------------------------------------
 % 原稿で \fillin あるいは \fillin[8] と書くと下線が引ける（穴埋めプリント用）。

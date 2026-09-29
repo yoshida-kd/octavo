@@ -95,11 +95,11 @@ brew_one() {  # brew_one <formula|--cask> <名前>
   local kind="$1" name="$2"
   if [ "$kind" = --cask ]; then
     if brew list --cask "$name" >/dev/null 2>&1; then msg "入っている: $name" "installed: $name"; return; fi
-    run brew install --cask "$name" || msg "入らなかった（後で brew install --cask $name）: $name" \
+    run brew install --cask "$name" || msg "入らなかった（後で brew install --cask ${name}）: $name" \
                                           "failed (later: brew install --cask $name): $name"
   else
     if brew list --formula "$name" >/dev/null 2>&1; then msg "入っている: $name" "installed: $name"; return; fi
-    run brew install "$name" || msg "入らなかった（後で brew install $name）: $name" \
+    run brew install "$name" || msg "入らなかった（後で brew install ${name}）: $name" \
                                     "failed (later: brew install $name): $name"
   fi
 }
@@ -114,7 +114,7 @@ brew_tool() {  # brew_tool <コマンド> <固定の版> <formula|--cask> <名�
         "$have is older than the tested $want, upgrading"
     run brew upgrade $kind "$name"
   else
-    [ -n "$have" ] && msg "いまの $have（Homebrew の外）は $want より古い。Homebrew のものを入れる" \
+    [ -n "$have" ] && msg "いまの ${have}（Homebrew の外）は $want より古い。Homebrew のものを入れる" \
                           "$have (outside Homebrew) is older than $want; installing Homebrew's"
     run brew install $kind "$name"
   fi
@@ -377,7 +377,7 @@ local({
     R.version["platform"], R.version["arch"], R.version["os"])))
 })
 EOS
-    msg "パッケージの取得先を Posit Package Manager にした（$SITE）" \
+    msg "パッケージの取得先を Posit Package Manager にした（${SITE}）" \
         "packages now come from Posit Package Manager ($SITE)"
   fi
 fi
@@ -402,6 +402,46 @@ if [ "$WITH_R" = 1 ] && command -v Rscript >/dev/null; then
       }' || msg "renv を入れられなかった（後で octavo env が入れる）" "could not install renv (octavo env will try again)"
   fi
   msg "R: $(Rscript --version 2>&1 | head -1)" "R: $(Rscript --version 2>&1 | head -1)"
+
+  # R を上げると、前の R 向けにビルドしたパッケージが残り、コンパイルした部分を
+  # 持つものは読めなくなることがある。読めないものがあれば入れ直すコマンドを言う（入れ直しは
+  # しない。何百個にもなり得るし、renv のプロジェクトには関係ない）。
+  # octavo doctor と同じ検査（octavo/doctor.py の R_STALE と同じ中身）。
+  R_STALE='v <- paste(R.version$major, sub("[.].*", "", R.version$minor), sep = ".")
+ip <- installed.packages(fields = "NeedsCompilation")
+b <- sub("^R ([0-9]+[.][0-9]+).*", "\\1", ip[, "Built"])
+hit <- b != v & ip[, "NeedsCompilation"] %in% "yes"
+hit[hit] <- !vapply(ip[hit, "Package"], function(p) isTRUE(tryCatch(
+  suppressMessages(suppressWarnings(!is.null(loadNamespace(p)))),
+  error = function(e) FALSE)), logical(1))
+old <- ip[hit, , drop = FALSE]
+for (lib in unique(old[, "LibPath"])) {
+  s <- old[, "LibPath"] == lib
+  cat(lib, sum(s), paste(sort(unique(b[hit][s])), collapse = ","),
+      file.access(lib, 2) == 0, sep = "\t")
+  cat("\n")
+}'
+  Rscript --vanilla -e "$R_STALE" 2>/dev/null | {
+    first=1; apt_said=0
+    while IFS="$(printf '\t')" read -r lib n vers writable; do
+      [ -n "$n" ] || continue
+      if [ "$first" = 1 ]; then
+        msg "古い R（${vers}）向けのパッケージに読めないものがある（renv のプロジェクトは困らない）。入れ直す:" \
+            "some packages built for an older R ($vers) do not load (renv projects are not affected). Rebuild them:"
+        first=0
+      fi
+      msg "  ${lib}: ${n} 個" "  ${lib}: ${n} packages"
+      case "$lib" in
+        /usr/lib/R/*)
+          if [ "$(uname -s)" = Linux ] && [ "$apt_said" = 0 ]; then
+            echo "       sudo apt upgrade"; apt_said=1
+          fi ;;
+        *)
+          pre=""; [ "$writable" = TRUE ] || pre="${SUDO:+$SUDO }"
+          echo "       ${pre}Rscript -e \"update.packages(lib.loc='$lib', checkBuilt=TRUE, ask=FALSE)\"" ;;
+      esac
+    done
+  }
 fi
 
 # ---------------------------------------------------------------------
@@ -440,6 +480,13 @@ if is_clone "$HERE"; then
 elif [ -n "$LINKED" ] && is_clone "$LINKED"; then
   msg "clone を使っているので入れ替えない: $BIN/octavo -> $LINKED" \
       "left alone, it points at a clone: $BIN/octavo -> $LINKED"
+  # 入れ替えないので、求められた版より古ければ自分で更新してもらうしかない
+  HAVE="$("$BIN/octavo" --version 2>/dev/null | awk '{print $2}' || true)"
+  if [ -n "$OCTAVO_VERSION" ] && [ -n "$HAVE" ] && ! ver_ge "$HAVE" "$OCTAVO_VERSION"; then
+    msg "この clone の octavo は $HAVE で、$OCTAVO_VERSION より古い。clone を更新する:" \
+        "the clone has octavo $HAVE, older than $OCTAVO_VERSION. Update the clone:"
+    echo "       git -C \"$LINKED\" pull"
+  fi
 else
   HAVE="$("$BIN/octavo" --version 2>/dev/null | awk '{print $2}' || true)"
   if [ -n "$OCTAVO_VERSION" ] && [ "$HAVE" = "$OCTAVO_VERSION" ]; then
@@ -467,7 +514,7 @@ if [ -x "$OCTAVO" ]; then
            american-sociological-association ieee; do
     if [ "$DRY" = 0 ]; then
       "$OCTAVO" csl get "$S" >/dev/null 2>&1 && msg "取れた: $S" "fetched: $S" \
-        || msg "取れなかった（後で octavo csl get $S）: $S" "failed (later: octavo csl get $S): $S"
+        || msg "取れなかった（後で octavo csl get ${S}）: $S" "failed (later: octavo csl get $S): $S"
     else
       info "($(m '実行しない' 'not run')) octavo csl get $S"
     fi

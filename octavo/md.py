@@ -122,10 +122,15 @@ def strip_title_block(md: str) -> str:
 def split_abstract(md: str) -> tuple[str, str]:
     """`## Abstract` / `## 要旨` 節を本文から切り離して別に返す。"""
     heads = '|'.join(re.escape(h) for h in ABSTRACT_HEADS)
+    # 要旨の中身に見出しは入らない。空の要旨（見出しのすぐ後に次の節）で次の節の
+    # 見出しまで飲み込むと、本文の節が1つ要旨へ移って番号がずれる
+    heading = re.compile(r'^#{1,3} ', re.M)
     m = re.search(rf'^#{{1,3}} (?:{heads})\s*\n+(.+?)\n\s*\*(?:Word count|字数|文字数):.*?\*\s*\n',
                   md, re.S | re.M)
+    if m and heading.search(m.group(1)):
+        m = None
     if not m:
-        m = re.search(rf'^#{{1,3}} (?:{heads})\s*\n+(.+?)(?=\n---|\n#{{1,3}} |\Z)', md, re.S | re.M)
+        m = re.search(rf'^#{{1,3}} (?:{heads})[ \t]*\n(.*?)(?=^---|^#{{1,3}} |\Z)', md, re.S | re.M)
     if not m:
         return '', md
     return m.group(1).strip(), md[:m.start()] + md[m.end():]

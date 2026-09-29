@@ -188,7 +188,7 @@ def fetch(collection: str | None = None, fmt: str = 'biblatex') -> tuple:
                 names = ', '.join(sorted(c.get('data', {}).get('name', '') for c in cols))
                 raise ZoteroError(t('no collection called {name}.',
                                     name=repr(collection))
-                                  + '\n  ' + t('there is: {names}', names=names))
+                                  + '\n  ' + t('available: {names}', names=names))
             text = api_collection_bib(host, hit[0]['key'])
             src = t('Zotero local API / collection {name}', name=collection)
         else:

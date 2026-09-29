@@ -23,8 +23,12 @@ bundled version since you copied it.
 
 | Folder | Used by | What |
 |---|---|---|
-| `project/common/`, `project/<lang>/` | `octavo init` | the project skeleton, copied as a tree (`gitignore` becomes `.gitignore`, a trailing `.tmpl` is dropped; the placeholder values, figures and `tables/summary.*` are marked `octavo:placeholder`). A file you **add** under your own `project/<lang>/` is written into every new project too |
-| `manuscripts/<lang>/` | `octavo new` | `paper.md`, `appendix.md`, `slides.md`, `lecture.md` |
+| `project/common/`, `project/<lang>/` | `octavo init` | the frame every project shares, copied as a tree (`gitignore` becomes `.gitignore`, a trailing `.tmpl` is dropped). A file you **add** under your own `project/<lang>/` is written into every new project too |
+| `claude/<lang>/` | `octavo init`, `octavo new` | the project's `CLAUDE.md`: `common.md` at `init`, and `analysis.md` / `paper.md` / `slides.md` appended when that kind of part is first added (each starts with an `octavo:section` mark) |
+| `analysis/common/`, `analysis/<lang>/` | the first `octavo new analysis` | `analysis/octavo.R` (the helper), `data/raw/README.md`, `requirements.txt` |
+| `manuscripts/<lang>/` | `octavo new` | `paper.md`, `appendix.md`, `slides.md`, `lecture.md` — bare headings — and `analysis.qmd`, the frame of an analysis |
+| `manuscripts/<lang>/example/` | `octavo new --example` | the same five, as worked examples |
+| `example/<lang>/` | `--example` | what an example uses: placeholder values (`results/<name>.json`) and `tables/summary.*` (marked `octavo:placeholder`), and two made-up references appended to `literature.bib` |
 | `paper/<lang>/` | `octavo new paper` | the layout `main.typ` / `main.tex` copied next to each paper |
 | `paper/csl-preamble.tex` | — | the `CSLReferences` definition, for a journal's own `main.tex` |
 | `slides/` | `octavo build` | the Typst deck and speaker script, and the Beamer header |
@@ -38,7 +42,7 @@ template is the `documents` block Octavo generates).
 
 ---
 
-## ひな型（日本語）
+## テンプレート（日本語）
 
 Octavo が書き出すもの・組版に使うものはすべてここにあり、**どれも自分のものに
 差し替えられる**。同じ相対パスで `<プロジェクト>/templates/`（そのプロジェクト
@@ -47,5 +51,5 @@ Octavo が書き出すもの・組版に使うものはすべてここにあり�
 丸ごとで、同梱のものとは混ぜない。
 
 `octavo template list` で何が効いているか、`octavo template copy <名前> [--user]`
-で写して直し始める、`octavo template diff <名前>` で同梱との違い（Octavo を
+でコピーして直し始める、`octavo template diff <名前>` で同梱との違い（Octavo を
 更新したあとに同梱の側で何が変わったか）が見られる。

@@ -155,7 +155,7 @@ def resolve(name: str | None, project_root: Path | None = None,
             raise
     if sid == 'chicago-author-date':
         return None
-    raise CSLError(t('the CSL style {id} is not here.', id=repr(sid)) + '\n  '
+    raise CSLError(t('the CSL style {id} is not in the local cache.', id=repr(sid)) + '\n  '
                    + t('fetch it with: octavo csl get {id}', id=sid))
 
 

@@ -51,7 +51,7 @@ USAGE_LINES = (
     ('octavo values', 'cross-check {{…}} against results/'),
     ('octavo values --diff [ref]', 'what moved since last time (or a git version)'),
     ('octavo lint', 'find results typed into the manuscript'),
-    ('octavo check', 'one audit before submitting'),
+    ('octavo check', 'check everything before submitting'),
     ('octavo bundle [paper name]', 'repackage it for a submission system'),
     ('octavo review returned.docx', "list a coauthor's tracked changes"),
     ('octavo data hash|status', 'record / check the data fingerprints'),
@@ -62,7 +62,7 @@ USAGE_LINES = (
     ('octavo setup', 'install the tools (pandoc, Typst, quarto, R, uv, fonts)'),
     ('octavo env', "set up this project's .venv and renv"),
     ('octavo init 2026-study', 'write a project skeleton'),
-    ('octavo new paper|slides|lecture name', 'add a manuscript'),
+    ('octavo new paper|slides|lecture|analysis name', 'add a manuscript or an analysis'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
     ('octavo release name v1-submitted', 'tag this version, PDF to a GitHub Release'),
 )
@@ -220,14 +220,19 @@ def cmd_config(args) -> int:
     from . import confedit
     cfg = configmod.load(args.config)
     path = cfg.source
+    # --doc: その文書の設定（原稿の冒頭に書く）。書く先も表示も原稿になる
+    doc = cfg.document(args.doc) if args.doc else None
+    if doc is not None:
+        path = Path(doc.src)
     if args.action in ('set', 'unset'):
         if not args.key or (args.action == 'set' and args.value is None):
             print(t('usage: octavo config set KEY VALUE / octavo config unset KEY'),
                   file=sys.stderr)
             return 2
+        raw = None if args.action == 'unset' else args.value
         try:
-            value = confedit.set_value(path, args.key,
-                                       None if args.action == 'unset' else args.value)
+            value = (confedit.set_doc_value(cfg, doc, args.key, raw) if doc is not None
+                     else confedit.set_value(path, args.key, raw))
         except confedit.EditError as e:
             if args.json:
                 import json as _json
@@ -244,10 +249,11 @@ def cmd_config(args) -> int:
                     path=cfg.rel(path)))
         return 0
 
-    rows = confedit.show(cfg)
+    rows = confedit.show(cfg, doc)
     if args.json:
         import json as _json
-        print(_json.dumps({'config': str(path), 'settings': rows}, ensure_ascii=False))
+        print(_json.dumps({'config': str(path), 'document': doc.name if doc else None,
+                           'settings': rows}, ensure_ascii=False))
         return 0
     section = None
     for r in rows:
@@ -307,8 +313,11 @@ def cmd_analysis(args) -> int:
         return 0
     rows = analysismod.status(cfg)
     if not rows:
-        print(t('no analysis is registered. Write this in octavo.config.py:')
-              + "\n    'analysis': ['analysis/*.qmd'],")
+        if cfg['analysis']:
+            print(t('no analysis yet. Add one with: {cmd}', cmd='octavo new analysis <name>'))
+        else:
+            print(t('no analysis is registered. Write this in octavo.config.py:')
+                  + "\n    'analysis': ['analysis/*.qmd'],")
         return 0
 
     if args.action == 'run':
@@ -397,7 +406,7 @@ def cmd_values(args) -> int:
         print(tag('placeholder') + ' ' + t(
             '{files} {n|is|are} still the starter values octavo init wrote.',
             files=sep.join(ph), n=len(ph)))
-        print('  ' + t('Building now puts fake numbers in the text -> '
+        print('  ' + t('Building now would put fake numbers in the text -> '
                       'octavo analysis run') + '\n')
     print(t('{n} {n|value|values} in {path} ({files} {files|file|files})',
             n=len(vals), path=cfg['results_dir'],
@@ -628,11 +637,45 @@ def cmd_env(args) -> int:
 
 
 def cmd_init(args) -> int:
-    return scaffold.init(Path(args.dir), lang=args.lang, force=args.force)
+    try:
+        parts = scaffold.parse_parts(args.with_parts or '')
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    if args.all:
+        parts = {**{k: k for k in scaffold.PARTS}, **parts}
+    return scaffold.init(Path(args.dir), lang=args.lang, force=args.force,
+                         example=args.example, parts=parts)
 
 
 def cmd_new(args) -> int:
-    return scaffold.new(Path(args.config), args.kind, args.name, force=args.force)
+    kw = dict(force=args.force, example=args.example, appendix=args.appendix, tex=args.tex)
+    if not args.json:
+        return scaffold.new(Path(args.config), args.kind, args.name, **kw)
+    # 拡張機能用: 作ったもの・開くファイル・止まった理由を JSON で。パスは CLI が決める
+    import contextlib
+    import io
+    import json as _json
+    made: list = []
+    err = io.StringIO()
+    with contextlib.redirect_stderr(err):
+        rc = scaffold.new(Path(args.config), args.kind, args.name, quiet=True, made=made, **kw)
+    opened = None
+    if rc == 0:
+        cfg = configmod.load(args.config)
+        if args.kind == 'analysis':
+            stem = args.name[:-len('.qmd')] if args.name.endswith('.qmd') else args.name
+            opened = str(cfg.root / 'analysis' / f'{stem}.qmd')
+        elif args.name in cfg.documents:
+            # 足したものを開く（--tex なら main.tex、--appendix なら付録、ほかは原稿）
+            doc = cfg.documents[args.name]
+            src = Path(doc.src)
+            opened = str(src.parent / 'main.tex' if args.tex
+                         else doc.appendix if args.appendix and doc.appendix else src)
+    print(_json.dumps({'ok': rc == 0, 'error': err.getvalue().strip() or None,
+                       'open': opened, 'made': [m.strip() for m in made]},
+                      ensure_ascii=False))
+    return rc
 
 
 def cmd_reference_docx(args) -> int:
@@ -806,6 +849,8 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('action', nargs='?', default='show', choices=['show', 'set', 'unset'])
     p.add_argument('key', nargs='?')
     p.add_argument('value', nargs='?')
+    p.add_argument('--doc', metavar='NAME',
+                   help=t("this document's own settings (written at the top of its manuscript)"))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_config)
 
@@ -846,7 +891,7 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_lint)
 
-    p = with_config(sub.add_parser('check', help=t('one audit before submitting')))
+    p = with_config(sub.add_parser('check', help=t('check everything before submitting')))
     p.add_argument('--strict', action='store_true',
                    help=t('treat warnings as failures too (for CI)'))
     p.add_argument('--verbose', '-v', action='store_true',
@@ -919,13 +964,28 @@ def make_parser() -> argparse.ArgumentParser:
     p = sub.add_parser('init', help=t('write a project skeleton (add manuscripts with octavo new)'))
     p.add_argument('dir')
     p.add_argument('--lang', default='ja', choices=['ja', 'en'])
+    p.add_argument('--with', dest='with_parts', metavar='PARTS',
+                   help=t('what to start with, comma-separated: analysis, paper, slides, '
+                          'lecture (name one as paper=NAME)'))
+    p.add_argument('--all', action='store_true',
+                   help=t('start with all four: an analysis, a paper, slides and lecture notes'))
+    p.add_argument('--example', action='store_true',
+                   help=t('make them examples (alone: an analysis of made-up data and an '
+                          'example paper)'))
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_init)
 
-    p = with_config(sub.add_parser('new', help=t('add a manuscript (paper, slides or lecture notes)')))
-    p.add_argument('kind', choices=list(scaffold.KINDS),
-                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session)'))
+    p = with_config(sub.add_parser('new', help=t('add a manuscript or an analysis')))
+    p.add_argument('kind', choices=[*scaffold.KINDS, 'analysis'],
+                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session) / analysis=a .qmd'))
     p.add_argument('name', help=t('the document name (it becomes the file or folder name)'))
+    p.add_argument('--example', action='store_true',
+                   help=t('write an example rather than the bare frame'))
+    p.add_argument('--appendix', action='store_true',
+                   help=t('paper: add appendix.md as well (also to an existing paper)'))
+    p.add_argument('--tex', action='store_true',
+                   help=t('paper: add main.tex as well, for LaTeX (also to an existing paper)'))
+    p.add_argument('--json', action='store_true', help=t('print one line of machine-readable JSON (for the VS Code extension and friends)'))
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_new)
 

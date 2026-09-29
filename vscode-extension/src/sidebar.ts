@@ -33,8 +33,10 @@ type Node =
     | { kind: 'unit'; u: AnalysisUnit }
     | { kind: 'doc'; doc: DocInfo }
     | { kind: 'part'; doc: DocInfo; part: Part }
-    | { kind: 'section'; label: string; items: Setting[] }
-    | { kind: 'setting'; s: Setting }
+    | { kind: 'file'; label: string; path: string; icon: string }
+    | { kind: 'section'; label: string; items: Setting[]; doc?: string }
+    | { kind: 'setting'; s: Setting; doc?: string }
+    | { kind: 'docSettings'; doc: DocInfo }
     | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[] }
     | { kind: 'message'; label: string };
 
@@ -141,6 +143,20 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         return this.settings;
     }
 
+    /** その文書の設定（原稿の冒頭に書いたもの + プロジェクトの値）。 */
+    private async loadDocSettings(name: string): Promise<Setting[]> {
+        const cwd = await this.cwd();
+        if (!cwd) {
+            return [];
+        }
+        const r = await runCapture(cwd, ['config', '--doc', name, '--json'], 30000);
+        const got = lastJson<ConfigReport>(r.stdout);
+        if (!got) {
+            this.log(`[sidebar] octavo config --doc ${name} --json: ${r.stderr.trim()}`);
+        }
+        return got?.settings ?? [];
+    }
+
     private async loadAnalysis(): Promise<AnalysisReport | null | undefined> {
         const cwd = await this.cwd();
         if (!cwd) {
@@ -159,8 +175,9 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     // -- 木 --------------------------------------------------------------
     async getChildren(node?: Node): Promise<Node[]> {
         if (!node) {
+            await this.cwd();           // 見出しにどのプロジェクトかを出すため
             return [{ kind: 'group', id: 'docs' }, { kind: 'group', id: 'analysis' },
-                    { kind: 'group', id: 'settings' }, { kind: 'group', id: 'tools' }];
+                    { kind: 'group', id: 'tools' }, { kind: 'group', id: 'settings' }];
         }
         if (node.kind === 'group' && node.id === 'docs') {
             const docs = await this.loadDocs();
@@ -171,11 +188,26 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
             const rows: Node[] = docs.map((d) => ({ kind: 'doc', doc: d }));
             rows.push({ kind: 'action', label: vscode.l10n.t('Add a manuscript…'),
-                        command: 'octavo.new', icon: 'add' });
+                        command: 'octavo.new', icon: 'add', args: ['manuscript'] });
             return rows;
         }
         if (node.kind === 'doc') {
-            return node.doc.parts.map((p) => ({ kind: 'part', doc: node.doc, part: p }));
+            // 文書の中: 講義の回、論文の付録（無ければ足すボタン。main.tex は右クリック）、
+            // その文書の設定（投稿先・発表ごとに変わるもの。原稿の冒頭に書く）
+            const rows: Node[] = node.doc.parts.map((p) => ({ kind: 'part', doc: node.doc, part: p }));
+            if (node.doc.profile === 'paper') {
+                rows.push(node.doc.appendix
+                    ? { kind: 'file', label: vscode.l10n.t('Appendix'), path: node.doc.appendix,
+                        icon: 'file-add' }
+                    : { kind: 'action', label: vscode.l10n.t('Add an appendix'),
+                        command: 'octavo.addAppendix', icon: 'add', args: [{ doc: node.doc }] });
+            }
+            rows.push({ kind: 'docSettings', doc: node.doc });
+            return rows;
+        }
+        if (node.kind === 'docSettings') {
+            const items = await this.loadDocSettings(node.doc.name);
+            return items.map((s) => ({ kind: 'setting', s, doc: node.doc.name }));
         }
         if (node.kind === 'group' && node.id === 'analysis') {
             const a = await this.loadAnalysis();
@@ -185,8 +217,10 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             if (a === null) {
                 return [{ kind: 'message', label: vscode.l10n.t('Could not read the analysis (see the output).') }];
             }
+            const add: Node = { kind: 'action', label: vscode.l10n.t('Add an analysis (.qmd)…'),
+                                command: 'octavo.new', icon: 'add', args: ['analysis'] };
             if (!a.units.length) {
-                return [{ kind: 'message', label: vscode.l10n.t('No analysis (.qmd) is registered.') }];
+                return [{ kind: 'message', label: vscode.l10n.t('No analysis yet.') }, add];
             }
             const rows: Node[] = a.units.map((u) => ({ kind: 'unit', u }));
             if (!a.quarto) {
@@ -196,6 +230,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 rows.push({ kind: 'action', label: vscode.l10n.t('Run the stale ones ({0})', a.stale),
                             command: 'octavo.analysisRun', icon: 'run-all' });
             }
+            rows.push(add);
             return rows;
         }
         if (node.kind === 'group' && node.id === 'settings') {
@@ -220,19 +255,20 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             return node.items.map((s) => ({ kind: 'setting', s }));
         }
         if (node.kind === 'group' && node.id === 'tools') {
+            // 使う順: 道具を入れる → 確かめる → 分析の環境 → 分析 → 書誌 → 投稿前の点検
             return [
-                { kind: 'action', label: vscode.l10n.t('Check before submitting (check)'),
-                  command: 'octavo.check', icon: 'checklist' },
+                { kind: 'action', label: vscode.l10n.t('Install or Update the Tools (setup)'),
+                  command: 'octavo.setup', icon: 'tools' },
+                { kind: 'action', label: vscode.l10n.t('Diagnose the Environment (doctor)'),
+                  command: 'octavo.doctor', icon: 'pulse' },
+                { kind: 'action', label: vscode.l10n.t('Set Up This Project\'s Analysis Environment (env)'),
+                  command: 'octavo.envSetup', icon: 'package' },
                 { kind: 'action', label: vscode.l10n.t('Run the analysis (analysis run)'),
                   command: 'octavo.analysisRun', icon: 'graph' },
                 { kind: 'action', label: vscode.l10n.t('Check the Bibliography (checkbib)'),
                   command: 'octavo.checkbib', icon: 'book' },
-                { kind: 'action', label: vscode.l10n.t('Set Up This Project\'s Analysis Environment (env)'),
-                  command: 'octavo.envSetup', icon: 'package' },
-                { kind: 'action', label: vscode.l10n.t('Diagnose the Environment (doctor)'),
-                  command: 'octavo.doctor', icon: 'pulse' },
-                { kind: 'action', label: vscode.l10n.t('Install or Update the Tools (setup)'),
-                  command: 'octavo.setup', icon: 'tools' },
+                { kind: 'action', label: vscode.l10n.t('Check before submitting (check)'),
+                  command: 'octavo.check', icon: 'checklist' },
             ];
         }
         return [];
@@ -246,13 +282,28 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             case 'group': {
                 const label = { docs: vscode.l10n.t('Manuscripts'), analysis: vscode.l10n.t('Analysis'),
                                 settings: vscode.l10n.t('Settings'), tools: vscode.l10n.t('Tools') }[node.id];
-                return new vscode.TreeItem(label, E);
+                // 設定は普段は使わないので畳んでおく（プロジェクト全体の既定。文書ごとの
+                // 設定は各文書の下）
+                const it = new vscode.TreeItem(label, node.id === 'settings' ? C : E);
+                if (node.id === 'settings') {
+                    it.description = vscode.l10n.t('project defaults');
+                }
+                // プロジェクトがいくつもあるワークスペースでは、どれを見ているかを出す
+                // （開いているファイルのプロジェクト。runner.pickConfig）
+                if (node.id === 'docs' && this.configUri) {
+                    const rel = vscode.workspace.asRelativePath(dirOf(this.configUri));
+                    it.description = rel === dirOf(this.configUri) ? '' : rel;
+                    it.tooltip = this.configUri.fsPath;
+                }
+                return it;
             }
             case 'doc': {
-                const it = new vscode.TreeItem(node.doc.name, node.doc.parts.length ? C : N);
+                const paper = node.doc.profile === 'paper';
+                const it = new vscode.TreeItem(node.doc.name, node.doc.parts.length || paper ? C : N);
                 it.description = node.doc.rel;
                 it.iconPath = new vscode.ThemeIcon(DOC_ICON[node.doc.profile] ?? 'file');
-                it.contextValue = 'octavo.doc';
+                // 論文だけ右クリックに「付録を足す」「main.tex を足す」が出る
+                it.contextValue = paper ? 'octavo.doc.paper' : 'octavo.doc';
                 it.tooltip = `${node.doc.rel} · ${node.doc.profile} · ${node.doc.targets.join(', ')}`;
                 const uri = resolvePathFromTool(node.doc.src);
                 if (uri) {
@@ -290,15 +341,35 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 }
                 return it;
             }
+            case 'file': {
+                const it = new vscode.TreeItem(node.label, N);
+                it.iconPath = new vscode.ThemeIcon(node.icon);
+                const uri = resolvePathFromTool(node.path);
+                if (uri) {
+                    it.resourceUri = uri;
+                    it.description = uri.path.split('/').pop();
+                    it.command = { command: 'vscode.open', title: '', arguments: [uri] };
+                }
+                return it;
+            }
             case 'section':
                 return new vscode.TreeItem(node.label, E);
+            case 'docSettings': {
+                const it = new vscode.TreeItem(vscode.l10n.t('Settings for this document'), C);
+                it.iconPath = new vscode.ThemeIcon('settings-gear');
+                it.tooltip = vscode.l10n.t('Written at the top of the manuscript; what is not written there follows the project');
+                return it;
+            }
             case 'setting': {
                 const it = new vscode.TreeItem(node.s.label, N);
-                it.description = show(node.s.value)
-                    + (node.s.explicit ? '' : '  ' + vscode.l10n.t('(default)'));
+                // 文書の設定なら「この原稿に書いた値」か「プロジェクトの値」か、
+                // プロジェクトの設定なら「書いた値」か「既定」か
+                const inherited = node.doc ? vscode.l10n.t('(project)') : vscode.l10n.t('(default)');
+                it.description = show(node.s.value) + (node.s.explicit ? '' : '  ' + inherited);
                 it.tooltip = `${node.s.key} = ${JSON.stringify(node.s.value)}`;
                 it.iconPath = new vscode.ThemeIcon(node.s.explicit ? 'circle-filled' : 'circle-outline');
-                it.command = { command: 'octavo.editSetting', title: '', arguments: [node.s] };
+                it.command = { command: 'octavo.editSetting', title: '',
+                               arguments: [node.s, node.doc] };
                 return it;
             }
             case 'action': {
@@ -315,10 +386,59 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
 
     // -- 変える ----------------------------------------------------------
     /** 1つの設定を選ばせて書き換える。値の検査は CLI（confedit.py）がやる。 */
-    async edit(s: Setting): Promise<boolean> {
-        const back = vscode.l10n.t('Back to the default ({0})', show(s.default));
-        let raw: string | null | undefined;          // null = 既定に戻す
-        if (s.kind === 'bool' || s.kind === 'choice' || s.kind === 'color') {
+    async edit(s: Setting, doc?: string): Promise<boolean> {
+        const back = doc
+            ? vscode.l10n.t('Follow the project ({0})', show(s.default))
+            : vscode.l10n.t('Back to the default ({0})', show(s.default));
+        let raw: string | null | undefined;          // null = 既定（文書ならプロジェクト）に戻す
+        if (doc) {
+            // 文書の設定は原稿の冒頭を書き換える。未保存の編集があるとぶつかるので先に保存させる
+            const src = this.docs?.find((d) => d.name === doc)?.src;
+            const open = src ? vscode.workspace.textDocuments.find(
+                (d) => d.uri.fsPath === resolvePathFromTool(src)?.fsPath) : undefined;
+            if (open?.isDirty) {
+                void vscode.window.showWarningMessage(vscode.l10n.t(
+                    'Save {0} first: its settings are written at the top of the manuscript.',
+                    open.uri.path.split('/').pop() ?? doc));
+                return false;
+            }
+        }
+        const title = doc ? `${doc}: ${s.label} (${s.key})` : `${s.label} (${s.key})`;
+        if (s.kind === 'multi') {
+            // 出力形式など: いくつでも選ぶ。何も選ばなければプロジェクトの値に戻す
+            const now = Array.isArray(s.value) ? s.value as string[] : [];
+            const picked = await vscode.window.showQuickPick(
+                s.choices.filter((c): c is string => c !== null)
+                    .map((c) => ({ label: c, picked: now.includes(c) })),
+                { canPickMany: true, title,
+                  placeHolder: vscode.l10n.t('Pick none to go back ({0})', show(s.default)) });
+            if (!picked) {
+                return false;
+            }
+            raw = picked.length ? picked.map((p) => p.label).join(',') : null;
+        } else if (s.kind === 'suggest') {
+            // 引用の書式など: よく使うものから選ぶか、名前を打つ
+            const items: (vscode.QuickPickItem & { raw: string | null | 'ask' })[] =
+                s.choices.filter((c): c is string => c !== null).map((c) => ({
+                    label: c, raw: c, description: c === s.value ? vscode.l10n.t('now') : undefined }));
+            items.push({ label: vscode.l10n.t('Enter another…'), raw: 'ask' },
+                       { label: back, raw: null });
+            const picked = await vscode.window.showQuickPick(items, {
+                title, placeHolder: vscode.l10n.t('now: {0}', show(s.value)) });
+            if (!picked) {
+                return false;
+            }
+            if (picked.raw === 'ask') {
+                const typed = await vscode.window.showInputBox({
+                    title, value: typeof s.value === 'string' ? s.value : '' });
+                if (!typed?.trim()) {
+                    return false;
+                }
+                raw = typed.trim();
+            } else {
+                raw = picked.raw;
+            }
+        } else if (s.kind === 'bool' || s.kind === 'choice' || s.kind === 'color') {
             const items: (vscode.QuickPickItem & { raw: string | null | 'ask' })[] = [];
             if (s.kind === 'bool') {
                 items.push({ label: vscode.l10n.t('on'), raw: 'true' },
@@ -334,7 +454,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
             items.push({ label: back, raw: null });
             const picked = await vscode.window.showQuickPick(items, {
-                title: `${s.label} (${s.key})`,
+                title,
                 placeHolder: vscode.l10n.t('now: {0}', show(s.value)),
             });
             if (!picked) {
@@ -342,7 +462,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
             if (picked.raw === 'ask') {
                 raw = await vscode.window.showInputBox({
-                    title: `${s.label} (${s.key})`,
+                    title,
                     value: typeof s.value === 'string' ? s.value : '#0e2f92',
                     validateInput: (v) => (/^#[0-9a-fA-F]{6}$/.test(v.trim()) ? undefined
                         : vscode.l10n.t('Write it as #RRGGBB')),
@@ -355,10 +475,12 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
         } else {
             const typed = await vscode.window.showInputBox({
-                title: `${s.label} (${s.key})`,
+                title,
                 value: s.value === null || s.value === undefined ? '' : String(s.value),
-                prompt: vscode.l10n.t('Leave it empty to go back to the default ({0})',
-                                      show(s.default)),
+                prompt: doc
+                    ? vscode.l10n.t('Leave it empty to follow the project ({0})', show(s.default))
+                    : vscode.l10n.t('Leave it empty to go back to the default ({0})',
+                                    show(s.default)),
             });
             if (typed === undefined) {
                 return false;
@@ -372,6 +494,9 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         }
         const args = raw === null ? ['config', 'unset', s.key, '--json']
                                   : ['config', 'set', s.key, raw, '--json'];
+        if (doc) {
+            args.push('--doc', doc);
+        }
         const r = await runCapture(cwd, args, 30000);
         const got = lastJson<SetReport>(r.stdout);
         if (!got || !got.ok) {

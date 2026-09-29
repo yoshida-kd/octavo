@@ -64,6 +64,13 @@ class TypstSlidesBackend(TypstBackend):
         if not cap and not label:
             return f'\n```{{=typst}}\n#{img}\n```\n'
         tail = f' <{label}>' if label else ''
+        if self.figure_box == 'height: 1fr':
+            # キャプションつき: 残りの高さを箱で取り、その高さを測ってからキャプションの
+            # 分（2行ぶん）を引いて画像を置く。図の中に 1fr の箱を入れると画像が残りを
+            # 使い切り、キャプションの分だけはみ出して、図ごと題の無い次のページに送られる
+            return ('\n```{=typst}\n#block(width: 100%, height: 1fr, layout(size => [#figure(\n'
+                    f'  image("{rel}", width: 100%, height: size.height - 3em, fit: "contain"),\n'
+                    f'  caption: [{typst_escape(cap)}],\n){tail}]))\n```\n')
         return ('\n```{=typst}\n#figure(\n'
                 f'  {img},\n  caption: [{typst_escape(cap)}],\n){tail}\n```\n')
 

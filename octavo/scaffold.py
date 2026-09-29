@@ -1,14 +1,22 @@
 # -*- coding: utf-8 -*-
-"""`octavo init` — プロジェクトのひな型を作る。`octavo new` — 原稿を足す。
+"""`octavo init` — プロジェクトの枠を作る。`octavo new` — 原稿や分析を足す。
 
-    octavo init 2026-研究                 分析・書誌・手順書の一式（原稿は無し）
-    octavo new paper example-paper          papers/example-paper/paper.md（+ appendix.md, main.*）
-    octavo new slides example-talk            slides/example-talk.md
-    octavo new lecture 講義の見本          lectures/講義の見本.md（プリント1本 + 回ごとのスライド）
+    octavo init 2026-research             枠だけ（設定・書誌・CLAUDE.md・README・figures/）
+    octavo init study --with analysis,paper   分析と論文から始める（--all なら4つとも）
+    octavo init demo --example            見本つき（嘘のデータの分析と、見本の論文1本）
+    octavo new analysis model             analysis/model.qmd（1本目は octavo.R・data/ なども）
+    octavo new paper example-paper        papers/example-paper/paper.md と main.typ
+                                          （--appendix で appendix.md、--tex で main.tex も）
+    octavo new slides example-talk        slides/example-talk.md
+    octavo new lecture example-lecture    lectures/example-lecture.md（プリント1本 + 回ごとのスライド）
+
+既定で置くのは、後で消さずに使い続けるものだけ。見本（嘘のデータ・仮の値・仮の図表・
+見本の書誌・原稿の中の例）は --example のときだけ置く。CLAUDE.md は共通の節から
+始まり、部品の種類を初めて足したときにその節（templates/claude/<言語>/）が足される。
 
 論文・スライド・講義の違いは**原稿のテンプレート**（templates/manuscripts/<言語>/*.md）と、
-設定の documents に書く扱い（profile・targets）だけ。プロジェクトの形は1つで、
-どの種類の原稿も何本でも同じリポジトリに置ける。
+設定の documents に書く扱い（profile・targets）だけ。どの種類の原稿も何本でも
+同じリポジトリに置ける。
 """
 from __future__ import annotations
 
@@ -213,31 +221,85 @@ def _write(p: Path, text: str, force: bool, made: list,
 
 
 
+EXAMPLE_PAPER = 'example-paper'
+
+# `init --with` / `--all` で選べる部品。名前を書かなければ部品の名前になる
+# （paper なら papers/paper/）。分析を先に置くのは、原稿の見本がその値を使うから。
+PARTS = ('analysis', 'paper', 'slides', 'lecture')
+
+# CLAUDE.md の節（templates/claude/<言語>/<節>.md）。スライドと講義ノートは同じ節。
+# 部品を足したとき、その節がまだ無ければ末尾に書き足す（印で見分ける）。
+CLAUDE_SECTION = {'analysis': 'analysis', 'paper': 'paper',
+                  'slides': 'slides', 'lecture': 'slides'}
+SECTION_MARK = '<!-- octavo:section {} -->'
+
+
+def parse_parts(spec: str) -> dict:
+    """`analysis,paper=mypaper` -> {'analysis': 'analysis', 'paper': 'mypaper'}。
+
+    知らない部品や、使えない名前は ValueError（メッセージは表示用）。
+    """
+    out: dict = {}
+    for item in filter(None, (s.strip() for s in spec.split(','))):
+        kind, _, name = item.partition('=')
+        kind, name = kind.strip(), (name.strip() or kind.strip())
+        if kind not in PARTS:
+            raise ValueError(t('unknown part: {part} (one of {allowed})',
+                               part=kind, allowed=', '.join(PARTS)))
+        out[kind] = name
+    return out
+
+
+def _lang(value) -> str:
+    return 'ja' if value == 'ja' else 'en'
+
+
+def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
+    """CLAUDE.md に節が無ければ末尾に書き足す。CLAUDE.md を消してあれば何もしない。"""
+    p = root / 'CLAUDE.md'
+    if not p.is_file():
+        return
+    text = p.read_text(encoding='utf-8')
+    if SECTION_MARK.format(section) in text:
+        return
+    frag = render_template(f'claude/{lang}/{section}.md', {'NAME': root.name}, root)
+    p.write_text(text.rstrip('\n') + '\n\n' + frag, encoding='utf-8')
+    made.append('  ' + t('appended') + '  CLAUDE.md ' + t('({section} section)', section=section))
+
+
 def init(dest: Path, lang: str = 'ja', force: bool = False,
-         quiet: bool = False) -> int:
-    """プロジェクトの共通部分を作る。原稿は置かない（`octavo new` で足す）。"""
+         quiet: bool = False, example: bool = False, parts: dict | None = None) -> int:
+    """プロジェクトの共通部分を作る。原稿も分析も置かない（`octavo new` で足す）。
+
+    parts（{部品: 名前}）があれば、その部品を `octavo new` と同じに足す。
+    example なら見本にする。部品を指定しない example は、見本の分析と論文1本。
+    """
     dest = dest.resolve()
     dest.mkdir(parents=True, exist_ok=True)
     made: list = []
     name = dest.name
 
-    # プロジェクトの木（templates/project/common + project/<言語>）をそのまま写す。
-    # ユーザーの上書き（~/.config/octavo/templates/project/…）も同じ木に重なる。
-    suffix = 'ja' if lang == 'ja' else 'en'
+    # 共通の部分（templates/project/<言語>）をそのまま写す。ユーザーの上書き
+    # （~/.config/octavo/templates/project/…）も同じ木に重なる。
+    suffix = _lang(lang)
     subs = {'NAME': name, 'DOCUMENTS': documents_block(suffix)}
     for rel, src in tmpl.tree(['project/common', f'project/{suffix}']).items():
         text = render(src.read_text(encoding='utf-8'), subs, rel.endswith('.md'))
         _write(dest / project_target(rel), text, force, made, dest)
-    for d in ('figures', 'tables', 'data/derived'):
-        (dest / d).mkdir(parents=True, exist_ok=True)
-        (dest / d / '.gitkeep').touch()
+    _write(dest / 'CLAUDE.md', render_template(f'claude/{suffix}/common.md', {'NAME': name}),
+           force, made, dest)
+    (dest / 'figures').mkdir(parents=True, exist_ok=True)
+    (dest / 'figures' / '.gitkeep').touch()
 
-    # 原稿のテンプレートが参照している図。差し替える前でも組版が通るように置いておく。
-    if not (dest / 'figures' / 'trend.png').exists() or force:
-        write_placeholder_png(dest / 'figures' / 'trend.png')
-        write_placeholder_pdf(dest / 'figures' / 'trend.pdf')
-        made.append('  ' + t('made')
-                    + '  ' + t('figures/trend.png (and .pdf — placeholders)'))
+    if example and not parts:
+        parts = {'analysis': 'analysis', 'paper': EXAMPLE_PAPER}
+    parts = parts or {}
+    for kind in PARTS:
+        if kind in parts:
+            rc = new(dest / 'octavo.config.py', kind, parts[kind], force=force, quiet=True,
+                     example=example, appendix=example and kind == 'paper', made=made)
+            if rc:
+                return rc
 
     if quiet:
         return 0
@@ -247,60 +309,146 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     print('\n' + t('Next:'))
     print(f'  cd {dest}')
     print('  octavo doctor'.ljust(38) + '# ' + t('see whether the tools are there'))
-    print('  octavo env'.ljust(38) + '# ' + t('the analysis environment (.venv and renv)'))
-    print(('  octavo new paper <' + t('name') + '>').ljust(38)
+    if 'analysis' in parts:
+        print('  octavo env'.ljust(38) + '# ' + t('the analysis environment (.venv and renv)'))
+        print('  ' + t('(put the raw data in data/raw/ and say where it came from in '
+                       'data/raw/README.md)'))
+    for kind in ('paper', 'slides', 'lecture'):
+        if kind in parts:
+            print(f'  octavo build {parts[kind]} --compile'.ljust(38) + '# '
+                  + (t('typeset the example (fake data — for looking only)') if example
+                     else t('typeset it through to PDF')))
+    print(('  octavo new paper|slides|lecture <' + t('name') + '>').ljust(38)
           + '# ' + t('add a manuscript (as many as you like)'))
-    print('  octavo new slides <' + t('name') + '>')
-    print('  octavo new lecture <' + t('name') + '>')
-    print('  ' + t('(put the raw data in data/raw/ and say where it came from in '
-                   'data/raw/README.md)'))
-    print('  ' + t('(rewrite analysis/analysis.qmd as your own analysis)'))
-    print('  octavo build'.ljust(38) + '# '
-          + t('build it (a stale analysis runs first)'))
-    print('\n  ' + t('The working rules are in CLAUDE.md, the walkthrough in README.md.'))
+    print(('  octavo new analysis <' + t('name') + '>').ljust(38)
+          + '# ' + t('add an analysis (.qmd)'))
+    print('\n  ' + t('The working rules are in CLAUDE.md; the manual is Octavo\'s guide.'))
     return 0
 
 
-# ---------------------------------------------------------------- 原稿を足す
+# ---------------------------------------------------------------- 原稿・分析を足す
 
 NAME_OK = re.compile(r'[^\s/\\.][^\s/\\]*')
 
 
+def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
+                  made: list) -> Path:
+    """analysis/<name>.qmd を置く。分析の部分（octavo.R・data/・tables/・
+    requirements.txt）は、まだ無いものだけ置く（2本目からは何も言わない）。"""
+    root = cfg.root
+    for rel, src in tmpl.tree(['analysis/common', f'analysis/{lang}'], root).items():
+        if force or not (root / rel).exists():
+            _write(root / rel, render(src.read_text(encoding='utf-8'), {'NAME': root.name},
+                                      rel.endswith('.md')), True, made, root)
+    for d in ('data/derived', 'tables'):
+        (root / d).mkdir(parents=True, exist_ok=True)
+        (root / d / '.gitkeep').touch()
+    folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
+    qmd = root / 'analysis' / f'{name}.qmd'
+    _write(qmd, render_template(f'{folder}/analysis.qmd', {'NAME': name}, root),
+           force, made, root)
+    if example:
+        # 見本の値・表・図。分析を走らせる前でも見本の原稿が組めるように置く
+        ex = tmpl.tree([f'example/{lang}'], root)
+        values_dir = Path(cfg['results_dir'])
+        _write(values_dir / f'{name}.json',
+               ex['results/analysis.json'].read_text(encoding='utf-8'), force, made, root)
+        for rel, src in ex.items():
+            if rel.startswith('tables/'):
+                _write(Path(cfg['table_dir']) / Path(rel).name,
+                       src.read_text(encoding='utf-8'), force, made, root)
+        fig = Path(cfg['figure_dir'])
+        if force or not (fig / 'trend.png').exists():
+            write_placeholder_png(fig / 'trend.png')
+            write_placeholder_pdf(fig / 'trend.pdf')
+            made.append('  ' + t('made')
+                        + '  ' + t('figures/trend.png (and .pdf — placeholders)'))
+    add_claude_section(root, lang, 'analysis', made)
+    return qmd
+
+
+def _example_support(cfg, lang: str, force: bool, made: list) -> None:
+    """見本の原稿が使うもの（見本の値・図表・書誌）が無ければ足す。"""
+    from . import values as valmod
+    root = cfg.root
+    have, _ = valmod.load(cfg)
+    if not {'n_obs', 'coef_x', 'p_x'} <= set(have):
+        # 自分の analysis.qmd があるなら、それを見本で上書きしない
+        name = 'example' if (root / 'analysis' / 'analysis.qmd').exists() else 'analysis'
+        _new_analysis(cfg, name, lang, force, True, made)
+    bib = Path(cfg['bib_file'])
+    text = bib.read_text(encoding='utf-8') if bib.is_file() else ''
+    if 'yamada2020' not in text:
+        entries = tmpl.tree([f'example/{lang}'], root)['literature.bib']
+        bib.write_text(text.rstrip('\n') + ('\n\n' if text.strip() else '')
+                       + entries.read_text(encoding='utf-8'), encoding='utf-8')
+        made.append('  ' + t('appended') + f'  {cfg.rel(bib)} ' + t('(example entries)'))
+
+
 def new(config: Path, kind: str, name: str, force: bool = False,
-        quiet: bool = False) -> int:
-    """原稿を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。"""
+        quiet: bool = False, example: bool = False, appendix: bool = False,
+        tex: bool = False, made: list | None = None) -> int:
+    """原稿か分析を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
+
+    既にある原稿の名前なら、無いファイルだけを足す（`--appendix` / `--tex` を後から）。
+    """
     from . import config as configmod
-    if kind not in KINDS:
+    if kind not in KINDS and kind != 'analysis':
         print(t('unknown kind: {kind} (one of {allowed})',
-                kind=kind, allowed=' / '.join(KINDS)), file=sys.stderr)
+                kind=kind, allowed=' / '.join([*KINDS, 'analysis'])), file=sys.stderr)
         return 1
+    if kind == 'analysis' and name.endswith('.qmd'):
+        name = name[:-len('.qmd')]
     if not NAME_OK.fullmatch(name):
         print(t('that name will not do: {name} (no spaces, no / or \\, and it '
                 'cannot start with a dot)', name=repr(name)), file=sys.stderr)
         return 1
+    if (appendix or tex) and kind != 'paper':
+        print(t('--appendix and --tex are for papers only'), file=sys.stderr)
+        return 1
     cfg = configmod.load(config)
-    k = KINDS[kind]
     root = cfg.root
+    lang = _lang(cfg['lang'])
+    quiet_made = made is not None
+    made = made if made is not None else []
+
+    if kind == 'analysis':
+        qmd = _new_analysis(cfg, name, lang, force, example, made)
+        if quiet or quiet_made:
+            return 0
+        for m in made:
+            print(m)
+        print('\n' + t('Next:'))
+        steps = [(f'octavo analysis run {cfg.rel(qmd)}', t('run it')),
+                 ('octavo values', t('see the values it wrote')),
+                 ('octavo env', t('the analysis environment (.venv and renv)'))]
+        width = max(len(c) for c, _ in steps)
+        for cmd, why in steps:
+            print(f'  {cmd.ljust(width)}   # {why}')
+        return 0
+
+    k = KINDS[kind]
     src = root / k['src'].format(name)
-    if name in cfg.documents and not (force and cfg.documents[name].src == src.resolve()):
+    if name in cfg.documents and cfg.documents[name].src != src.resolve():
         print(t('a document called {name} already exists ({path})',
                 name=name, path=cfg.rel(cfg.documents[name].src)) + '\n  '
               + t('octavo build <name> could not tell them apart — pick another'),
               file=sys.stderr)
         return 1
 
-    lang = 'ja' if cfg['lang'] == 'ja' else 'en'
     author = cfg['meta'].get('author') or ''
     if isinstance(author, (list, tuple)):
         author = author[0] if author else ''
     subs = {'NAME': name, 'AUTHOR': str(author)}
-    made: list = []
-    _write(src, render_template(f'manuscripts/{lang}/{kind}.md', subs, root),
-           force, made, root)
-    if k.get('appendix'):
+    if example:
+        _example_support(cfg, lang, force, made)
+    folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
+    _write(src, render_template(f'{folder}/{kind}.md', subs, root), force, made, root)
+    if appendix:
         _write(root / k['appendix'].format(name),
-               render_template(f'manuscripts/{lang}/appendix.md', subs, root),
+               render_template(f'{folder}/appendix.md', subs, root),
                force, made, root)
+    add_claude_section(root, lang, CLAUDE_SECTION[kind], made)
 
     # 足した原稿を設定が本当に拾うかを、読み直して確かめる
     cfg = configmod.load(config)
@@ -312,14 +460,14 @@ def new(config: Path, kind: str, name: str, force: bool = False,
     elif k['profile'] == 'paper':
         # 論文の体裁（投稿先ごとに手で書く）。**原稿と同じフォルダ**に置く。
         # 組版のたびに build/ へ写されるので、build/ は丸ごと消してよい。
-        for ext in ('.typ', '.tex'):
+        for ext in ('.typ', '.tex') if tex else ('.typ',):
             try:
                 text = tmpl.read(f'paper/{lang}/main{ext}', root)
             except tmpl.TemplateError:
                 continue
             _write(src.parent / f'main{ext}', text, force, made, root)
 
-    if quiet:
+    if quiet or quiet_made:
         return 0
     for m in made:
         print(m)
@@ -335,7 +483,11 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         'paper': [(f'octavo build {name} --compile',
                    t('typeset main.typ through to PDF')),
                   (f'octavo build {name} --to docx',
-                   t('a Word file for your coauthors'))],
+                   t('a Word file for your coauthors'))]
+                 + ([] if appendix else [(f'octavo new paper {name} --appendix',
+                                          t('add an appendix later'))])
+                 + ([] if tex else [(f'octavo new paper {name} --tex',
+                                     t('add main.tex, to typeset with LaTeX'))]),
     }[kind]
     width = max(len(c) for c, _ in steps)
     for cmd, why in steps:

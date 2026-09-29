@@ -6,7 +6,7 @@ CONFIG = {
 @@DOCUMENTS@@
 
     # ---- 書誌 ----------------------------------------------------------
-    'bib_file': 'literature.bib',      # Zotero からの書き出し
+    'bib_file': 'literature.bib',      # Zotero からのエクスポート
     # 投稿先に合わせて変える。octavo csl list / octavo csl get <id> で増やせる
     'csl': 'chicago-author-date',
 
@@ -17,7 +17,7 @@ CONFIG = {
     'figure_dir': 'figures',
     'table_dir': 'tables',
 
-    # ---- 題扉（原稿の front matter が優先）------------------------------
+    # ---- タイトル部分（原稿の front matter が優先）--------------------------
     'meta': {
         'title': '@@NAME@@',
         'author': '著者名',
@@ -32,11 +32,11 @@ CONFIG = {
     # 'crossref_numbering': 'section',
 
     # ---- Word ----------------------------------------------------------
-    # octavo reference-docx reference.docx で雛形を作り、Word で整えてから指定
+    # octavo reference-docx reference.docx でスタイル定義用の docx を作り、Word で整えてから指定
     # 'docx_reference': 'reference.docx',
 
     # ---- スライド ------------------------------------------------------
     'typst_slides_aspect': '16-9',     # '4-3' も可
-    # 体裁ごと変えるなら、同梱のひな型をこのプロジェクトに写して直す:
+    # 体裁を丸ごと変えるなら、同梱のテンプレートをこのプロジェクトにコピーして直す:
     #   octavo template copy slides/typst-slides.typ   # -> templates/slides/typst-slides.typ
 }

@@ -185,7 +185,7 @@ class TypstBackend(Backend):
             return (f'cd {ctx.out_dir} && typst compile --root {self.root_arg(ctx)} '
                     f'{self.out_name(ctx)}')
         return (f'cd {ctx.out_dir} && typst compile --root {self.root_arg(ctx)} main.typ'
-                + '   ' + t('({name} lives beside the manuscript; octavo new writes it if missing)',
+                + '   ' + t('({name} lives beside the manuscript)',
                           name='main.typ'))
 
 
