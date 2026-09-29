@@ -4848,5 +4848,171 @@ class ProjectEnv(unittest.TestCase):
                              py.resolve())
 
 
+def names(paths) -> list:
+    return [p.name for p in paths]
+
+
+class TypstFigures(unittest.TestCase):
+    """figures/<name>.typ（Typst で描く図）を octavo build が .pdf と .png にする。"""
+
+    def setUp(self):
+        from octavo import diagrams
+        self.diagrams = diagrams
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / 'proj'
+        make_project(self.root, docs=(('paper', 'mypaper'),), analysis=False)
+        self.cfg = config.load(self.root / 'octavo.config.py')
+        self.figs = self.root / 'figures'
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def new_figure(self, name='dag', **kw):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return scaffold.new(self.root / 'octavo.config.py', 'figure', name, **kw)
+
+    def test_new_figure_writes_a_typ_that_needs_drawing(self):
+        self.assertEqual(self.new_figure('dag.typ'), 0)        # 拡張子は付けても付けなくても
+        src = self.figs / 'dag.typ'
+        text = src.read_text(encoding='utf-8')
+        self.assertNotIn('@@', text)
+        self.assertIn('#fig-dag', text)
+        self.assertIn('#let diagram(', text)
+        # 設定のパスは実体に解決される（macOS の /var -> /private/var など）ので名前で比べる
+        self.assertEqual(names(self.diagrams.stale(self.cfg)), ['dag.typ'])
+        # 見本の部分には印があり、octavo check が「ひな型の残り」として数える
+        marks = [lo.file for lo in lint.leftovers(self.cfg)]
+        self.assertIn('figures/dag.typ', marks)
+
+    def test_an_english_project_gets_the_english_template(self):
+        d = Path(self.tmp.name) / 'en'
+        make_project(d, docs=(), lang='en', analysis=False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            scaffold.new(d / 'octavo.config.py', 'figure', 'flow')
+        text = (d / 'figures' / 'flow.typ').read_text(encoding='utf-8')
+        self.assertNotIn('@@', text)
+        self.assertNotRegex(text, r'[぀-ヿ]')
+        self.assertIn('"Inter"', text)                 # 英語の文書の書体の並び
+
+    def test_a_figure_from_the_analysis_is_not_overwritten(self):
+        self.figs.mkdir(exist_ok=True)
+        (self.figs / 'trend.png').write_bytes(b'png')
+        self.assertEqual(self.new_figure('trend'), 1)
+        self.assertFalse((self.figs / 'trend.typ').exists())
+
+    def test_staleness_and_shared_parts(self):
+        self.figs.mkdir(exist_ok=True)
+        src = self.figs / 'a.typ'
+        src.write_text('x', encoding='utf-8')
+        parts = self.figs / '_parts.typ'
+        parts.write_text('#let y = 1', encoding='utf-8')
+        self.assertEqual(names(self.diagrams.sources(self.cfg)), ['a.typ'])   # _ で始まるものは組まない
+        for out in self.diagrams.outputs(src):
+            out.write_bytes(b'drawn')
+        future = time.time() + 5
+        for out in self.diagrams.outputs(src):
+            os.utime(out, (future, future))
+        self.assertEqual(self.diagrams.stale(self.cfg), [])
+        later = future + 5
+        os.utime(parts, (later, later))                  # 共通の部品が変わったら組み直す
+        self.assertEqual(names(self.diagrams.stale(self.cfg)), ['a.typ'])
+
+    def test_without_typst_it_warns_and_goes_on(self):
+        self.new_figure()
+        report: list = []
+        with unittest.mock.patch('shutil.which', return_value=None):
+            self.assertTrue(self.diagrams.run(self.cfg, report))
+        self.assertIn('figures/dag.typ', ' '.join(report))
+        self.assertFalse((self.figs / 'dag.png').exists())
+
+    def test_check_reports_figures_not_drawn(self):
+        self.new_figure()
+        items = {i.label: i for i in audit.collect(self.cfg)}
+        self.assertFalse(items['figures drawn in Typst'].ok)
+        self.assertFalse(items['figures drawn in Typst'].fatal)
+
+    def test_no_row_without_typst_figures(self):
+        labels = [i.label for i in audit.collect(self.cfg)]
+        self.assertNotIn('figures drawn in Typst', labels)
+
+    @unittest.skipUnless(shutil.which('typst'), 'needs typst')
+    def test_draws_pdf_and_png_and_stops_on_an_error(self):
+        self.new_figure()
+        report: list = []
+        self.assertTrue(self.diagrams.run(self.cfg, report), report)
+        self.assertEqual((self.figs / 'dag.pdf').read_bytes()[:5], b'%PDF-')
+        self.assertEqual((self.figs / 'dag.png').read_bytes()[:4], b'\x89PNG')
+        self.assertEqual(self.diagrams.stale(self.cfg), [])
+        (self.figs / 'broken.typ').write_text('#undefined-thing\n', encoding='utf-8')
+        report = []
+        self.assertFalse(self.diagrams.run(self.cfg, report))
+        self.assertIn('figures/broken.typ', report[0])
+        self.assertIn('undefined-thing', '\n'.join(report))
+
+    def test_code_in_a_raw_block_is_not_a_citation(self):
+        """```{=typst} の `#import "@preview/…"` を引用キーと数えない。"""
+        text = ('Text [@smith2003].\n\n```{=typst}\n#import "@preview/cetz:0.4.2"\n```\n\n'
+              '```r\nemail <- "a@b"\n```\n')
+        self.assertEqual(md.cited_keys(text), {'smith2003'})
+
+
+class Website(unittest.TestCase):
+    """site/（GitHub Pages に出すページ）は公開リポジトリにそのまま出る。"""
+
+    PAGES = {'en': ROOT / 'site' / 'index.html', 'ja': ROOT / 'site' / 'ja' / 'index.html'}
+
+    def read(self, lang):
+        return self.PAGES[lang].read_text(encoding='utf-8')
+
+    def test_nothing_is_loaded_from_elsewhere(self):
+        """外部のスクリプト・スタイル・画像・フォントを読まない（訪問者の情報を外に出さない）。"""
+        for lang in self.PAGES:
+            html = self.read(lang)
+            self.assertNotIn('<script', html, lang)
+            loaded = re.findall(r'<(?:img|link|source|iframe)\b[^>]*\b(?:src|href)="([^"]+)"', html)
+            loaded = [u for u in loaded if not u.endswith(('/', '.html'))]
+            self.assertTrue(loaded, lang)
+            for url in loaded:
+                self.assertNotRegex(url, r'^(?:https?:)?//', f'{lang}: {url}')
+        css = (ROOT / 'site' / 'style.css').read_text(encoding='utf-8')
+        self.assertNotRegex(css, r'@import|url\(')
+
+    def test_local_files_exist(self):
+        """ページが指すファイルが、Pages に出すときの配置（docs/images -> images/）にあること。"""
+        for lang, page in self.PAGES.items():
+            for url in re.findall(r'(?:src|href)="([^"#:]+)"', self.read(lang)):
+                if url.endswith('/'):
+                    url += 'index.html'
+                path = (page.parent / url).resolve()
+                rel = path.relative_to((ROOT / 'site').resolve())
+                if rel.parts[0] == 'images':
+                    path = ROOT / 'docs' / Path(*rel.parts)
+                self.assertTrue(path.is_file(), f'{lang}: {url}')
+
+    def test_no_personal_details(self):
+        """ページに出る作者はハンドル名だけ。所属・実名・メールアドレス・手元のパスを書かない。"""
+        for lang in self.PAGES:
+            html = self.read(lang)
+            self.assertNotRegex(html, r'@[\w.-]+\.(?:ac\.jp|edu|com|org)\b', lang)
+            self.assertNotRegex(html, r'(?i)takahiro|/home/|university|大学', lang)
+            self.assertIn('https://github.com/yoshida-kd"', html)
+
+    def test_the_two_languages_match(self):
+        """英日のページは同じ節・同じ数のリンクで、互いを指す。"""
+        en, ja = self.read('en'), self.read('ja')
+        count = lambda s, pat: len(re.findall(pat, s))
+        for pat in (r'<h2>', r'<h3>', r'<pre>', r'<li>', r'<a '):
+            self.assertEqual(count(en, pat), count(ja, pat), pat)
+        self.assertIn('href="ja/"', en)
+        self.assertIn('href="../"', ja)
+        # 日本語は、HTML の改行が空白として出ないように、文の途中で改行しない
+        self.assertNotRegex(ja, r'[^\x00-\x7f]\n[ \t]*[^<\s]')
+
+    def test_the_workflow_runs_only_on_the_public_repo(self):
+        wf = (ROOT / '.github' / 'workflows' / 'pages.yml').read_text(encoding='utf-8')
+        self.assertIn("if: github.repository == 'yoshida-kd/octavo'", wf)
+        self.assertIn('cp docs/images/* _site/images/', wf)
+
+
 if __name__ == '__main__':
     unittest.main(verbosity=2)

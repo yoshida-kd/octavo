@@ -177,5 +177,9 @@
   "Follow the project ({0})": "プロジェクトの設定に従う（{0}）",
   "project defaults": "プロジェクトの既定",
   "Add a manuscript…": "原稿を追加…",
-  "(project)": "（プロジェクト）"
+  "(project)": "（プロジェクト）",
+  "Figure drawn in Typst": "Typst で描く図",
+  "figures/<name>.typ — boxes and arrows, where TikZ used to be": "figures/<名前>.typ — 箱と矢印の図など（TikZ の代わり）",
+  "Name of the figure (becomes figures/<name>.typ; the manuscript refers to it as figures/<name>.png)": "図の名前（figures/<名前>.typ になります。原稿からは figures/<名前>.png で貼ります）",
+  "Add a figure drawn in Typst…": "Typst で描く図を追加…"
 }

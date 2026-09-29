@@ -219,8 +219,11 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
             const add: Node = { kind: 'action', label: vscode.l10n.t('Add an analysis (.qmd)…'),
                                 command: 'octavo.new', icon: 'add', args: ['analysis'] };
+            // 図は分析が書くほか、Typst で描いて足せる（figures/<名前>.typ）
+            const draw: Node = { kind: 'action', label: vscode.l10n.t('Add a figure drawn in Typst…'),
+                                 command: 'octavo.new', icon: 'type-hierarchy', args: ['figure'] };
             if (!a.units.length) {
-                return [{ kind: 'message', label: vscode.l10n.t('No analysis yet.') }, add];
+                return [{ kind: 'message', label: vscode.l10n.t('No analysis yet.') }, add, draw];
             }
             const rows: Node[] = a.units.map((u) => ({ kind: 'unit', u }));
             if (!a.quarto) {
@@ -230,7 +233,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 rows.push({ kind: 'action', label: vscode.l10n.t('Run the stale ones ({0})', a.stale),
                             command: 'octavo.analysisRun', icon: 'run-all' });
             }
-            rows.push(add);
+            rows.push(add, draw);
             return rows;
         }
         if (node.kind === 'group' && node.id === 'settings') {

@@ -26,7 +26,7 @@ bundled version since you copied it.
 | `project/common/`, `project/<lang>/` | `octavo init` | the frame every project shares, copied as a tree (`gitignore` becomes `.gitignore`, a trailing `.tmpl` is dropped). A file you **add** under your own `project/<lang>/` is written into every new project too |
 | `claude/<lang>/` | `octavo init`, `octavo new` | the project's `CLAUDE.md`: `common.md` at `init`, and `analysis.md` / `paper.md` / `slides.md` appended when that kind of part is first added (each starts with an `octavo:section` mark) |
 | `analysis/common/`, `analysis/<lang>/` | the first `octavo new analysis` | `analysis/octavo.R` (the helper), `data/raw/README.md`, `requirements.txt` |
-| `manuscripts/<lang>/` | `octavo new` | `paper.md`, `appendix.md`, `slides.md`, `lecture.md` — bare headings — and `analysis.qmd`, the frame of an analysis |
+| `manuscripts/<lang>/` | `octavo new` | `paper.md`, `appendix.md`, `slides.md`, `lecture.md` — bare headings — `analysis.qmd`, the frame of an analysis, and `figure.typ`, a figure drawn in Typst (`octavo new figure`) |
 | `manuscripts/<lang>/example/` | `octavo new --example` | the same five, as worked examples |
 | `example/<lang>/` | `--example` | what an example uses: placeholder values (`results/<name>.json`) and `tables/summary.*` (marked `octavo:placeholder`), and two made-up references appended to `literature.bib` |
 | `paper/<lang>/` | `octavo new paper` | the layout `main.typ` / `main.tex` copied next to each paper |

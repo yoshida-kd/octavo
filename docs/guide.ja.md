@@ -18,6 +18,7 @@ octavo init 2026-research && cd 2026-research
 octavo new analysis model             # 分析（.qmd）を足す
 octavo new paper example-paper        # 論文を足す（何本でも）
 octavo new lecture example-lecture    # 講義ノートを足す
+octavo new figure dag                 # Typst で描く図を足す（TikZ の代わり）
 octavo build                          # 全部を作る
 octavo build example-paper --to docx  # Word にする
 octavo build example-lecture --to typst-slides --compile  # 回ごとのスライドを PDF まで
@@ -283,7 +284,7 @@ Octavo は「**どの原稿を、どの用途で、どの形式に出すか**」
   README.md          自分で書き足す数行（何の研究か、再現のしかた）
   octavo.config.py   設定（原稿の種類ごとのグロブ、分析の登録）
   literature.bib     書誌（文献管理ソフトからエクスポートしたもの。最初は空）
-  figures/           図（分析が書くか、手で置く）
+  figures/           図（分析が書くか、Typst で描くか、手で置く）
 ```
 
 ```bash
@@ -294,6 +295,7 @@ octavo new paper example-paper --appendix   # appendix.md を足す（既にあ�
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
 octavo new slides example-talk      # slides/example-talk.md
 octavo new lecture example-lecture  # lectures/example-lecture.md
+octavo new figure dag               # figures/dag.typ — Typst で描く図
 ```
 
 最初から部品を置くなら、`init` に並べる:
@@ -535,6 +537,55 @@ $$
 | `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/trend.png` |
 
 `figure_ext` で変えられる。足りないファイルは変換時に「欠落」として出る。
+
+### Typst で図を描く（TikZ の代わり）
+
+箱と矢印の図・因果の図・流れ図などは、TeX の頃の standalone の TikZ のように、別の
+ファイルに Typst で描く。Octavo がそれを普通の図にするので、どの形式にも出て、番号が
+振られ、参照できる。
+
+```bash
+octavo new figure dag       # figures/dag.typ（小さな diagram() と見本入り）
+octavo build                # dag.typ のほうが新しければ figures/dag.pdf と .png を組む
+```
+
+```markdown
+@fig-dag に仮説を示す。
+
+![仮説](../../figures/dag.png){#fig-dag width=60%}
+```
+
+`.typ` の中では、`diagram()` に箱（中心の位置を cm で、と文字）と矢印（箱から箱へ。
+縁から縁に引かれる）を並べる。図の大きさは箱の位置から決まる:
+
+```typst
+#diagram(
+  (
+    z: (2, 0, [Background $Z$]),
+    x: (0, 1.6, [Education $X$]),
+    y: (4, 1.6, [Income $Y$]),
+    u: (4, 3, [Unobserved $U$], (stroke: none)),    // 枠なし
+  ),
+  (("z", "x"), ("z", "y"), ("x", "y"),
+   ("u", "y", (dash: "dashed"))),                   // 破線。(arrow: false) なら矢じりなし
+)
+```
+
+- パッケージは使わない。`diagram()` はファイルに書き込まれた40行ほどの Typst で、
+  自由に書き換えてよい。Typst の `line`・`rect`・`circle`・`polygon`・`place` も
+  そのまま使える。本格的な幾何が要るなら CeTZ などのパッケージも使える
+  （`#import "@preview/cetz:…"`。初回にダウンロードされる）
+- 名前が `_` で始まるファイルは図として組まない。何枚もの図で使う部品は
+  `figures/_parts.typ` に置き、`#import "/figures/_parts.typ": *` と書く（`/` で
+  始まるパスはプロジェクトのフォルダから）。これを変えると、全部の図が組み直される
+- 図に分析の数値を出せる: `#let v = json("/results/analysis.json")` として `#v.n_obs`
+- キャプション・ラベル・大きさ（`width=`）は、どの図とも同じく原稿の側に書く。
+  原稿に Typst を直接書いても（`` ```{=typst} `` のブロック）組めるが、Typst の出力に
+  しか出ず、そこに書いたラベルは Octavo から見えない
+- Typst が入っていなければ注意だけ出して、組み済みの図を使う。`.typ` に誤りがあれば
+  build は止まり、Typst のメッセージを出す（そのままだと古い図が載るため）。`.typ` を
+  直したあと組まれていない図は `octavo check` が注意し、`octavo release` は止まる。
+  `.typ` を保存すると、開いているプレビューが組み直される
 
 ### 分析が作った表
 

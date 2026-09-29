@@ -3,6 +3,23 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.3.1
+
+- **Figures drawn in Typst, where TikZ used to be.** `octavo new figure dag`
+  writes `figures/dag.typ` with a small `diagram()` helper (boxes, and arrows
+  from edge to edge; no packages), and `octavo build` turns it into
+  `figures/dag.pdf` and `.png` whenever the `.typ` is newer. The manuscript
+  places it like any figure (`![…](../../figures/dag.png){#fig-dag}`), so it
+  appears in every format, is numbered and can be referred to. Parts shared
+  between figures go in `figures/_parts.typ`. A `.typ` with an error stops the
+  build; `octavo check` and `octavo release` notice a figure not drawn since
+  its `.typ` changed. In the extension: **Add a figure drawn in Typst** in the
+  sidebar, and saving a `.typ` rebuilds the preview.
+- Fixed: code inside a fenced block (for instance `#import "@preview/…"` in a
+  `` ```{=typst} `` block) was counted as a citation by `octavo checkbib` and
+  `octavo check`.
+- A web page: https://yoshida-kd.github.io/octavo/
+
 ## 0.3.0
 
 - **The README is now an overview** — what Octavo does, a diagram, an example

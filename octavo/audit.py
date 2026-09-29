@@ -23,6 +23,7 @@ from . import backends as be
 from . import crossref as xref
 from . import check as checkmod
 from . import dataset
+from . import diagrams
 from . import lint as lintmod
 from . import md as mdlib
 from . import scaffold
@@ -225,6 +226,15 @@ def collect(cfg, anonymous: bool = False) -> list:
                else t('every figure the text uses is there'),
         lines=[str(p) for p in figs],
         hint=t('octavo analysis run, or put it in figures/')))
+    drawn = diagrams.sources(cfg)
+    if drawn:
+        old_figs = diagrams.stale(cfg)
+        items.append(Item(
+            ok=not old_figs, fatal=False, label=t('figures drawn in Typst'),
+            detail=t('{n} not drawn since {n|its .typ|their .typ} changed', n=len(old_figs))
+                   if old_figs else t('{n|the one is|all # are} up to date', n=len(drawn)),
+            lines=[cfg.rel(p) for p in old_figs],
+            hint=t('octavo build draws them')))
     tbls = table_problems(cfg)
     items.append(Item(
         ok=not tbls, fatal=True, label=t('table files'),

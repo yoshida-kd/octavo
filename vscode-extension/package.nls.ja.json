@@ -10,7 +10,7 @@
   "command.doctor.title": "環境を診断する (doctor)",
   "command.selftest.title": "引用の出力を確認する (selftest)",
   "command.init.title": "新しいプロジェクトを作成 (init)",
-  "command.new.title": "原稿か分析を追加 (new)",
+  "command.new.title": "原稿・分析・図を追加 (new)",
   "command.bibPull.title": "Zotero から文献を取得する (bib pull)",
   "command.insertCitation.title": "引用を挿入する…",
   "command.refreshBib.title": "文献キャッシュを更新する",

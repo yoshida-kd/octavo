@@ -7,7 +7,7 @@ Conversion is done by the `octavo` command from
 [Octavo](https://github.com/yoshida-kd/octavo).
 
 ```
-figures/          figures (<name>.pdf and .png), written by the analysis or added by hand
+figures/          figures (<name>.pdf and .png), written by the analysis, drawn in Typst (<name>.typ), or added by hand
 refs/             (make it when needed) material from elsewhere (codebooks, questionnaires, guidelines). kept in git
 notes/            (make it when needed) things you wrote (reading, referee, working notes). never part of the manuscript
 literature.bib    bibliography. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
@@ -32,6 +32,7 @@ octavo new paper example-paper --tex        # add main.tex for LaTeX (to an exis
 octavo new slides example-talk           # slides/example-talk.md
 octavo new lecture example-lecture    # lectures/example-lecture.md
 octavo new analysis model             # analysis/model.qmd (and data/ etc. the first time)
+octavo new figure dag                 # figures/dag.typ (a figure drawn in Typst, instead of TikZ)
 ```
 
 `octavo new` writes bare headings only. Add `--example` to get an example that
@@ -88,6 +89,11 @@ Write the path relative to the manuscript (`../../figures/` from a paper,
 `../figures/` from slides and lectures) so editor previews work. Figures are shared
 by every manuscript: to show a paper's figure on a slide, point at the same file in
 `figures/` — don't copy it.
+
+Diagrams such as boxes and arrows are drawn in Typst: `octavo new figure <name>` puts
+`figures/<name>.typ`, and `octavo build` turns it into `.pdf` and `.png`, so the
+manuscript references the `.png` like any figure (**never edit the drawn `.pdf` / `.png`**;
+edit the `.typ`).
 
 ## The examples are marked as examples
 

@@ -6,7 +6,7 @@
 [Octavo](https://github.com/yoshida-kd/octavo) の `octavo` コマンドが行う。
 
 ```
-figures/          図（<name>.pdf と .png）。分析が書くか、手で置く
+figures/          図（<name>.pdf と .png）。分析が書くか、Typst で描くか（<name>.typ）、手で置く
 refs/             （要れば作る）外から来た資料（コードブック・調査票・投稿規定）。git に入れる
 notes/            （要れば作る）自分が書いたメモ（読書・査読・作業）。原稿には入らない
 literature.bib    書誌。**文献管理ソフト（Zotero など）が正本**（エクスポートするたびに上書きされる）
@@ -31,6 +31,7 @@ octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（
 octavo new slides example-talk           # slides/example-talk.md
 octavo new lecture example-lecture         # lectures/example-lecture.md
 octavo new analysis model                  # analysis/model.qmd（初回は data/ なども）
+octavo new figure dag                      # figures/dag.typ（Typst で描く図。TikZ の代わり）
 ```
 
 `octavo new` が置く原稿は見出しの骨組みだけ。書き方の見本を見たいときは
@@ -84,6 +85,10 @@ octavo new analysis model                  # analysis/model.qmd（初回は data
 パスは原稿から見た相対パスで書く（論文なら `../../figures/`、スライド・講義なら
 `../figures/`。エディタのプレビューに出る）。図は全部の原稿で共有する。論文の図を
 スライドに貼るときも、同じ `figures/` のファイルを指せばよい（複製しない）。
+
+箱と矢印の図などは `octavo new figure <name>` で `figures/<name>.typ` を置いて Typst で描く。
+`octavo build` が `.pdf` と `.png` に組むので、原稿からは普通の図と同じく `.png` を貼る
+（**組まれた `.pdf` / `.png` は手で直さない**。直すのは `.typ`）。
 
 ## 見本は、見本だと分かるようにしてある
 

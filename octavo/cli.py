@@ -26,6 +26,7 @@ from . import check as checkmod
 from . import config as configmod
 from . import csl as cslmod
 from . import dataset
+from . import diagrams
 from . import doctor as doctormod
 from . import envsetup
 from . import lint as lintmod
@@ -62,7 +63,7 @@ USAGE_LINES = (
     ('octavo setup', 'install the tools (pandoc, Typst, quarto, R, uv, fonts)'),
     ('octavo env', "set up this project's .venv and renv"),
     ('octavo init 2026-study', 'write a project skeleton'),
-    ('octavo new paper|slides|lecture|analysis name', 'add a manuscript or an analysis'),
+    ('octavo new paper|slides|lecture|analysis|figure name', 'add a manuscript, an analysis or a figure'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
     ('octavo release name v1-submitted', 'tag this version, PDF to a GitHub Release'),
 )
@@ -123,6 +124,30 @@ def run_analysis(cfg, args, quiet: bool = False) -> int:
     return 0
 
 
+def run_diagrams(cfg, quiet: bool = False) -> int:
+    """figures/*.typ（Typst で描いた図）のうち古いものを組む。0 なら変換に進んでよい。
+
+    分析のあとに走らせる（図が results/*.json を json() で読むことがあるため）。
+    Typst が無いだけなら止めない。組んで失敗したときだけ止める。
+    """
+    report: list = []
+    ok = diagrams.run(cfg, report)
+    if report and not quiet:
+        head = '== ' + t('Figures drawn in Typst') + ' '
+        print(head + '=' * max(4, 62 - len(head)))
+        for line in report:
+            print('  ' + line)
+    if not ok:
+        sys.stdout.flush()
+        if quiet:
+            print('\n'.join(report), file=sys.stderr)
+        print('\n' + t('a figure could not be drawn, so this stops here (the PDF would '
+                       'show the old one). Fix the .typ above, then build again.'),
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_build(args) -> int:
     cfg = configmod.load(args.config)
     quiet = getattr(args, 'json', False)
@@ -132,6 +157,8 @@ def cmd_build(args) -> int:
         cfg.document(name)
     targets = be.resolve_targets(args.to, 'paper') if args.to else None
     if run_analysis(cfg, args, quiet=quiet):
+        return 1
+    if run_diagrams(cfg, quiet=quiet):
         return 1
     if targets is None and docs is None and not quiet:
         print(cfg.describe())
@@ -281,7 +308,7 @@ def cmd_watch(args) -> int:
                 stamps = now
                 print('\n--- ' + t('something changed, rebuilding') + ' '
                       + time.strftime('%H:%M:%S'))
-                if run_analysis(cfg, args):
+                if run_analysis(cfg, args) or run_diagrams(cfg):
                     continue
                 results = buildmod.run(cfg, doc_names=docs, targets=targets,
                                        appendix=args.appendix,
@@ -300,6 +327,7 @@ def _watch_targets(cfg, docs) -> list:
         out += [Path(d.src)] + ([Path(d.appendix)] if d.appendix else [])
     out.append(Path(cfg['bib_file']))
     out += analysismod.watch_paths(cfg)          # .qmd とそのデータ
+    out += diagrams.watch_paths(cfg)             # Typst で描いた図と共通の部品
     if cfg.source:
         out.append(Path(cfg.source))
     return [p for p in out if p]
@@ -666,6 +694,9 @@ def cmd_new(args) -> int:
         if args.kind == 'analysis':
             stem = args.name[:-len('.qmd')] if args.name.endswith('.qmd') else args.name
             opened = str(cfg.root / 'analysis' / f'{stem}.qmd')
+        elif args.kind == 'figure':
+            stem = args.name[:-len('.typ')] if args.name.endswith('.typ') else args.name
+            opened = str(Path(cfg['figure_dir']) / f'{stem}.typ')
         elif args.name in cfg.documents:
             # 足したものを開く（--tex なら main.tex、--appendix なら付録、ほかは原稿）
             doc = cfg.documents[args.name]
@@ -975,9 +1006,9 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_init)
 
-    p = with_config(sub.add_parser('new', help=t('add a manuscript or an analysis')))
-    p.add_argument('kind', choices=[*scaffold.KINDS, 'analysis'],
-                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session) / analysis=a .qmd'))
+    p = with_config(sub.add_parser('new', help=t('add a manuscript, an analysis or a figure')))
+    p.add_argument('kind', choices=[*scaffold.KINDS, 'analysis', 'figure'],
+                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session) / analysis=a .qmd / figure=a figure drawn in Typst (figures/<name>.typ)'))
     p.add_argument('name', help=t('the document name (it becomes the file or folder name)'))
     p.add_argument('--example', action='store_true',
                    help=t('write an example rather than the bare frame'))

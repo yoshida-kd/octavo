@@ -39,6 +39,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from . import analysis as anamod
+from . import diagrams
 from . import md as mdlib
 from . import values as valmod
 from .i18n import t
@@ -148,6 +149,7 @@ def leftovers(cfg) -> list:
     targets = [src for _, src, _ in cfg.sources()]
     targets += [u.src for u in anamod.units(cfg)]     # 設定の読み方は1箇所だけ
     targets.append(Path(cfg['bib_file']))
+    targets += diagrams.sources(cfg)                  # octavo new figure の見本の図
     for path in targets:
         if not path.is_file():
             continue

@@ -401,7 +401,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('octavo.init', () => initProject()),
 
-        // 原稿・分析を足す。サイドバーからは種類を決めて呼ばれる（'analysis' など）
+        // 原稿・分析・図を足す。サイドバーからは種類を決めて呼ばれる（'analysis' など）
         vscode.commands.registerCommand('octavo.new', async (kind?: unknown) => {
             // サイドバーの「原稿を足す」は 'manuscript'、「分析を足す」は 'analysis'
             const preset = typeof kind === 'string' ? { kind: kind as AddKind } : {};

@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Octavo</title>
+<meta name="description" content="Octavo, the quantitative social science starter pack: papers, slides and lecture notes in Markdown, the analysis in Quarto, and every number, figure and table put in from the analysis.">
+<link rel="alternate" hreflang="ja" href="ja/">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="./">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#0e2f92"/><g fill="none" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7.2L17.5 6.8v13.7H7z" fill="#fff" fill-opacity="0.08"/><path d="M14.2 3.5v3.3h3.3"/><path d="M9.4 10h5.7M9.4 12.8h5.7M9.4 15.6h5.7M9.4 18.4h3.3"/></g></svg>
+      Octavo
+    </a>
+    <nav>
+      <a href="#install">Install</a>
+      <a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">Guide</a>
+      <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
+      <a href="ja/" hreflang="ja" lang="ja">日本語</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+<div class="hero">
+  <div class="wrap">
+    <h1>Octavo</h1>
+    <p class="tagline">The quantitative social science starter pack</p>
+    <p class="lead">Write your papers, slides and lecture notes in Markdown, keep the analysis
+    in Quarto, and let Octavo put the analysis's numbers, figures and tables into every
+    document — then typeset them to PDF (with Typst) and Word, or LaTeX if you have TeX.
+    Citations come from one <code>.bib</code> file, in any CSL style.</p>
+    <div class="actions">
+      <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Get the VS Code extension</a>
+      <a class="button secondary" href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">Read the guide</a>
+    </div>
+  </div>
+</div>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>How it works</h2>
+    <figure class="figure">
+      <img src="images/flow-en.svg" width="1025" height="370"
+           alt="The analysis writes numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word">
+    </figure>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>What you get</h2>
+    <figure class="figure">
+      <img src="images/showcase-en.png" width="1341" height="762" loading="lazy"
+           alt="A page of a paper and a slide, both built from the example project">
+      <figcaption>A page of a paper and a slide, both built from the example project
+      (<code>octavo init demo --all --example</code>). The coefficient, the table and the
+      figure come from the analysis; the numbering and the references are filled in when
+      it is typeset.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="alt">
+  <div class="wrap">
+    <h2>What it does</h2>
+    <div class="features">
+      <div class="feature">
+        <h3>No number typed by hand</h3>
+        <p>The analysis registers a value (<code>ov_value("n_obs", nrow(d))</code>) and the
+        manuscript calls it by name (<code>{{n_obs}}</code>). Re-run the analysis and every
+        document follows.</p>
+      </div>
+      <div class="feature">
+        <h3>One source, several documents</h3>
+        <p>A paper in your journal's layout, a talk, and lecture notes that become an A4
+        handout plus one deck per session — with speaker scripts, and Word for coauthors.</p>
+      </div>
+      <div class="feature">
+        <h3>References by label</h3>
+        <p><code>@fig-trend</code> becomes “Figure 2.1”, and stays right when you reorder
+        sections.</p>
+      </div>
+      <div class="feature">
+        <h3>Checked before you submit</h3>
+        <p><code>octavo check</code> finds numbers typed into the prose, placeholder values,
+        missing citations and figures, and word limits exceeded.</p>
+      </div>
+      <div class="feature">
+        <h3>Up to submission and after</h3>
+        <p>Blind review, a submission zip, a coauthor's tracked changes in Word, what moved
+        since you submitted, and a replication package.</p>
+      </div>
+      <div class="feature">
+        <h3>A VS Code extension</h3>
+        <p>A live PDF preview beside the manuscript, a sidebar for all of the above, and
+        one-click setup. Linux, macOS and Windows; English and Japanese.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap two">
+    <div>
+      <h2>Diagrams without TikZ</h2>
+      <p>Boxes and arrows, a causal graph, a flow: draw it in Typst, in a file of its own.
+      <code>octavo new figure dag</code> writes <code>figures/dag.typ</code> with a small
+      <code>diagram()</code> helper (no packages), and <code>octavo build</code> turns it into a
+      figure like any other — in every format, numbered, and referred to by label.</p>
+<pre><code>#diagram(
+  (z: (2, 0, [Background $Z$]),
+   x: (0, 1.6, [Education $X$]),
+   y: (4, 1.6, [Income $Y$]),
+   u: (4, 3, [Unobserved $U$], (stroke: none))),
+  (("z", "x"), ("z", "y"), ("x", "y"),
+   ("u", "y", (dash: "dashed"))),
+)</code></pre>
+      <p><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#drawing-figures-in-typst-instead-of-tikz">More in the guide</a></p>
+    </div>
+    <figure class="figure">
+      <img src="images/diagram-en.png" width="558" height="323" loading="lazy"
+           alt="A causal diagram: background points to education and income, education to income, and an unobserved factor to income with a dashed arrow">
+      <figcaption>What that code draws.</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section id="install" class="alt">
+  <div class="wrap two">
+    <div>
+      <h2>Install</h2>
+      <p><strong>With VS Code</strong>, install the
+      <a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo extension</a>
+      and press <strong>Set up</strong> when it asks: it installs pandoc, Typst, Quarto, R,
+      the fonts and the <code>octavo</code> command.</p>
+      <p><strong>From a terminal</strong>:</p>
+<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install octavo-kit
+octavo setup     <span class="comment"># pandoc / Typst / Quarto / fonts / R</span>
+octavo doctor    <span class="comment"># reports anything still missing</span></code></pre>
+    </div>
+    <div>
+      <h2>Getting started</h2>
+      <p>See it work first — an analysis, a paper, slides and lecture notes:</p>
+<pre><code>octavo init demo --all --example
+cd demo
+octavo build --compile</code></pre>
+      <p>Then your own project, with just the parts you need:</p>
+<pre><code>octavo init study --with analysis,paper
+cd study
+octavo env       <span class="comment"># the analysis environment (.venv and renv)</span>
+octavo build paper --compile
+octavo check     <span class="comment"># before you submit</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Documentation</h2>
+    <p><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">The guide</a> covers everything:</p>
+    <ol class="chapters">
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#1-install">Install</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#2-documents-and-profiles">Documents and profiles</a> <span>— init, new, lecture notes, settings per document</span></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#3-writing-the-source">Writing the source</a> <span>— cross-references, math, tables</span></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#4-analysis-quarto-and-manuscript-kept-apart">Analysis (Quarto) and manuscript</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#5-citations-bib--journal-style">Citations</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#6-commands">Commands</a> <span>— checking, blind review, submitting, revisions, replication</span></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#7-making-it-yours-templates-and-word-styles">Making it yours</a> <span>— templates and Word styles</span></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#8-differences-between-formats-worth-knowing">Differences between formats</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#9-project-layout">Project layout</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#10-what-is-tested-and-what-to-check-yourself">What is tested</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#11-vs-code-extension">VS Code extension</a></li>
+    </ol>
+  </div>
+</section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Octavo · MIT License · by <a href="https://github.com/yoshida-kd">yoshida-kd</a></span>
+    <span><a href="https://github.com/yoshida-kd/octavo">Source</a> ·
+    <a href="https://pypi.org/project/octavo-kit/">PyPI</a> ·
+    <a href="https://github.com/yoshida-kd/octavo/issues">Issues</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -31,6 +31,8 @@ references are filled in when it is typeset.
   with speaker scripts, and Word for coauthors.
 - **References by label**: `@fig-trend` becomes "Figure 2.1", and stays right
   when you reorder sections.
+- **Diagrams without TikZ**: `octavo new figure` gives you a Typst file to draw
+  boxes and arrows in; it becomes a figure like any other.
 - **Up to submission and after**: word limits, blind review, a submission zip,
   reading a coauthor's tracked changes in Word, "what moved since I submitted",
   and a replication package.

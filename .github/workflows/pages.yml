@@ -1,0 +1,48 @@
+name: pages
+
+# 公開用リポジトリ（yoshida-kd/octavo）の main が変わったら、site/ を
+# https://yoshida-kd.github.io/octavo/ に出す。main は tools/release.py の
+# コミットでしか変わらないので、ページが変わるのもリリースのときだけ。
+# 図と見本の画像は README と同じ docs/images/ のものを images/ に写す。
+#
+# 開発用の octavo-dev でも同じファイルが動くが、repository の条件で何もしない。
+#
+# 前もって要るもの（公開側のリポジトリで一度だけ）:
+#   Settings > Pages > Source を「GitHub Actions」にする
+#   （gh api -X POST repos/yoshida-kd/octavo/pages -f build_type=workflow）
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: github.repository == 'yoshida-kd/octavo'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp -R site/. _site/
+          mkdir _site/images
+          cp docs/images/* _site/images/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

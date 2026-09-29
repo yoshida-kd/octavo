@@ -13,7 +13,7 @@ export interface NewReport {
     made: string[];
 }
 
-type Kind = 'analysis' | 'paper' | 'slides' | 'lecture';
+type Kind = 'analysis' | 'paper' | 'slides' | 'lecture' | 'figure';
 
 const NAME_OK = /^[^\s/\\.][^\s/\\]*$/;
 
@@ -27,17 +27,22 @@ function kindItems(): (vscode.QuickPickItem & { part: Kind })[] {
           description: vscode.l10n.t('lectures/<name>.md — an A4 handout + a deck per session') },
         { part: 'analysis', label: '$(graph) ' + vscode.l10n.t('Analysis (.qmd)'),
           description: vscode.l10n.t('analysis/<name>.qmd — data/ and the rest come with the first one') },
+        { part: 'figure', label: '$(type-hierarchy) ' + vscode.l10n.t('Figure drawn in Typst'),
+          description: vscode.l10n.t('figures/<name>.typ — boxes and arrows, where TikZ used to be') },
     ];
 }
 
 function askName(kind: Kind, value?: string): Thenable<string | undefined> {
     const title = kind === 'analysis'
         ? vscode.l10n.t('Name of the analysis (becomes analysis/<name>.qmd)')
+        : kind === 'figure'
+        ? vscode.l10n.t('Name of the figure (becomes figures/<name>.typ; the manuscript refers to it as figures/<name>.png)')
         : vscode.l10n.t('Document name (becomes the file or folder name; octavo build <name>)');
     return vscode.window.showInputBox({
         title,
         value,
         placeHolder: kind === 'analysis' ? 'model / 01-clean'
+            : kind === 'figure' ? 'dag / flow'
             : vscode.l10n.t('e.g. example-paper / example-talk / example-lecture'),
         validateInput: (v) => (NAME_OK.test(v.trim()) ? undefined
             : vscode.l10n.t('No spaces, no / or \\, and it cannot start with a dot')),
@@ -67,7 +72,8 @@ export async function initProject(): Promise<void> {
 
     // 最初に置くもの。どれも後から「足す」でいくらでも足せる
     const parts = await vscode.window.showQuickPick(
-        kindItems().sort((a, b) => (a.part === 'analysis' ? -1 : b.part === 'analysis' ? 1 : 0)),
+        kindItems().filter((k) => k.part !== 'figure')
+            .sort((a, b) => (a.part === 'analysis' ? -1 : b.part === 'analysis' ? 1 : 0)),
         { canPickMany: true,
           title: vscode.l10n.t('What to start with (pick none for just the frame; anything can be added later)') });
     if (!parts) return;
@@ -107,7 +113,7 @@ export async function initProject(): Promise<void> {
     }
 }
 
-/** 足すもの。'manuscript' は「原稿のどれか」（種類を選ばせる。分析は出さない）。 */
+/** 足すもの。'manuscript' は「原稿のどれか」（種類を選ばせる。分析と図は出さない）。 */
 export type AddKind = Kind | 'manuscript';
 
 export interface AddOptions {
@@ -117,7 +123,7 @@ export interface AddOptions {
     tex?: boolean;
 }
 
-/** 原稿か分析を足す。何も渡さなければ種類・名前・オプションを尋ねる。
+/** 原稿・分析・図を足す。何も渡さなければ種類・名前・オプションを尋ねる。
  *  足せたら開いて、true を返す（呼んだ側がサイドバーなどを読み直す）。 */
 export async function addToProject(
     log: (s: string) => void, preset: AddOptions = {},
@@ -130,7 +136,8 @@ export async function addToProject(
     }
     let kind: Kind;
     if (!preset.kind || preset.kind === 'manuscript') {
-        const items = kindItems().filter((k) => preset.kind !== 'manuscript' || k.part !== 'analysis');
+        const items = kindItems().filter(
+            (k) => preset.kind !== 'manuscript' || (k.part !== 'analysis' && k.part !== 'figure'));
         const picked = await vscode.window.showQuickPick(items,
             { title: preset.kind === 'manuscript' ? vscode.l10n.t('What kind of manuscript?')
                                                   : vscode.l10n.t('What to add?') });
@@ -145,7 +152,7 @@ export async function addToProject(
     const flags: string[] = [];
     if (preset.appendix) flags.push('--appendix');
     if (preset.tex) flags.push('--tex');
-    if (!preset.name) {
+    if (!preset.name && kind !== 'figure') {
         // 新しく足すときだけオプションを尋ねる（付録・main.tex を後から足すときは不要）
         const opts: (vscode.QuickPickItem & { flag: string })[] = [
             { label: vscode.l10n.t('Make it an example'),

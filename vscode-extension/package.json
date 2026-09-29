@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",

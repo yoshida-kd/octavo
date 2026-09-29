@@ -27,6 +27,7 @@ from pathlib import Path
 from . import __version__
 from . import analysis as anamod
 from . import build as buildmod
+from . import diagrams
 from . import values as valuesmod
 from .i18n import t
 
@@ -76,6 +77,11 @@ def preflight(cfg, doc_name: str, label: str, need_gh: bool = True) -> str:
     if stale:
         problems.append(t('the analysis is stale ({files}) — run octavo analysis run, '
                           'commit results/, then release', files=', '.join(stale)))
+    drawn = [cfg.rel(p) for p in diagrams.stale(cfg)]
+    if drawn:
+        problems.append(t('these figures have not been drawn since their .typ changed '
+                          '({files}) — run octavo build, commit figures/, then release',
+                          files=', '.join(drawn)))
     if _git(root, 'remote', 'get-url', 'origin').returncode != 0:
         problems.append(t('there is no remote called origin to push the tag to'))
     if need_gh:

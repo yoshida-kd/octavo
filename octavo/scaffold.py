@@ -385,20 +385,51 @@ def _example_support(cfg, lang: str, force: bool, made: list) -> None:
         made.append('  ' + t('appended') + f'  {cfg.rel(bib)} ' + t('(example entries)'))
 
 
+def _new_figure(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) -> int:
+    """Typst で描く図 `figures/<name>.typ` を置く（組むのは octavo build。diagrams.py）。"""
+    from .backends.typst import font_expr
+    folder = Path(cfg['figure_dir'])
+    src = folder / f'{name}.typ'
+    # 同じ名前の図がもうある（分析の ov_figure が書いたものなど）なら、組むと上書き
+    # してしまうので断る
+    taken = [p for p in (folder / f'{name}.pdf', folder / f'{name}.png') if p.exists()]
+    if taken and not src.exists() and not force:
+        print(t('{path} is already there (a figure from the analysis?) — drawing '
+                '{name}.typ would overwrite it. Pick another name',
+                path=cfg.rel(taken[0]), name=name), file=sys.stderr)
+        return 1
+    subs = {'NAME': name, 'FONT': font_expr(lang, 'sans')}
+    _write(src, render_template(f'manuscripts/{lang}/figure.typ', subs, cfg.root),
+           force, made, cfg.root)
+    if quiet:
+        return 0
+    for m in made:
+        print(m)
+    print('\n' + t('Next:'))
+    steps = [('octavo build', t('draws it into {files}', files=f'figures/{name}.pdf, .png')),
+             (f'![…](../../figures/{name}.png){{#fig-{name}}}',
+              t('in a paper (from slides or lecture notes: ../figures/)'))]
+    width = max(len(c) for c, _ in steps)
+    for cmd, why in steps:
+        print(f'  {cmd.ljust(width)}   # {why}')
+    return 0
+
+
 def new(config: Path, kind: str, name: str, force: bool = False,
         quiet: bool = False, example: bool = False, appendix: bool = False,
         tex: bool = False, made: list | None = None) -> int:
-    """原稿か分析を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
+    """原稿・分析・図を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
 
     既にある原稿の名前なら、無いファイルだけを足す（`--appendix` / `--tex` を後から）。
     """
     from . import config as configmod
-    if kind not in KINDS and kind != 'analysis':
+    if kind not in KINDS and kind not in ('analysis', 'figure'):
         print(t('unknown kind: {kind} (one of {allowed})',
-                kind=kind, allowed=' / '.join([*KINDS, 'analysis'])), file=sys.stderr)
+                kind=kind, allowed=' / '.join([*KINDS, 'analysis', 'figure'])), file=sys.stderr)
         return 1
-    if kind == 'analysis' and name.endswith('.qmd'):
-        name = name[:-len('.qmd')]
+    ext = {'analysis': '.qmd', 'figure': '.typ'}.get(kind)
+    if ext and name.endswith(ext):
+        name = name[:-len(ext)]
     if not NAME_OK.fullmatch(name):
         print(t('that name will not do: {name} (no spaces, no / or \\, and it '
                 'cannot start with a dot)', name=repr(name)), file=sys.stderr)
@@ -426,6 +457,9 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         for cmd, why in steps:
             print(f'  {cmd.ljust(width)}   # {why}')
         return 0
+
+    if kind == 'figure':
+        return _new_figure(cfg, name, lang, force, quiet or quiet_made, made)
 
     k = KINDS[kind]
     src = root / k['src'].format(name)

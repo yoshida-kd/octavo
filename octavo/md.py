@@ -503,8 +503,11 @@ CITE_KEY = re.compile(r'(?<![\w.@-])@([\w][\w:.#$%&+?<>~/-]*)')
 def cited_keys(md: str) -> set:
     """本文が引いている citation key を集める（参考文献節より前だけ）。"""
     body = drop_references(md)
-    body = re.sub(r'`[^`\n]*`', '', body)          # インラインコード内は無視
+    # コードブロック（```{=typst} の `#import "@preview/…"` なども）を先に消す。
+    # インラインコードを先に消すと、``` の最初の `` が空のインラインコードとして
+    # 食われ、ブロックが丸ごと残る
     body = re.sub(r'^```.*?^```', '', body, flags=re.S | re.M)
+    body = re.sub(r'`[^`\n]*`', '', body)          # インラインコード内は無視
     keys = set(CITE_KEY.findall(body)) | set(POSCITE.findall(body))
     # `@fig-…` などは相互参照で、引用ではない（crossref.py）
     return {k.rstrip('.,;:') for k in keys

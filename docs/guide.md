@@ -21,6 +21,7 @@ octavo init 2026-research && cd 2026-research
 octavo new analysis model             # add an analysis (.qmd)
 octavo new paper example-paper        # add a paper (any number of them)
 octavo new lecture example-lecture    # add lecture notes
+octavo new figure dag                 # a figure drawn in Typst (instead of TikZ)
 octavo build                          # build everything
 octavo build example-paper --to docx  # just Word
 octavo build example-lecture --to typst-slides --compile  # one PDF deck per session
@@ -305,7 +306,7 @@ of each, with `octavo new`; or name them to `init` to start with them.
   README.md          a few lines for you to finish (what this is, how to reproduce it)
   octavo.config.py   configuration (a glob per kind of manuscript, analysis registration)
   literature.bib     bibliography (exported from your reference manager; starts empty)
-  figures/           figures (written by the analysis, or added by hand)
+  figures/           figures (written by the analysis, drawn in Typst, or added by hand)
 ```
 
 ```bash
@@ -316,6 +317,7 @@ octavo new paper example-paper --appendix   # add appendix.md, also to an existi
 octavo new paper example-paper --tex        # add main.tex for LaTeX, also to an existing paper
 octavo new slides example-talk      # slides/example-talk.md
 octavo new lecture example-lecture  # lectures/example-lecture.md
+octavo new figure dag               # figures/dag.typ — a figure drawn in Typst
 ```
 
 To start with some parts, or all of them, name them to `init`:
@@ -583,6 +585,56 @@ looks for its preferred extension automatically:
 
 Configurable via `figure_ext`. A missing file is reported as a "missing
 figure" at build time rather than failing silently.
+
+### Drawing figures in Typst (instead of TikZ)
+
+A diagram — boxes and arrows, a causal graph, a flow — is drawn in Typst, in a file of its
+own, the way a standalone TikZ picture used to be. Octavo turns it into a figure like any
+other, so it works in every format, is numbered, and can be referred to.
+
+```bash
+octavo new figure dag       # figures/dag.typ, with a small diagram() helper and an example
+octavo build                # draws figures/dag.pdf and .png whenever dag.typ is newer
+```
+
+```markdown
+@fig-dag shows the hypothesis.
+
+![The hypothesis](../../figures/dag.png){#fig-dag width=60%}
+```
+
+In the `.typ`, `diagram()` takes boxes (a centre in cm and the text) and arrows (from box to
+box, drawn from edge to edge); the size of the figure follows from where the boxes are:
+
+```typst
+#diagram(
+  (
+    z: (2, 0, [Background $Z$]),
+    x: (0, 1.6, [Education $X$]),
+    y: (4, 1.6, [Income $Y$]),
+    u: (4, 3, [Unobserved $U$], (stroke: none)),    // no frame
+  ),
+  (("z", "x"), ("z", "y"), ("x", "y"),
+   ("u", "y", (dash: "dashed"))),                   // dashed; (arrow: false) for no head
+)
+```
+
+- It uses no packages: `diagram()` is some forty lines of plain Typst written into the file,
+  yours to change. Anything else Typst can draw (`line`, `rect`, `circle`, `polygon`,
+  `place`) works too, and so does a package such as CeTZ (`#import "@preview/cetz:…"`,
+  downloaded the first time) if you need real geometry.
+- Files whose name starts with `_` are not drawn: put parts several figures share in
+  `figures/_parts.typ` and `#import "/figures/_parts.typ": *` (paths starting with `/`
+  are from the project folder). Changing it redraws every figure.
+- A figure can show the analysis's numbers: `#let v = json("/results/analysis.json")`,
+  then `#v.n_obs`.
+- The manuscript owns the caption, the label and the size (`width=`), as with every
+  figure. Writing Typst straight into the manuscript (a `` ```{=typst} `` block) also
+  typesets, but only in Typst output, and Octavo cannot see a label written there.
+- If Typst is missing, the build warns and uses the figures already drawn; if a `.typ`
+  has an error, the build stops and shows Typst's message (the PDF would otherwise show the
+  old figure). `octavo check` warns about a figure not drawn since its `.typ` changed, and
+  `octavo release` refuses until it is. Saving the `.typ` rebuilds an open preview.
 
 ### Tables from the analysis
 
