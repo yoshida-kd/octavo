@@ -3,6 +3,56 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.4.0
+
+- **A new project layout: what you make by hand, and what gets made.**
+  `figures/` is for figures you make yourself (drawn in Typst, photos); what
+  the analysis and `octavo build` write now lives under `assets/`:
+  `assets/values/` (the numbers behind `{{…}}`, formerly `results/`),
+  `assets/figures/` and `assets/tables/`. Manuscripts place figures from
+  `assets/figures/`. The config key `results_dir` is now `values_dir`, and
+  `figure_src_dir` is new. A project made with an earlier version keeps
+  working if its `octavo.config.py` sets `values_dir: 'results'`,
+  `figure_dir: 'figures'` and `table_dir: 'tables'`.
+- **Figures stay sharp in PDF.** Typst output (papers, handouts, slides,
+  scripts) now uses each figure's `.pdf`, as LaTeX does, instead of a PNG, so
+  figures no longer blur when zoomed and the text in them can be searched.
+  Word keeps the `.png`. Needs Typst 0.14 or newer (`octavo setup` installs
+  0.15).
+- **Tables you make by hand, edited as tables.** `octavo new table <name>`
+  writes `tables/<name>.csv`; `octavo build` turns it into
+  `assets/tables/<name>.typ` / `.tex` / `.md`, which the manuscript places
+  with a caption line, like the analysis's tables. The layout comes from the
+  contents: the first row is the heading, an empty heading cell merges into
+  the one on its left (what Excel writes for merged cells), number columns are
+  right-aligned and long-text columns wrap. The extension's "Edit as a Table"
+  button (on a `.csv` tab) shows it as an editable table (add and move rows
+  and columns, paste from Excel); Excel works too. New config key
+  `table_src_dir`.
+- **Japanese and English works in one bibliography.** In a Japanese document,
+  citations and English works now follow the chosen style in English
+  ("Smith et al. (2003)", “An Example Article.”), and works marked
+  `langid = {japanese}` are written in one Japanese form whatever the style:
+  山田太郎・田中花子 (2020)「…」『…』12(3): 1–20. Names in a citation are joined
+  with ・ and "et al." becomes ほか. Before, the whole bibliography used the
+  Japanese locale, giving "Smith ほか (2003年)". `citations_by_language: False`
+  keeps the old behaviour.
+- Fixed: adding a figure drawn in Typst from the extension tried to open a file
+  under `assets/figures/` instead of `figures/<name>.typ`.
+- The extension's snippets follow the current syntax (labels instead of typed
+  numbers).
+- **The web page opens in Japanese for Japanese browsers**: the English page
+  moves to the Japanese one when the browser's first language is Japanese. A
+  language picked with the link at the top is remembered in the browser and
+  followed from then on; nothing is sent anywhere.
+- The wording of the Japanese and English documentation, the web page, the
+  templates and the Japanese messages was reviewed. "Markdown" is now written
+  the same way everywhere, and the guide's chapter 1 is called "インストール".
+- Fixed: the example analysis wrote `N = 1523` in a table note while the text
+  said `1,523`; the messages about placeholder values no longer say they were
+  written by `octavo init` (an example added with `octavo new --example` writes
+  them too).
+
 ## 0.3.1
 
 - **Figures drawn in Typst, where TikZ used to be.** `octavo new figure dag`
@@ -82,7 +132,7 @@ released together, under one version number.
 
 - **Installing the extension is enough.** On first start it checks the tools
   (`octavo doctor --json`) and offers **Set up**, which runs the bundled
-  `setup.sh` in a terminal: pandoc, Typst, quarto, fonts, R (the latest from
+  `setup.sh` in a terminal: pandoc, Typst, Quarto, fonts, R (the latest from
   CRAN), renv, uv and the `octavo` command itself (from PyPI with uv). Also in
   the sidebar under Tools, to run again after an update.
 - `octavo setup` runs the same script from a terminal (the package carries it);

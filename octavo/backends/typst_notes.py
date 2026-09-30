@@ -8,7 +8,7 @@
     octavo build 講義-03 --to typst-notes --compile
 
 スライド側（typst-slides）は `::: notes` を落とす — 投影する画面に出す場所が
-無いため。**落としたものの行き先がここ**。だから中身の取捨（`::: {.slides-only}`
+ないため。**落としたものの行き先がここ**。だから中身の取捨（`::: {.slides-only}`
 など）はスライドとまったく同じで、違うのはノートを残すことと体裁だけ。
 
 `::: notes` は div のまま pandoc に渡しても Typst では何の印も残らないので、
@@ -21,7 +21,6 @@ import re
 
 from .base import Ctx
 from .latex import check_assets, check_cjk
-from .typst import typst_escape
 from ..i18n import t, tag
 from .typst_slides import TypstSlidesBackend, heading_level
 

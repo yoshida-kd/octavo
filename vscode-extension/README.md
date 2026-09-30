@@ -31,7 +31,7 @@ install [Homebrew](https://brew.sh) first). **That is all you need to have:**
 the first time the extension starts, it checks what is installed and, if
 anything is missing, offers **Set up**. That runs the setup script it carries in
 a terminal, asks for your password once (sudo), and installs pandoc, Typst,
-quarto, the fonts, R (the latest from CRAN), renv, [uv](https://docs.astral.sh/uv/)
+Quarto, the fonts, R (the latest from CRAN), renv, [uv](https://docs.astral.sh/uv/)
 and the `octavo` command. Over Remote-SSH or in a WSL window it installs on
 that machine. Close the terminal when it is done, and the extension checks
 again.
@@ -92,7 +92,7 @@ the one the file you are editing belongs to.
   to date, stale or manual, with a run button; an open `.qmd` gets a run button
   in the editor's title bar. The preview never runs the analysis itself: a bar
   above the PDF says when something is stale, and its button runs it and
-  rebuilds. Progress shows in a notification and quarto's output in the Output
+  rebuilds. Progress shows in a notification and Quarto's output in the Output
   panel, so no terminal is needed. For writing the `.qmd` itself (R chunk
   highlighting, running chunks one by one), add the official Quarto extension
   (`quarto.quarto`) alongside.
@@ -103,6 +103,13 @@ the one the file you are editing belongs to.
 - **Typst file preview.** With a `.typ` file open, "Preview This Typst File"
   runs `typst watch` on it directly — handy for a paper's hand-maintained
   `main.typ`.
+- **Tables made by hand.** The **Edit as a Table** button on a `.csv` tab (and
+  every table added from the sidebar) shows it as a table: type into
+  the cells, add or move rows and columns, Enter for the next row, Alt+Enter
+  for a line break in a cell, paste a range copied from Excel. Leave a heading
+  cell empty to merge it into the one on its left. `octavo build` turns it into
+  the table the manuscript's `: Caption {#tbl-<name>}` line places. "Edit as
+  text" gets the plain CSV back.
 - **Snippets** for tables, figures, possessive citations and conditional
   blocks (`ptable`, `pfigure`, `pposcite`, `phandout`, `pslides`, `pnotes`, …).
 - **English and Japanese**, following VS Code's display language — and the
@@ -128,7 +135,7 @@ Windows:
    `/mnt/c/Users/you/proj`). **Set up** installs into WSL.
 3. **Directly on Windows, no WSL.** `auto` picks this when WSL has no
    distribution (or set `octavo.executionMode` to `"local"`). **Set up** then
-   runs the bundled `setup.ps1`: winget installs pandoc, Typst, quarto and R,
+   runs the bundled `setup.ps1`: winget installs pandoc, Typst, Quarto and R,
    BIZ UD and Inter go into your user fonts, and uv installs `octavo`. Windows
    may ask for permission for some installers. The extension's terminals are
    PowerShell. TeX is not installed on Windows.

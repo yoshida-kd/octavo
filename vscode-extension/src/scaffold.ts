@@ -4,6 +4,7 @@
 // 組み立てない。置き場所の決まりは CLI の scaffold.py だけが知っている）。
 import * as vscode from 'vscode';
 import { dirOf, findConfig, resolvePathFromTool, runCapture, runInTerminal } from './runner';
+import { TableEditorProvider } from './tableEditor';
 
 /** octavo new --json が返すもの。 */
 export interface NewReport {
@@ -13,7 +14,7 @@ export interface NewReport {
     made: string[];
 }
 
-type Kind = 'analysis' | 'paper' | 'slides' | 'lecture' | 'figure';
+type Kind = 'analysis' | 'paper' | 'slides' | 'lecture' | 'figure' | 'table';
 
 const NAME_OK = /^[^\s/\\.][^\s/\\]*$/;
 
@@ -29,6 +30,8 @@ function kindItems(): (vscode.QuickPickItem & { part: Kind })[] {
           description: vscode.l10n.t('analysis/<name>.qmd — data/ and the rest come with the first one') },
         { part: 'figure', label: '$(type-hierarchy) ' + vscode.l10n.t('Figure drawn in Typst'),
           description: vscode.l10n.t('figures/<name>.typ — boxes and arrows, where TikZ used to be') },
+        { part: 'table', label: '$(table) ' + vscode.l10n.t('Table made by hand'),
+          description: vscode.l10n.t('tables/<name>.csv — edited as a table; the manuscript places it with a caption line') },
     ];
 }
 
@@ -36,13 +39,16 @@ function askName(kind: Kind, value?: string): Thenable<string | undefined> {
     const title = kind === 'analysis'
         ? vscode.l10n.t('Name of the analysis (becomes analysis/<name>.qmd)')
         : kind === 'figure'
-        ? vscode.l10n.t('Name of the figure (becomes figures/<name>.typ; the manuscript refers to it as figures/<name>.png)')
+        ? vscode.l10n.t('Name of the figure (becomes figures/<name>.typ; the manuscript refers to it as assets/figures/<name>.png)')
+        : kind === 'table'
+        ? vscode.l10n.t('Name of the table (becomes tables/<name>.csv; the manuscript places it with : Caption {#tbl-<name>})')
         : vscode.l10n.t('Document name (becomes the file or folder name; octavo build <name>)');
     return vscode.window.showInputBox({
         title,
         value,
         placeHolder: kind === 'analysis' ? 'model / 01-clean'
             : kind === 'figure' ? 'dag / flow'
+            : kind === 'table' ? 'compare / sources'
             : vscode.l10n.t('e.g. example-paper / example-talk / example-lecture'),
         validateInput: (v) => (NAME_OK.test(v.trim()) ? undefined
             : vscode.l10n.t('No spaces, no / or \\, and it cannot start with a dot')),
@@ -72,7 +78,7 @@ export async function initProject(): Promise<void> {
 
     // 最初に置くもの。どれも後から「足す」でいくらでも足せる
     const parts = await vscode.window.showQuickPick(
-        kindItems().filter((k) => k.part !== 'figure')
+        kindItems().filter((k) => k.part !== 'figure' && k.part !== 'table')
             .sort((a, b) => (a.part === 'analysis' ? -1 : b.part === 'analysis' ? 1 : 0)),
         { canPickMany: true,
           title: vscode.l10n.t('What to start with (pick none for just the frame; anything can be added later)') });
@@ -137,7 +143,8 @@ export async function addToProject(
     let kind: Kind;
     if (!preset.kind || preset.kind === 'manuscript') {
         const items = kindItems().filter(
-            (k) => preset.kind !== 'manuscript' || (k.part !== 'analysis' && k.part !== 'figure'));
+            (k) => preset.kind !== 'manuscript'
+                || (k.part !== 'analysis' && k.part !== 'figure' && k.part !== 'table'));
         const picked = await vscode.window.showQuickPick(items,
             { title: preset.kind === 'manuscript' ? vscode.l10n.t('What kind of manuscript?')
                                                   : vscode.l10n.t('What to add?') });
@@ -152,7 +159,7 @@ export async function addToProject(
     const flags: string[] = [];
     if (preset.appendix) flags.push('--appendix');
     if (preset.tex) flags.push('--tex');
-    if (!preset.name && kind !== 'figure') {
+    if (!preset.name && kind !== 'figure' && kind !== 'table') {
         // 新しく足すときだけオプションを尋ねる（付録・main.tex を後から足すときは不要）
         const opts: (vscode.QuickPickItem & { flag: string })[] = [
             { label: vscode.l10n.t('Make it an example'),
@@ -194,7 +201,10 @@ export async function addToProject(
         return false;
     }
     const uri = report.open ? resolvePathFromTool(report.open) : undefined;
-    if (uri) {
+    if (uri && kind === 'table') {
+        // 手で作る表は、表の編集画面で開く（ふだんの .csv はテキストのまま。ボタンで切り替える）
+        await vscode.commands.executeCommand('vscode.openWith', uri, TableEditorProvider.viewType);
+    } else if (uri) {
         await vscode.window.showTextDocument(uri);
     }
     return true;

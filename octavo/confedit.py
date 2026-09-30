@@ -10,13 +10,13 @@ VS Code のアクティビティバーの「設定」はこれの薄い窓口（
 
   * 書き換えるのは `CONFIG = {` 直下（4字下げ）の **1行で書かれた** `'鍵': 値,`
     だけ。行末のコメントは残す。複数行にまたがる値は触らずに断る
-  * 無ければ `CONFIG` の閉じ括弧の直前に1行足す（コメントアウトされた見本は
+  * なければ `CONFIG` の閉じ括弧の直前に1行足す（コメントアウトされた見本は
     そのまま残す）
   * 書く前に、書き換えた中身を**実際に設定として読んで**検証する。通らなければ
     ファイルは変えない（Config の検査がそのまま効く）
   * unset はその1行を消す（既定値に戻る）
 
-ここに無い鍵（documents・analysis・フォントの並びなど）は、構造が大きく画面で
+ここにない鍵（documents・analysis・フォントの並びなど）は、構造が大きく画面で
 選ばせる意味が薄いので、`octavo.config.py` を手で直す。
 
 **文書ごとの設定**（`--doc NAME`）は、その原稿の冒頭（front matter）の1行を書き換える。
@@ -50,7 +50,7 @@ class Knob:
 SLIDE_DOCS = ('slides', 'handout')      # 発表スライドと講義ノート（回ごとのスライド）
 ALL_DOCS = ('paper', 'slides', 'handout')
 
-# 選ばせる CSL（よく使うもの）。ここに無いものも名前を打てば使える（suggest）
+# 選ばせる CSL（よく使うもの）。ここにないものも名前を打てば使える（suggest）
 CSL_CHOICES = ('chicago-author-date', 'apa', 'american-political-science-association',
                'american-sociological-association', 'modern-language-association',
                'chicago-note-bibliography', 'american-medical-association', 'ieee',
@@ -239,9 +239,9 @@ def _yaml_value(value) -> str:
 
 
 def _edit_front_matter(text: str, key: str, value, remove: bool = False) -> str:
-    """冒頭の `鍵: 値` を1行だけ書き換える（無ければ冒頭の最後に足す）。
+    """冒頭の `鍵: 値` を1行だけ書き換える（なければ冒頭の最後に足す）。
 
-    次の行へ続く値（`- …` の並びなど）は触らずに断る。冒頭が無ければ作る。
+    次の行へ続く値（`- …` の並びなど）は触らずに断る。冒頭がなければ作る。
     """
     from . import md as mdlib
     line = f'{key}: {_yaml_value(value)}'

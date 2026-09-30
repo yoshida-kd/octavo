@@ -48,4 +48,4 @@ octavo build example-lecture-03 --to typst-slides           # 3回目だけ
 `::: notes`（発表者ノート）は投影するスライドには出ず、台本（`--to typst-notes`）に出る。
 
 分析があれば、授業資料・スライドにも `{{…}}` の数値差し込みが使える（同じ
-`results/` を読む）。**論文と同じく、数値を手で書かない。**
+`assets/values/` を読む）。**論文と同じく、数値を手で書かない。**

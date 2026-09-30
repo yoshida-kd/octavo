@@ -5,7 +5,7 @@ profile が 'paper' のときは body.tex（断片）を作り、main.tex は手
 profile が 'handout' のときは完結した .tex を出す（授業用 A4 プリント）。
 
 引用は CSL（pandoc --citeproc）で解決済みの地の文として出るので、main.tex 側で
-biblatex を読む必要は無い。代わりに CSLReferences 環境の定義が要る
+biblatex を読む必要はない。代わりに CSLReferences 環境の定義が要る
 （templates/paper/csl-preamble.tex。同梱の main.tex には最初から入っている。standalone のときは pandoc の
 既定テンプレートが定義を持っているので不要）。
 """
@@ -14,9 +14,8 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .. import crossref as xref
 from .. import md as mdlib
-from .base import Backend, Ctx
+from .base import Backend, Ctx, missing_table
 from ..i18n import t, tag
 
 
@@ -60,12 +59,10 @@ class LatexBackend(Backend):
     # -- 差し替え -----------------------------------------------------------
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
         """分析が書いた表の中身（tables/<名前>.tex）を、table 環境・キャプション・
-        ラベルで包んで入れる。中身の読み込みは \\inputtable（無ければ目印を出す）。"""
+        ラベルで包んで入れる。中身の読み込みは \\inputtable（なければ目印を出す）。"""
         rel = ctx.rel(ctx.table_path(name))[:-len(self.table_ext)]
         if not ctx.table_path(name).is_file():
-            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
-                                           'ov_table() in the .qmd)',
-                                           path=ctx.cfg.rel(ctx.table_path(name))))
+            ctx.say(f'{tag("table")} ' + missing_table(ctx, ctx.table_path(name), name))
         ctx.say(f'{tag("table")} {label} -> \\inputtable{{{rel}}}')
         return ('\n```{=latex}\n\\begin{table}[htbp]\n\\centering\n'
                 f'\\caption{{{tex_escape(caption)}}}\\label{{{label}}}\n'
@@ -91,9 +88,9 @@ class LatexBackend(Backend):
                 '\\newif\\ifanonymous\n'
                 f'\\anonymous{"true" if ctx.anonymous else "false"}\n')
 
-    # -- 投稿用に固め直す ---------------------------------------------------
+    # -- 投稿用にまとめ直す ---------------------------------------------------
     def flatten_assets(self, text: str) -> tuple:
-        """`\\includegraphics{../../figures/x.pdf}` を `{x.pdf}` にする。
+        """`\\includegraphics{../../assets/figures/x.pdf}` を `{x.pdf}` にする。
 
         **行コメントとマクロ定義は見ない。**main.tex には
         `\\newcommand{\\inputtable}[1]{...\\input{#1}...}` という定義や、
@@ -114,7 +111,7 @@ class LatexBackend(Backend):
         for line in text.split('\n'):
             code, comment = split_comment(line)
             # マクロ定義（#1）は触らない。\IfFileExists で守られた \input は
-            # 「有れば使う」ものなので、無くても欠落として数えない。
+            # 「有れば使う」ものなので、なくても欠落として数えない。
             if '#' not in code and '\\IfFileExists' not in code:
                 code = GRAPHICS.sub(graphics, code)
                 code = KEYED.sub(keyed, code)
@@ -127,7 +124,7 @@ class LatexBackend(Backend):
         tex = re.sub(r'\\hypertarget\{[^}]*\}\{%\n(.*?)\}\n', r'\1\n', tex, flags=re.S)
         tex = numbered_equations(tex)
 
-        # キャプションの無い表に番号を消費させない
+        # キャプションのない表に番号を消費させない
         def unnumber(m):
             b = m.group(0)
             return b if r'\caption' in b else b + '\n\\addtocounter{table}{-1}'
@@ -148,7 +145,7 @@ class LatexBackend(Backend):
                   if ctx.standalone else [])
         if r'\begin{CSLReferences}' in tex and not ctx.standalone:
             # 同梱の main.tex は定義を持っている。投稿先の main.tex に差し替えて
-            # 定義が無くなったときだけ言う（毎回言うと読まれなくなる）
+            # 定義がなくなったときだけ言う（毎回言うと読まれなくなる）
             main = ctx.out_dir / self.main_name
             if main.is_file() and 'CSLReferences' not in main.read_text(encoding='utf-8'):
                 ctx.say(f'{tag("bib")} ' + t(
@@ -207,7 +204,7 @@ def no_babel_for_japanese(ctx: Ctx) -> list:
     """日本語のとき babel / polyglossia を読み込ませない。
 
     引用の localization のために `-M lang=ja-JP` を渡す必要があるが、pandoc の
-    LaTeX テンプレートはそれを見て babel を呼ぶ。日本語は babel に無いので
+    LaTeX テンプレートはそれを見て babel を呼ぶ。日本語は babel にないので
     `\\usepackage[shorthands=off,main=]{babel}` という**壊れた行**が出る
     （pandoc 2.x で確認）。
 

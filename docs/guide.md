@@ -22,6 +22,7 @@ octavo new analysis model             # add an analysis (.qmd)
 octavo new paper example-paper        # add a paper (any number of them)
 octavo new lecture example-lecture    # add lecture notes
 octavo new figure dag                 # a figure drawn in Typst (instead of TikZ)
+octavo new table compare              # a table you make by hand (.csv)
 octavo build                          # build everything
 octavo build example-paper --to docx  # just Word
 octavo build example-lecture --to typst-slides --compile  # one PDF deck per session
@@ -56,7 +57,7 @@ first there).
 the [Octavo extension](../vscode-extension/README.md) starts, it checks what is
 installed and, if anything is missing, offers **Set up**. That runs `setup.sh`
 (it ships inside the extension) in a terminal, asks for your password once, and
-installs pandoc, Typst, quarto, the fonts, R (the latest from CRAN), renv, uv
+installs pandoc, Typst, Quarto, the fonts, R (the latest from CRAN), renv, uv
 and the `octavo` command itself — no clone and no pip. Over Remote-SSH or in a
 WSL window it installs on that machine. Run it again any time from the Octavo
 sidebar (**Tools → Install or Update the Tools**), e.g. after updating the
@@ -67,7 +68,7 @@ extension.
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # uv, if you don't have it yet
 uv tool install octavo-kit                        # the octavo command
-octavo setup                                      # pandoc / Typst / quarto / fonts / R / renv
+octavo setup                                      # pandoc / Typst / Quarto / fonts / R / renv
 octavo doctor                                     # reports anything still missing
 octavo selftest                                   # one real end-to-end citation check
 ```
@@ -109,7 +110,7 @@ English paper is a perfectly ordinary combination.
 extension. It is idempotent — safe to re-run; what is already there and new
 enough is skipped. On Linux it uses apt:
 
-- pandoc, Typst and quarto at the versions Octavo was tested with (newer ones
+- pandoc, Typst and Quarto at the versions Octavo was tested with (newer ones
   are kept), plus the fonts;
 - **R, the latest release from CRAN**: on Ubuntu it adds CRAN's apt repository
   (other Debian-likes get the distribution's `r-base`), together with the
@@ -148,7 +149,7 @@ Version requirements:
 | pandoc | 2.11 | 3.11 | 2.11 adds `--citeproc` (CSL citations); 3.1 adds Typst export; verified on 3.11 |
 | Python | 3.9 | — | standard library only — no external packages required |
 | LuaLaTeX (optional) | — | TeX Live 2021+ | needs `texlive-lang-japanese` for Japanese documents |
-| Typst | — | 0.15 | Typst slides need 0.12+. CJK fonts aren't bundled (`setup.sh` installs them) |
+| Typst | — | 0.15 | 0.14+ (figures are embedded as PDF). CJK fonts aren't bundled (`setup.sh` installs them) |
 
 ### Windows
 
@@ -160,7 +161,7 @@ attention than the other two. There are two ways:
   side (or under `/mnt/...`).
 - **Directly on Windows.** `octavo setup` — and the extension's **Set up** when
   WSL has no distribution — runs `setup.ps1` instead of `setup.sh`: winget
-  installs pandoc, Typst, quarto and R (the latest from CRAN; the R installer does
+  installs pandoc, Typst, Quarto and R (the latest from CRAN; the R installer does
   not touch `PATH`, so the script adds R's `bin` to your user `PATH`), BIZ UD and
   Inter go into your user fonts (no administrator needed; Yu Mincho / Yu Gothic
   are the fallback), renv goes into your R library, and uv installs the
@@ -176,7 +177,7 @@ attention than the other two. There are two ways:
   ```
 
 Manuscripts and analyses are written the same way on every system. Two habits
-keep a project portable: write paths with `/` (`../figures/fig1.png`, which
+keep a project portable: write paths with `/` (`../assets/figures/fig1.png`, which
 Windows reads too — a `\` is an escape in Markdown), and in Python open text
 files with `encoding="utf-8"` (on Windows the default is the system code page).
 Keep file names' upper and lower case exactly as the manuscript writes them:
@@ -184,7 +185,7 @@ Windows does not tell `Fig1.png` from `fig1.png`, Linux does.
 
 ### The analysis environment is per project (.venv and renv)
 
-pandoc, Typst, quarto, R and Octavo live once per machine (`setup.sh` above).
+pandoc, Typst, Quarto, R and Octavo live once per machine (`setup.sh` above).
 **The packages an analysis uses belong to the project**, and one command sets
 them up:
 
@@ -196,7 +197,7 @@ octavo env      # .venv with uv (+ requirements.txt), renv (+ knitr, rmarkdown)
 In VS Code it is **Tools → Set Up This Project's Analysis Environment** in the
 Octavo sidebar. `octavo env` creates `.venv` with uv and installs what
 `requirements.txt` lists, and for R runs `renv::init()` (which installs the
-packages the `.qmd` already uses), adds knitr and rmarkdown — quarto needs
+packages the `.qmd` already uses), adds knitr and rmarkdown — Quarto needs
 them to render an R `.qmd` — and writes `renv.lock`. In a project you cloned it
 restores from `renv.lock` instead. It is safe to run again, and that is how you
 install what you just added to `requirements.txt`.
@@ -306,18 +307,28 @@ of each, with `octavo new`; or name them to `init` to start with them.
   README.md          a few lines for you to finish (what this is, how to reproduce it)
   octavo.config.py   configuration (a glob per kind of manuscript, analysis registration)
   literature.bib     bibliography (exported from your reference manager; starts empty)
-  figures/           figures (written by the analysis, drawn in Typst, or added by hand)
+  figures/           figures you make by hand: drawn in Typst (<name>.typ), photos
+  tables/            tables you make by hand (<name>.csv)
+  assets/            what the analysis and octavo build write; never edited by hand (kept in git)
+    values/          the numbers behind {{…}} (<qmd name>.json)
+    figures/         figures (.pdf and .png): the analysis's, and those drawn from figures/*.typ
+    tables/          tables (.typ / .tex / .md): the analysis's, and those made from tables/*.csv
 ```
+
+The manuscripts place figures from `assets/figures/` (and a photo you put in
+`figures/` from there). The folders can be changed in `octavo.config.py`
+(`figure_src_dir`, `table_src_dir`, `figure_dir`, `table_dir`, `values_dir`).
 
 ```bash
 octavo new analysis model           # analysis/model.qmd — the first one also brings octavo.R,
-                                    #   data/raw/ (+ README.md), data/derived/, tables/, requirements.txt
+                                    #   data/raw/ (+ README.md), data/derived/, assets/tables/, requirements.txt
 octavo new paper example-paper      # papers/example-paper/: paper.md and the layout main.typ
 octavo new paper example-paper --appendix   # add appendix.md, also to an existing paper
 octavo new paper example-paper --tex        # add main.tex for LaTeX, also to an existing paper
 octavo new slides example-talk      # slides/example-talk.md
 octavo new lecture example-lecture  # lectures/example-lecture.md
 octavo new figure dag               # figures/dag.typ — a figure drawn in Typst
+octavo new table compare            # tables/compare.csv — a table you make by hand
 ```
 
 To start with some parts, or all of them, name them to `init`:
@@ -358,7 +369,7 @@ have them yet (the references are appended to `literature.bib`, never over it).
 The examples show every channel working together (values, a figure, an analysis
 table, citations, cross-references, an appendix). Each one **says it is an example**:
 an `octavo:example` comment in the manuscripts, `analysis.qmd` and
-`literature.bib`, `_placeholder` in `results/analysis.json`, and a figure that
+`literature.bib`, `_placeholder` in `assets/values/analysis.json`, and a figure that
 is just a box with an ×. Delete the mark along with the content once it's yours;
 `octavo check` counts what is left. **Placeholder values are fatal** — before the
 analysis has ever run every `{{...}}` still resolves, so a PDF full of fake
@@ -462,10 +473,10 @@ settings came from the manuscript.
 | References heading | `## References` (or `## 参考文献`) | dropped at conversion time — the bibliography is built from `.bib` instead |
 | Citation | `@key` (inline), `[@key; @key2]` (parenthetical) | |
 | Possessive citation | `\poscite{key}` | e.g. "Smith and Taylor's (2003)" |
-| Analysis value | `{{n_obs}}` / `{{coef:.2f}}` | filled in from what the `.qmd` wrote to `results/*.json` (§4) |
+| Analysis value | `{{n_obs}}` / `{{coef:.2f}}` | filled in from what the `.qmd` wrote to `assets/values/*.json` (§4) |
 | Math | `$\hat\beta$` (inline), `$$ … $$` (display) | LaTeX notation, converted for every format (see Math below) |
-| Table | a Markdown table + `: Caption {#tbl-desc}` right below it | or the caption line alone for a table the analysis wrote (§4) |
-| Figure | `![Caption](figures/trend.png){#fig-trend}` | the extension is swapped per output format (LaTeX gets `.pdf`) |
+| Table | a Markdown table + `: Caption {#tbl-desc}` right below it | or the caption line alone for the analysis's tables and those you make as `tables/*.csv` (below) |
+| Figure | `![Caption](assets/figures/trend.png){#fig-trend}` | the extension is swapped per output format (LaTeX gets `.pdf`) |
 | Equation | `$$ … $$ {#eq-model}` | numbered when labelled |
 | Cross-reference | `@fig-trend`, `@tbl-desc`, `@eq-model`, `@sec-analysis` | "Figure 2.1", "Table 2.1", "Equation (2.1)", "Section 2" (below) |
 | Title block | YAML front matter at the top of the file | `title` / `author` / `institute` / `date` |
@@ -483,7 +494,7 @@ moving or deleting a section or a figure never means fixing references.
 @fig-trend shows the trend and @tbl-desc the descriptive statistics.
 We estimate @eq-model (see also [-@eq-model]).
 
-![Trend](../../figures/trend.png){#fig-trend}
+![Trend](../../assets/figures/trend.png){#fig-trend}
 
 | Variable | Mean |
 |----------|------|
@@ -575,15 +586,18 @@ $$
 
 ### Figure extensions
 
-You only need to drop one `.png` into your source. Each output format
-looks for its preferred extension automatically:
+Write the `.png` in the manuscript (the editor's Markdown preview can show it).
+For figures in `assets/figures/`, each output format takes its own file:
 
-| Format | Looks for |
+| Format | Uses |
 |---|---|
-| `latex` / `beamer` | `figures/trend.pdf` |
-| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/trend.png` |
+| `typst` / `typst-slides` / `typst-notes` / `latex` / `beamer` | `assets/figures/trend.pdf` — vector, sharp at any zoom, text still searchable |
+| `docx` | `assets/figures/trend.png` — Word cannot take a PDF as a picture |
 
-Configurable via `figure_ext`. A missing file is reported as a "missing
+Configurable via `figure_ext` (for instance `{'docx': '.svg'}` for vector figures in
+recent Word; a figure from the analysis can only be SVG where R has cairo, which a Mac
+lacks without XQuartz). A figure outside `assets/figures/` — a photo in `figures/` —
+is used as written. A missing file is reported as a "missing
 figure" at build time rather than failing silently.
 
 ### Drawing figures in Typst (instead of TikZ)
@@ -594,13 +608,13 @@ other, so it works in every format, is numbered, and can be referred to.
 
 ```bash
 octavo new figure dag       # figures/dag.typ, with a small diagram() helper and an example
-octavo build                # draws figures/dag.pdf and .png whenever dag.typ is newer
+octavo build                # draws assets/figures/dag.pdf and .png whenever dag.typ is newer
 ```
 
 ```markdown
 @fig-dag shows the hypothesis.
 
-![The hypothesis](../../figures/dag.png){#fig-dag width=60%}
+![The hypothesis](../../assets/figures/dag.png){#fig-dag width=60%}
 ```
 
 In the `.typ`, `diagram()` takes boxes (a centre in cm and the text) and arrows (from box to
@@ -626,7 +640,7 @@ box, drawn from edge to edge); the size of the figure follows from where the box
 - Files whose name starts with `_` are not drawn: put parts several figures share in
   `figures/_parts.typ` and `#import "/figures/_parts.typ": *` (paths starting with `/`
   are from the project folder). Changing it redraws every figure.
-- A figure can show the analysis's numbers: `#let v = json("/results/analysis.json")`,
+- A figure can show the analysis's numbers: `#let v = json("/assets/values/analysis.json")`,
   then `#v.n_obs`.
 - The manuscript owns the caption, the label and the size (`width=`), as with every
   figure. Writing Typst straight into the manuscript (a `` ```{=typst} `` block) also
@@ -639,7 +653,7 @@ box, drawn from edge to edge); the size of the figure follows from where the box
 ### Tables from the analysis
 
 A table the analysis made is not typed into the manuscript either. `ov_table()`
-writes its contents to `tables/<name>.typ`, `.tex` and `.md`, and the manuscript
+writes its contents to `assets/tables/<name>.typ`, `.tex` and `.md`, and the manuscript
 has only the caption line, with the label `tbl-<name>`:
 
 ```markdown
@@ -652,6 +666,60 @@ a `table` environment with the caption and label, and Word gets the Markdown
 version. `@tbl-summary` refers to it like any other table; `octavo check` stops
 if a file one of your formats needs is missing.
 
+### Tables you make by hand (CSV)
+
+A table that doesn't come from the analysis — a comparison of concepts or institutions in
+sentences, numbers collected from the literature, a small table for a class — can be
+written as a Markdown table in the manuscript, but a wide one is tedious to type and a long
+sentence in a cell hardly fits. Make it a CSV instead: `tables/<name>.csv` (`table_src_dir`).
+`octavo build` turns it into `assets/tables/<name>.typ`, `.tex` and `.md`, the same files
+`ov_table()` writes, so the manuscript places it the same way, with a caption line:
+
+```bash
+octavo new table compare     # tables/compare.csv, a starter to fill in
+```
+
+```markdown
+@tbl-compare sets the two side by side.
+
+: The two schemes compared {#tbl-compare}
+```
+
+In VS Code, the **Edit as a Table** button at the top right of a `.csv` tab opens it as a
+table (a table added from the sidebar opens that way directly): add and move rows and columns,
+Enter for the next row, Alt+Enter for a line break inside a cell, paste a range copied from
+Excel; **Edit as text** gets the plain CSV back). Excel and LibreOffice work too. There are no
+settings; the layout comes from the contents:
+
+- The first row is the heading. **An empty heading cell to the right of a filled one is merged
+  into it** — which is exactly what Excel writes when you merge heading cells and save as CSV.
+  With a merged heading, the second row is a heading too (a group heading over its columns),
+  and a first-row label above an empty cell moves down to the second row:
+
+  ```
+  ,2020,,2024,
+  Region,N,Share,N,Share
+  North,120,0.31,135,0.33
+  ```
+
+- A column of numbers only (`1,234`, `(0.05)`, `−0.12`, `12%`, `0.31***`; `-` and `—` count
+  as blank) is right-aligned, anything else left-aligned.
+- A column with long text is given the spare width and wraps (Typst `1fr`, LaTeX `p{}`);
+  other columns are as wide as their contents.
+- Cells are plain text: `*`, `@`, `#` show as typed in every format.
+- Typst and LaTeX get the same rules as the analysis's tables (top, under the heading,
+  bottom), with a short rule under a merged heading. Word gets a Markdown table, which cannot
+  merge, so a two-row heading becomes one (`2020 N`).
+- The file is read as UTF-8 (a BOM is fine), and as Shift_JIS if it isn't UTF-8 — Japanese
+  Excel may save that. Octavo and the extension never add a BOM. **Opening a UTF-8 CSV in
+  Excel on Windows** may garble Japanese; open it through *Data → From Text/CSV* and pick
+  UTF-8, or edit it in VS Code.
+
+`octavo check` warns about a table not made since its `.csv` changed, `octavo release`
+refuses until it is, and a name the analysis's `ov_table()` also uses stops the build (which
+one got typeset would depend on the order things ran). Saving the `.csv` rebuilds an open
+preview.
+
 ---
 
 ## 4. Analysis (Quarto) and manuscript, kept apart
@@ -663,9 +731,9 @@ There is exactly one source for every number, so re-running an estimation
 can't leave the prose describing the old one.
 
 ```
-analysis/*.qmd  --quarto render-->  results/*.json     the {{...}} in the text
-                                    figures/*.pdf|png  figures
-                                    tables/*.tex|typ   tables
+analysis/*.qmd  --quarto render-->  assets/values/*.json     the {{...}} in the text
+                                    assets/figures/*.pdf|png  figures
+                                    assets/tables/*.tex|typ|md  tables
 
 manuscripts + the three above  --octavo build-->  Typst / Word / LaTeX / Beamer
 ```
@@ -684,17 +752,17 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 | What | In the analysis (.qmd) | In the manuscript (.md) |
 |---|---|---|
 | A number | `ov_value("n_obs", nrow(d))` | `{{n_obs}}` |
-| A figure | `ov_figure(p, "trend")` | `![Trend](../../figures/trend.png){#fig-trend}` |
+| A figure | `ov_figure(p, "trend")` | `![Trend](../../assets/figures/trend.png){#fig-trend}` |
 | A table | `ov_table(tab, "summary")` | `: Descriptive statistics {#tbl-summary}` (the caption line alone) |
 
 - `ov_value(name, x, fmt = NULL, note = NULL)` — registers one value into
-  `results/<name of this .qmd>.json`. `ov_values(a = 1, b = 2)` registers several.
+  `assets/values/<name of this .qmd>.json`. `ov_values(a = 1, b = 2)` registers several.
 - `ov_figure(x, name, width, height, dpi)` — writes **both `.pdf` and `.png`**
-  into `figures/`, which is exactly what the default `figure_ext` mapping
-  expects (LaTeX takes the PDF; Word and Typst take the PNG). `x` may be a
+  into `assets/figures/`, which is exactly what the default `figure_ext` mapping
+  expects (Typst and LaTeX take the PDF, so figures stay sharp when zoomed; Word takes the PNG). `x` may be a
   ggplot or a function that draws with base graphics.
 - `ov_table(x, name, notes, align)` — writes the table's **contents** as `.tex`,
-  `.typ` and `.md` into `tables/`. `x` is a data frame, or
+  `.typ` and `.md` into `assets/tables/`. `x` is a data frame, or
   `list(tex = ..., typ = ..., md = ...)` if you already have rendered strings.
   The caption and the label belong to the manuscript (`: Caption {#tbl-<name>}`),
   so there is no `caption` argument.
@@ -721,7 +789,7 @@ whole cross-check.
 ### 4.3 When it runs
 
 Before converting, `octavo build` compares each `.qmd`'s mtime against the
-last run recorded in `results/.analysis-stamp.json`, and runs
+last run recorded in `assets/values/.analysis-stamp.json`, and runs
 `quarto render` only for the ones that are newer.
 
 ```python
@@ -732,17 +800,17 @@ last run recorded in `results/.analysis-stamp.json`, and runs
 'analysis_to': None,        # quarto render --to (None: whatever the .qmd says)
 'analysis_args': [],        # extra arguments passed to quarto
 'analysis_auto': True,      # False: only run via octavo analysis run
-'results_dir': 'results',
+'values_dir': 'assets/values',
 'value_float_format': '.3f',
 'value_thousands_sep': True,
 ```
 
-- `octavo build --no-analysis` — don't run anything; convert with `results/` as-is
+- `octavo build --no-analysis` — don't run anything; convert with `assets/values/` as-is
 - `octavo build --force-analysis` — re-run even when nothing changed
 - `octavo analysis` — what's stale, and how many values exist
 - `octavo analysis run [--force]` — run the stale ones (manual ones included)
 - `octavo analysis run analysis/01-clean.qmd` — run just that one (even if it isn't stale)
-- `octavo values [--unused] [--json]` — cross-check `{{...}}` against `results/`
+- `octavo values [--unused] [--json]` — cross-check `{{...}}` against `assets/values/`
 - `octavo values --diff` — **what changed in the paper's numbers since the last run**
 
 **Mark a slow `.qmd` `'manual': True`** (next section). `octavo build` then leaves
@@ -752,11 +820,11 @@ it alone and only tells you when it is stale; `octavo analysis run` runs it.
 `.qmd` as up to date, stale or manual, with a run button, and an open `.qmd` gets a
 run button in the editor's title bar. **The preview never runs the analysis**: when
 something is stale, a bar above the PDF says so, and its button runs it and rebuilds
-the preview afterwards. Progress shows in a notification, quarto's output in the
+the preview afterwards. Progress shows in a notification, Quarto's output in the
 Output panel (Octavo).
 
-**If quarto isn't installed, this step warns and is skipped** (conversion
-itself only needs pandoc). If quarto *is* installed and `render` fails, the
+**If Quarto isn't installed, this step warns and is skipped** (conversion
+itself only needs pandoc). If Quarto *is* installed and `render` fails, the
 build **stops** rather than typesetting a paper around stale numbers. Use
 `--no-analysis` if you want it to proceed anyway.
 
@@ -785,9 +853,9 @@ dropping in another `.qmd` is all it takes to register it.
 'analysis': ['analysis/*.qmd'],
 ```
 
-Each `.qmd` owns `results/<name of that .qmd>.json`. The split is invisible from
+Each `.qmd` owns `assets/values/<name of that .qmd>.json`. The split is invisible from
 the manuscript — every `{{name}}` resolves the same way, because `octavo` reads
-all of `results/*.json` into one namespace. **If two `.qmd` files write the same
+all of `assets/values/*.json` into one namespace. **If two `.qmd` files write the same
 name, it warns and the later one wins**, so check the `source` column of
 `octavo values` when a number looks off.
 
@@ -814,7 +882,7 @@ gives the same ordering. Either way, if `01-clean` rewrites `data/derived/`,
 `02-model` re-runs **within that same `octavo build`** — staleness is re-checked
 one file at a time, as each is reached.
 
-Deleting or renaming a `.qmd` leaves its old `results/<old name>.json` behind. If
+Deleting or renaming a `.qmd` leaves its old `assets/values/<old name>.json` behind. If
 the manuscript still references those names, **stale numbers keep flowing in
 silently**, so `octavo analysis` and `octavo values` report them as value files
 with no matching `.qmd`.
@@ -846,12 +914,12 @@ appendix.
 The bundled helper is R, but `octavo` only ever looks at **locations and
 shapes**, so Python or Julia work just as well if they follow the convention.
 
-- Write `{"name": value}` into `results/<anything>.json`. Integers and
+- Write `{"name": value}` into `assets/values/<anything>.json`. Integers and
   doubles are distinguished by JSON itself (`1523` vs `1523.0` select
   different default formatting). The form `{"name": {"value": ..., "fmt":
   ".2f", "note": "..."}}` is also read. Keys starting with `_` are ignored.
-- Figures go to `figures/<name>.pdf` and `.png`; tables to
-  `tables/<name>.tex` and `.typ`.
+- Figures go to `assets/figures/<name>.pdf` and `.png`; tables to
+  `assets/tables/<name>.tex` and `.typ`.
 
 ---
 
@@ -863,6 +931,36 @@ Export BibTeX / BibLaTeX from your reference manager (Zotero or any other)
 and put the file where `bib_file` points (`literature.bib` by default). With
 Zotero, Better BibTeX's automatic export ("Keep updated") keeps the file in
 step with your library and keeps citation keys stable.
+
+### Japanese and English works in one bibliography
+
+pandoc formats a whole bibliography in one language, so a Japanese document used to get
+"Smith ほか (2003年)" and English titles in 「」. Journals that take Japanese papers usually
+have one set of rules for works in English and another for works in Japanese, so in a
+Japanese document (`lang: 'ja'`) Octavo does the same:
+
+- **Citations in the text and works in English** follow the style you chose (`csl`) in
+  English — Chicago, APA, APSA, … as they are. In a citation, Japanese names are joined with
+  ・ instead of *and* / *&*, and *et al.* becomes ほか.
+- **Works marked Japanese in the `.bib`** (`langid = {japanese}`) are written in one Japanese
+  form, **whatever the style**, from the `.bib` fields:
+
+```
+Smith et al. (2003), (山田・田中 2020), 佐藤ほか (2018)
+
+Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." Journal of Examples 4: 1–10.
+山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12(3): 1–20.
+佐藤一郎・鈴木次郎・高橋三郎・伊藤四郎 (2018)『日本語の本』見本出版.
+加藤五郎 (2015)「論文集の章」中村六郎編『論文集の名前』見本出版, 10–20.
+```
+
+Article and chapter titles go in 「」, books and journals in 『』, the year in parentheses after
+the names (with the `a` / `b` the style gives two works of one year), and a DOI or URL at the
+end when the `.bib` has one. A Japanese work without `langid` is formatted the English way —
+`octavo checkbib` lists those. `citations_by_language: False` formats the whole bibliography
+in `csl_locale` instead. The Japanese form lives in a pandoc filter,
+`templates/citations/japanese.lua`; a journal with its own rules for Japanese works gets its
+own copy (`octavo template copy citations/japanese.lua`, §7).
 
 ### Checking your bibliography
 
@@ -945,7 +1043,7 @@ octavo watch [documents...] [--to formats]     rebuild whenever a source or .qmd
 octavo documents [--json]                      list the registered manuscripts
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]  show or change the settings (--doc: one document's)
 octavo analysis [status|run] [--force]         inspect / run the .qmd analyses
-octavo values [--unused] [--diff [ref]] [--json]  cross-check {{...}} against results/
+octavo values [--unused] [--diff [ref]] [--json]  cross-check {{...}} against assets/values/
 octavo lint [--json]                           find results typed into the manuscript
 octavo check [--strict] [--anonymous]          one pre-submission audit
 octavo bundle [--anonymous] [--replication] [--with-raw-data]
@@ -958,7 +1056,7 @@ octavo doctor [--json]
 octavo setup [--with-tex] [--no-quarto] [--no-r] [--check]   install the tools (runs setup.sh)
 octavo env                                     set up the project's .venv (uv) and renv
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--example]
-octavo new paper|slides|lecture|analysis <name> [--example] [--json]   add a manuscript or an analysis
+octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--json]   add a manuscript, an analysis, a figure or a table
 octavo new paper <name> --appendix|--tex      add appendix.md / main.tex (also later)
 octavo template list|copy|diff [name] [--user]  your own templates (§7)
 octavo release <document> <label> [--dry-run]   tag this version, PDF to a GitHub Release
@@ -977,7 +1075,7 @@ yourself — how it has to be run differs from journal to journal.
 
 `--no-citations` skips citation resolution — useful for a fast visual
 check while drafting. `--no-analysis` skips running the `.qmd` files and
-converts with whatever is currently in `results/`, which is what you want
+converts with whatever is currently in `assets/values/`, which is what you want
 when an estimation is slow.
 
 ### One audit before submitting
@@ -993,8 +1091,8 @@ $ octavo check
            analysis/02-model.qmd
            -> octavo analysis run
 [fatal ] figure files     1 missing
-           figures/fig2_effect.pdf
-           -> octavo analysis run, or drop it into figures/
+           assets/figures/effect.pdf
+           -> octavo analysis run (or octavo build, for a figure drawn in Typst)
 ```
 
 It covers: sources exist / analysis freshness / orphaned value files /
@@ -1059,7 +1157,7 @@ Acknowledgements: this research was funded by ...
 ```bash
 octavo build example-paper --anonymous
 octavo bundle example-paper --anonymous   # checks for leaks before packaging
-octavo check --anonymous                # also lists self-citation candidates
+octavo check --anonymous                 # also lists self-citation candidates
 ```
 
 `--anonymous` does three things:
@@ -1089,8 +1187,8 @@ Self-citations (cited works whose authors include you) are listed by
 ### Repackaging for submission
 
 Journal submission systems rarely accept a directory tree. `octavo bundle`
-rewrites `image("../../figures/fig1.png")` to `image("fig1.png")` (for LaTeX,
-`\includegraphics{../../figures/fig1.pdf}` to `{fig1.pdf}`), collects every
+rewrites `image("../../assets/figures/fig1.png")` to `image("fig1.png")` (for LaTeX,
+`\includegraphics{../../assets/figures/fig1.pdf}` to `{fig1.pdf}`), collects every
 referenced file into one place, and zips it. Typst is the default; pass
 `--to latex` to package a LaTeX submission. It packages **one paper**, so give
 its name (it can be left out when the repository has a single paper).
@@ -1098,7 +1196,7 @@ its name (it can be left out when the repository has a single paper).
 ```bash
 octavo build example-paper
 octavo bundle example-paper                      # submission-example-paper.zip
-octavo bundle example-paper --dir --out example-talk # a folder instead of a zip
+octavo bundle example-paper --dir --out submission  # a folder instead of a zip
 ```
 
 `\newcommand` definitions and comment lines in `main.tex`, and `//` comment lines
@@ -1108,7 +1206,7 @@ isn't there. **`build/` itself is never touched** — the work happens on a copy
 
 ### Reading a coauthor's Word edits
 
-Coauthors mark up Word and send it back. `octavo review` lists what they did.
+Coauthors send back a Word file with tracked changes. `octavo review` lists what they did.
 
 ```bash
 octavo review 20260907_draft_tanaka.docx
@@ -1158,7 +1256,7 @@ not in the git history, so the repository doesn't grow.
 It refuses — listing every reason at once — when there are uncommitted changes
 (the tag has to point at what was typeset), the analysis is stale or still the
 placeholders, or the tag already exists. It builds on the spot and never runs the
-analysis (that would change `results/` after the commit). `--dry-run` checks and
+analysis (that would change `assets/values/` after the commit). `--dry-run` checks and
 builds but tags and uploads nothing; `--anonymous` releases the blind version.
 It needs the [GitHub CLI](https://cli.github.com/) (`gh auth login`) and a
 GitHub remote called `origin`.
@@ -1209,7 +1307,7 @@ octavo bundle --replication                  # replication.zip
 octavo bundle --replication --with-raw-data  # include the raw data too
 ```
 
-It contains `analysis/` (helper included), `results/`, `figures/`, `tables/`,
+It contains `analysis/` (helper included), `assets/` (values, figures, tables), `figures/`,
 `data/derived/`, `data/HASHES.json`, `octavo.config.py`, `literature.bib`, and a
 generated README with the recorded `_session`. **Raw data is excluded by
 default** — it often can't be redistributed — so `--with-raw-data` is explicit.
@@ -1302,14 +1400,14 @@ end of the slide manuscript and set `slides_bibliography: True`.
 ### Typst slides
 
 `typst-slides` is **plain Typst with no packages**, so compiling needs no
-network (Typst 0.12+). There are no animations or incremental reveals.
+network (Typst 0.14+). There are no animations or incremental reveals.
 
 - With both `#` and `##` headings, `#` is a section and `##` a slide; with a
   single heading level, each heading is a slide. A section gets no slide of its
   own unless `typst_slides_section_slides` is `True` (then it is a divider). A
   `#` heading followed directly by content becomes a titled slide
-- Figures are fitted into the remaining height of the slide; figures and tables
-  are not numbered
+- Figures are fitted into the remaining height of the slide; figures, tables and
+  equations are numbered as in the handout, and `@label` references work
 - The title slide comes from `title` / `subtitle` / `author` / `institute` /
   `date` in the front matter
 - The look lives in `templates/slides/typst-slides.typ`; to change it, copy it
@@ -1371,7 +1469,7 @@ a broken line in the process (Japanese typesetting is handled by
 
 ```
 octavo/
-  octavo                   entry point (put this on your PATH)
+  bin/octavo               entry point (put this on your PATH)
   pyproject.toml           packaging (pip install; distribution octavo-kit, command octavo)
   setup.sh                 installs the tools on Linux / WSL2 (apt) and macOS (Homebrew);
                            octavo setup and the extension's "Set up" both run it
@@ -1384,6 +1482,8 @@ octavo/
     md.py                  format-agnostic preprocessing (headings, tables, figures, conditional blocks)
     values.py              substitutes analysis values into the {{...}}; diffs against the last run
     analysis.py            staleness check for .qmd files and quarto render
+    diagrams.py            figures drawn in Typst (figures/*.typ -> assets/figures/)
+    handtables.py          tables made by hand (tables/*.csv -> assets/tables/)
     lint.py                finds results typed into the manuscript
     audit.py               octavo check (gathers every check)
     bundle.py              octavo bundle (submission and replication packages)
@@ -1456,7 +1556,7 @@ matters.
   result files, leaving code blocks alone) and `.qmd` staleness detection
   (mtime vs. stamp, dependency tracking, chained `.qmd` files)
 - `quarto render` of the bundled example analysis with `octavo.R`, checking
-  what it writes to `results/`, `figures/` and `tables/`
+  what it writes to `assets/values/`, `assets/figures/` and `assets/tables/`
 - Raw-number detection, the `octavo check` verdicts, and `octavo bundle` path flattening
 - Blind-review filtering (conditional blocks, title metadata, the build flag and
   leak detection), submission length limits, data fingerprints, reading tracked
@@ -1504,7 +1604,8 @@ Windows, the extension shells out through `wsl.exe` to run `octavo` inside
 WSL automatically. It also has a **live preview**: the typeset PDF sits in the
 column beside the manuscript and rebuilds on every save, and lecture notes get
 a third column with the deck for the session the cursor is in (switchable to
-the speaker script, or off for a plain two-column layout).
+the speaker script, or off for a plain two-column layout). A table you make by hand
+(`tables/*.csv`) can be edited as a table.
 See `vscode-extension/README.md` for details.
 
 Its interface is English by default and Japanese when VS Code runs in

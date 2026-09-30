@@ -2,7 +2,7 @@
 # 論文
 
 ```
-papers/<name>/    論文。paper.md・main.typ（体裁）、要れば appendix.md・main.tex（**これを書く**）
+papers/<name>/    論文。paper.md・main.typ（体裁）、必要なら appendix.md・main.tex（**これを書く**）
 ```
 
 投稿先ごとの体裁（クラス・余白・タイトル部分・行間）は **`papers/<name>/main.typ`**
@@ -45,7 +45,7 @@ A.1 になる。ラベルは本文と付録をまたいで使える（本文か�
 ```bash
 octavo build <name>
 octavo bundle <name>                 # submission-<name>.zip（パスを平らにして1つに）
-octavo bundle <name> --dir --out example-talk   # zip にせずフォルダで
+octavo bundle <name> --dir --out submission   # zip にせずフォルダで
 ```
 
 論文が1本だけなら `<name>` は省略できる。`octavo check` は投稿の分量の上限

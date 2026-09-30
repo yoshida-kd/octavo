@@ -7,7 +7,11 @@ Conversion is done by the `octavo` command from
 [Octavo](https://github.com/yoshida-kd/octavo).
 
 ```
-figures/          figures (<name>.pdf and .png), written by the analysis, drawn in Typst (<name>.typ), or added by hand
+figures/          figures you make by hand: drawn in Typst (<name>.typ), photos
+tables/           (make it when needed) tables you make by hand: <name>.csv
+assets/           what goes into the manuscripts. **Written by the analysis and octavo build; never edited by hand** (kept in git)
+  figures/        figures (<name>.pdf and .png): the analysis's, and those drawn from figures/*.typ
+  tables/         tables (<name>.typ / .tex / .md): the analysis's, and those made from tables/*.csv
 refs/             (make it when needed) material from elsewhere (codebooks, questionnaires, guidelines). kept in git
 notes/            (make it when needed) things you wrote (reading, referee, working notes). never part of the manuscript
 literature.bib    bibliography. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
@@ -33,6 +37,7 @@ octavo new slides example-talk           # slides/example-talk.md
 octavo new lecture example-lecture    # lectures/example-lecture.md
 octavo new analysis model             # analysis/model.qmd (and data/ etc. the first time)
 octavo new figure dag                 # figures/dag.typ (a figure drawn in Typst, instead of TikZ)
+octavo new table compare              # tables/compare.csv (a table you make by hand)
 ```
 
 `octavo new` writes bare headings only. Add `--example` to get an example that
@@ -74,9 +79,10 @@ Equation (2.1)). In the manuscript, give things a label and refer to them by nam
 | | How to write it | Referring to it |
 |---|---|---|
 | Section | `## Analysis {#sec-analysis}` | `@sec-analysis` → Section 2 |
-| Figure | `![Trend](../../figures/trend.png){#fig-trend}` | `@fig-trend` → Figure 2.1 |
+| Figure | `![Trend](../../assets/figures/trend.png){#fig-trend}` | `@fig-trend` → Figure 2.1 |
 | Table (typed in the manuscript) | a Markdown table + `: Descriptive statistics {#tbl-desc}` right below it | `@tbl-desc` → Table 2.1 |
-| Table (made by the analysis) | just the line `: Descriptive statistics {#tbl-summary}` (`tables/summary.*` goes there) | `@tbl-summary` |
+| Table (made by the analysis) | just the line `: Descriptive statistics {#tbl-summary}` (`assets/tables/summary.*` goes there) | `@tbl-summary` |
+| Table (made by hand) | `tables/compare.csv`, and just the line `: Comparison {#tbl-compare}` | `@tbl-compare` |
 | Equation | `$$ … $$ {#eq-model}` | `@eq-model` → Equation (2.1) |
 
 - Labels start with `fig-` `tbl-` `eq-` `sec-` and use letters, digits, `-` and `_`.
@@ -84,16 +90,22 @@ Equation (2.1)). In the manuscript, give things a label and refer to them by nam
 - Adding or reordering sections and figures **never means fixing references**.
   `octavo check` stops on a reference to a missing label and on a label used twice
 
-Reference the `.png` in the manuscript; Octavo finds the `.pdf` for LaTeX on its own.
-Write the path relative to the manuscript (`../../figures/` from a paper,
-`../figures/` from slides and lectures) so editor previews work. Figures are shared
+Reference the `.png` in the manuscript; Octavo uses the `.pdf` for Typst and LaTeX on its own.
+Write the path relative to the manuscript (`../../assets/figures/` from a paper,
+`../assets/figures/` from slides and lectures) so editor previews work. Figures are shared
 by every manuscript: to show a paper's figure on a slide, point at the same file in
-`figures/` — don't copy it.
+`assets/figures/` — don't copy it.
 
 Diagrams such as boxes and arrows are drawn in Typst: `octavo new figure <name>` puts
 `figures/<name>.typ`, and `octavo build` turns it into `.pdf` and `.png`, so the
 manuscript references the `.png` like any figure (**never edit the drawn `.pdf` / `.png`**;
 edit the `.typ`).
+
+A comparison table in sentences or a table of hand-collected numbers goes in a CSV:
+`octavo new table <name>` puts `tables/<name>.csv` (row 1 is the heading; an empty heading
+cell right of a filled one merges into it), and `octavo build` makes the table in
+`assets/tables/` (**edit the `.csv`**). Prefer this to typing a long Markdown table into the
+manuscript.
 
 ## The examples are marked as examples
 
@@ -105,9 +117,9 @@ the mark too.**
 | Mark | Where | How it goes away |
 |---|---|---|
 | an `octavo:example` comment | manuscripts, appendix, `.qmd`, `literature.bib` | delete it by hand |
-| `_placeholder` | `results/*.json` | `octavo analysis run` rewrites the file |
-| a figure that is a box with an × | `figures/trend.*` | `ov_figure()` rewrites it |
-| a table with nothing in it | `tables/summary.*` | `ov_table()` rewrites it |
+| `_placeholder` | `assets/values/*.json` | `octavo analysis run` rewrites the file |
+| a figure that is a box with an × | `assets/figures/trend.*` | `ov_figure()` rewrites it |
+| a table with nothing in it | `assets/tables/summary.*` | `ov_table()` rewrites it |
 
 **Placeholder values (`_placeholder`) are the dangerous one.** Every `{{...}}`
 resolves even though the analysis has never run, so **a PDF full of fake numbers
@@ -154,7 +166,7 @@ for you to judge.
 # When something is wrong
 
 ```bash
-octavo doctor       # is pandoc / LaTeX / Typst / quarto / R present?
+octavo doctor       # is pandoc / LaTeX / Typst / Quarto / R present?
 octavo selftest     # see how citations actually typeset, on real output
 ```
 

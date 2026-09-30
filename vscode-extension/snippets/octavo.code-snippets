@@ -3,28 +3,24 @@
     "scope": "markdown",
     "prefix": "ptable",
     "body": [
-      "**表${1:1}．${2:キャプション}**",
-      "",
-      "| ${3:変数} | ${4:平均} | ${5:標準偏差} |",
+      "| ${1:変数} | ${2:平均} | ${3:標準偏差} |",
       "|---|---|---|",
-      "| ${6:x} | ${7:1.2} | ${8:0.3} |",
+      "| ${4:x} | ${5:1.2} | ${6:0.3} |",
       "",
-      "*注: ${9:出所や注記}*",
+      ": ${7:キャプション} {#tbl-${8:name}}",
       "$0"
     ],
-    "description": "octavo が認識する表のキャプション+マークダウン表"
+    "description": "Markdown の表とキャプション。番号は組むときに振られ、@tbl-… で参照する"
   },
 
   "図 (Figure)": {
     "scope": "markdown",
     "prefix": "pfigure",
     "body": [
-      "![](figures/${1:fig1_name}.png)",
-      "",
-      "**図${2:1}．** ${3:説明}",
+      "![${1:キャプション}](../../assets/figures/${2:name}.png){#fig-${2:name}}",
       "$0"
     ],
-    "description": "octavo が認識する図の貼り付け+キャプション"
+    "description": "図（論文から。スライド・講義ノートからは ../assets/figures/）。番号は組むときに振られ、@fig-… で参照する"
   },
 
   "所有格引用 (poscite)": {
@@ -37,15 +33,8 @@
   "節 (Section)": {
     "scope": "markdown",
     "prefix": "psection",
-    "body": "## ${1:1}. ${2:節のタイトル}",
-    "description": "番号付き見出し。octavo が {#sec:番号} ラベルを自動で付ける"
-  },
-
-  "付録 (Appendix)": {
-    "scope": "markdown",
-    "prefix": "pappendix",
-    "body": "## 付録${1:A}．${2:タイトル}",
-    "description": "付録見出し。{#sec:appA} ラベルになる"
+    "body": "## ${1:節のタイトル} {#sec-${2:name}}",
+    "description": "見出し。番号は組むときに振られ、@sec-… で参照する"
   },
 
   "要旨 (Abstract)": {
@@ -56,49 +45,49 @@
       "",
       "${1:ここに要旨を書く。}",
       "",
-      "## 1. はじめに",
+      "## はじめに",
       "$0"
     ],
-    "description": "要旨節（本文から自動で切り離される）"
+    "description": "要旨の節（論文では本文から切り離されて、体裁の要旨の位置に入る）"
   },
 
   "プリント専用ブロック": {
     "scope": "markdown",
     "prefix": "phandout",
     "body": [
-      ":::{.handout-only}",
+      "::: {.handout-only}",
       "${1:プリントにだけ出す内容。}",
       ":::",
       "$0"
     ],
-    "description": "handout プロファイル（LaTeX/Typst/Word）のときだけ残る"
+    "description": "A4 プリント（handout）のときだけ残る"
   },
 
   "スライド専用ブロック": {
     "scope": "markdown",
     "prefix": "pslides",
     "body": [
-      ":::{.slides-only}",
+      "::: {.slides-only}",
       "${1:スライドにだけ出す内容。}",
       ":::",
       "$0"
     ],
-    "description": "beamer のときだけ残る"
+    "description": "スライド（typst-slides・typst-notes・beamer）のときだけ残る"
   },
 
   "発表者ノート": {
     "scope": "markdown",
     "prefix": "pnotes",
     "body": [
-      ":::notes",
+      "::: notes",
       "${1:発表者ノート。}",
       ":::",
       "$0"
     ],
-    "description": "beamer_notes: true のときだけスライドに刷り込まれる"
+    "description": "発表者用の台本（typst-notes）と Beamer のノートに出る。スライドには出ない"
   },
 
-  "front matter (題扉)": {
+  "front matter (タイトル部分)": {
     "scope": "markdown",
     "prefix": "pfrontmatter",
     "body": [

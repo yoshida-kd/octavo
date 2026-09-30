@@ -11,9 +11,9 @@
 // 3列目はカーソルのある `#` の回に追従し、スライドと台本（typst-notes）を
 // 切り替えられる。2列だけにしたいときは「出さない」にする。
 //
-// **プレビューは分析（.qmd）を走らせない**（build に --no-analysis）。重い推定や
+// **プレビューは分析（.qmd）を実行しない**（build に --no-analysis）。重い推定や
 // データの整形が保存のたびに走ると待たされるうえ、時間切れで失敗に見える。
-// 代わりに古い分析があれば帯を出し、ボタンで走らせる（analysis.ts）。
+// 代わりに古い分析があれば帯を出し、ボタンで実行する（analysis.ts）。
 import * as path from 'path';
 import * as vscode from 'vscode';
 import { fetchAnalysis, staleNames } from './analysis';
@@ -219,7 +219,7 @@ export class PreviewManager implements vscode.Disposable {
         return this.main !== undefined || this.side !== undefined;
     }
 
-    /** このセッションで選び直していればそれ、無ければ設定の値。 */
+    /** このセッションで選び直していればそれ、なければ設定の値。 */
     private get sideMode(): SideMode {
         return this.sideOverride ?? vscode.workspace.getConfiguration('octavo')
             .get<SideMode>('previewLectureColumn', 'slides');
@@ -361,7 +361,7 @@ export class PreviewManager implements vscode.Disposable {
             return undefined;
         }
         if (this.sideMode === 'notes') {
-            // targets に無くても --to で指せる（台本は「要るときだけ」でよい）
+            // targets になくても --to で指せる（台本は「要るときだけ」でよい）
             return 'typst-notes';
         }
         const t = SLIDE_ORDER.find((x) => this.doc?.targets.includes(x));
@@ -406,7 +406,7 @@ export class PreviewManager implements vscode.Disposable {
         }
     }
 
-    /** 古い分析があれば、開いている列に帯を出す（無ければ消す）。 */
+    /** 古い分析があれば、開いている列に帯を出す（なければ消す）。 */
     private async showStale(): Promise<void> {
         if (!this.configUri) {
             return;
@@ -459,13 +459,13 @@ export class PreviewManager implements vscode.Disposable {
             return;
         }
         const p = saved.uri.fsPath;
-        // 巻き込みで組み直すのはプロジェクトの中のものだけ。関係の無いフォルダの
+        // 巻き込みで組み直すのはプロジェクトの中のものだけ。関係のないフォルダの
         // .tex を保存しただけで組み直しが走るのは驚きなので、配下かどうかを見る。
         const root = this.configUri ? dirOf(this.configUri) : '';
         const inProject = root !== '' && !path.relative(root, p).startsWith('..');
         const mine = samePath(editorPath(this.doc.src), p)
             || samePath(editorPath(this.doc.appendix), p)
-            || (inProject && /\.(bib|qmd|typ|tex|csl)$/i.test(p));
+            || (inProject && /\.(bib|qmd|typ|tex|csl|csv)$/i.test(p));
         if (!mine) {
             return;
         }

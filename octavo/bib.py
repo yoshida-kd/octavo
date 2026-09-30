@@ -173,7 +173,7 @@ def problems(entries: dict, keys, accepted: dict | None = None) -> tuple:
 
 
 def accepted_reason(accepted: dict, key: str, issue: str):
-    """bib_accepted に書いた理由。無ければ None。
+    """bib_accepted に書いた理由。なければ None。
 
     指摘の文言は英語が元で、日本語の表示のまま書き写されることもあるので、
     どちらで書いてあっても当たるようにする。"""
@@ -200,7 +200,7 @@ def duplicates(entries: dict) -> list:
 
 
 def clean(path: Path, out: Path, drop=NOISY_FIELDS) -> tuple:
-    """.bib から組版に要らないフィールドを落とした写しを書く（元は触らない）。"""
+    """.bib から組版に要らないフィールドを落としたコピーを書く（元は触らない）。"""
     t = path.read_text(encoding='utf-8', errors='replace')
     n = 0
     for fld in drop:

@@ -26,6 +26,6 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 #
 # Register what the manuscript shows, and call it by name there:
 #   ov_value("n_obs", nrow(d))        # {{n_obs}} in the manuscript
-#   ov_figure(p, "trend")             # figures/trend.pdf and .png
-#   ov_table(tab, "summary")          # tables/summary.typ / .tex / .md
+#   ov_figure(p, "trend")             # assets/figures/trend.pdf and .png
+#   ov_table(tab, "summary")          # assets/tables/summary.typ / .tex / .md
 ```

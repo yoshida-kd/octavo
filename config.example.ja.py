@@ -10,7 +10,7 @@
 相対で解決される。
 
 ここに書いていない項目は octavo/config.py の DEFAULTS が既定値。
-知らないキーを書くと警告が出る（誤字よけ）。
+不明なキーを書くと警告が出る（誤字よけ）。
 """
 
 CONFIG = {
@@ -49,7 +49,6 @@ CONFIG = {
     # 書誌（Zotero → .bib → 雑誌の書式）
     # ================================================================
     # 正本は1つの .bib。Zotero の書き出しをそのまま置く。
-    #   octavo bib pull --collection "論文X"    Zotero から直接取ってくる
     #   octavo checkbib                         引用キーとの突き合わせ
     'bib_file': 'literature.bib',
 
@@ -59,10 +58,11 @@ CONFIG = {
     # 別名も使える: apa / chicago / ieee / mla / nature / …
     'csl': 'chicago-author-date',
     # 'csl_locale': 'ja-JP',        # 既定は lang から決まる
+    # 'citations_by_language': True,  # 日本語の文書: 英語の文献は英語の決まり、日本語の文献（langid）は日本語の形で
     # 'reference_section_title': '参考文献',   # '' にすると見出しを入れない
 
     # 承知のうえで直さない書誌の傷（octavo checkbib が黙る）
-    # 'bib_accepted': {('yamada2020', 'ページも DOI もない'): '紀要で通し番号が無い'},
+    # 'bib_accepted': {('yamada2020', 'ページも DOI もない'): '紀要で通し番号がない'},
 
     # ================================================================
     # 言語
@@ -73,37 +73,44 @@ CONFIG = {
     # ================================================================
     # 図・表
     # ================================================================
-    'figure_dir': 'figures',
-    'table_dir': 'tables',
+    # 手で作るもの: Typst で描く図（<名前>.typ）や写真、表（<名前>.csv）
+    'figure_src_dir': 'figures',
+    'table_src_dir': 'tables',
+    # 分析と octavo build が書くもの（原稿はここの図を貼る）
+    'figure_dir': 'assets/figures',
+    'table_dir': 'assets/tables',
     # 'figure_width': 1.0,              # \textwidth に対する比
-    # 'figure_ext': {'latex': '.pdf', 'docx': '.png'},   # 既定を変えるとき
+    # 'figure_ext': {'typst': '.png'},  # 既定を変えるとき（既定は Word が .png、ほかは .pdf）
 
     # 図・表・式の番号。原稿には番号を書かず {#fig-…} などのラベルで指す（@fig-…）
     'crossref_numbering': 'section',  # 'section'（節ごと 図2.1）| 'document'（通し 図1）
+    # 目次。None なら講義ノートのプリントにだけ付く（論文・スライドには付かない）。True / False で全部の文書を揃える
+    # 'toc': None,
+    # 'toc_depth': 2,                  # 目次に載せる見出しの深さ（講義ノートなら 1 = 回だけ、2 = 回と節）
 
     # ================================================================
     # 分析（Quarto の .qmd）
     # ================================================================
     # 論文に出す数値・図・表を作る .qmd。octavo build は .qmd が新しければ
-    # 自動で quarto render を走らせる（quarto が無ければ警告して素通り）。
+    # 自動で quarto render を実行する（Quarto がなければ警告して素通り）。
     #   分析側: ov_value("n_obs", nrow(d)) / ov_figure(p, "trend")
     #           ov_table(tab, "summary")          ← octavo.R のヘルパー
-    #   原稿側: {{n_obs}} / ![推移](figures/trend.png){#fig-trend} /
+    #   原稿側: {{n_obs}} / ![推移](../../assets/figures/trend.png){#fig-trend} /
     #           `: 記述統計 {#tbl-summary}`（分析が作った表がここに入る）
     'analysis': [],               # 例: ['analysis/*.qmd']
     # データの更新も見張るなら、要素を辞書にする
     # 'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],
     # 'analysis_deps': [],        # 全部の .qmd に共通の依存
     # 'analysis_to': None,        # quarto render --to（None なら .qmd 任せ）
-    # 'analysis_args': [],        # quarto に渡す追加の引数
-    # 'analysis_auto': True,      # False で octavo analysis run のときだけ走る
+    # 'analysis_args': [],        # Quarto に渡す追加の引数
+    # 'analysis_auto': True,      # False で octavo analysis run のときだけ実行する
 
     # 分析が出した数値の置き場と、{{…}} の既定の書式
-    'results_dir': 'results',
+    'values_dir': 'assets/values',
     # 'value_float_format': '.3f',   # 小数（{{coef:.2f}} が優先）
     # 'value_thousands_sep': True,   # 整数を 1,523 と書く
 
-    # octavo lint が「直書きされた結果」と見なさない文字列。
+    # octavo lint が「手入力された結果」と見なさない文字列。
     # 慣例的な定数（0.05 / 1.96 等）は既定で見逃す。
     # 'lint_accepted': ['2.5'],
 
@@ -150,7 +157,7 @@ CONFIG = {
     # Typst
     # ================================================================
     # 'typst_citations': 'csl',     # 'csl'（他形式と同じ書式）| 'native'
-    # A4 プリント。既定は BIZ UD明朝＋欧文 Libertinus Serif（README の「書体」）
+    # A4 プリント。既定は BIZ UD明朝＋欧文 Libertinus Serif（手引きの「書体」）
     # 'typst_mainfont': ['BIZ UDMincho', 'Noto Serif CJK JP'],
 
     # ================================================================
@@ -167,7 +174,7 @@ CONFIG = {
     # 箇条書きの印を ▶ に、ページ番号を「4 / 11」に、リンクにも色）。
     # 既定はこの青。従来どおり黒一色にしたいときは None にする
     # 'typst_slides_accent': '#0e2f92',
-    # 左上にいまの '#' の節を小さく出す（既定で出る。節が無ければデッキのタイトル）
+    # 左上にいまの '#' の節を小さく出す（既定で出る。節がなければデッキのタイトル）
     # 'typst_slides_running_header': False,
     # 体裁を丸ごと変えるなら、同梱のテンプレートをコピーして直す（手引き §7）:
     #   octavo template copy slides/typst-slides.typ
@@ -192,7 +199,7 @@ CONFIG = {
     # ================================================================
     # Word
     # ================================================================
-    # octavo reference-docx reference.docx で雛形を作り、Word でスタイルを
+    # octavo reference-docx reference.docx でスタイル定義用の docx を作り、Word でスタイルを
     # 整えてから指定する。中身は空でよい（スタイル定義だけ使う）。
     # 'docx_reference': 'reference.docx',
 }

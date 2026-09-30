@@ -21,7 +21,7 @@ from pathlib import Path
 
 from .. import pandocrun
 from .. import crossref as xref
-from .base import Backend, Ctx
+from .base import Backend, Ctx, missing_table
 from ..i18n import t, tag
 from .latex import check_assets, check_cjk
 
@@ -32,7 +32,7 @@ class TypstBackend(Backend):
     pandoc_to = 'typst'
     ext = '.typ'
     table_ext = '.typ'
-    default_figure_ext = '.png'
+    default_figure_ext = '.pdf'
     min_pandoc = (3, 1)
     wants_abstract_file = True      # main.typ が #include "abstract.typ" で受ける
     anonymous_guard = '#if anonymous'
@@ -49,7 +49,7 @@ class TypstBackend(Backend):
 
         新しい pandoc は --citeproc で組んだ引用も Typst の #cite(<key>) で出す
         （citations 拡張が既定で有効）。それだと CSL の書式が捨てられ、main.typ に
-        書誌が無いので typst compile が止まる。CSL で組むときは切る。
+        書誌がないので typst compile が止まる。CSL で組むときは切る。
         """
         if self.uses_citeproc(ctx) and 'citations' in pandocrun.writer_extensions('typst'):
             return 'typst-citations'
@@ -75,8 +75,7 @@ class TypstBackend(Backend):
         """分析が書いた表の中身（tables/<名前>.typ）を、キャプションとラベルを付けて入れる。"""
         p = ctx.table_path(name)
         if not p.is_file():
-            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
-                                           'ov_table() in the .qmd)', path=ctx.cfg.rel(p)))
+            ctx.say(f'{tag("table")} ' + missing_table(ctx, p, name))
         rel = ctx.rel(p)
         ctx.say(f'{tag("table")} {label} -> #include "{rel}"')
         return ('\n```{=typst}\n#figure(\n'
@@ -89,7 +88,7 @@ class TypstBackend(Backend):
 
         **`@label` ではなく `#ref(<label>)` で書く。** `@label` のラベル名は非 ASCII
         でも続く限り伸びるので、「@fig-trendに示す」が存在しないラベルになる。
-        この出力の中に無い相手（講義のほかの回）は番号を文字で書く。
+        この出力の中にない相手（講義のほかの回）は番号を文字で書く。
         """
         if item.label not in ctx.crossref_local:
             return xref.text_of(item, ctx.lang, short)
@@ -123,10 +122,10 @@ class TypstBackend(Backend):
                 '// octavo build が毎回書き換える。手で直さない。\n'
                 f'#let anonymous = {"true" if ctx.anonymous else "false"}\n')
 
-    # -- 投稿用に固め直す ---------------------------------------------------
+    # -- 投稿用にまとめ直す ---------------------------------------------------
     def flatten_assets(self, text: str) -> tuple:
         """**`//` のコメント行は見ない。**main.typ には `// #include "appendix.typ"`
-        のように、使うときだけ外すコメントがあり、辿ると付録が無いだけで欠落扱いになる。"""
+        のように、使うときだけ外すコメントがあり、辿ると付録がないだけで欠落扱いになる。"""
         refs: list = []
 
         def quoted(m):
@@ -160,7 +159,7 @@ class TypstBackend(Backend):
         """`typst compile --root` に渡す、out_dir から見たプロジェクトの根。
 
         Typst は既定で「組むファイルのあるフォルダ」より上を読ませない。body.typ は
-        `../../figures/…` や `../../tables/…` を指すので、根を上げないと
+        `../../assets/figures/…` や `../../assets/tables/…` を指すので、根を上げないと
         「access denied」で止まる。図・表の置き場が根の外に設定されていても届くよう、
         共通の祖先を取る。
 
@@ -194,9 +193,9 @@ class TypstBackend(Backend):
 # （pandoc_args）もここから取る。論文の main.typ は手で持つ体裁なので、
 # templates/main_*.typ に同じ並びを書いてある（変えるなら両方）。
 #
-#   和文: 等幅の BIZ UD（プロポーショナルの BIZ UDP は使わない）-> 無ければ Noto CJK
-#         -> それも無ければヒラギノ（macOS）・游明朝／游ゴシック（Windows。游明朝が
-#            無い Windows もあるので明朝の最後にも游ゴシック）。どちらも
+#   和文: 等幅の BIZ UD（プロポーショナルの BIZ UDP は使わない）-> なければ Noto CJK
+#         -> それもなければヒラギノ（macOS）・游明朝／游ゴシック（Windows。游明朝が
+#            ない Windows もあるので明朝の最後にも游ゴシック）。どちらも
 #            その OS に最初から入っていて、何も足していない機械で和文が豆腐に
 #            ならないための最後の受け皿
 #   欧文: 和文フォントの欧文字形を使わず、欧文フォントで組む
@@ -204,7 +203,7 @@ class TypstBackend(Backend):
 # 日本語の文書では欧文フォントに `covers: "latin-in-cjk"` を付ける。これで
 # 英字と数字だけが欧文フォントに行き、和欧で共通の約物（「」、。など）は
 # 和文フォントのまま残る。英語の文書では欧文フォントをそのまま先頭に置く。
-# 候補の後ろは、その機械に無ければ順に落ちるための保険。
+# 候補の後ろは、その機械になければ順に落ちるための保険。
 FONTS = {
     'serif': ('Libertinus Serif', ('BIZ UDMincho', 'Noto Serif CJK JP', 'Hiragino Mincho ProN',
                                    'Yu Mincho', 'Yu Gothic')),
@@ -218,7 +217,7 @@ PLATFORM_FALLBACKS = {
     'win32': ('Yu Mincho', 'Yu Gothic'),
 }
 # 游明朝は日本語の言語機能を足したときに入る追加フォントで、英語の Windows には
-# 無いことがある（游ゴシックは常にある）。だから明朝の並びの最後にも游ゴシック。
+# ないことがある（游ゴシックは常にある）。だから明朝の並びの最後にも游ゴシック。
 OPTIONAL_FONTS = ('Yu Mincho',)
 
 

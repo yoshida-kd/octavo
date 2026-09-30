@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# 自動で実行するのは公開リポジトリ（octavo）だけ。公開リポジトリの Actions は無料で、
+# リリースのたびに main への push で Mac・Windows を含めて全部が実行される。
+# 非公開の開発用リポジトリでは、Actions タブの「Run workflow」で手で実行したときだけ動く。
 
 # テストは英語の原文を突き合わせる。ランナーのロケールが変わっても
 # 揺れないように、ここで固定しておく（既定はロケール任せ）。
@@ -12,6 +17,7 @@ env:
 
 jobs:
   test:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -47,6 +53,7 @@ jobs:
   # octavo/templates/ に入るので、リポジトリを触らない場所で init から
   # 組版まで通して初めて確かめられる（paths.py の分岐がここで効く）。
   package:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -73,7 +80,7 @@ jobs:
           python3 -m build
           ls -l dist
 
-      # リポジトリの外で走らせる。中だと repo 直下の templates/ を拾って
+      # リポジトリの外で実行する。中だと repo 直下の templates/ を拾って
       # しまい、wheel に入っていなくても通ってしまう。
       - name: Install it and build a project from scratch
         run: |
@@ -116,10 +123,11 @@ jobs:
           name: octavo-dist
           path: dist/*
 
-  # 拡張機能の「準備する」と同じ道: clone の外に置いた setup.sh を空の環境で走らせ、
+  # 拡張機能の「セットアップ」と同じ道: clone の外に置いた setup.sh を空の環境で実行し、
   # R（CRAN）・renv・uv・octavo（PyPI）まで入ることを見る。そのあと、このブランチの
   # octavo を入れ直して、octavo env（uv の .venv と renv）→ 分析 → 組版を通す。
   setup:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -160,9 +168,10 @@ jobs:
           octavo build --compile --no-analysis
           test -f build/typst/smoke/main.pdf
 
-  # Windows（Linux・macOS の次の扱い）。setup.ps1 を winget で本当に走らせ、
+  # Windows（Linux・macOS の次の扱い）。setup.ps1 を winget で本当に実行し、
   # このブランチの octavo に入れ替えて、テスト一式・octavo env・分析・組版を通す。
   windows:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     defaults:
       run:
@@ -186,7 +195,7 @@ jobs:
             Where-Object { $_ -and ($before -notcontains $_) -and ($_ -notlike '*WindowsApps*') } |
             ForEach-Object { $_ | Out-File -Append -Encoding utf8 $env:GITHUB_PATH }
 
-      # quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
+      # Quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
       - name: R packages for the knitr engine
         run: Rscript -e 'install.packages(c("knitr", "rmarkdown"), lib = Sys.getenv("R_LIBS_USER"), repos = "https://cloud.r-project.org")'
 
@@ -225,10 +234,11 @@ jobs:
           if (-not (Test-Path build\typst\smoke\main.pdf)) { throw 'no PDF' }
           if (-not (Test-Path build\typst-slides\deck.typ)) { throw 'no deck' }
 
-  # macOS。setup.sh の Homebrew の道をそのまま走らせ（pandoc・Typst・quarto・
+  # macOS。setup.sh の Homebrew の道をそのまま実行し（pandoc・Typst・Quarto・
   # フォント）、テスト一式と、wheel からの init → 組版をリポジトリの外で通す。
   # 書体の名前（typst.FONTS）が Mac で本当にその名前で見えるかもここで確かめる。
   macos:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -240,7 +250,7 @@ jobs:
       - name: setup.sh (Homebrew)
         run: bash setup.sh
 
-      # quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
+      # Quarto が R の .qmd を組むのに要る（実際の使い方では octavo env が renv に入れる）
       - name: R packages for the knitr engine
         run: |
           Rscript -e 'lib <- Sys.getenv("R_LIBS_USER"); dir.create(lib, recursive = TRUE, showWarnings = FALSE); install.packages(c("knitr", "rmarkdown"), lib = lib, repos = "https://cloud.r-project.org")'
@@ -289,6 +299,7 @@ jobs:
   # 使われない変数1つでも落ちる。作った .vsix は artifact として落とせる。
   # Node 22 なのは @vscode/vsce の依存（@azure/*）が node >= 22 を要求するため。
   extension:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -305,7 +316,7 @@ jobs:
       - name: Install dev dependencies
         run: npm ci
 
-      # vsce package が vscode:prepublish（= npm run compile）も走らせる。
+      # vsce package が vscode:prepublish（= npm run compile）も実行する。
       - name: Compile and package
         run: npx vsce package -o octavo.vsix
 
@@ -314,10 +325,11 @@ jobs:
           name: octavo-vsix
           path: vscode-extension/octavo.vsix
 
-  # 分析の側（quarto + R + templates/analysis/common/analysis/octavo.R）を実際に走らせる。
+  # 分析の側（Quarto + R + templates/analysis/common/analysis/octavo.R）を実際に実行する。
   # ここが通らないかぎり octavo.R は「書いただけ」の状態なので、
   # 1つの job を丸ごとこれに充てている。
   analysis:
+    if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -338,7 +350,7 @@ jobs:
         with:
           use-public-rspm: true
 
-      # quarto の knitr エンジンに要る。octavo.R 自体は素の R だけで動く。
+      # Quarto の knitr エンジンに要る。octavo.R 自体は素の R だけで動く。
       - name: Install R packages for the knitr engine
         run: install.packages(c("knitr", "rmarkdown"))
         shell: Rscript {0}
@@ -346,15 +358,15 @@ jobs:
       - name: Show versions
         run: python3 bin/octavo doctor || true
 
-      # AnalysisEndToEnd が quarto と Rscript を見つけて走る。
-      # 1回で済ませる（2回走らせると分析まで含めて時間が倍かかる）。
-      # pipefail が無いと `| tee` がテストの失敗を握り潰す（パイプの終了
+      # AnalysisEndToEnd が Quarto と Rscript を見つけて走る。
+      # 1回で済ませる（2回実行すると分析まで含めて時間が倍かかる）。
+      # pipefail がないと `| tee` がテストの失敗を握り潰す（パイプの終了
       # コードは tee のもの）ので必須。
       - name: Run unit tests (analysis included)
         run: |
           set -o pipefail
           python3 tests/test_octavo.py 2>&1 | tee /tmp/out.txt
           if grep -q 'AnalysisEndToEnd.*skipped' /tmp/out.txt; then
-            echo '分析の検証が飛ばされている。quarto か R が入っていない'
+            echo '分析の検証が飛ばされている。Quarto か R が入っていない'
             exit 1
           fi

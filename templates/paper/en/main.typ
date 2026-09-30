@@ -11,7 +11,7 @@
 //
 //    octavo build <name> --to typst
 //    cd build/typst/<name> && typst compile --root ../../.. main.typ
-//    (without --root, ../../../figures cannot be read. octavo build --compile
+//    (without --root, ../../../assets/figures cannot be read. octavo build --compile
 //     passes it for you)
 //
 //  How citations are handled is set by typst_citations in octavo.config.py:

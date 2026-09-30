@@ -8,7 +8,7 @@
 
 見るもの:
 
-  1. 本文が引いているキーが .bib にあるか（**無ければ組版で ?? になる**）
+  1. 本文が引いているキーが .bib にあるか（**なければ組版で ?? になる**）
   2. .bib の記述が壊れていないか（年なし・団体名が姓名に割れている・ページなし）
   3. 同じ文献が二重に入っていないか（Zotero の取り込み事故）
 
@@ -17,7 +17,7 @@
 
 `collect()` が検査そのもの（構造化データを返す）で、`run()`（文字で表示）と
 `run_json()`（JSON で吐く）はその結果を整形して出すだけ。**判定ロジックは
-1箇所にしか無い**ので、`octavo checkbib` と VS Code 拡張の診断が食い違わない。
+1箇所にしかない**ので、`octavo checkbib` と VS Code 拡張の診断が食い違わない。
 """
 from __future__ import annotations
 
@@ -55,7 +55,7 @@ class Report:
     entries: dict = field(default_factory=dict)        # key -> Entry
     cited: list = field(default_factory=list)           # 重複を除いた引用キー
     cited_by_doc: dict = field(default_factory=dict)    # 原稿の相対パス -> [key, …]
-    missing: list = field(default_factory=list)         # cited だが .bib に無い
+    missing: list = field(default_factory=list)         # cited だが .bib にない
     suggestions: dict = field(default_factory=dict)     # missing key -> 近いキー
     duplicates: list = field(default_factory=list)      # [[key, key], …]
     problems: list = field(default_factory=list)        # list[Problem]（未承知のみ）

@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""`octavo review <戻ってきた.docx>` — 共著者の赤入れを一覧にする。
+"""`octavo review <戻ってきた.docx>` — 共著者の変更履歴を一覧にする。
 
     octavo review 20260907_draft_tanaka.docx
     octavo review コメントだけ.docx --comments
 
 共著者は Word で直して返してくる。いまのところ、それを `draft.md` に移すのは
-目で見て手で写す作業だった。ここはその作業の**入力側**を作る。
+目で見て手で書き写す作業だった。ここはその作業の**入力側**を作る。
 
 **往復変換はしない。**戻ってきた `.docx` の中では `{{n_obs}}` が既に
 `1,523` という文字になっている。docx → md で書き戻すと、このツールの中心
@@ -48,7 +48,7 @@ class Change:
 
 @dataclass
 class Para:
-    """1段落ぶんの赤入れ。"""
+    """1段落ぶんの変更履歴。"""
     index: int                                   # 何段落目か（1 始まり）
     context: str                                 # その段落（変更を反映した読み）
     changes: list = field(default_factory=list)  # list[Change]
@@ -64,7 +64,7 @@ def _text_of(el) -> str:
 
 
 def _read_comments(z: zipfile.ZipFile) -> dict:
-    """{コメント id: Change} を返す。comments.xml が無ければ空。"""
+    """{コメント id: Change} を返す。comments.xml がなければ空。"""
     try:
         xml = z.read('word/comments.xml')
     except KeyError:
@@ -80,7 +80,7 @@ def _read_comments(z: zipfile.ZipFile) -> dict:
 
 
 def collect(path: Path) -> list:
-    """docx を読んで list[Para] を返す。変更もコメントも無い段落は入れない。"""
+    """docx を読んで list[Para] を返す。変更もコメントもない段落は入れない。"""
     if not path.is_file():
         raise DocxError(t('no such file: {path}', path=path))
     try:

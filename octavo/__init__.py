@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""octavo — マークダウン草稿から LaTeX / Typst / Beamer / Word を作る。
+"""octavo — Markdown 草稿から LaTeX / Typst / Beamer / Word を作る。
 
 使うのは CLI（`octavo`）から。ライブラリとして直接叩くこともできる:
 
@@ -8,4 +8,4 @@
     build.run(cfg, targets=['latex', 'docx'])
 """
 
-__version__ = '0.3.1'
+__version__ = '0.4.0'

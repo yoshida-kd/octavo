@@ -48,7 +48,7 @@ To package it for submission:
 ```bash
 octavo build <name>
 octavo bundle <name>                 # submission-<name>.zip, paths flattened
-octavo bundle <name> --dir --out example-talk   # a folder instead of a zip
+octavo bundle <name> --dir --out submission   # a folder instead of a zip
 ```
 
 With a single paper in the repository, `<name>` can be left out. `octavo check`

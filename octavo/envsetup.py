@@ -3,12 +3,12 @@
 
     octavo env
 
-何度走らせても平気（あるものは作らず、足りないものだけ足す）。clone してきた
+何度実行しても問題ない（あるものは作らず、足りないものだけ足す）。clone してきた
 プロジェクトでは記録（requirements.txt / renv.lock）から環境を戻すことになる。
 
   Python  uv で `.venv` を作り、requirements.txt に書いたものを入れる
-  R       renv を入れ（無ければ利用者のライブラリへ）、`renv::init()` か
-          `renv::restore()`、quarto の knitr エンジンに要る knitr / rmarkdown を
+  R       renv を入れ（なければ利用者のライブラリへ）、`renv::init()` か
+          `renv::restore()`、Quarto の knitr エンジンに要る knitr / rmarkdown を
           足して `renv::snapshot()`
 
 道具（uv・R）そのものは入れない。それは setup.sh（`octavo setup`）の役目。
@@ -23,7 +23,7 @@ from pathlib import Path
 
 from .i18n import t
 
-# quarto が R の .qmd を render するのに要る（octavo.R 自体は素の R で動く）
+# Quarto が R の .qmd を render するのに要る（octavo.R 自体は素の R で動く）
 R_NEEDS = ('knitr', 'rmarkdown')
 
 # Rscript に渡す（一時ファイルにして）。repos が未設定（@CRAN@）なら CRAN のクラウドミラー。
@@ -58,7 +58,7 @@ if (changed || !file.exists("renv.lock")) renv::snapshot(prompt = FALSE)
 
 
 def has_requirements(path: Path) -> bool:
-    """コメントと空行以外が1行でもあるか（ひな型のままなら入れるものは無い）。"""
+    """コメントと空行以外が1行でもあるか（ひな型のままなら入れるものはない）。"""
     if not path.exists():
         return False
     for line in path.read_text(encoding='utf-8').splitlines():
@@ -83,7 +83,7 @@ def _call(cmd: list, cwd: Path, env: dict | None = None, shown: str = '') -> boo
 
 
 def python_env(root: Path) -> bool | None:
-    """`.venv` を作って requirements.txt を入れる。uv が無ければ None（飛ばした）。"""
+    """`.venv` を作って requirements.txt を入れる。uv がなければ None（飛ばした）。"""
     uv = shutil.which('uv')
     _say('\n== Python (.venv)')
     if not uv:
@@ -106,7 +106,7 @@ def python_env(root: Path) -> bool | None:
 
 
 def r_env(root: Path) -> bool | None:
-    """renv を用意して knitr / rmarkdown を入れる。R が無ければ None（飛ばした）。"""
+    """renv を用意して knitr / rmarkdown を入れる。R がなければ None（飛ばした）。"""
     rscript = shutil.which('Rscript')
     _say('\n== R (renv)')
     if not rscript:
@@ -126,7 +126,7 @@ def r_env(root: Path) -> bool | None:
 
 def run(cfg) -> int:
     root = Path(cfg.root)
-    # 分析の無いプロジェクト（スライドだけ、など）には環境を作らない
+    # 分析のないプロジェクト（スライドだけ、など）には環境を作らない
     from . import analysis as anamod
     if not (cfg['analysis'] and anamod.status(cfg)):
         _say(t('There is no analysis in this project, so there is nothing to set up. '

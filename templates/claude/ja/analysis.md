@@ -6,12 +6,13 @@ data/raw/         原データ。**読み取り専用**。出所は data/raw/REA
 data/derived/     整形後のデータ。.qmd が作る。手で編集しない
 analysis/*.qmd    分析。原稿に出る数値・図・表はすべてここから出す
 analysis/octavo.R .qmd 側のヘルパー（ov_value / ov_figure / ov_table）
-results/*.json    .qmd が出した数値（本文の {{…}} が読む）。手で編集しない
-tables/           .qmd が出した表（<name>.typ / .tex / .md）
+assets/values/    .qmd が出した数値（<qmd の名前>.json。本文の {{…}} が読む）。手で編集しない
+assets/tables/    .qmd が出した表（<name>.typ / .tex / .md）
+assets/figures/   .qmd が出した図（<name>.pdf / .png）
 requirements.txt  分析に使う Python パッケージの記録（renv.lock と並ぶ環境の記録）
 ```
 
-## 原稿・資料に出る数値を、原稿に手で書かない
+## 分析結果の数値を、原稿に手で書かない
 
 **これがこのリポジトリの最重要の約束。**係数・N・p 値・記述統計・割合、
 どれも `.qmd` 側で `ov_value()` に登録し、原稿では `{{名前}}` と書く。
@@ -34,7 +35,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 
 - 書式は `{{coef_x:.2f}}`（Python の書式指定）で本文側から変えられる
 - 整数（R の `nrow()`）は `1,523`、小数（`coef()`）は既定 3 桁
-- `octavo values` で「本文が呼んでいる名前」と「results/ にある値」を突き合わせる。
+- `octavo values` で「本文が呼んでいる名前」と「assets/values/ にある値」を突き合わせる。
   **原稿を触ったら必ず1回実行する**
 - 図の名前（`ov_figure(p, "trend")`）と表の名前（`ov_table(tab, "summary")`）は
   内容で付ける。番号は入れない。表のラベルは `tbl-<表の名前>` にすると、分析の
@@ -59,7 +60,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 
 `.qmd` は `octavo.config.py` の `analysis`（既定は `analysis/*.qmd`）が拾う。重い
 データの変更も検知させたいときは `deps` に足す。`octavo build --no-analysis` は `.qmd` を
-実行せずいまの `results/` で変換する（重い推定を待ちたくないとき）。
+実行せずいまの `assets/values/` で変換する（重い推定を待ちたくないとき）。
 
 再推定したあとは **`octavo values --diff`** を見る。前に分析を実行したときから
 **本文のどの数字が動いたか**が出る。数字が動いたら、それを説明している
@@ -73,8 +74,8 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 
 - 用意する（clone のあとに戻す）のは `octavo env`: uv で `.venv` と
   `requirements.txt`、renv に knitr / rmarkdown
-- Python: `.venv` の中でだけ動かす（`source .venv/bin/activate` か `uv run`）。
-  パッケージは `requirements.txt` に版つきで足してから `octavo env`。
+- Python: `.venv` の中でだけ動かす（`octavo analysis run` は自動で `.venv` を使う。手で
+  動かすなら `uv run` か activate）。パッケージは `requirements.txt` に版つきで足してから `octavo env`。
   ほかの場所に `pip install` しない
 - R: renv のプロジェクトとして動かす。`install.packages()` のあとは必ず
   `renv::snapshot()`（`renv.lock` を commit する）
@@ -94,7 +95,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 ## 分析を複数の .qmd に分ける
 
 分析が長くなったら分けてよい（`octavo new analysis <name>` で足すだけで登録される）。
-1本の `.qmd` が `results/<その .qmd の名前>.json` を持ち、本文からは区別なく
+1本の `.qmd` が `assets/values/<その .qmd の名前>.json` を持ち、本文からは区別なく
 `{{名前}}` で呼べる。
 
 **前段が後段の入力を作るとき**は、`octavo.config.py` で順に並べ、後段の `deps`
@@ -114,7 +115,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 
 - 同じ名前を2つの `.qmd` が登録すると警告が出て**後が勝つ**。
   `octavo values` の出所欄で確かめる
-- **`.qmd` を消したり名前を変えたら、対応する `results/*.json` も消す。**
+- **`.qmd` を消したり名前を変えたら、対応する `assets/values/*.json` も消す。**
   残すと本文が古い数値を拾い続ける（`octavo analysis` / `octavo values` が
   「対応する .qmd がない値のファイル」として知らせる）
 
@@ -130,9 +131,9 @@ octavo data status    # 記録と食い違っていないか
 
 ## 分析でやらないこと
 
-- **`results/*.json`・`tables/`・分析が書いた `figures/` を手で書き換えない。**
+- **`assets/values/*.json`・`assets/tables/`・`assets/figures/` を手で書き換えない。**
   直したいのは常に `.qmd` のほう
-- **原稿に分析結果の数字を直接書かない**（上の「数値を、原稿に手で書かない」）
+- **原稿に分析結果の数字を直接書かない**（上の「分析結果の数値を、原稿に手で書かない」）
 - **`data/raw/` を書き換えない**
 - 数値が合わないとき、`{{…}}` を実数に置き換えて「とりあえず通す」ことをしない。
   値がないなら `.qmd` に `ov_value()` を足すのが正しい直し方

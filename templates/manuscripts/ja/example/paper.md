@@ -48,11 +48,11 @@ $$ {#eq-model}
 <!-- octavo:example ここまで -->
 
 <!-- octavo:example ここから ─ 表と図の書き方の見本。表は分析（ov_table()）が
-     tables/summary.* に書いた中身が、この1行の場所に表題つきで入る。原稿に
-     自分で書く表は、マークダウンの表のすぐ下に `: 表題 {#tbl-名前}` を置く -->
+     assets/tables/summary.* に書いた中身が、この1行の場所に表題つきで入る。原稿に
+     自分で書く表は、Markdown の表のすぐ下に `: 表題 {#tbl-名前}` を置く -->
 : 記述統計 {#tbl-summary}
 
-![推移](../../figures/trend.png){#fig-trend}
+![推移](../../assets/figures/trend.png){#fig-trend}
 
 <!-- octavo:example ここまで -->
 

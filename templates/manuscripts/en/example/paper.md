@@ -37,7 +37,7 @@ This paper follows \poscite{yamada2020} framework.
      typesetter numbers them). Label figures, tables, equations and sections
      with `{#fig-…}` `{#tbl-…}` `{#eq-…}` `{#sec-…}` and refer to them by name,
      like `@fig-trend` (typeset as "Figure 2.1", "Section 1"). Until you run the
-     analysis these numbers are octavo init's placeholders, i.e. fake. -->
+     analysis these numbers are placeholders, i.e. fake. -->
 As stated in @sec-intro, the sample has {{n_obs}} cases. We estimate @eq-model;
 the coefficient on x is {{coef_x}} (*p* {{p_x}}). @tbl-summary reports
 descriptive statistics and @fig-trend the trend.
@@ -49,12 +49,12 @@ $$ {#eq-model}
 <!-- octavo:example end -->
 
 <!-- octavo:example start — how a table and a figure are written. The table is
-     what the analysis (ov_table()) wrote to tables/summary.*; this one line
+     what the analysis (ov_table()) wrote to assets/tables/summary.*; this one line
      puts it here with its caption. A table you type yourself is a Markdown
      table with `: Caption {#tbl-name}` right below it -->
 : Descriptive statistics {#tbl-summary}
 
-![Trend](../../figures/trend.png){#fig-trend}
+![Trend](../../assets/figures/trend.png){#fig-trend}
 
 <!-- octavo:example end -->
 

@@ -9,15 +9,15 @@ import { dirOf, findConfig, runCapture } from './runner';
 
 export interface ValueInfo {
     text: string;      // 本文に入る文字（書式を通したあと）
-    source: string;    // どの results/*.json から来たか
+    source: string;    // どの assets/values/*.json から来たか
     note: string;
 }
 
 export interface ValuesReport {
-    results_dir: string;
+    values_dir: string;
     values: Record<string, ValueInfo>;
     referenced: Record<string, string[]>;   // 名前 -> それを使っている文書
-    missing: string[];                      // 本文にあるのに値が無い
+    missing: string[];                      // 本文にあるのに値がない
     unused: string[];
     orphans: string[];
     warnings: string[];
@@ -37,7 +37,7 @@ export class ValuesCache {
         return this.report;
     }
 
-    /** 実行中なら同じ Promise に相乗りする（保存が連続しても二重に走らせない）。 */
+    /** 実行中なら同じ Promise に相乗りする（保存が連続しても二重に実行しない）。 */
     async refresh(force = false): Promise<ValuesReport | undefined> {
         if (this.refreshing && !force) {
             return this.refreshing;

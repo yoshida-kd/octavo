@@ -64,11 +64,6 @@ def require(*want: int, why: str = '') -> None:
                               'https://github.com/jgm/pandoc/releases'))
 
 
-@functools.lru_cache(maxsize=1)
-def has_builtin_citeproc() -> bool:
-    return at_least(2, 11)
-
-
 @functools.lru_cache(maxsize=None)
 def writer_extensions(fmt: str) -> frozenset:
     """書き出し形式が知っている拡張の名前（有効・無効を問わない）。"""
@@ -90,7 +85,7 @@ def input_format(east_asian: bool, extras: tuple = ()) -> str:
 
 def run(md: str, args: list, cwd: Path | None = None,
         quiet: bool = False) -> str:
-    """pandoc を走らせて標準出力を返す。失敗したら PandocError。"""
+    """pandoc を実行して標準出力を返す。失敗したら PandocError。"""
     cmd = ['pandoc'] + [str(a) for a in args]
     r = subprocess.run(cmd, input=md, capture_output=True, text=True,
                        encoding='utf-8', cwd=str(cwd) if cwd else None)
@@ -120,14 +115,21 @@ def run_to_file(md: str, args: list, out: Path, cwd: Path | None = None,
 
 def citeproc_args(bib: Path, csl: Path | None, locale: str | None,
                   ref_title: str | None, link_citations: bool = True,
-                  suppress_bibliography: bool = False) -> list:
+                  suppress_bibliography: bool = False,
+                  lua_filter: Path | None = None) -> list:
     """--citeproc 一式。CSL に一本化しているので全バックエンドが同じものを使う。
 
     suppress_bibliography=True は「引用は組むが、末尾の書誌一覧は出さない」。
     要旨だけを別ファイルに書き出すときと、スライドで使う。
+    lua_filter を渡すと --citeproc の代わりにそれを使う（中で pandoc.utils.citeproc を
+    呼ぶフィルター。日本語の文書の文献を言語ごとに組む）。pandoc 2.19.1 より前には
+    その関数がないので、そのときは --citeproc に戻す。
     """
     require(2, 11, why=t('needed for CSL citation processing (--citeproc)'))
-    args = ['--citeproc', '--bibliography', str(bib)]
+    if lua_filter and at_least(2, 19, 1):
+        args = ['--lua-filter', str(lua_filter), '--bibliography', str(bib)]
+    else:
+        args = ['--citeproc', '--bibliography', str(bib)]
     if csl:
         args += ['--csl', str(csl)]
     if locale:

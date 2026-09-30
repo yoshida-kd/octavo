@@ -4,8 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Octavo</title>
-<meta name="description" content="Octavo（計量社会科学スターターパック）: 論文・スライド・講義ノートはマークダウンで、分析は Quarto で。数値・図・表はすべて分析から入る。">
+<meta name="description" content="Octavo（計量社会科学スターターパック）: 論文・スライド・講義ノートは Markdown で、分析は Quarto で。分析が出した数値・図・表が、そのまま文書に入る。">
 <link rel="alternate" hreflang="en" href="../">
+<link rel="alternate" hreflang="ja" href="./">
+<script>
+/* 言語のリンクを押した人の選択を覚える（英語版の自動切り替えが、それを尊重する）。外へは何も送らない。 */
+document.addEventListener('click', function (e) {
+  try {
+    var a = e.target.closest && e.target.closest('a[data-lang]');
+    if (a) localStorage.setItem('octavo-lang', a.getAttribute('data-lang'));
+  } catch (x) {}
+});
+</script>
 <link rel="icon" href="../icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="../style.css">
 </head>
@@ -18,10 +28,10 @@
       Octavo
     </a>
     <nav>
-      <a href="#install">入れる</a>
+      <a href="#install">インストール</a>
       <a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引き</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
-      <a href="../" hreflang="en" lang="en">English</a>
+      <a href="../" hreflang="en" lang="en" data-lang="en">English</a>
     </nav>
   </div>
 </header>
@@ -31,9 +41,9 @@
   <div class="wrap">
     <h1>Octavo</h1>
     <p class="tagline">計量社会科学スターターパック</p>
-    <p class="lead">論文・スライド・講義ノートはマークダウンで書き、分析は Quarto で行う。分析が出した数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に組む（TeX があれば LaTeX にも）。文献は1つの <code>.bib</code> から、好きな CSL の書式で組まれる。</p>
+    <p class="lead">論文・スライド・講義ノートは Markdown で書き、分析は Quarto で行う。分析が出した数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に仕上げる（TeX があれば LaTeX にも）。文献は1つの <code>.bib</code> から、好きな CSL スタイルで整形される。</p>
     <div class="actions">
-      <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">VS Code 拡張を入れる</a>
+      <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">VS Code 拡張をインストール</a>
       <a class="button secondary" href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引きを読む</a>
     </div>
   </div>
@@ -43,8 +53,8 @@
   <div class="wrap">
     <h2>仕組み</h2>
     <figure class="figure">
-      <img src="../images/flow-ja.svg" width="1025" height="370"
-           alt="分析が数値・図・表を書き、原稿はそれを名前で呼び、octavo build が PDF と Word を作る">
+      <img src="../images/flow-ja.svg" width="1095" height="380"
+           alt="分析と手で作ったファイルから数値・図・表ができ、原稿はそれを名前で呼び、octavo build が PDF と Word を作る">
     </figure>
   </div>
 </section>
@@ -55,7 +65,7 @@
     <figure class="figure">
       <img src="../images/showcase-ja.png" width="1341" height="762" loading="lazy"
            alt="見本のプロジェクトから組んだ論文の1ページとスライド">
-      <figcaption>見本のプロジェクト（<code>octavo init demo --all --example</code>）から組んだ論文の1ページとスライド。係数・表・図は分析から入り、番号と参考文献は組むときに振られる。</figcaption>
+      <figcaption>見本のプロジェクト（<code>octavo init demo --all --example</code>）から組んだ論文の1ページとスライド。係数・表・図は分析から取り込まれ、番号と参考文献は組版のときに自動で付く。</figcaption>
     </figure>
   </div>
 </section>
@@ -66,27 +76,27 @@
     <div class="features">
       <div class="feature">
         <h3>数値を手で書かない</h3>
-        <p>分析で登録し（<code>ov_value("n_obs", nrow(d))</code>）、原稿では名前で呼ぶ（<code>{{n_obs}}</code>）。分析をやり直せば、どの文書の数値も一緒に変わる。</p>
+        <p>分析で登録し（<code>ov_value("n_obs", nrow(d))</code>）、原稿では名前で呼ぶ（<code>{{n_obs}}</code>）。分析を再実行すれば、すべての文書の数値がまとめて更新される。</p>
       </div>
       <div class="feature">
         <h3>1つの原稿から、いくつもの文書</h3>
-        <p>投稿先の体裁の論文、発表スライド、A4 のプリントと回ごとのスライドになる講義ノート。発表者用の台本も、共著者に回す Word も。</p>
+        <p>投稿先の書式に合わせた論文、発表スライド、A4 のプリントと回ごとのスライドを兼ねる講義ノート。発表者用の台本も、共著者に回す Word も出せる。</p>
       </div>
       <div class="feature">
         <h3>ラベルで参照する</h3>
-        <p><code>@fig-trend</code> は「図2.1」になり、節を並べ替えても崩れない。</p>
+        <p><code>@fig-trend</code> は「図2.1」になり、節を並べ替えても、番号は正しいまま。</p>
       </div>
       <div class="feature">
         <h3>投稿の前に点検する</h3>
-        <p><code>octavo check</code> が、手入力された数値、仮の値、見つからない引用や図、分量の超過を知らせる。</p>
+        <p><code>octavo check</code> が、本文に手入力された数値、仮の値、存在しない引用や図、規定の分量オーバーを知らせる。</p>
       </div>
       <div class="feature">
-        <h3>投稿とその後まで</h3>
-        <p>匿名審査、投稿用の zip、共著者が Word で入れた変更履歴の読み出し、投稿時から動いた数値の一覧、再現用パッケージ。</p>
+        <h3>投稿から採択後まで</h3>
+        <p>匿名審査用の出力、投稿用の zip、共著者が Word で入れた変更履歴の読み取り、投稿後に変わった数値の一覧、再現用パッケージ。</p>
       </div>
       <div class="feature">
         <h3>VS Code 拡張</h3>
-        <p>原稿の隣で PDF のライブプレビュー、ここに挙げたことをまとめたサイドバー、ボタン1つのセットアップ。Linux・macOS・Windows、英語と日本語。</p>
+        <p>原稿の横に PDF のライブプレビュー、上の機能を操作できるサイドバー、ボタン1つのセットアップ。Linux・macOS・Windows に対応し、表示は英語と日本語。</p>
       </div>
     </div>
   </div>
@@ -96,7 +106,7 @@
   <div class="wrap two">
     <div>
       <h2>TikZ なしで図を描く</h2>
-      <p>箱と矢印の図・因果の図・流れ図は、別のファイルに Typst で描く。<code>octavo new figure dag</code> が小さな <code>diagram()</code>（パッケージは使わない）入りの <code>figures/dag.typ</code> を置き、<code>octavo build</code> がそれを普通の図にする。どの形式にも出て、番号が振られ、ラベルで参照できる。</p>
+      <p>箱と矢印の図、因果グラフ、フローチャートは、専用のファイルに Typst で描く。<code>octavo new figure dag</code> が小さな <code>diagram()</code>（パッケージは使わない）入りの <code>figures/dag.typ</code> を置き、<code>octavo build</code> が通常の図として組み込む。どの出力形式でも使え、番号が付き、ラベルで参照できる。</p>
 <pre><code>#diagram(
   (z: (2, 0, [Background $Z$]),
    x: (0, 1.6, [Education $X$]),
@@ -118,22 +128,22 @@
 <section id="install" class="alt">
   <div class="wrap two">
     <div>
-      <h2>入れる</h2>
+      <h2>インストール</h2>
       <p><strong>VS Code なら</strong>、<a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo 拡張</a>
-      を入れ、聞かれたら「<strong>セットアップ</strong>」を押す。pandoc・Typst・Quarto・R・フォントと <code>octavo</code> コマンドが入る。</p>
+      をインストールし、案内が出たら「<strong>セットアップ</strong>」を押す。pandoc・Typst・Quarto・R・フォントと <code>octavo</code> コマンドがまとめて入る。</p>
       <p><strong>ターミナルなら</strong>:</p>
 <pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
 uv tool install octavo-kit
 octavo setup     <span class="comment"># pandoc / Typst / Quarto / フォント / R</span>
-octavo doctor    <span class="comment"># 足りないものを教えてくれる</span></code></pre>
+octavo doctor    <span class="comment"># 足りないものを報告する</span></code></pre>
     </div>
     <div>
       <h2>始め方</h2>
-      <p>まず動くところを見る（分析・論文・スライド・講義ノートの見本）:</p>
+      <p>まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:</p>
 <pre><code>octavo init demo --all --example
 cd demo
 octavo build --compile</code></pre>
-      <p>自分のプロジェクトは、要る部品から始める:</p>
+      <p>自分のプロジェクトは、必要な部品だけで始める:</p>
 <pre><code>octavo init study --with analysis,paper
 cd study
 octavo env       <span class="comment"># 分析の環境（.venv と renv）</span>
@@ -148,7 +158,7 @@ octavo check     <span class="comment"># 投稿する前に</span></code></pre>
     <h2>手引き</h2>
     <p>使い方はすべて<a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引き</a>にある:</p>
     <ol class="chapters">
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#1-入れる">入れる</a></li>
+      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#1-インストール">インストール</a></li>
       <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#2-文書とプロファイル">文書とプロファイル</a> <span>— init と new、講義ノート、文書ごとの設定</span></li>
       <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#3-原稿の書き方">原稿の書き方</a> <span>— 相互参照、数式、表</span></li>
       <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#4-分析quartoと原稿の分業">分析（Quarto）と原稿</a></li>

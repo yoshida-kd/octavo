@@ -9,7 +9,7 @@
 // Windows のパス（C:\Users\...）は wsl.exe に渡す前に /mnt/c/... に変換する。
 //
 // Windows で WSL を使わずに直接動かすこともできる（Linux・macOS の次の扱い）。
-// 'auto' は、WSL にディストリが入っていれば今までどおり wsl.exe 越し、無ければ直接。
+// 'auto' は、WSL にディストリが入っていれば今までどおり wsl.exe 越し、なければ直接。
 // 直接のときのターミナルは PowerShell にし、コマンドもその書き方で組む。
 
 import * as cp from 'child_process';
@@ -89,7 +89,7 @@ export function shq(s: string): string {
 /**
  * 準備（setup.sh）が octavo と uv を入れる場所。ログインし直す前の VS Code や
  * Remote-SSH のサーバはこれを PATH に持っていないことが多いので、こちらで足す。
- * macOS では Homebrew の場所も（Dock から開いた VS Code には無いことがある）。
+ * macOS では Homebrew の場所も（Dock から開いた VS Code にはないことがある）。
  */
 export function extraPathDirs(): string[] {
     const dirs = [path.join(os.homedir(), '.local', 'bin')];
@@ -301,8 +301,8 @@ export async function findConfig(): Promise<vscode.Uri | undefined> {
 let lastConfig: string | undefined;
 
 /** 1つのワークスペースに Octavo のプロジェクトがいくつもあるとき、どれを使うか。
- *  いま開いているファイルが入っているもの（入れ子なら一番近いもの）、無ければ
- *  直前に使っていたもの、それも無ければルートに近いもの。 */
+ *  いま開いているファイルが入っているもの（入れ子なら一番近いもの）、なければ
+ *  直前に使っていたもの、それもなければルートに近いもの。 */
 export function pickConfig(configs: string[], active?: vscode.Uri, last?: string): string {
     const byDepth = [...configs].sort(
         (a, b) => a.split(path.sep).length - b.split(path.sep).length);
@@ -353,7 +353,7 @@ export function resolvePathFromTool(toolPath: string): vscode.Uri | undefined {
     return win ? vscode.Uri.file(win) : undefined;
 }
 
-/** wsl.exe の中で1行のコマンドを走らせて標準出力を取る（octavo 以外を呼ぶとき）。 */
+/** wsl.exe の中で1行のコマンドを実行して標準出力を取る（octavo 以外を呼ぶとき）。 */
 function runInWsl(inner: string, timeoutMs: number): Promise<RunResult> {
     return new Promise((resolve) => {
         cp.execFile('wsl.exe', wslArgs(inner), { timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 },
@@ -398,7 +398,7 @@ export function describeMode(): string {
 }
 
 /**
- * setup.sh をターミナルで走らせる（sudo のパスワードを打ってもらうのでターミナル）。
+ * setup.sh をターミナルで実行する（sudo のパスワードを打ってもらうのでターミナル）。
  * 終わったら Enter で閉じる。閉じたら onClose が呼ばれる。
  */
 export function runSetupScript(dir: string, version: string, pressEnter: string,

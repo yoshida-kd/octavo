@@ -5,7 +5,7 @@
 //   設定   octavo config --json      （画面に出す鍵・型・選択肢・既定かどうか）
 //   変更   octavo config set|unset   （octavo.config.py のその1行だけを書き換え、
 //                                    設定として読めるか確かめてから保存する）
-//   分析   octavo analysis --json    （.qmd ごとの 最新/古い/手動。走らせるのは analysis.ts）
+//   分析   octavo analysis --json    （.qmd ごとの 最新/古い/手動。実行するのは analysis.ts）
 // どの鍵を出すか、値として正しいかは confedit.py が決める。ここでは判断しない。
 import * as vscode from 'vscode';
 import { AnalysisReport, AnalysisUnit, fetchAnalysis } from './analysis';
@@ -99,7 +99,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         this.changed.fire(undefined);
     }
 
-    /** 分析の状態だけ読み直す（走らせたあと・.qmd を保存したあと）。 */
+    /** 分析の状態だけ読み直す（実行したあと・.qmd を保存したあと）。 */
     refreshAnalysis(): void {
         this.analysis = undefined;
         this.changed.fire(undefined);
@@ -192,7 +192,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             return rows;
         }
         if (node.kind === 'doc') {
-            // 文書の中: 講義の回、論文の付録（無ければ足すボタン。main.tex は右クリック）、
+            // 文書の中: 講義の回、論文の付録（なければ足すボタン。main.tex は右クリック）、
             // その文書の設定（投稿先・発表ごとに変わるもの。原稿の冒頭に書く）
             const rows: Node[] = node.doc.parts.map((p) => ({ kind: 'part', doc: node.doc, part: p }));
             if (node.doc.profile === 'paper') {
@@ -222,8 +222,11 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             // 図は分析が書くほか、Typst で描いて足せる（figures/<名前>.typ）
             const draw: Node = { kind: 'action', label: vscode.l10n.t('Add a figure drawn in Typst…'),
                                  command: 'octavo.new', icon: 'type-hierarchy', args: ['figure'] };
+            // 表も分析が書くほか、手で作って足せる（tables/<名前>.csv、表の画面で編集）
+            const table: Node = { kind: 'action', label: vscode.l10n.t('Add a table made by hand…'),
+                                  command: 'octavo.new', icon: 'table', args: ['table'] };
             if (!a.units.length) {
-                return [{ kind: 'message', label: vscode.l10n.t('No analysis yet.') }, add, draw];
+                return [{ kind: 'message', label: vscode.l10n.t('No analysis yet.') }, add, draw, table];
             }
             const rows: Node[] = a.units.map((u) => ({ kind: 'unit', u }));
             if (!a.quarto) {
@@ -233,7 +236,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 rows.push({ kind: 'action', label: vscode.l10n.t('Run the stale ones ({0})', a.stale),
                             command: 'octavo.analysisRun', icon: 'run-all' });
             }
-            rows.push(add, draw);
+            rows.push(add, draw, table);
             return rows;
         }
         if (node.kind === 'group' && node.id === 'settings') {

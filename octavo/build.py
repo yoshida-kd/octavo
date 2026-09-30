@@ -40,10 +40,10 @@ class Result:
 # ------------------------------------------------------------ 体裁ファイル
 
 def sync_layout(cfg, doc, ctx: Ctx) -> None:
-    """手で書く体裁ファイル（main.typ / main.tex）を原稿の隣から out_dir へ写す。
+    """手で書く体裁ファイル（main.typ / main.tex）を原稿の隣から out_dir へコピーする。
 
     正本は `papers/<名前>/main.typ`。組版は out_dir で行い、body.typ や
-    abstract.typ はそこに生成されるので、組む直前に同じ場所へ写しておく。
+    abstract.typ はそこに生成されるので、組む直前に同じ場所へコピーしておく。
     こうしておくと `build/` は丸ごと生成物になり、消しても体裁は残る。
     """
     name = ctx.backend.main_name
@@ -64,6 +64,18 @@ def sync_layout(cfg, doc, ctx: Ctx) -> None:
 
 
 # ---------------------------------------------------------------- 前処理
+
+def citation_filter(cfg, ctx: Ctx):
+    """日本語の文書なら、文献を言語ごとに組むフィルター（citations/japanese.lua）。
+
+    pandoc の citeproc は書誌全体を1つの言語で組むので、日本語（ja-JP）のままだと英語の
+    文献まで「Smith ほか (2003年)」になる。フィルターは英語の決まりで組んでから、
+    日本語の文献（langid = {japanese}）だけを「山田・田中」「」『』の形に直す。
+    """
+    if not cfg['citations_by_language'] or not str(cfg['csl_locale']).startswith('ja'):
+        return None
+    return ctx.template('citations/japanese.lua')
+
 
 def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     """原稿を pandoc に渡せる形にする。(markdown, abstract) を返す。"""
@@ -100,7 +112,7 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
         abstract = xref.replace_references(
             abstract, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report)
 
-    # 見出しの深さ: `# 見出し` があるならそのまま、無ければ `##` を最上位とみなす
+    # 見出しの深さ: `# 見出し` があるならそのまま、なければ `##` を最上位とみなす
     ctx.shift_headings = 0 if re.search(r'^# \S', body, re.M) else -1
 
     # 要旨を本文に戻す形式（main.tex を持たないもの）
@@ -125,7 +137,7 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
     1. この原稿を文書の順に数える（番号を組版側が振らない形式のために）
     2. Word など番号を振らない形式なら、見出し・キャプション・式に番号を文字で入れる
     3. 本文の `@fig-…` を形式ごとの参照に
-    4. 図を形式に合わせ、分析が書いた表（中身の無いキャプション）を差し込む
+    4. 図を形式に合わせ、分析が書いた表（中身のないキャプション）を差し込む
     どの段も行を増減させないので、1 で覚えた行番号が 2 まで使える（4 は最後）。
     """
     top = 1 if ctx.crossref_section is not None else xref.top_level(body)
@@ -191,7 +203,7 @@ def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
     論文の本文と付録は、main.* が付録を読み込んでいれば1つの文書なので、互いの
     参照は組版側が張れる（local）。読み込んでいない（同梱の main.* の既定）か、
     Word のように別のファイルになるなら、番号を文字で書く — そうしないと組版が
-    「ラベルが無い」で止まり、Word ではリンクが切れる。講義の回ごとのデッキも別の
+    「ラベルがない」で止まり、Word ではリンクが切れる。講義の回ごとのデッキも別の
     PDF なので、ほかの回への参照は番号を文字で書く。
     """
     def prepared(path: Path, is_appendix: bool) -> str:
@@ -222,7 +234,7 @@ def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
 
 
 def _pandoc_meta(cfg, ctx: Ctx) -> dict:
-    """standalone 出力の題扉に渡すメタデータ。
+    """standalone 出力のタイトル部分に渡すメタデータ。
 
     匿名審査のときは著者が分かるものを落とす。**落とすキーは config で
     決める**（雑誌によって何を伏せるかが違うため）。
@@ -291,11 +303,11 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     ctx.values, warn = valmod.load(cfg)
     for line in warn:
         ctx.say(line)
-    # 仮の値のまま組むと、本文に嘘の数字が入る。毎回言う（build が黙っていると
-    # 気づけない唯一の種類の誤り。手書きの results/*.json には印が無いので鳴らない）
+    # 仮の値のまま組むと、本文に仮の数字が入る。毎回言う（build が黙っていると
+    # 気づけない唯一の種類の誤り。手書きの assets/values/*.json には印がないので鳴らない）
     for f in valmod.placeholder_files(cfg):
         ctx.say(f'{tag("values")}{tag("note")} ' + t(
-            '{file} is still the starter values octavo init wrote. The numbers in '
+            '{file} is still the starter values octavo wrote. The numbers in '
             'the text are fake (octavo analysis run makes them real)', file=f))
 
     sync_layout(cfg, doc, ctx)
@@ -316,8 +328,8 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         ctx.say(f'{tag("split")} ' + t('building only session {part} of {file}',
                                        part=doc.part, file=Path(src).name))
     # 図のパスは原稿から見た相対で書かれている。out_dir は原稿と階層の深さが
-    # 違うので、写す前に out_dir から見た相対に振り直す（さもないと
-    # `../figures/…` が `build/figures/…` を指して組版が落ちる）。
+    # 違うので、コピーする前に out_dir から見た相対に振り直す（さもないと
+    # `../assets/figures/…` が `build/assets/figures/…` を指して組版が落ちる）。
     raw = mdlib.rebase_links(raw, Path(src).parent, out_dir)
     body, abstract = preprocess(cfg, doc, backend, ctx, raw)
 
@@ -353,7 +365,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         cite_args = pandocrun.citeproc_args(
             cfg['bib_file'], ctx.csl, cfg['csl_locale'],
             ref_title, cfg['link_citations'],
-            suppress_bibliography=suppress)
+            suppress_bibliography=suppress, lua_filter=citation_filter(cfg, ctx))
         ctx.say(f'{tag("bib")} {Path(cfg["bib_file"]).name} + '
                 + (ctx.csl.name if ctx.csl
                    else t("pandoc's default (chicago-author-date)"))
@@ -399,7 +411,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             res.outputs.append(out_dir / name)
 
     # ---- 要旨を別ファイルに出す形式 --------------------------------------
-    # 要旨がまだ空でも書く。main.* が読むので無ければ組めず、前の中身が残れば古い要旨が出る
+    # 要旨がまだ空でも書く。main.* が読むのでなければ組めず、前の中身が残れば古い要旨が出る
     if not abstract and backend.wants_abstract_file and not appendix and not ctx.standalone:
         p = out_dir / f'abstract{backend.ext}'
         p.write_text('', encoding='utf-8')
@@ -413,7 +425,8 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             # 要旨に書誌一覧を付けない（本文の末尾に1回だけ出す）
             ab_args += pandocrun.citeproc_args(
                 cfg['bib_file'], ctx.csl, cfg['csl_locale'], None,
-                cfg['link_citations'], suppress_bibliography=True)
+                cfg['link_citations'], suppress_bibliography=True,
+                lua_filter=citation_filter(cfg, ctx))
         try:
             ab = mdlib.drop_output_macros(
                 pandocrun.run(abstract, ab_args, cwd=out_dir, quiet=True), ctx.math_macros)
@@ -440,7 +453,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     res.report = ctx.report
     res.next_step = backend.next_step(ctx)
 
-    # ---- 組版まで走らせる ------------------------------------------------
+    # ---- 組版まで実行する ------------------------------------------------
     if do_compile:
         cmd = backend.compile(ctx, out_path)
         if cmd and not ctx.standalone:

@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -98,6 +98,12 @@
         "title": "%command.analysisRunOne.title%",
         "category": "Octavo",
         "icon": "$(play)"
+      },
+      {
+        "command": "octavo.editTable",
+        "title": "%command.editTable.title%",
+        "category": "Octavo",
+        "icon": "$(table)"
       },
       {
         "command": "octavo.build",
@@ -230,6 +236,7 @@
       ],
       "commandPalette": [
         { "command": "octavo.editSetting", "when": "false" },
+        { "command": "octavo.editTable", "when": "resourceExtname == .csv" },
         { "command": "octavo.previewDoc", "when": "false" },
         { "command": "octavo.buildDoc", "when": "false" },
         {
@@ -320,6 +327,11 @@
         {
           "command": "octavo.analysisRunOne",
           "when": "resourceExtname == .qmd && octavo.hasConfig",
+          "group": "navigation"
+        },
+        {
+          "command": "octavo.editTable",
+          "when": "resourceExtname == .csv && octavo.hasConfig && activeCustomEditorId != octavo.tableEditor",
           "group": "navigation"
         },
         {
@@ -427,6 +439,14 @@
         }
       }
     },
+    "customEditors": [
+      {
+        "viewType": "octavo.tableEditor",
+        "displayName": "%customEditor.table%",
+        "selector": [{ "filenamePattern": "**/tables/*.csv" }],
+        "priority": "option"
+      }
+    ],
     "snippets": [
       {
         "language": "markdown",

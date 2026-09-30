@@ -8,12 +8,12 @@
                    その人の全プロジェクトに効く
   3. 同梱          Octavo に付いてくるもの（paths.templates_dir()）
 
-上書きは**丸ごと差し替え**で、差分を当てる仕組みではない。同梱のものを写して
+上書きは**丸ごと差し替え**で、差分を当てる仕組みではない。同梱のものをコピーして
 直し始めるのが `octavo template copy`、どれが効いているかを見るのが
 `octavo template list`、Octavo を更新したあとに同梱の側で何が変わったかを見るのが
 `octavo template diff`。
 
-`octavo init` はまだプロジェクトが無いので 2 と 3 だけを見る。プロジェクトの
+`octavo init` はまだプロジェクトがないので 2 と 3 だけを見る。プロジェクトの
 ひな型（`project/…`）は**木ごと**重ねるので、ユーザーの側に足したファイル
 （`project/ja/notes/reading/README.md` など）はそのまま新しいプロジェクトに入る。
 
@@ -65,7 +65,7 @@ def check_name(rel: str) -> str:
 
 
 def resolve(rel: str, root: Path | None = None) -> tuple:
-    """(層の名前, 実際のパス)。どの層にも無ければ TemplateError。"""
+    """(層の名前, 実際のパス)。どの層にもなければ TemplateError。"""
     rel = check_name(rel)
     for name, d in layers(root):
         p = d / rel
@@ -111,7 +111,7 @@ def tree(prefixes, root: Path | None = None) -> dict:
 def overrides(root: Path | None = None) -> list:
     """上書きしているもの。[(相対パス, 層の名前, パス)]。
 
-    同梱に無い名前（プロジェクトのひな型に足したファイルなど）も含める。
+    同梱にない名前（プロジェクトのひな型に足したファイルなど）も含める。
     """
     out = []
     for name, d in layers(root)[:-1]:

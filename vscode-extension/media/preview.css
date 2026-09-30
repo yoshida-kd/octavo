@@ -39,7 +39,7 @@ body {
   background: var(--vscode-inputValidation-errorBackground, rgba(229,20,0,.12));
 }
 #message.on { display: block; }
-/* 分析が古いときの帯（ボタンで走らせる） */
+/* 分析が古いときの帯（ボタンで実行する） */
 #stale {
   display: none; flex: none; align-items: center; gap: 10px;
   padding: 6px 10px;

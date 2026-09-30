@@ -10,7 +10,7 @@ execute:
 <!-- 論文に出す数値・図・表は、原稿ではなくここで作る。
      octavo build が `.qmd` の更新を見て、必要なら quarto render を実行する。 -->
 
-<!-- octavo:example この .qmd は octavo init が置いたひな型で、いまは**仮のデータ**を
+<!-- octavo:example この .qmd は octavo が置いたひな型で、いまは**仮のデータ**を
      その場で作っている。実データに差し替えたら `octavo:example` の印ごと消す。
      印が残っているあいだは octavo check が「ひな型の残り」として知らせる。 -->
 
@@ -39,7 +39,7 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 set.seed(20260101)
 d <- data.frame(
   x = rnorm(1523, 12, 3),
-  y   = rnorm(1523, 50, 10)
+  y = rnorm(1523, 50, 10)
 )
 d$y <- d$y + 0.34 * d$x
 # octavo:example ここまで
@@ -70,10 +70,10 @@ p <- function() {
        xlab = "x", ylab = "y")
   abline(m, lwd = 2)
 }
-ov_figure(p, "trend")      # figures/trend.pdf と .png
+ov_figure(p, "trend")      # assets/figures/trend.pdf と .png
 ```
 
-原稿には `![推移](../../figures/trend.png){#fig-trend}` と書き、`@fig-trend` で
+原稿には `![推移](../../assets/figures/trend.png){#fig-trend}` と書き、`@fig-trend` で
 参照する（番号は組むときに振られる: 図2.1）。
 
 ## 表
@@ -86,9 +86,9 @@ tab <- data.frame(
   標準偏差 = c(sd(d$x), sd(d$y))
 )
 ov_table(tab, "summary",
-         notes = paste0("注: N = ", nrow(d), "。"))
+         notes = paste0("注: N = ", format(nrow(d), big.mark = ","), "。"))
 ```
 
-表の中身（tables/summary.typ / .tex / .md）が書かれる。原稿に
+表の中身（assets/tables/summary.typ / .tex / .md）が書かれる。原稿に
 `: 記述統計 {#tbl-summary}` の1行を書けばそこに表題つきで入り、`@tbl-summary` で
 参照できる。

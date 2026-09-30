@@ -51,7 +51,6 @@ CONFIG = {
     # ================================================================
     # One .bib file is the source of truth — drop your Zotero export here
     # as-is.
-    #   octavo bib pull --collection "My Paper"    pull directly from Zotero
     #   octavo checkbib                            cross-check citation keys
     'bib_file': 'literature.bib',
 
@@ -62,6 +61,7 @@ CONFIG = {
     # Short aliases also work: apa / chicago / ieee / mla / nature / ...
     'csl': 'chicago-author-date',
     # 'csl_locale': 'ja-JP',        # defaults based on lang
+    # 'citations_by_language': True,  # Japanese documents: English works in English, Japanese ones (langid) the Japanese way
     # 'reference_section_title': 'References',   # set to '' to omit the heading
 
     # Bibliography issues you've reviewed and are deliberately leaving as-is
@@ -77,24 +77,31 @@ CONFIG = {
     # ================================================================
     # Figures & tables
     # ================================================================
-    'figure_dir': 'figures',
-    'table_dir': 'tables',
+    # made by hand: figures drawn in Typst (<name>.typ), photos, tables (<name>.csv)
+    'figure_src_dir': 'figures',
+    'table_src_dir': 'tables',
+    # written by the analysis and octavo build (the manuscript places figures from here)
+    'figure_dir': 'assets/figures',
+    'table_dir': 'assets/tables',
     # 'figure_width': 1.0,              # fraction of \textwidth
-    # 'figure_ext': {'latex': '.pdf', 'docx': '.png'},   # override the defaults
+    # 'figure_ext': {'typst': '.png'},  # override the defaults (Word .png, the rest .pdf)
 
     # Figure, table and equation numbers. The manuscript never types them; it
     # labels things ({#fig-…}) and refers to them by name (@fig-…)
     'crossref_numbering': 'section',  # 'section' (Figure 2.1) | 'document' (Figure 1)
+    # Table of contents. None: only lecture-note handouts get one (not papers or slides); True / False for every document
+    # 'toc': None,
+    # 'toc_depth': 2,                  # heading depth listed (lecture notes: 1 = sessions only, 2 = sessions and sections)
 
     # ================================================================
     # Analysis (Quarto .qmd)
     # ================================================================
     # The .qmd files that produce the paper's numbers, figures and tables.
     # octavo build runs `quarto render` on any .qmd that is newer than its
-    # output (with quarto missing it warns and carries on).
+    # output (with Quarto missing it warns and carries on).
     #   analysis side: ov_value("n_obs", nrow(d)) / ov_figure(p, "trend")
     #                  ov_table(tab, "summary")        <- helpers from octavo.R
-    #   manuscript:    {{n_obs}} / ![Trend](figures/trend.png){#fig-trend} /
+    #   manuscript:    {{n_obs}} / ![Trend](../../assets/figures/trend.png){#fig-trend} /
     #                  `: Descriptive statistics {#tbl-summary}` (the table goes there)
     'analysis': [],               # e.g. ['analysis/*.qmd']
     # To watch data files too, make an entry a dict instead of a string
@@ -105,7 +112,7 @@ CONFIG = {
     # 'analysis_auto': True,      # False to run only on `octavo analysis run`
 
     # Where the analysis writes its values, and the default format for {{...}}
-    'results_dir': 'results',
+    'values_dir': 'assets/values',
     # 'value_float_format': '.3f',   # doubles ({{coef:.2f}} in the text wins)
     # 'value_thousands_sep': True,   # write integers as 1,523
 
@@ -162,7 +169,7 @@ CONFIG = {
     # Typst
     # ================================================================
     # 'typst_citations': 'csl',     # 'csl' (same style as other formats) | 'native'
-    # A4 handouts. Default: BIZ UDMincho with Libertinus Serif for Latin (see README)
+    # A4 handouts. Default: BIZ UDMincho with Libertinus Serif for Latin (see the guide, "Typefaces")
     # 'typst_mainfont': ['BIZ UDMincho', 'Noto Serif CJK JP'],
 
     # ================================================================

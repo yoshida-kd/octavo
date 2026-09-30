@@ -4,10 +4,10 @@
 //   runner.ts       octavo CLI をどこで・どう実行するか（WSL 越し／直接）
 //   bib.ts          `octavo checkbib --json` のキャッシュ
 //   citations.ts    @key の補完・ホバー・挿入
-//   diagnostics.ts  無い引用キー・書誌の傷への警告
+//   diagnostics.ts  存在しない引用キー・書誌の傷への警告
 //   values.ts       `octavo values --json` のキャッシュ
 //   valueui.ts      {{名前}} の補完・ホバー・未解決への警告
-//   setup.ts        道具がそろっているかを見て、足りなければ setup.sh を走らせる
+//   setup.ts        道具がそろっているかを見て、足りなければ setup.sh を実行する
 
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -16,6 +16,7 @@ import { BibCache } from './bib';
 import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
 import { PreviewManager } from './preview';
+import { TableEditorProvider } from './tableEditor';
 import { AddKind, addToProject, initProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
 import {
@@ -54,7 +55,8 @@ export function activate(context: vscode.ExtensionContext): void {
     const preview = new PreviewManager(context, (line) => output.appendLine(line));
     const tree = new OctavoTree((line) => output.appendLine(line));
     context.subscriptions.push(valuesCache, valueDiagnostics, preview, tree,
-        vscode.window.registerTreeDataProvider('octavo.project', tree));
+        vscode.window.registerTreeDataProvider('octavo.project', tree),
+        TableEditorProvider.register(context));
     // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
     const afterAdding = (): void => {
         tree.refresh();
@@ -110,7 +112,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
-    // -- 新しく開いたマークダウンにも、すでにあるキャッシュから即座に反映する ---
+    // -- 新しく開いた Markdown にも、すでにあるキャッシュから即座に反映する ---
     context.subscriptions.push(
         vscode.workspace.onDidOpenTextDocument((doc) => {
             if (doc.languageId === 'markdown') {
@@ -238,7 +240,7 @@ export function activate(context: vscode.ExtensionContext): void {
             runInTerminal('watch', dirOf(configUri), args);
         }),
 
-        // octavo.watch（原稿のMarkdownをmtime監視してpandocで作り直す）とは別物。
+        // octavo.watch（原稿の Markdown をmtime監視してpandocで作り直す）とは別物。
         // こちらは開いている .typ ファイル自体を typst の差分コンパイラで直接
         // watch する（octavo build を経由しない）。手で編集する main.typ の
         // プリアンブル調整などで使う想定。
@@ -263,7 +265,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
             const pdfUri = vscode.Uri.file(fileUri.fsPath.replace(/\.typ$/i, '.pdf'));
             if (vscode.extensions.getExtension(LATEX_WORKSHOP_EXTENSION_ID)) {
-                // 初回コンパイルがPDFを書き出すまで少し待つ。既に無くても
+                // 初回コンパイルがPDFを書き出すまで少し待つ。まだなくても
                 // LaTeX Workshop 側のファイルウォッチャーが後から拾って表示する。
                 setTimeout(() => {
                     void vscode.commands.executeCommand(
@@ -309,7 +311,7 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!configUri) return;
             runInTerminal('check', dirOf(configUri), ['check'], true);
         }),
-        // 分析はターミナルではなく、通知の進み具合＋出力パネルで走らせる。
+        // 分析はターミナルではなく、通知の進み具合＋出力パネルで実行する。
         // 終わったことが分かるので、サイドバー・プレビュー・{{…}} の候補を更新できる。
         vscode.commands.registerCommand('octavo.analysisRun', async () => {
             const configUri = await requireConfig();
@@ -483,7 +485,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }),
     );
 
-    // .qmd の「この分析を走らせる」ボタンは Octavo のプロジェクトの中だけに出す
+    // .qmd の「この分析を実行する」ボタンは Octavo のプロジェクトの中だけに出す
     // （Quarto だけを使っている .qmd に出ると紛らわしい）。
     const syncHasConfig = (): void => {
         void findConfig().then((u) => vscode.commands.executeCommand(
@@ -509,7 +511,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
     }));
 
-    // 道具がそろっていなければ「準備する」を出す（そろっていれば黙っている）。
+    // 道具がそろっていなければ「セットアップ」を出す（そろっていれば黙っている）。
     // Windows では先に PATH を読み直す（winget で入れた直後でも見つかるように）。
     void refreshWindowsPath().then(() => setup.checkOnStartup());
 
@@ -523,5 +525,5 @@ export function activate(context: vscode.ExtensionContext): void {
 }
 
 export function deactivate(): void {
-    // 特に片付けるものは無い（Disposable は context.subscriptions が処理する）。
+    // 特に片付けるものはない（Disposable は context.subscriptions が処理する）。
 }

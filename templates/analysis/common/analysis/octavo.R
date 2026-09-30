@@ -12,11 +12,11 @@
 #      ov_value("n_obs", nrow(d))                    -> 本文の {{n_obs}}
 #      ov_value("coef_x", coef(m)[["x"]])        -> 本文の {{coef_x}}
 #      ov_value("p_x", ov_pval(pv))                -> 本文の {{p_x}}
-#      ov_figure(gg, "trend")                        -> figures/trend.{pdf,png}
-#      ov_table(tab, "summary")                      -> tables/summary.{tex,typ,md}
+#      ov_figure(gg, "trend")                        -> assets/figures/trend.{pdf,png}
+#      ov_table(tab, "summary")                      -> assets/tables/summary.{tex,typ,md}
 #
-#  数値は results/<この .qmd の名前>.json に貯まる。octavo build が読んで
-#  本文の {{…}} に差し込む。図は原稿に ![推移](../../figures/trend.png){#fig-trend}
+#  数値は assets/values/<この .qmd の名前>.json に貯まる。octavo build が読んで
+#  本文の {{…}} に差し込む。図は原稿に ![推移](../../assets/figures/trend.png){#fig-trend}
 #  と書けば入り、表は原稿に `: 記述統計 {#tbl-summary}` の1行を書けばそこに
 #  入る。キャプションと番号は原稿の側（@fig-trend / @tbl-summary で参照できる）。
 #
@@ -47,12 +47,14 @@ ov_root <- function() {
   normalizePath(getwd(), winslash = "/")
 }
 
-ov_dir <- function(kind = c("results", "figures", "tables")) {
+# 書き出し先。octavo が環境変数で渡す（octavo.config.py の values_dir など）。
+# Quarto で直接 render したときは、既定の置き場 assets/ の下。
+ov_dir <- function(kind = c("values", "figures", "tables")) {
   kind <- match.arg(kind)
-  env <- c(results = "OCTAVO_RESULTS_DIR", figures = "OCTAVO_FIGURE_DIR",
+  env <- c(values = "OCTAVO_VALUES_DIR", figures = "OCTAVO_FIGURE_DIR",
            tables = "OCTAVO_TABLE_DIR")[[kind]]
   p <- Sys.getenv(env)
-  if (!nzchar(p)) p <- file.path(ov_root(), kind)
+  if (!nzchar(p)) p <- file.path(ov_root(), "assets", kind)
   if (!dir.exists(p)) dir.create(p, recursive = TRUE, showWarnings = FALSE)
   p
 }
@@ -72,7 +74,7 @@ ov_values_file <- function() {
       "values"
     }
   }
-  file.path(ov_dir("results"), paste0(name, ".json"))
+  file.path(ov_dir("values"), paste0(name, ".json"))
 }
 
 
@@ -89,7 +91,7 @@ ov_json_str <- function(s) {
 }
 
 # 整数はそのまま、小数は必ず小数点を付けて書く。JSON には整数と小数の
-# 区別が無いので、「1523」と「1523.0」で Octavo 側の既定書式が変わる。
+# 区別がないので、「1523」と「1523.0」で Octavo 側の既定書式が変わる。
 ov_json_scalar <- function(x) {
   if (is.null(x)) return("\"NA\"")
   if (length(x) == 1L && is.na(x)) return("\"NA\"")
@@ -151,7 +153,7 @@ ov_values <- function(...) {
   invisible(args)
 }
 
-# 再現性の記録。replication package を出すときに要る「何で走らせたか」を
+# 再現性の記録。replication package を出すときに要る「何で実行したか」を
 # 値のファイルに一緒に残す。`_` で始まるキーは Octavo 側が値として扱わない。
 ov_session <- function() {
   si <- utils::sessionInfo()
@@ -211,7 +213,7 @@ ov_pval <- function(p, digits = 3) {
 # ---------------------------------------------------------------- 図
 
 ov_device <- function(path, fmt, width, height, dpi) {
-  # macOS の CRAN 版 R の cairo は XQuartz が無いと動かない。Mac 標準の quartz で
+  # macOS の CRAN 版 R の cairo は XQuartz がないと動かない。Mac 標準の quartz で
   # 書く（和文もそのまま出る）
   mac <- identical(Sys.info()[["sysname"]], "Darwin")
   cairo <- !mac && isTRUE(capabilities("cairo"))
@@ -232,15 +234,15 @@ ov_device <- function(path, fmt, width, height, dpi) {
   } else if (fmt == "svg") {
     grDevices::svg(path, width = width, height = height)
   } else {
-    stop("ov_figure: 知らない形式 ", fmt)
+    stop("ov_figure: 不明な形式 ", fmt)
   }
 }
 
-#' 図を figures/ に保存する。既定で .pdf（LaTeX 用）と .png（Word・Typst 用）
+#' 図を assets/figures/ に保存する。既定で .pdf（Typst・LaTeX 用）と .png（Word 用）
 #' の両方を書くので、octavo.config.py の figure_ext をそのまま使える。
 #'
 #' @param x      ggplot、あるいは「描画する関数」（base graphics）
-#' @param name   ファイル名（拡張子なし）。原稿の ![](figures/<name>.png) と揃える
+#' @param name   ファイル名（拡張子なし）。原稿の ![](assets/figures/<name>.png) と揃える
 ov_figure <- function(x, name, width = 6, height = 4, dpi = 300,
                       formats = c("pdf", "png")) {
   dir <- ov_dir("figures")
@@ -375,7 +377,7 @@ ov_md_table <- function(cells, align, notes) {
     if (!is.null(notes)) paste0("\n*", notes, "*\n") else "")
 }
 
-#' 表を tables/ に保存する（.tex・.typ・.md。Typst・LaTeX・Word がそれぞれ読む）。
+#' 表を assets/tables/ に保存する（.tex・.typ・.md。Typst・LaTeX・Word がそれぞれ読む）。
 #' 本文に `: 表題 {#tbl-<name>}` の1行を書けば、Octavo がそこに差し込み、
 #' @tbl-<name> で参照できる。キャプションは本文が持つ（ここでは付けない）。
 #'
@@ -419,7 +421,7 @@ ov_table <- function(x, name, notes = NULL, align = NULL,
     } else if (fmt == "md") {
       ov_md_table(cells, al, notes)
     } else {
-      stop("ov_table: 知らない形式 ", fmt)
+      stop("ov_table: 不明な形式 ", fmt)
     }
     ov_write_lines(txt, path)
     out <- c(out, path)

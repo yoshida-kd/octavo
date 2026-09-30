@@ -1,15 +1,15 @@
 # -*- coding: utf-8 -*-
 """分析（.qmd）が出した数値を、本文の `{{名前}}` に差し込む。
 
-    results/analysis.json   ← .qmd が ov_value() で書く
+    assets/values/analysis.json   ← .qmd が ov_value() で書く
     draft.md                 標本は {{n_obs}} 人、係数は {{coef_x}} だった
     -> 出力                  標本は 1,523 人、係数は 0.342 だった
 
 **数値の出所を1つに保つ**のがこの仕組みの目的。原稿に手で数値を書くと、
 分析をやり直したときに本文だけ古いまま残る。`{{…}}` にしておけば、
-octavo build のたびに results/ の最新値が入る。
+octavo build のたびに assets/values/ の最新値が入る。
 
-置き場は `results_dir`（既定 `results/`）の `*.json`。1つの .qmd が
+置き場は `values_dir`（既定 `assets/values/`）の `*.json`。1つの .qmd が
 1つの .json を持つ（`ov_value()` が原稿名から決める）ので、複数の分析が
 同じファイルを取り合わない。名前が衝突したときは警告を出して後を採る。
 
@@ -19,7 +19,7 @@ JSON の形は2通り。どちらでもよい。
     {"coef_x": {"value": 0.342, "fmt": ".3f", "note": "モデル2"}}
 
 書式は `{{coef_x:.2f}}` のように本文側でも指定できる（そちらが優先）。
-何も指定が無ければ **整数は桁区切り、小数は `value_float_format`**（既定
+何も指定がなければ **整数は桁区切り、小数は `value_float_format`**（既定
 `.3f`）。R の `nrow()` は整数、`coef()` は小数として出るので、たいてい
 何も書かなくても意図どおりになる。
 """
@@ -55,8 +55,8 @@ class Value:
 # ---------------------------------------------------------------- 読み込み
 
 def files(cfg) -> list:
-    """results_dir の *.json。`.` で始まるもの（作業用の刻印）は除く。"""
-    d = Path(cfg['results_dir'])
+    """values_dir の *.json。`.` で始まるもの（作業用の刻印）は除く。"""
+    d = Path(cfg['values_dir'])
     if not d.is_dir():
         return []
     return sorted(p for p in d.glob('*.json') if not p.name.startswith('.'))
@@ -99,8 +99,8 @@ def placeholder_files(cfg) -> list:
     """`octavo init` が置いた**仮の値**のままのファイル名を返す。
 
     仮の値は本物と見分けが付かない（`n_obs: 1523` は実行結果に見える）。
-    分析を1度も走らせていないのに `{{…}}` が全部埋まってしまい、
-    **嘘の数字が入った PDF が警告なしに組める**ので、印を入れてある。
+    分析を1度も実行していないのに `{{…}}` が全部埋まってしまい、
+    **仮の数字が入った PDF が警告なしに組める**ので、印を入れてある。
     `octavo.R` が書き直せば `_placeholder` ごと消える。
     """
     out: list = []
@@ -115,9 +115,9 @@ def placeholder_files(cfg) -> list:
 
 
 def session_info(cfg) -> dict:
-    """{ファイル名: 分析を走らせた環境} を返す。
+    """{ファイル名: 分析を実行した環境} を返す。
 
-    `.qmd` 側が値のファイルに `_session` として残す（何で・いつ走らせたか、
+    `.qmd` 側が値のファイルに `_session` として残す（何で・いつ実行したか、
     パッケージの版）。replication package を出すときに要るので、値と同じ
     ファイルに置いて一緒に commit されるようにしてある。
     """
@@ -197,7 +197,7 @@ def unmask_code(text: str, kept: list) -> str:
 
 
 def substitute(text: str, values: dict, cfg, report: list | None = None) -> str:
-    """本文の `{{…}}` を置き換える。値が無いところは**そのまま残す**。
+    """本文の `{{…}}` を置き換える。値がないところは**そのまま残す**。
 
     消してしまうと本文が静かに壊れるので、残したうえで報告に出す。
     """
@@ -223,7 +223,7 @@ def substitute(text: str, values: dict, cfg, report: list | None = None) -> str:
             # 波括弧そのものは呼ぶ側で足す（t() は `{{…}}` を文字どおり扱う）
             report.append(f'{tag("values")}{tag("warning")} ' + t(
                 '{name} is not in {dir}/ (left as it is)',
-                name='{{' + name + '}}', dir=Path(cfg['results_dir']).name))
+                name='{{' + name + '}}', dir=Path(cfg['values_dir']).name))
     return out
 
 
@@ -233,13 +233,13 @@ SNAPSHOT_NAME = '.values-prev.json'
 
 
 def snapshot_path(cfg) -> Path:
-    return Path(cfg['results_dir']) / SNAPSHOT_NAME
+    return Path(cfg['values_dir']) / SNAPSHOT_NAME
 
 
 def snapshot(cfg) -> None:
     """いまの値を「前回」として取っておく。
 
-    分析を走らせる**直前**に呼ぶ。そうすると走らせたあとに
+    分析を実行する**直前**に呼ぶ。そうすると実行したあとに
     `octavo values --diff` で「再推定で論文のどの数字が動いたか」が出る。
     査読対応で「何が変わったか」を人に説明するときに要る。
     """
@@ -257,7 +257,7 @@ def snapshot(cfg) -> None:
 
 
 def read_snapshot(cfg) -> tuple:
-    """(取った日時, {名前: {raw, text, source}}) を返す。無ければ ('', {})。"""
+    """(取った日時, {名前: {raw, text, source}}) を返す。なければ ('', {})。"""
     try:
         d = json.loads(snapshot_path(cfg).read_text(encoding='utf-8'))
     except (OSError, ValueError):
@@ -280,16 +280,16 @@ def _git(cfg, args: list) -> str:
 
 
 def load_at(cfg, ref: str) -> dict:
-    """git の `ref` の時点の results/*.json を読む。
+    """git の `ref` の時点の assets/values/*.json を読む。
 
     R&R で要るのは「**投稿した版**と今の版」の比較で、`.values-prev.json`
-    （前に分析を走らせた直前）ではない。版を刻む仕組みを新しく作らず、
+    （前に分析を実行した直前）ではない。版を刻む仕組みを新しく作らず、
     git のタグ・コミットに乗せる。`octavo values --diff v1-submitted` のように使う。
     """
     try:
-        rel = Path(cfg['results_dir']).relative_to(cfg.root).as_posix()
+        rel = Path(cfg['values_dir']).relative_to(cfg.root).as_posix()
     except ValueError as e:
-        raise GitError(t('results_dir is outside the repository, so it cannot be '
+        raise GitError(t('values_dir is outside the repository, so it cannot be '
                          'compared with git')) from e
 
     names = _git(cfg, ['ls-tree', '-r', '--name-only', ref, '--', rel]).split('\n')
@@ -315,7 +315,7 @@ def diff(cfg, ref: str = '') -> tuple:
     """(取った日時, 変わったもの, 増えたもの, 消えたもの) を返す。
 
     `ref` を渡すと **git のその時点**（`v1-submitted` のようなタグ）と比べる。
-    渡さなければ「前に分析を走らせた直前」の控えと比べる。
+    渡さなければ「前に分析を実行した直前」の控えと比べる。
 
     比べるのは**本文に出る文字**（書式を通したあと）。生の値が
     0.3419 から 0.3421 に動いても、`.3f` なら本文は 0.342 のままなので

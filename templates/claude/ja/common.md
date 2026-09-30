@@ -6,9 +6,13 @@
 [Octavo](https://github.com/yoshida-kd/octavo) の `octavo` コマンドが行う。
 
 ```
-figures/          図（<name>.pdf と .png）。分析が書くか、Typst で描くか（<name>.typ）、手で置く
-refs/             （要れば作る）外から来た資料（コードブック・調査票・投稿規定）。git に入れる
-notes/            （要れば作る）自分が書いたメモ（読書・査読・作業）。原稿には入らない
+figures/          手で作る図: Typst で描く <name>.typ、写真など
+tables/           （必要なら作る）手で作る表: <name>.csv
+assets/           原稿に差し込まれるもの。**分析と octavo build が書くので手で直さない**（git には入れる）
+  figures/        図（<name>.pdf と .png）。分析の図と、figures/*.typ から組んだ図
+  tables/         表（<name>.typ / .tex / .md）。分析の表と、tables/*.csv から作った表
+refs/             （必要なら作る）外から来た資料（コードブック・調査票・投稿規定）。git に入れる
+notes/            （必要なら作る）自分が書いたメモ（読書・査読・作業）。原稿には入らない
 literature.bib    書誌。**文献管理ソフト（Zotero など）が正本**（エクスポートするたびに上書きされる）
 templates/        Octavo のひな型をこのプロジェクト用に差し替えたもの（なければ同梱のものを使う。`octavo template list`）
 octavo.config.py  このプロジェクトの設定（原稿・書式・分析の登録）
@@ -32,6 +36,7 @@ octavo new slides example-talk           # slides/example-talk.md
 octavo new lecture example-lecture         # lectures/example-lecture.md
 octavo new analysis model                  # analysis/model.qmd（初回は data/ なども）
 octavo new figure dag                      # figures/dag.typ（Typst で描く図。TikZ の代わり）
+octavo new table compare                   # tables/compare.csv（手で作る表）
 ```
 
 `octavo new` が置く原稿は見出しの骨組みだけ。書き方の見本を見たいときは
@@ -70,25 +75,31 @@ octavo new figure dag                      # figures/dag.typ（Typst で描く�
 | | 書き方 | 本文での参照 |
 |---|---|---|
 | 節 | `## 分析 {#sec-analysis}` | `@sec-analysis` → 第2節 |
-| 図 | `![推移](../../figures/trend.png){#fig-trend}` | `@fig-trend` → 図2.1 |
-| 表（原稿に書く） | マークダウンの表 + すぐ下に `: 記述統計 {#tbl-desc}` | `@tbl-desc` → 表2.1 |
-| 表（分析が作る） | `: 記述統計 {#tbl-summary}` の1行だけ（`tables/summary.*` が入る） | `@tbl-summary` |
+| 図 | `![推移](../../assets/figures/trend.png){#fig-trend}` | `@fig-trend` → 図2.1 |
+| 表（原稿に書く） | Markdown の表 + すぐ下に `: 記述統計 {#tbl-desc}` | `@tbl-desc` → 表2.1 |
+| 表（分析が作る） | `: 記述統計 {#tbl-summary}` の1行だけ（`assets/tables/summary.*` が入る） | `@tbl-summary` |
+| 表（手で作る） | `tables/compare.csv` を作り、`: 比較 {#tbl-compare}` の1行だけ | `@tbl-compare` |
 | 式 | `$$ … $$ {#eq-model}` | `@eq-model` → 式(2.1) |
 
 - ラベルは `fig-` `tbl-` `eq-` `sec-` で始め、英数字と `-` `_` だけで書く。日本語は
   ラベルに含まれないので、直後に続けてよい（`@fig-trendに示す`）。`[-@fig-trend]` は
   番号だけ（「2.1」）
-- 節や図を足したり並べ替えたりしても、**参照を直す必要はない**。ないラベルへの
+- 節や図を足したり並べ替えたりしても、**参照を直す必要はない**。存在しないラベルへの
   参照と、二重に付けたラベルは `octavo check` が止める
 
-図は `.png` を原稿に貼れば足りる（LaTeX 用の `.pdf` は Octavo が自動で探す）。
-パスは原稿から見た相対パスで書く（論文なら `../../figures/`、スライド・講義なら
-`../figures/`。エディタのプレビューに出る）。図は全部の原稿で共有する。論文の図を
-スライドに貼るときも、同じ `figures/` のファイルを指せばよい（複製しない）。
+図は `.png` を原稿に貼れば足りる（Typst と LaTeX には Octavo が自動で `.pdf` を使う）。
+パスは原稿から見た相対パスで書く（論文なら `../../assets/figures/`、スライド・講義なら
+`../assets/figures/`。エディタのプレビューに出る）。図は全部の原稿で共有する。論文の図を
+スライドに貼るときも、同じ `assets/figures/` のファイルを指せばよい（複製しない）。
 
 箱と矢印の図などは `octavo new figure <name>` で `figures/<name>.typ` を置いて Typst で描く。
 `octavo build` が `.pdf` と `.png` に組むので、原稿からは普通の図と同じく `.png` を貼る
 （**組まれた `.pdf` / `.png` は手で直さない**。直すのは `.typ`）。
+
+文章の比較表や手で集めた数字の表は、`octavo new table <name>` で `tables/<name>.csv` を置いて
+書く（1行目が見出し。見出しのセルの右隣を空にすると横に結合する）。`octavo build` が
+`assets/tables/` に表を作る（**直すのは `.csv`**）。長い表を Markdown の表で原稿に打つより
+こちらがよい。
 
 ## 見本は、見本だと分かるようにしてある
 
@@ -99,9 +110,9 @@ octavo new figure dag                      # figures/dag.typ（Typst で描く�
 | 印 | どこに | 消え方 |
 |---|---|---|
 | `octavo:example` のコメント | 原稿・付録・`.qmd`・`literature.bib` | 手で消す |
-| `_placeholder` | `results/*.json` | `octavo analysis run` が書き直す |
-| 枠と × だけの図 | `figures/trend.*` | `ov_figure()` が書き直す |
-| 中身のない表 | `tables/summary.*` | `ov_table()` が書き直す |
+| `_placeholder` | `assets/values/*.json` | `octavo analysis run` が書き直す |
+| 枠と × だけの図 | `assets/figures/trend.*` | `ov_figure()` が書き直す |
+| 中身のない表 | `assets/tables/summary.*` | `ov_table()` が書き直す |
 
 **仮の値（`_placeholder`）は特に危ない。**分析を1度も実行していなくても
 `{{…}}` が全部解決してしまい、**仮の数字の入った PDF が組める**。そうならないよう
@@ -127,7 +138,7 @@ octavo outline                 # 見出し構成を見る
 ## 仕上げる前に
 
 ```bash
-octavo check          # 検査を1回にまとめる（致命的があれば非 0 で終わる）
+octavo check          # 検査を1回にまとめる（致命的があれば終了コードが 0 以外になる）
 octavo lint           # 手入力された数値だけを詳しく
 ```
 
@@ -147,7 +158,7 @@ octavo lint           # 手入力された数値だけを詳しく
 # 困ったとき
 
 ```bash
-octavo doctor       # pandoc / LaTeX / Typst / quarto / R が揃っているか
+octavo doctor       # pandoc / LaTeX / Typst / Quarto / R が揃っているか
 octavo selftest     # 引用が実際にどう組まれるかを実物で見る
 ```
 

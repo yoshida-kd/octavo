@@ -51,4 +51,4 @@ never appear on the projected deck; they go in the speaker script
 (`--to typst-notes`).
 
 With an analysis, course material and slides can use `{{...}}` values too — they
-read the same `results/`. **As in a paper, never type a number by hand.**
+read the same `assets/values/`. **As in a paper, never type a number by hand.**

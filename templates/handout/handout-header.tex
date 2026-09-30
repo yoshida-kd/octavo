@@ -1,8 +1,8 @@
 % =====================================================================
 %  A4 プリント（profile: handout）用の追加プリアンブル。
 %  pandoc の --standalone に --include-in-header で足される。
-%  自分のものに差し替えるなら octavo.config.py に
-%      'headers': {'latex': 'my-handout-header.tex'},
+%  自分のものに差し替えるなら、このファイルをプロジェクトにコピーして直す:
+%      octavo template copy handout/handout-header.tex
 % =====================================================================
 
 % ---- 日本語 -----------------------------------------------------------
@@ -26,7 +26,7 @@
 \titlespacing*{\section}{0pt}{1.2\baselineskip}{0.4\baselineskip}
 \titlespacing*{\subsection}{0pt}{0.9\baselineskip}{0.3\baselineskip}
 
-% 題扉を詰める（プリントは1行目から本文に入りたい）
+% タイトル部分を詰める（プリントは1行目から本文に入りたい）
 \usepackage{titling}
 \setlength{\droptitle}{-2.2\baselineskip}
 \pretitle{\begin{center}\large\bfseries}
@@ -47,5 +47,5 @@
 % ---- 書き込み欄 -------------------------------------------------------
 % 原稿で \fillin あるいは \fillin[8] と書くと下線が引ける（穴埋めプリント用）。
 \newcommand{\fillin}[1][4]{\underline{\hspace{#1\zw}}}
-% \zw が無い環境（article + luatexja-preset）向けの保険
+% \zw がない環境（article + luatexja-preset）向けの保険
 \providecommand{\zw}{em}

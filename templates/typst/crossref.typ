@@ -1,13 +1,13 @@
 // =====================================================================
 //  図・表・式・節の番号と、参照（@fig-… など）の体裁。
 //
-//  octavo build が組むたびにこれを使う（論文は build/…/crossref.typ に写し、
+//  octavo build が組むたびにこれを使う（論文は build/…/crossref.typ にコピーし、
 //  main.typ が #import する。A4 プリントとスライドは頭に埋め込む）。
 //  自分の体裁にするなら octavo template copy typst/crossref.typ。
 //
 //    within   true なら節ごと（図2.1・式(2.1)）、false なら通し番号（図1）
 //    section  auto  = 最上位の見出しが節
-//             none  = 節は無い（見出しが1段のスライド）
+//             none  = 節はない（見出しが1段のスライド）
 //             整数  = 節の番号を決め打ち（講義の回ごとのデッキ。プリントと同じ番号にする）
 //    count-unnumbered  番号を出さない見出しも節として数えるか（スライド。論文では
 //             「要旨」のような番号なしの見出しを数えない）
@@ -17,7 +17,7 @@
 
 #let octavo-appendix-state = state("octavo-appendix", false)
 // 節（最上位の見出し）を数える。見出しの番号を出さない文書（スライド）でも進む
-// （Typst の counter(heading) は番号の無い見出しでは進まない）
+// （Typst の counter(heading) は番号のない見出しでは進まない）
 #let octavo-section = counter("octavo-section")
 
 // 付録に入るところで #show: octavo-appendix（節が A, B, … になり、図表も A.1 になる）
@@ -31,7 +31,7 @@
 
 #let octavo-crossref-rules(lang: "ja", within: true, section: auto,
                            count-unnumbered: false, body) = {
-  // 節の番号（その場所で）。無ければ none
+  // 節の番号（その場所で）。なければ none
   let sec-at(loc) = {
     if not within or section == none { return none }
     if type(section) == int { return str(section) }
@@ -72,7 +72,7 @@
     it
   }
 
-  // ラベルの無い別行の数式には番号を付けない（番号を数えた分も戻す）
+  // ラベルのない別行の数式には番号を付けない（番号を数えた分も戻す）
   show math.equation: it => {
     if it.block and not it.has("label") and it.numbering != none {
       counter(math.equation).update(v => v - 1)

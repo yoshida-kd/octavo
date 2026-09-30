@@ -36,8 +36,8 @@ renv/python/
 # octavo.config.py を読んだときに Python が作るキャッシュ
 __pycache__/
 
-# Quarto の作業物（results/ の *.json は成果物なので commit する）
+# Quarto の作業物（assets/values/ の *.json は成果物なので commit する）
 /.quarto/
 **/*_files/
 analysis/*.html
-results/.analysis-stamp.json
+assets/values/.analysis-stamp.json

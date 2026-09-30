@@ -3,7 +3,7 @@
 // 判定ロジック（何が壊れているか）は Python 側の octavo/check.py に1箇所
 // だけある。この拡張はそれを JSON で受け取って表示するだけで、BibTeX の
 // パーサや検査ルールを TypeScript 側で作り直さない。`octavo checkbib` を手で
-// 打ったときと拡張の診断が食い違うことが無いようにするため。
+// 打ったときと拡張の診断が食い違うことがないようにするため。
 
 import * as vscode from 'vscode';
 import { dirOf, findConfig, runCapture } from './runner';
@@ -57,7 +57,7 @@ export class BibCache {
         return this.configUri;
     }
 
-    /** 実行中なら同じ Promise に相乗りする（保存イベントが連続しても二重に走らせない）。 */
+    /** 実行中なら同じ Promise に相乗りする（保存イベントが連続しても二重に実行しない）。 */
     async refresh(force = false): Promise<CheckbibReport | undefined> {
         if (this.refreshing && !force) {
             return this.refreshing;

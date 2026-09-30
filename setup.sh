@@ -8,16 +8,16 @@
 #    bash setup.sh --with-tex     TeX Live も / TeX Live too (LaTeX / Beamer; several GB)
 #    bash setup.sh --minimal      pandoc と日本語フォントだけ / pandoc and CJK fonts only
 #    bash setup.sh --no-typst     Typst を入れない / leave out Typst
-#    bash setup.sh --no-quarto    quarto を入れない / leave out quarto
+#    bash setup.sh --no-quarto    Quarto を入れない / leave out Quarto
 #    bash setup.sh --no-r         R を入れない / leave out R
 #    bash setup.sh --no-cjk-fonts 日本語フォントを入れない / leave out CJK fonts
 #    bash setup.sh --octavo-version X   octavo を PyPI の X で入れる / install octavo X from PyPI
 #    bash setup.sh --check        何を入れるか見るだけ / only show what would be done
 #
-#  VS Code の拡張機能の「準備する」も、`octavo setup` も、これを走らせる。
+#  VS Code の拡張機能の「セットアップ」も、`octavo setup` も、これを実行する。
 #  Windows で直接使うときは setup.ps1（winget）が同じ役目をする。
 #  The VS Code extension's "Set up" and `octavo setup` both run this file.
-#  同じことを何度走らせても平気 / Safe to run again: what is there is skipped.
+#  同じことを何度実行しても問題ない / Safe to run again: what is there is skipped.
 # =====================================================================
 set -euo pipefail
 
@@ -49,7 +49,7 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# 表示の言語。octavo 本体と同じく OCTAVO_LANG、無ければロケール。
+# 表示の言語。octavo 本体と同じく OCTAVO_LANG、なければロケール。
 case "${OCTAVO_LANG:-${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}}" in
   ja*) L=ja ;;
   *) L=en ;;
@@ -63,11 +63,11 @@ run()  { if [ "$DRY" = 1 ]; then info "($(m '実行しない' 'not run')) $*"; e
 SUDO=""
 if [ "$(id -u)" != 0 ] && [ "$(uname -s)" != Darwin ]; then
   command -v sudo >/dev/null && SUDO="sudo" || {
-    m "root でもなく sudo も無い。パッケージを入れられない" \
+    m "root でもなく sudo もない。パッケージを入れられない" \
       "Not root and no sudo, so nothing can be installed"; echo; exit 1; }
 fi
 
-# $1 >= $2 か（版の比較）。sort -V は古い macOS の sort に無く、macOS の bash は
+# $1 >= $2 か（版の比較）。sort -V は古い macOS の sort になく、macOS の bash は
 # 3.2 なので、それで動く書き方にしてある。
 ver_ge() {
   local IFS=. i x y
@@ -124,7 +124,7 @@ install_macos() {
   say "環境" "System"
   info "macOS $(sw_vers -productVersion 2>/dev/null || echo '?')  ($(uname -m))"
   command -v brew >/dev/null || {
-    m "Homebrew が無い。https://brew.sh の1行で入れてから、もう一度走らせること" \
+    m "Homebrew がない。https://brew.sh の1行で入れてから、もう一度実行すること" \
       "Homebrew is missing. Install it with the one line at https://brew.sh, then run this again"
     echo; exit 1; }
 
@@ -135,7 +135,7 @@ install_macos() {
     brew_tool typst "$TYPST_VER" "" typst
   fi
   if [ "$WITH_CJK" = 1 ]; then
-    # 既定の書体（octavo/backends/typst.py の FONTS）。どれも無くても、
+    # 既定の書体（octavo/backends/typst.py の FONTS）。どれもなくても、
     # macOS に最初からあるヒラギノに落ちるので組版は止まらない。
     say "フォント" "Fonts"
     for c in font-biz-udmincho font-biz-udgothic font-inter \
@@ -180,7 +180,7 @@ ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 msg "アーキテクチャ: $ARCH" "architecture: $ARCH"
 
 command -v apt-get >/dev/null || {
-  m "apt が無い。Debian/Ubuntu 以外は手で入れること" \
+  m "apt がない。Debian/Ubuntu 以外は手で入れること" \
     "No apt. On anything but Debian/Ubuntu, install the tools by hand"; echo; exit 1; }
 if [ -n "$SUDO" ] && [ "$DRY" = 0 ]; then
   msg "パッケージを入れるのに管理者のパスワードを聞かれる（1回）" \
@@ -191,14 +191,14 @@ fi
 say "apt の更新" "Updating apt"
 run $SUDO apt-get update -qq
 
-# xz-utils: Typst の配布物（.tar.xz）を展開するのに要る。最小構成の Ubuntu には無い
+# xz-utils: Typst の配布物（.tar.xz）を展開するのに要る。最小構成の Ubuntu にはない
 PKGS=(pandoc fontconfig python3 curl ca-certificates xz-utils)
 if [ "$WITH_CJK" = 1 ]; then
   PKGS+=(fonts-noto-cjk fonts-noto-cjk-extra)
 fi
 # 既定の書体（octavo/backends/typst.py の FONTS）。和文は等幅の BIZ UD、
-# スライドの欧文は Inter。古い Ubuntu には無いパッケージもあるので、
-# apt が知っているものだけ足す（無ければ Typst が Noto に落ちるので組版は止まらない）。
+# スライドの欧文は Inter。古い Ubuntu にはないパッケージもあるので、
+# apt が知っているものだけ足す（なければ Typst が Noto に落ちるので組版は止まらない）。
 OPTIONAL_FONTS=(fonts-inter)
 if [ "$WITH_CJK" = 1 ]; then
   OPTIONAL_FONTS+=(fonts-morisawa-bizud-gothic fonts-morisawa-bizud-mincho)
@@ -207,7 +207,7 @@ for p in "${OPTIONAL_FONTS[@]}"; do
   if apt-cache show "$p" >/dev/null 2>&1; then
     PKGS+=("$p")
   else
-    msg "$p は apt に無いので飛ばす（Noto で組む）" "$p is not in apt, skipped (Noto is used)"
+    msg "$p は apt にないので飛ばす（Noto で組む）" "$p is not in apt, skipped (Noto is used)"
   fi
 done
 if [ "$MINIMAL" = 0 ]; then
@@ -461,7 +461,7 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# octavo 本体。clone から走らせたらそのシンボリックリンク、そうでなければ
+# octavo 本体。clone から実行したらそのシンボリックリンク、そうでなければ
 # （拡張機能・octavo setup）PyPI の octavo-kit を uv で入れる。
 # clone へのリンクが既にあるなら上書きしない（開発している人の環境を壊さない）。
 say "octavo コマンド" "The octavo command"

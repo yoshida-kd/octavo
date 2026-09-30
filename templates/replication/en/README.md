@@ -7,8 +7,9 @@ This package alone reproduces every number, figure and table in the paper.
     analysis/       the analysis (Quarto .qmd) and the helper octavo.R
     data/           data@@RAWNOTE@@
     data/HASHES.json  fingerprints (sha256) of the data that was used
-    results/        the numbers the analysis produced (the ones in the text) and a record of the software
-    figures/ tables/  the figures and tables the analysis produced
+    assets/values/  the numbers the analysis produced (the ones in the text) and a record of the software
+    assets/figures/ assets/tables/  the figures and tables in the paper
+    figures/        figures drawn by hand in Typst (<name>.typ), if any
     octavo.config.py  settings
     literature.bib    bibliography
 
@@ -16,7 +17,7 @@ This package alone reproduces every number, figure and table in the paper.
 
     quarto render analysis/*.qmd
 
-or, with [octavo](https://github.com/yoshida-kd/octavo) installed,
+or, with [Octavo](https://github.com/yoshida-kd/octavo) installed,
 
     octavo analysis run --force
     octavo values --diff      # did the same numbers come out?

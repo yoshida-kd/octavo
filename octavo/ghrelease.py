@@ -10,9 +10,9 @@
 同じには作り直せないので、節目にだけ外（GitHub）へ置く。git の履歴には入れない。
 
 添付するものとタグの指すコミットが食い違わないように、次を確かめてから組む:
-作業ツリーがきれい（コミットしていない変更が無い）、分析が古くない、仮の値のまま
-ではない、そのタグがまだ無い、`gh` が使える。組むのは**この場で**、分析は走らせない
-（走らせると results/ が変わってコミットとずれる）。
+作業ツリーがきれい（コミットしていない変更がない）、分析が古くない、仮の値のまま
+ではない、そのタグがまだない、`gh` が使える。組むのは**この場で**、分析は実行しない
+（実行すると assets/values/ が変わってコミットとずれる）。
 
 タグの名前は `values --diff <タグ>`（R&R で「投稿版から何が動いたか」）にもそのまま使える。
 GitHub とのやり取りは `gh`（GitHub CLI）に任せる。Octavo 自身は標準ライブラリだけ。
@@ -28,6 +28,7 @@ from . import __version__
 from . import analysis as anamod
 from . import build as buildmod
 from . import diagrams
+from . import handtables
 from . import values as valuesmod
 from .i18n import t
 
@@ -70,18 +71,23 @@ def preflight(cfg, doc_name: str, label: str, need_gh: bool = True) -> str:
                           'points at what gets typeset:') + ''.join(
                               '\n    ' + line for line in dirty[:10]))
     if valuesmod.placeholder_files(cfg):
-        problems.append(t('the analysis values are still the placeholders octavo init '
+        problems.append(t('the analysis values are still the placeholders octavo '
                           'wrote — run the analysis first'))
     stamp = anamod.read_stamp(cfg)
     stale = [cfg.rel(u.src) for u in anamod.units(cfg) if anamod.is_stale(cfg, u, stamp)]
     if stale:
         problems.append(t('the analysis is stale ({files}) — run octavo analysis run, '
-                          'commit results/, then release', files=', '.join(stale)))
+                          'commit assets/values/, then release', files=', '.join(stale)))
     drawn = [cfg.rel(p) for p in diagrams.stale(cfg)]
     if drawn:
         problems.append(t('these figures have not been drawn since their .typ changed '
-                          '({files}) — run octavo build, commit figures/, then release',
+                          '({files}) — run octavo build, commit assets/figures/, then release',
                           files=', '.join(drawn)))
+    made = [cfg.rel(p) for p in handtables.stale(cfg)]
+    if made:
+        problems.append(t('these tables have not been made since their .csv changed '
+                          '({files}) — run octavo build, commit assets/tables/, then release',
+                          files=', '.join(made)))
     if _git(root, 'remote', 'get-url', 'origin').returncode != 0:
         problems.append(t('there is no remote called origin to push the tag to'))
     if need_gh:

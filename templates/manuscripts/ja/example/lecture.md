@@ -48,7 +48,7 @@ date: 2026-04-10
 
 @yamada2020 の例を見る。調査の標本は {{n_obs}} 件で、推移は@fig-trendのとおり。
 
-![推移](../figures/trend.png){#fig-trend}
+![推移](../assets/figures/trend.png){#fig-trend}
 
 ## まとめと課題
 

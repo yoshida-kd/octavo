@@ -9,7 +9,7 @@
 //  A4 縦1ページ＝スライド1枚で組むことと、スライド側が落とす `::: notes` を
 //  #octavo-note[…] として下に置くこと。
 //
-//  体裁を変えるなら octavo template copy slides/typst-notes.typ で写して直す
+//  体裁を変えるなら octavo template copy slides/typst-notes.typ でコピーして直す
 //  （typst-slides.typ と同じやり方）。
 //
 //  事例／論点／余談／注意／付記と #smallgray は typst-slides.typ と同じ名前で

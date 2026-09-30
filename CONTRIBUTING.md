@@ -5,7 +5,7 @@ Issues and pull requests are welcome, in English or Japanese.
 ## Setup
 
 No install step beyond Python itself — `octavo` is intentionally
-stdlib-only (see [README.md](README.md)). For the full toolchain
+stdlib-only (see [the guide](docs/guide.md#1-install)). For the full toolchain
 (pandoc/Typst) needed to actually build output, run `bash setup.sh`
 (add `--with-tex` for LaTeX/Beamer).
 
@@ -39,5 +39,6 @@ suite across Python 3.9–3.14 on every push and pull request.
 
 Please include: the command you ran, the full error/output, `octavo doctor`
 output, and your pandoc/TeX/Typst versions (`pandoc --version`, etc.) — §10
-of the README ("What is tested, and what to check yourself") says which parts
-are covered by the test suite and which aren't.
+of [the guide](docs/guide.md#10-what-is-tested-and-what-to-check-yourself)
+("What is tested, and what to check yourself") says which parts are covered by
+the test suite and which aren't.

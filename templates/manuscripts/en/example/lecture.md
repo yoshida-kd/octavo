@@ -50,7 +50,7 @@ Slides only: a figure or a short question.
 Following @yamada2020. The survey has {{n_obs}} respondents; @fig-trend shows
 the trend.
 
-![Trend](../figures/trend.png){#fig-trend}
+![Trend](../assets/figures/trend.png){#fig-trend}
 
 ## Summary and assignment
 

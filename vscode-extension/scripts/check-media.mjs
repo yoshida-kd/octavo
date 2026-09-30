@@ -1,7 +1,7 @@
 // webview に渡す JavaScript を構文検査する。**実行はしない。**
 // VS Code の中の挙動はどのテストも見ていないので、せめて「読めない JS を
 // 配ってしまう」だけは防ぐ。node --check は .js を CommonJS として読むため、
-// import と最上位 await が通るように .mjs に写してから掛ける。
+// import と最上位 await が通るように .mjs にコピーしてから掛ける。
 import { copyFileSync, mkdtempSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmpdir } from 'node:os';

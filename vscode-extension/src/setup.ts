@@ -1,8 +1,8 @@
-// setup.ts — 道具がそろっているかを見て、足りなければ「準備する」を出す。
+// setup.ts — 道具がそろっているかを見て、足りなければ「セットアップ」を出す。
 //
 // そろっているかは `octavo doctor --json` が決める（ここで which を並べ直したりしない）。
-// 入れるのは .vsix に同梱した setup.sh（リポジトリ直下のものの写し）。sudo の
-// パスワードを打ってもらうのでターミナルで走らせ、閉じたらもう一度確かめる。
+// 入れるのは .vsix に同梱した setup.sh（リポジトリ直下のもののコピー）。sudo の
+// パスワードを打ってもらうのでターミナルで実行し、閉じたらもう一度確かめる。
 // octavo 本体も setup.sh が PyPI から入れるので、拡張機能を入れたあとは
 // ボタン1つで済む（clone も pip も要らない）。
 import * as os from 'os';
@@ -67,7 +67,7 @@ export class SetupManager {
                 ...Object.entries(report.analysis).filter(([, ok]) => !ok).map(([k]) => k)];
             return lacks.length ? { kind: 'incomplete', report, lacks } : { kind: 'ok', report };
         } catch {
-            // --json を知らない古い octavo か、octavo そのものが無い
+            // --json に対応していない古い octavo か、octavo そのものがない
             const v = await runCapture(os.homedir(), ['--version'], 20000);
             const m = /octavo (\S+)/.exec(v.stdout);
             return m ? { kind: 'outdated', have: m[1] } : { kind: 'no-cli' };
@@ -77,7 +77,7 @@ export class SetupManager {
     private describe(state: ToolState): string {
         switch (state.kind) {
             case 'no-cli':
-                return vscode.l10n.t('Octavo: the tools it needs (pandoc, Typst, quarto, R, …) are not installed yet.');
+                return vscode.l10n.t('Octavo: the tools it needs (pandoc, Typst, Quarto, R, …) are not installed yet.');
             case 'outdated':
                 if (state.clone) {
                     return vscode.l10n.t('Octavo: the octavo command ({0}) is older than this extension ({1}). '
@@ -107,7 +107,7 @@ export class SetupManager {
         }
         const later = vscode.l10n.t('Not now');
         const never = vscode.l10n.t('Don\'t ask again');
-        // clone は setup では更新されないので、「準備する」の代わりに git pull を渡す
+        // clone は setup では更新されないので、「セットアップ」の代わりに git pull を渡す
         const clone = state.kind === 'outdated' ? state.clone : undefined;
         const act = clone ? vscode.l10n.t('Copy the git pull command') : vscode.l10n.t('Set up');
         const picked = await vscode.window.showWarningMessage(this.describe(state), act, later, never);
@@ -135,7 +135,7 @@ export class SetupManager {
         }
     }
 
-    /** setup.sh をターミナルで走らせる。閉じたら確かめ直して結果を知らせる。 */
+    /** setup.sh をターミナルで実行する。閉じたら確かめ直して結果を知らせる。 */
     runSetup(): void {
         if (this.running) {
             void vscode.window.showInformationMessage(vscode.l10n.t('Octavo: the setup is already running.'));
@@ -166,7 +166,7 @@ export class SetupManager {
             return;
         }
         if (state.kind === 'outdated' && !state.clone) {
-            // doctor --json を知らない古い clone だと、どこから動いているかは分からない
+            // doctor --json に対応していない古い clone だと、どこから動いているかは分からない
             void vscode.window.showWarningMessage(vscode.l10n.t(
                 'Octavo: the octavo command is still {0} after the setup. If it runs from a git clone, '
                 + 'the setup leaves it alone (the terminal says where): update the clone with git pull.',

@@ -6,7 +6,7 @@
     octavo check --anonymous  匿名審査で出すときの検査も足す
 
 散らばっている検査（`octavo checkbib` / `octavo values` / `octavo analysis` /
-`octavo lint`）と、どこにも無かった検査（図と表のファイルが実在するか）を
+`octavo lint`）と、どこにもなかった検査（図と表のファイルが実在するか）を
 1コマンドにまとめる。**判定そのものはここには書かない** — それぞれの
 モジュールの `collect()` を呼ぶだけなので、単体のコマンドと食い違わない。
 
@@ -24,6 +24,7 @@ from . import crossref as xref
 from . import check as checkmod
 from . import dataset
 from . import diagrams
+from . import handtables
 from . import lint as lintmod
 from . import md as mdlib
 from . import scaffold
@@ -49,7 +50,7 @@ class Item:
 # ---------------------------------------------------------------- 図・表の実在
 
 def figure_problems(cfg) -> list:
-    """本文が貼っている図で、実ファイルが無いものを返す。
+    """本文が貼っている図で、実ファイルがないものを返す。
 
     figures/ の中の図は、出力形式ごとに拡張子が違う（LaTeX は .pdf、Word は .png）
     ので、**その文書が出す形式の分だけ**見る。それ以外の図は書いたとおりのパス。
@@ -79,7 +80,7 @@ def figure_problems(cfg) -> list:
 
 
 def placeholder_figures(cfg) -> list:
-    """`octavo init` が置いた仮の図・表（枠と×の図、中身の無い表）のままのものを返す。"""
+    """`octavo init` が置いた仮の図・表（枠と×の図、中身のない表）のままのものを返す。"""
     out = []
     for key in ('figure_dir', 'table_dir'):
         d = Path(cfg[key])
@@ -90,7 +91,7 @@ def placeholder_figures(cfg) -> list:
 
 
 def table_problems(cfg) -> list:
-    """分析が書いたはずの表（本文の `: 表題 {#tbl-名前}`）で、実ファイルが無いもの。
+    """分析か手で作る表から書かれるはずの表（本文の `: 表題 {#tbl-名前}`）で、実ファイルがないもの。
 
     形式ごとに読むファイルが違う（Typst は .typ、LaTeX は .tex、Word は .md）ので、
     その文書が出す形式の分だけ見る。
@@ -118,7 +119,7 @@ def length_problems(cfg) -> list:
             continue                      # 付録に規定があることは稀
         if cfg.documents[name].profile != 'paper':
             continue                      # 規定は投稿する論文のもの。スライド・講義は見ない
-        # 上限は投稿先ごと。原稿の冒頭に書いてあればそれ、無ければプロジェクトの設定
+        # 上限は投稿先ごと。原稿の冒頭に書いてあればそれ、なければプロジェクトの設定
         lim = cfg.for_document(cfg.documents[name])
         raw = mdlib.drop_math_macros(valmod.substitute(mdlib.read(src), vals, cfg))
         abstract, body = mdlib.split_abstract(mdlib.drop_references(raw))
@@ -154,7 +155,7 @@ def collect(cfg, anonymous: bool = False) -> list:
                'documents in octavo.config.py')))
 
     # -- 分析 ---------------------------------------------------------------
-    # 分析の無いプロジェクト（スライドだけ、など）には分析の行を出さない
+    # 分析のないプロジェクト（スライドだけ、など）には分析の行を出さない
     rows = anamod.status(cfg) if cfg['analysis'] else []
     has_analysis = bool(rows) or bool(valmod.files(cfg))
     if has_analysis:
@@ -197,7 +198,7 @@ def collect(cfg, anonymous: bool = False) -> list:
         items.append(Item(
             ok=not ph, fatal=True, label=t('placeholder values'),
             detail=(t('the analysis has never run: {files} {n|is|are} the starter '
-                      'values octavo init wrote', files=', '.join(ph), n=len(ph))
+                      'values octavo wrote', files=', '.join(ph), n=len(ph))
                     if ph else t('these are real values') if valmod.files(cfg)
                     else t('no values yet (the analysis writes them)')),
             lines=ph,
@@ -225,7 +226,7 @@ def collect(cfg, anonymous: bool = False) -> list:
         detail=t('{n} missing', n=len(figs)) if figs
                else t('every figure the text uses is there'),
         lines=[str(p) for p in figs],
-        hint=t('octavo analysis run, or put it in figures/')))
+        hint=t('octavo analysis run (or octavo build, for a figure drawn in Typst)')))
     drawn = diagrams.sources(cfg)
     if drawn:
         old_figs = diagrams.stale(cfg)
@@ -239,8 +240,22 @@ def collect(cfg, anonymous: bool = False) -> list:
     items.append(Item(
         ok=not tbls, fatal=True, label=t('table files'),
         detail=t('{n} missing', n=len(tbls)) if tbls
-               else t('every table from the analysis is there'),
-        lines=[str(p) for p in tbls], hint='octavo analysis run'))
+               else t('every table the text uses is there'),
+        lines=[str(p) for p in tbls],
+        hint=t('octavo analysis run (or octavo build, for a table made by hand)')))
+    made = handtables.sources(cfg)
+    if made:
+        clash = handtables.conflicts(cfg)
+        old_tbls = handtables.stale(cfg)
+        items.append(Item(
+            ok=not clash and not old_tbls, fatal=bool(clash),
+            label=t('tables made by hand'),
+            detail=t('{n} also made by the analysis', n=len(clash)) if clash
+                   else t('{n} not made since {n|its .csv|their .csv} changed', n=len(old_tbls))
+                   if old_tbls else t('{n|the one is|all # are} up to date', n=len(made)),
+            lines=[cfg.rel(p) for p in (clash or old_tbls)],
+            hint=t('rename the .csv or the ov_table() name') if clash
+                 else t('octavo build makes them')))
 
     # -- 相互参照 -----------------------------------------------------------
     xr = xref.collect(cfg)
@@ -263,12 +278,12 @@ def collect(cfg, anonymous: bool = False) -> list:
         lines=[f'{at}  {what}' for at, what in xr['unused']],
         hint=t('refer to it with @label, or drop the label')))
 
-    # -- 直書きの数値 -------------------------------------------------------
+    # -- 手入力の数値 -------------------------------------------------------
     found = lintmod.collect(cfg)
     phf = placeholder_figures(cfg)
     items.append(Item(
         ok=not phf, fatal=False, label=t('placeholder figures and tables'),
-        detail=(t('{n} {n|is still a placeholder|are still the placeholders} octavo init wrote', n=len(phf))
+        detail=(t('{n} {n|is still a placeholder|are still the placeholders} octavo wrote', n=len(phf))
                 if phf else t('no placeholders left')),
         lines=phf,
         hint=t('octavo analysis run (ov_figure() / ov_table() in the .qmd rewrite them)')))
@@ -302,7 +317,7 @@ def collect(cfg, anonymous: bool = False) -> list:
             or [f'{lab}: {got:,}{u} / {lim:,}{u}' for lab, got, lim, u in lengths],
             hint=t('cut it down, or check the journal rules')))
 
-    # -- データの指紋 -------------------------------------------------------
+    # -- データのハッシュ値 -------------------------------------------------------
     if dataset.data_dir(cfg).is_dir():
         recorded_at, recorded = dataset.read(cfg)
         drift = dataset.compare(cfg)

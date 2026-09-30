@@ -10,7 +10,7 @@ const from = join(root, 'node_modules', 'pdfjs-dist', 'legacy', 'build');
 const to = join(root, 'media', 'pdfjs');
 
 if (!existsSync(from)) {
-  console.error('pdfjs-dist が無い。npm ci してから。');
+  console.error('pdfjs-dist がない。npm ci してから。');
   process.exit(1);
 }
 mkdirSync(to, { recursive: true });

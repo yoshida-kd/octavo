@@ -6,7 +6,7 @@
 
     octavo doctor --json      （VS Code の拡張機能が「準備が要るか」を決めるのに読む）
 
-入れるのは setup.sh（`octavo setup`、拡張機能の「準備する」）の役目。ここは
+入れるのは setup.sh（`octavo setup`、拡張機能の「セットアップ」）の役目。ここは
 「入っているか」を見るだけで、勝手に入れない。
 """
 from __future__ import annotations
@@ -16,7 +16,6 @@ import re
 import shutil
 import subprocess
 import sys
-from pathlib import Path
 
 from . import __version__
 from . import csl as cslmod
@@ -43,7 +42,7 @@ def _run(cmd, timeout=20) -> tuple:
 # それは読める。入れ直しても消えない注意は無視されるようになるので、版の違う
 # コンパイル済みのものを実際に読み込んでみて、読めなかったものだけを数える。
 # ライブラリごとに「数・どの R 向けか・書き込めるか」をタブ区切りで出す。
-# --vanilla で走らせるので、renv のプロジェクトの中でも R 本体のライブラリを見る。
+# --vanilla で実行するので、renv のプロジェクトの中でも R 本体のライブラリを見る。
 # setup.sh にも同じものがある（R_STALE）。
 R_STALE = r"""
 v <- paste(R.version$major, sub("[.].*", "", R.version$minor), sep = ".")
@@ -67,7 +66,7 @@ LAST_R_STALE: list = []
 
 
 def stale_r_libraries() -> list:
-    """[(ライブラリ, 数, 'どの R 向けか', 書き込めるか)]。R が無ければ空。"""
+    """[(ライブラリ, 数, 'どの R 向けか', 書き込めるか)]。R がなければ空。"""
     if not shutil.which('Rscript'):
         return []
     _, out = _run(['Rscript', '--vanilla', '-e', R_STALE], timeout=60)
@@ -111,7 +110,7 @@ def is_windows() -> bool:
 
 
 def hint(key: str):
-    """入れ方の案内。macOS では Homebrew、Windows では winget の書き方（無ければ共通のもの）。"""
+    """入れ方の案内。macOS では Homebrew、Windows では winget の書き方（なければ共通のもの）。"""
     if is_macos() and key in HINTS_MACOS:
         return HINTS_MACOS[key]
     if is_windows() and key in HINTS_WINDOWS:
@@ -146,14 +145,14 @@ def collect() -> dict:
             detail = f'{_first_line(out)}  ({p})'
             m = re.search(r'typst (\d+)\.(\d+)', out)
             tv = (int(m.group(1)), int(m.group(2))) if m else (0, 0)
-            # Typst スライドの体裁（block の高さ 1fr）は 0.12 から
-            f['typst_0_12'] = (tv >= (0, 12), _first_line(out))
+            # 図を PDF のまま埋め込めるのは 0.14 から（スライドの block の高さ 1fr は 0.12 から）
+            f['typst_0_14'] = (tv >= (0, 14), _first_line(out))
         if p and name == 'lualatex':
             _, out = _run(['lualatex', '--version'])
             detail = f'{_first_line(out)}  ({p})'
         f[name] = (bool(p), detail)
 
-    # 分析（Quarto + R）。無くても変換はできるので「不足」ではなく「注意」。
+    # 分析（Quarto + R）。なくても変換はできるので「不足」ではなく「注意」。
     exe = shutil.which('quarto')
     if exe:
         _, out = _run([exe, '--version'])
@@ -165,7 +164,7 @@ def collect() -> dict:
         _, out = _run(['Rscript', '--version'])
         f['R'] = (True, f'{_first_line(out)}  ({exe})')
         # renv は「分析の環境はプロジェクトごとに」の前提なのに R に付いてこない。
-        # setup.sh と octavo env が入れる。無ければここで言う。
+        # setup.sh と octavo env が入れる。なければここで言う。
         _, out = _run(['Rscript', '-e',
                        'cat(requireNamespace("renv", quietly = TRUE))'])
         has = out.strip().endswith('TRUE')
@@ -196,8 +195,8 @@ def collect() -> dict:
                        ('haranoaji.sty', t('Harano Aji fonts (for LaTeX)'))):
         f['tex:' + cls] = (_kpsewhich(cls), label)
 
-    # 日本語フォント（LaTeX 用）。macOS と Windows には fontconfig が無いが、LuaLaTeX は
-    # fc-list を使わずにフォントを探すので、無いことを問題として出さない。
+    # 日本語フォント（LaTeX 用）。macOS と Windows には fontconfig がないが、LuaLaTeX は
+    # fc-list を使わずにフォントを探すので、ないことを問題として出さない。
     if is_macos() and not shutil.which('fc-list'):
         f['cjkfonts'] = (True, t('macOS: LuaLaTeX finds the system fonts itself'))
     elif is_windows() and not shutil.which('fc-list'):
@@ -219,7 +218,7 @@ def collect() -> dict:
         f['typst_cjk'] = (bool(cjk), (t('{n} found', n=len(cjk)) + '  '
                                       + t('e.g.') + f' {cjk[0].strip()}'
                                       if cjk else t('Typst can see no CJK font')))
-        # 既定の書体（typst.FONTS）が見えるか。無くても Noto に落ちて組めるので
+        # 既定の書体（typst.FONTS）が見えるか。なくても Noto に落ちて組めるので
         # 「注意」止まり。何が足りないかと、入れ方を出す。
         from .backends.typst import FONTS
         families = {l.strip() for l in out.split('\n')}
@@ -255,13 +254,13 @@ def collect() -> dict:
     return f
 
 
-# 形式ごとに「これが無いと（ふだんの使い方では）出せない」もの。
+# 形式ごとに「これがないと（ふだんの使い方では）出せない」もの。
 # pandoc_citeproc はどの形式でも要る（引用を CSL で解決するため）。
 # 引用を使わない下書きなら octavo build --no-citations で回避できる。
 NEEDS = {
-    'typst':    ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_cjk'],
-    'typst-slides': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_12', 'typst_cjk'],
-    'typst-notes': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_cjk'],
+    'typst':    ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
+    'typst-slides': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
+    'typst-notes': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
     'docx':     ['pandoc', 'pandoc_citeproc'],
     'latex':    ['pandoc', 'pandoc_citeproc', 'lualatex', 'tex:ltjsarticle.cls'],
     'beamer':   ['pandoc', 'pandoc_citeproc', 'lualatex', 'tex:beamer.cls'],
@@ -279,7 +278,7 @@ NEED_LABELS = {
     'pandoc_typst': 'pandoc 3.1+ (Typst output)',
     'lualatex': 'LuaLaTeX',
     'typst': 'typst',
-    'typst_0_12': 'Typst 0.12 or newer',
+    'typst_0_14': 'Typst 0.14 or newer',
     'typst_cjk': 'a CJK font for Typst',
     'cjkfonts': 'CJK fonts',
     'tex:ltjsarticle.cls': 'ltjsarticle (texlive-lang-japanese)',
@@ -287,13 +286,13 @@ NEED_LABELS = {
     'tex:luatexja.sty': 'luatexja',
 }
 
-# 分析に使う道具。無くても変換はできるので「注意」止まり
+# 分析に使う道具。なくても変換はできるので「注意」止まり
 ANALYSIS_TOOLS = ('quarto', 'R', 'renv', 'uv')
 
 # 道具を入れるコマンド（clone でも pip / uv で入れても使える）
 SETUP_CMD = 'octavo setup'
 
-# 無くても組める（代わりが使われる）ので「不足」ではなく「注意」で出すもの
+# なくても組める（代わりが使われる）ので「不足」ではなく「注意」で出すもの
 SOFT_TOOLS = ('typst_default_fonts',)
 
 HINTS = {
@@ -304,7 +303,7 @@ HINTS = {
     'lualatex': 'sudo apt install texlive-luatex texlive-lang-japanese',
     'latexmk': 'sudo apt install latexmk',
     'typst': 'install it from https://github.com/typst/typst/releases (cargo works too)',
-    'typst_0_12': 'upgrade Typst (octavo setup installs the version this was tested on)',
+    'typst_0_14': 'upgrade Typst (octavo setup installs the version this was tested on)',
     'biber': 'not needed with CSL. Only if you go back to biblatex: sudo apt install biber',
     'tex:ltjsarticle.cls': 'sudo apt install texlive-lang-japanese',
     'tex:luatexja.sty': 'sudo apt install texlive-lang-japanese',
@@ -319,8 +318,8 @@ HINTS = {
     'fc-list': 'sudo apt install fontconfig',
 }
 
-# macOS（Homebrew）での入れ方。キーは HINTS と同じで、ここに無いものは HINTS を使う。
-# 引数付きの brew は setup.sh と同じ名前（casks は font-… / quarto / mactex-no-gui）。
+# macOS（Homebrew）での入れ方。キーは HINTS と同じで、ここにないものは HINTS を使う。
+# 引数付きの brew は setup.sh と同じ名前（casks は font-… / Quarto / mactex-no-gui）。
 HINTS_MACOS = {
     'pandoc': 'brew install pandoc',
     'typst_default_fonts': 'brew install --cask font-biz-udgothic font-biz-udmincho font-inter',
@@ -329,7 +328,7 @@ HINTS_MACOS = {
     'lualatex': 'brew install --cask mactex-no-gui (several GB; open a new terminal afterwards)',
     'latexmk': 'comes with MacTeX: brew install --cask mactex-no-gui',
     'typst': 'brew install typst',
-    'typst_0_12': 'brew upgrade typst',
+    'typst_0_14': 'brew upgrade typst',
     'biber': 'not needed with CSL. Only if you go back to biblatex: it comes with MacTeX',
     'tex:ltjsarticle.cls': 'comes with MacTeX: brew install --cask mactex-no-gui',
     'tex:luatexja.sty': 'comes with MacTeX: brew install --cask mactex-no-gui',
@@ -353,7 +352,7 @@ HINTS_WINDOWS = {
     'lualatex': 'install MiKTeX (winget install MiKTeX.MiKTeX) or TeX Live yourself',
     'latexmk': 'comes with MiKTeX / TeX Live',
     'typst': 'winget install Typst.Typst',
-    'typst_0_12': 'winget upgrade Typst.Typst',
+    'typst_0_14': 'winget upgrade Typst.Typst',
     'biber': 'not needed with CSL. Only if you go back to biblatex: it comes with MiKTeX / TeX Live',
     'tex:ltjsarticle.cls': 'comes with TeX Live; in MiKTeX it is installed on first use',
     'tex:luatexja.sty': 'comes with TeX Live; in MiKTeX it is installed on first use',
@@ -403,7 +402,7 @@ def report(verbose: bool = False) -> int:
         if k not in f:
             continue
         ok, detail = f[k]
-        # 既定の書体が無いのは「組めない」ではない（Noto に落ちる）ので注意止まり
+        # 既定の書体がないのは「組めない」ではない（Noto に落ちる）ので注意止まり
         bad = WARN if k in SOFT_TOOLS else NG
         print(f'[{OK if ok else bad}] {t(LABELS.get(k, k)):<22} {detail}')
 
@@ -484,7 +483,7 @@ def report(verbose: bool = False) -> int:
 
 
 def as_json() -> dict:
-    """`octavo doctor --json`。拡張機能は ready と analysis を見て「準備する」を出す。"""
+    """`octavo doctor --json`。拡張機能は ready と analysis を見て「セットアップ」を出す。"""
     f = collect()
     formats, missing = {}, []
     for target, needs in NEEDS.items():
@@ -495,7 +494,7 @@ def as_json() -> dict:
     return {
         'version': __version__,
         # clone から動いていればその場所。setup は clone を入れ替えないので、
-        # 古いときに拡張機能は「準備する」ではなく git pull を案内する。
+        # 古いときに拡張機能は「セットアップ」ではなく git pull を案内する。
         'clone': str(paths.REPO) if paths.is_clone() else None,
         'ready': not missing,
         'missing': [t(NEED_LABELS.get(n, n)) for n in missing],

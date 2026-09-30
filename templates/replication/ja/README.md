@@ -7,8 +7,9 @@
     analysis/       分析（Quarto の .qmd）とヘルパー octavo.R
     data/           データ@@RAWNOTE@@
     data/HASHES.json  使ったデータのハッシュ値（sha256）
-    results/        分析が出した数値（本文に入るもの）と実行環境の記録
-    figures/ tables/  分析が出した図と表
+    assets/values/  分析が出した数値（本文に入るもの）と実行環境の記録
+    assets/figures/ assets/tables/  論文の図と表
+    figures/        Typst で手で描いた図（<名前>.typ。あれば）
     octavo.config.py  設定
     literature.bib    書誌
 
@@ -16,7 +17,7 @@
 
     quarto render analysis/*.qmd
 
-あるいは [octavo](https://github.com/yoshida-kd/octavo) があれば
+あるいは [Octavo](https://github.com/yoshida-kd/octavo) があれば
 
     octavo analysis run --force
     octavo values --diff      # 前と同じ数字が出たか

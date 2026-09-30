@@ -29,7 +29,7 @@ FRONT_MATTER = re.compile(r'\A---\s*\n(.*?)\n---\s*\n', re.S)
 def split_front_matter(md: str) -> tuple[dict, str]:
     """先頭の YAML front matter を取り出す。
 
-    PyYAML には依存しない。対応するのは論文の題扉に要る範囲だけ:
+    PyYAML には依存しない。対応するのは論文のタイトル部分に要る範囲だけ:
 
         title: 論文のタイトル
         subtitle: 副題
@@ -109,7 +109,7 @@ def strip_title_block(md: str) -> str:
 
     本文の先頭は最初の見出し（要旨は先に切り離してある）。ただし `# 題` が
     **1つだけ**あって、その後に `##` の節が続くなら、それは題なので `##` から。
-    見出しが無ければ何もしない。
+    見出しがなければ何もしない。
     """
     h1 = list(re.finditer(r'^#[ \t]+\S', md, re.M))
     sub = re.search(r'^#{2,3}[ \t]+\S', md, re.M)
@@ -155,7 +155,7 @@ def _sections(body: str) -> tuple[str, list, list]:
     """(最初の `#` より前, [(印, 題, 中身)], [見出しの行番号]) に分ける。
 
     コードブロックの中の `#` は見ない。印は見出しに `{#id}` があればその id、
-    無ければ出てきた順の2桁（'01'）。回を途中に挿し込むと番号がずれて出力の
+    なければ出てきた順の2桁（'01'）。回を途中に挿し込むと番号がずれて出力の
     ファイル名も変わるので、名前を固定したい回には `{#id}` を付ける。
 
     3つ目の行番号（`drop_references(body)` の中での0始まり）は section_spans
@@ -212,10 +212,10 @@ def section_keys(md: str) -> list:
 
 
 def section_part(md: str, key: str) -> str | None:
-    """1回分だけの原稿を返す。無ければ None。
+    """1回分だけの原稿を返す。なければ None。
 
-    その回の `#` 見出しは題扉に回す（題 = 見出し、副題 = 原稿全体の題）。
-    見出しのまま残すと、題扉のすぐ後に同じ題の扉がもう1枚出るため。
+    その回の `#` 見出しはタイトル部分に回す（題 = 見出し、副題 = 原稿全体の題）。
+    見出しのまま残すと、タイトル部分のすぐ後に同じ題のスライドがもう1枚出るため。
     最初の `#` より前（ノート全体の前置き）はどの回にも入れない。
     """
     meta, body = split_front_matter(md)
@@ -261,13 +261,13 @@ def _is_external(target: str) -> bool:
 def rebase_links(md: str, src_dir: Path, out_dir: Path) -> str:
     """図のパスを「原稿から見た相対」から「出力先から見た相対」に直す。
 
-    原稿は図を**原稿から見た相対パス**で書く（`slides/x.md` なら `../figures/…`、
-    `papers/<名前>/paper.md` なら `../../figures/…`）。エディタのプレビューに
+    原稿は図を**原稿から見た相対パス**で書く（`slides/x.md` なら `../assets/figures/…`、
+    `papers/<名前>/paper.md` なら `../../assets/figures/…`）。エディタのプレビューに
     図が出るようにするためで、これは原稿の側の正しい書き方。
 
     ところが出力は `build/typst-slides/` や `build/typst/<名前>/` に置かれ、
-    原稿と階層の深さが同じとはかぎらない。そのまま写すと、同じ `../figures/…`
-    が `build/figures/…` を指してしまい、typst compile が file not found で
+    原稿と階層の深さが同じとはかぎらない。そのままコピーすると、同じ `../assets/figures/…`
+    が `build/assets/figures/…` を指してしまい、typst compile が file not found で
     止まる（原稿は正しいのに組版だけ落ちる）。
 
     そこで原稿のパスをいったん実体に解決し、出力先から見た相対に振り直す。
@@ -278,7 +278,7 @@ def rebase_links(md: str, src_dir: Path, out_dir: Path) -> str:
         return md
 
     # コードブロック・インラインコードの中は書き換えない。原稿が「図はこう書く」と
-    # 見本を載せていることがあり、そこを出力先からの相対に直すと読者に嘘を見せる
+    # 見本を載せていることがあり、そこを出力先からの相対に直すと読者に誤った内容を見せる
     # （`{{…}}` で同じことをやって直した経緯がある）。
     from . import values as valmod
     md, kept = valmod.mask_code(md)
@@ -336,7 +336,7 @@ def filter_divs(md: str, keep: set, keep_notes: bool = False,
 
     印の付いていない div（`::: {.warning}` など）はそのまま通す。
     条件付き div は、残す場合も囲みを外して中身だけにする（LaTeX 側に
-    知らない環境を渡さないため）。
+    未知の環境を渡さないため）。
     """
     out: list = []
     stack: list = []          # [(kind, drop)] kind: 'plain' | 'cond'
@@ -407,7 +407,7 @@ THEOREM_ID = re.compile(r'#([\w:.-]+)')
 
 
 def _bold_prefix(label: str, body: str) -> str:
-    """`\\newtheorem` が無いバックエンド向けの素のMarkdownでの代用表現。"""
+    """`\\newtheorem` がないバックエンド向けの素の Markdown での代用表現。"""
     lines = body.split('\n')
     for i, ln in enumerate(lines):
         if ln.strip():
@@ -431,8 +431,8 @@ def replace_theorem_divs(md: str, envs: dict, raw: bool,
         :::
 
     `raw=True` のとき、ヘッダー側に対応する `\\newtheorem{case}{事例}[section]`
-    （`octavo template copy handout/handout-header.tex` で写して足す）が要る。
-    `theorem_envs` に無いクラスの div はそのまま通す。`filter_divs` の後に呼ぶこと。
+    （`octavo template copy handout/handout-header.tex` でコピーして足す）が要る。
+    `theorem_envs` にないクラスの div はそのまま通す。`filter_divs` の後に呼ぶこと。
     """
     if not envs:
         return md
@@ -606,7 +606,7 @@ def word_count(md: str) -> tuple[int, int]:
 
 
 def char_count(md: str) -> int:
-    """日本語論文向け: 空白・改行・マークダウン記号を除いた文字数。"""
+    """日本語論文向け: 空白・改行・Markdown 記号を除いた文字数。"""
     return len(re.sub(r'[\s*_>#`|]', '', _prose(md)))
 
 

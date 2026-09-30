@@ -4,8 +4,25 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Octavo</title>
-<meta name="description" content="Octavo, the quantitative social science starter pack: papers, slides and lecture notes in Markdown, the analysis in Quarto, and every number, figure and table put in from the analysis.">
+<meta name="description" content="Octavo, the quantitative social science starter pack: papers, slides and lecture notes in Markdown, the analysis in Quarto, with every number, figure and table taken from the analysis.">
 <link rel="alternate" hreflang="ja" href="ja/">
+<link rel="alternate" hreflang="en" href="./">
+<link rel="alternate" hreflang="x-default" href="./">
+<script>
+/* 日本語のブラウザで英語版を開いたときだけ日本語版へ移す。外へは何も送らない。
+   言語のリンクを押した人は、その選択を覚えて、そちらに従う。 */
+(function () {
+  try {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[data-lang]');
+      if (a) localStorage.setItem('octavo-lang', a.getAttribute('data-lang'));
+    });
+    var chosen = localStorage.getItem('octavo-lang');
+    var l = chosen || (navigator.languages && navigator.languages[0]) || navigator.language || '';
+    if (/^ja\b/i.test(l)) location.replace('ja/' + location.hash);
+  } catch (e) {}
+})();
+</script>
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -21,7 +38,7 @@
       <a href="#install">Install</a>
       <a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">Guide</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
-      <a href="ja/" hreflang="ja" lang="ja">日本語</a>
+      <a href="ja/" hreflang="ja" lang="ja" data-lang="ja">日本語</a>
     </nav>
   </div>
 </header>
@@ -32,7 +49,7 @@
     <h1>Octavo</h1>
     <p class="tagline">The quantitative social science starter pack</p>
     <p class="lead">Write your papers, slides and lecture notes in Markdown, keep the analysis
-    in Quarto, and let Octavo put the analysis's numbers, figures and tables into every
+    in Quarto, and let Octavo place the analysis's numbers, figures and tables in every
     document — then typeset them to PDF (with Typst) and Word, or LaTeX if you have TeX.
     Citations come from one <code>.bib</code> file, in any CSL style.</p>
     <div class="actions">
@@ -46,8 +63,8 @@
   <div class="wrap">
     <h2>How it works</h2>
     <figure class="figure">
-      <img src="images/flow-en.svg" width="1025" height="370"
-           alt="The analysis writes numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word">
+      <img src="images/flow-en.svg" width="1095" height="380"
+           alt="The analysis and the files you make by hand give the numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word">
     </figure>
   </div>
 </section>
@@ -92,7 +109,7 @@
         missing citations and figures, and word limits exceeded.</p>
       </div>
       <div class="feature">
-        <h3>Up to submission and after</h3>
+        <h3>Submission and beyond</h3>
         <p>Blind review, a submission zip, a coauthor's tracked changes in Word, what moved
         since you submitted, and a replication package.</p>
       </div>
@@ -147,7 +164,7 @@ octavo doctor    <span class="comment"># reports anything still missing</span></
     </div>
     <div>
       <h2>Getting started</h2>
-      <p>See it work first — an analysis, a paper, slides and lecture notes:</p>
+      <p>Try the example first — an analysis, a paper, slides and lecture notes:</p>
 <pre><code>octavo init demo --all --example
 cd demo
 octavo build --compile</code></pre>

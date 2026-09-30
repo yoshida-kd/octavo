@@ -81,7 +81,7 @@ date: 2026-01-01
 :::
 
 分析が出した数値は {{n_obs}} 件、係数 {{coef_x}}（*p* {{p_x}}）のように
-差し込まれる（results/selftest.json から）。
+差し込まれる（assets/values/selftest.json から）。
 
 ## 分析 {#sec-analysis}
 
@@ -98,7 +98,7 @@ $$
 y_i = \\beta_0 + \\beta_1 x_i
 $$ {#eq-model}
 
-![推移](figures/trend.png){#fig-trend}
+![推移](assets/figures/trend.png){#fig-trend}
 
 ## 参考文献
 '''
@@ -112,7 +112,7 @@ CONFIG = {{
 }}
 '''
 
-# 分析（.qmd）が出す値の代わり。quarto も R も呼ばずに、差し込みだけを試す。
+# 分析（.qmd）が出す値の代わり。Quarto も R も呼ばずに、差し込みだけを試す。
 VALUES = '''\
 {
   "n_obs": 1523,
@@ -204,14 +204,14 @@ def run(targets=None, csl: str = 'chicago-author-date', keep: bool = False,
         offline: bool = False) -> int:
     tmp = Path(tempfile.mkdtemp(prefix='octavo-selftest-'))
     proj = tmp / 'selftest'
-    (proj / 'figures').mkdir(parents=True)
+    (proj / 'assets' / 'figures').mkdir(parents=True)
     (proj / 'draft.md').write_text(DRAFT, encoding='utf-8')
     (proj / 'literature.bib').write_text(BIB, encoding='utf-8')
     (proj / 'octavo.config.py').write_text(CONFIG.format(csl=csl), encoding='utf-8')
-    (proj / 'results').mkdir()
-    (proj / 'results' / 'selftest.json').write_text(VALUES, encoding='utf-8')
-    _placeholder_png(proj / 'figures' / 'trend.png')
-    _placeholder_pdf(proj / 'figures' / 'trend.pdf')
+    (proj / 'assets' / 'values').mkdir()
+    (proj / 'assets' / 'values' / 'selftest.json').write_text(VALUES, encoding='utf-8')
+    _placeholder_png(proj / 'assets' / 'figures' / 'trend.png')
+    _placeholder_pdf(proj / 'assets' / 'figures' / 'trend.pdf')
 
     cfg = configmod.load(proj / 'octavo.config.py')
     doc = cfg.document('paper')

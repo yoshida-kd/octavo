@@ -3,7 +3,7 @@ name: pages
 # 公開用リポジトリ（yoshida-kd/octavo）の main が変わったら、site/ を
 # https://yoshida-kd.github.io/octavo/ に出す。main は tools/release.py の
 # コミットでしか変わらないので、ページが変わるのもリリースのときだけ。
-# 図と見本の画像は README と同じ docs/images/ のものを images/ に写す。
+# 図と見本の画像は README と同じ docs/images/ のものを images/ にコピーする。
 #
 # 開発用の octavo-dev でも同じファイルが動くが、repository の条件で何もしない。
 #

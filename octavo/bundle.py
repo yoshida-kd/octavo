@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""`octavo bundle` — 投稿システムに上げられる形に固め直す。
+"""`octavo bundle` — 投稿システムに上げられる形にまとめ直す。
 
     octavo bundle                        論文が1本なら、その build/typst/<名前>/ から
                                          submission-<名前>.zip
@@ -9,7 +9,7 @@
     octavo bundle --anonymous            匿名審査用（先に build --anonymous）
     octavo bundle --replication          受理後の複製パッケージ
 
-雑誌の投稿システムはたいてい**階層を持てない**。`\\includegraphics{../../figures/
+雑誌の投稿システムはたいてい**階層を持てない**。`\\includegraphics{../../assets/figures/
 fig1.pdf}` のままでは通らないので、参照しているファイルを1つの場所に集め、
 本文側のパスを**ファイル名だけ**に書き換える。
 
@@ -17,7 +17,7 @@ fig1.pdf}` のままでは通らないので、参照しているファイルを
 （このモジュールは形式名で分岐しない）。`docx` のように1ファイルで完結する
 形式は既定の実装が何もしないので、そのまま入るだけになる。
 
-**元の build/ は触らない。**固めるのは複製に対して行う。
+**元の build/ は触らない。**まとめるのは複製に対して行う。
 
 `--replication` は別物を作る。投稿用が「組版に要るもの」なのに対し、
 複製パッケージは「**もう一度この結果を出すのに要るもの**」— 分析（.qmd）、
@@ -133,9 +133,9 @@ def collect(cfg, target: str, dest: Path, doc) -> Result:
 # ---------------------------------------------------------------- 匿名審査
 
 def check_anonymous(cfg, target: str, dest: Path, res: Result) -> None:
-    """固めたものに著者が分かるものが残っていないか見る。
+    """まとめたものに著者が分かるものが残っていないか見る。
 
-    題扉は `main.tex` / `main.typ` が持っていて Octavo は書き換えない。だから
+    タイトル部分は `main.tex` / `main.typ` が持っていて Octavo は書き換えない。だから
     最後にここで**文字として残っていないか**を見る。ただし
     `\\ifanonymous` / `#if anonymous` で囲ってあるなら、組んだときには出ない
     ので致命的ではない（.tex ごと出す雑誌のために、注意としては言う）。
@@ -194,11 +194,11 @@ def check_anonymous(cfg, target: str, dest: Path, res: Result) -> None:
 REPLICATION_NOTES = {
     'ja': {'packages': '（パッケージ {n} 件）',
            'no_session': ('（記録がない。`octavo analysis run` を1度実行すると '
-                          '`results/*.json` に `_session` として残る）'),
+                          '`assets/values/*.json` に `_session` として残る）'),
            'no_raw': '（原データは含めていない）'},
     'en': {'packages': ' ({n} packages)',
            'no_session': ('(none recorded — run `octavo analysis run` once and it is '
-                          'kept in `results/*.json` as `_session`)'),
+                          'kept in `assets/values/*.json` as `_session`)'),
            'no_raw': ' (raw data not included)'},
 }
 
@@ -242,9 +242,11 @@ def replication(cfg, dest: Path, with_raw: bool = False) -> Result:
     # ヘルパー（octavo.R）は analysis/ の中にあるので、これ1回で入る
     res.say(f'{tag("replication")} analysis '
             + str(copy_tree(cfg.root / 'analysis', 'analysis', t('analysis'))))
-    for d, label in ((Path(cfg['results_dir']), 'results'),
-                     (Path(cfg['figure_dir']), 'figures'),
-                     (Path(cfg['table_dir']), 'tables')):
+    # プロジェクトと同じ場所に置く（octavo.R の既定の置き場 assets/ がそのまま効く）。
+    # 手で作った図（Typst の .typ など）と表（.csv）も、論文の図表の元なので入れる
+    for d in (Path(cfg['values_dir']), Path(cfg['figure_dir']), Path(cfg['table_dir']),
+              Path(cfg['figure_src_dir']), Path(cfg['table_src_dir'])):
+        label = cfg.rel(d)
         res.say(f'{tag("replication")} {label} ' + str(copy_tree(d, label, label)))
     copy_file(Path(cfg['bib_file']), Path(cfg['bib_file']).name)
     if cfg.source:
@@ -263,7 +265,7 @@ def replication(cfg, dest: Path, with_raw: bool = False) -> Result:
                                              '(--with-raw-data adds it, once you '
                                              'have checked it may be shared)'))
 
-    # -- 指紋。データを入れなくても「何を使ったか」は残す --------------------
+    # -- ハッシュ値。データを入れなくても「何を使ったか」は残す --------------------
     if not dataset.manifest_path(cfg).is_file():
         dataset.write(cfg)
         res.say(f'{tag("replication")} ' + t('there was no data/HASHES.json, '
@@ -298,7 +300,7 @@ def replication(cfg, dest: Path, with_raw: bool = False) -> Result:
 
 
 def pick_paper(cfg, name: str | None):
-    """固める論文。名前が無ければ、論文（profile paper）が1本だけのときそれを選ぶ。"""
+    """まとめる論文。名前がなければ、論文（profile paper）が1本だけのときそれを選ぶ。"""
     if name:
         return cfg.document(name)
     papers = [d for d in cfg.documents.values() if d.profile == 'paper']

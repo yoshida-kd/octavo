@@ -1,4 +1,4 @@
-// diagnostics.ts — 無い引用キーに赤波線、.bib の傷に警告を出す。
+// diagnostics.ts — 存在しない引用キーに赤波線、.bib の傷に警告を出す。
 //
 // 判定は Python 側（octavo/check.py）の結果をそのまま使う。ここでは
 // 「その結果を、開いているドキュメントのどこに置くか」だけを決める。
@@ -101,7 +101,7 @@ export class DiagnosticsManager implements vscode.Disposable {
         try {
             bibDoc = await vscode.workspace.openTextDocument(uri);
         } catch {
-            return; // ファイルが無い/読めない
+            return; // ファイルがない/読めない
         }
         const text = bibDoc.getText();
         const diags: vscode.Diagnostic[] = [];

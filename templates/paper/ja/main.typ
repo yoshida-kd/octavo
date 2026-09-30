@@ -8,7 +8,7 @@
 //
 //    octavo build <名前> --to typst
 //    cd build/typst/<名前> && typst compile --root ../../.. main.typ
-//    （--root がないと ../../../figures を読めない。octavo build --compile なら自動）
+//    （--root がないと ../../../assets/figures を読めない。octavo build --compile なら自動）
 //
 //  引用の扱いは octavo.config.py の typst_citations で決まる:
 //

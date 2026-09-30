@@ -3,22 +3,22 @@
 //
 //  octavo build --to typst-slides は、このファイルの**前に** `#let octavo = (…)`
 //  を、**後ろに**本文を書いて、1つの完結した .typ にする。コンパイル時に
-//  パッケージを取りに行かないので、ネットワークが無くても組める。
+//  パッケージを取りに行かないので、ネットワークがなくても組める。
 //
 //  体裁を変えたいときは、このファイルをプロジェクト（またはユーザー）の
-//  templates/ に写して直す。同じ名前で置けば同梱のものより優先される:
+//  templates/ にコピーして直す。同じ名前で置けば同梱のものより優先される:
 //    octavo template copy slides/typst-slides.typ          # このプロジェクトだけ
 //    octavo template copy slides/typst-slides.typ --user   # 自分の全プロジェクト
 //  使える値:
 //
-//    octavo.title / subtitle / author / institute / date   題扉（無ければ none）
+//    octavo.title / subtitle / author / institute / date   タイトルスライド（なければ none）
 //    octavo.lang          "ja" | "en"
 //    octavo.slide-level   1 なら見出し1つが1枚。2 なら「#」が節（扉は section-slides のとき）、「##」が1枚
 //    octavo.aspect        "16-9" | "4-3"（typst_slides_aspect）
 //    octavo.numbering     見出しの番号（typst_slides_numbering）。none なら振らない
 //    octavo.section-slides 「#」の節を扉のスライドにするか（typst_slides_section_slides）
 //    octavo.accent        差し色（typst_slides_accent）。none なら黒のまま
-//    octavo.running-header 左上にいまの節（無ければデッキの題）を出すか（typst_slides_running_header）
+//    octavo.running-header 左上にいまの節（なければデッキの題）を出すか（typst_slides_running_header）
 //    octavo.font          本文フォントの候補（typst_slides_font）
 //
 //  事例・論点・余談・注意・付記（旧 Beamer プリアンブルの \newtheorem 相当）は、
@@ -47,7 +47,7 @@
   margin: (x: 1.6cm, bottom: 1.3cm,
            top: if octavo.running-header { 1.5cm } else { 1.3cm }),
   // 左上に、いまいる「#」の節を小さく出す（節の扉を出さない設定でも出る）。
-  // 節が無いデッキ（講義ノートを回ごとに分けた1回分など）や最初の節より前は、
+  // 節がないデッキ（講義ノートを回ごとに分けた1回分など）や最初の節より前は、
   // デッキの題を出す。講義の1回分なら、それがその回の題になる。
   header: context {
     let n = counter(page).get().first()
@@ -132,7 +132,7 @@
   let num = if it.numbering != none and it.level <= octavo.slide-level {
     counter(heading).display(it.numbering) + h(0.45em)
   } else { [] }
-  // 差し色があるときは色で立てる（太字にしない）。無ければ従来どおり太字の黒
+  // 差し色があるときは色で立てる（太字にしない）。なければ従来どおり太字の黒
   let w = if styled { "regular" } else { "bold" }
   if it.level < octavo.slide-level {
     // 節が変わるたびに事例／論点／余談の番号をリセットする（下の #theorem 参照）。
@@ -156,7 +156,7 @@
   }
 }
 
-// 題扉
+// タイトルスライド
 #if octavo.title != none {
   v(1fr)
   align(center, {

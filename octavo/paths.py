@@ -7,10 +7,10 @@
     -> リポジトリ直下の `templates/` `config.example.py` `setup.sh` `csl/`
   * pip / uv で入れる（`uv tool install octavo-kit`）
     -> wheel に取り込まれた `octavo/templates/` `octavo/config.example*.py`
-       `octavo/setup.sh`（`octavo setup` が走らせる）。
+       `octavo/setup.sh`（`octavo setup` が実行する）。
        CSL のキャッシュは site-packages に書けないので利用者のキャッシュ領域。
 
-どちらか一方しか存在しないので、分岐は「repo 直下にあればそれ、無ければ
+どちらか一方しか存在しないので、分岐は「repo 直下にあればそれ、なければ
 パッケージの中」の一段だけ。`pip install -e .` は repo 側が当たる。
 """
 from __future__ import annotations
@@ -23,7 +23,7 @@ REPO = PKG.parent
 
 
 def _pick(name: str) -> Path:
-    """repo 直下にあればそれ、無ければパッケージの中。"""
+    """repo 直下にあればそれ、なければパッケージの中。"""
     local = REPO / name
     return local if local.exists() else PKG / name
 
@@ -52,7 +52,7 @@ def on_windows() -> bool:
 def setup_script() -> Path | None:
     """道具を入れるスクリプト。Windows では `setup.ps1`、それ以外は `setup.sh`。
 
-    repo 直下か、wheel の中。どちらにも無ければ None。
+    repo 直下か、wheel の中。どちらにもなければ None。
     """
     p = _pick('setup.ps1' if on_windows() else 'setup.sh')
     return p if p.exists() else None

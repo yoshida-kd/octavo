@@ -1,29 +1,29 @@
 # -*- coding: utf-8 -*-
-"""分析（Quarto の .qmd）を、必要なときだけ走らせる。
+"""分析（Quarto の .qmd）を、必要なときだけ実行する。
 
 原稿は .md、分析は .qmd。.qmd は「論文に出す数値・図・表」を
 **プロジェクトの決まった場所に書き出す**（octavo.R の ov_value / ov_figure /
 ov_table がやる）:
 
-    results/<原稿名>.json    本文の {{…}} に入る数値
+    assets/values/<原稿名>.json    本文の {{…}} に入る数値
     figures/<名前>.pdf/.png  図
     tables/<名前>.tex/.typ/.md   表の中身（本文の `: 表題 {#tbl-<名前>}` に差し込む）
 
-octavo build は変換の前に .qmd の更新時刻を見て、**古ければ走らせる**。
-判定の記録は `results/.analysis-stamp.json`。データ（.csv 等）も見たいなら
+octavo build は変換の前に .qmd の更新時刻を見て、**古ければ実行する**。
+判定の記録は `assets/values/.analysis-stamp.json`。データ（.csv 等）も見たいなら
 config の `analysis_deps` か、`analysis` の要素を辞書にして `deps` を書く。
 
     'analysis': ['analysis/*.qmd'],
     'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],
 
 時間のかかるもの（データの整形など）は別の .qmd に分け、`'manual': True` を
-付ける。octavo build（とプレビュー）はそれを走らせず、古ければ知らせるだけに
-する。走らせるのは octavo analysis run（全部）か octavo analysis run <その .qmd>。
+付ける。octavo build（とプレビュー）はそれを実行せず、古ければ知らせるだけに
+する。実行するのは octavo analysis run（全部）か octavo analysis run <その .qmd>。
 
     'analysis': [{'src': 'analysis/01-clean.qmd', 'manual': True},
                  {'src': 'analysis/02-model.qmd', 'deps': ['data/derived/*']}],
 
-quarto が入っていない環境では**警告して素通りする**（変換そのものは
+Quarto が入っていない環境では**警告して素通りする**（変換そのものは
 pandoc だけでできるため）。入っているのに render が失敗したときは、
 古い数値のまま論文を組まないよう、呼び出し側が変換を止める。
 """
@@ -49,7 +49,7 @@ class Unit:
     """1本の .qmd と、その入力（更新を見張る相手）。"""
     src: Path
     deps: tuple = ()
-    manual: bool = False          # 自動では走らせない（明示されたときだけ）
+    manual: bool = False          # 自動では実行しない（明示されたときだけ）
 
     def newest(self) -> float:
         ts = [self.src.stat().st_mtime] if self.src.exists() else [0.0]
@@ -106,7 +106,7 @@ def key(cfg, u: Unit) -> str:
 # ---------------------------------------------------------------- 刻印
 
 def stamp_path(cfg) -> Path:
-    return Path(cfg['results_dir']) / STAMP_NAME
+    return Path(cfg['values_dir']) / STAMP_NAME
 
 
 def read_stamp(cfg) -> dict:
@@ -125,7 +125,7 @@ def write_stamp(cfg, data: dict) -> None:
 
 
 def is_stale(cfg, u: Unit, stamp: dict) -> bool:
-    """前に走らせたときより .qmd（か依存ファイル）が新しいか。"""
+    """前に実行したときより .qmd（か依存ファイル）が新しいか。"""
     rec = stamp.get(key(cfg, u))
     if not isinstance(rec, dict):
         return True
@@ -155,7 +155,7 @@ def venv_python(venv: Path) -> Path:
 
 
 def quarto_exe() -> str:
-    """quarto の実体。Windows では quarto.cmd のこともあり、名前だけでは起動できない。"""
+    """Quarto の実体。Windows では quarto.cmd のこともあり、名前だけでは起動できない。"""
     return shutil.which('quarto') or 'quarto'
 
 
@@ -163,11 +163,11 @@ def _env(cfg) -> dict:
     """.qmd 側（octavo.R）が置き場所を迷わないように渡す。
 
     プロジェクトに `.venv` があれば、Python の .qmd はその Python で動かす
-    （QUARTO_PYTHON）。VS Code から走らせると venv を activate する場面が無いので。
+    （QUARTO_PYTHON）。VS Code から実行すると venv を activate する場面がないので。
     """
     env = {**os.environ,
            'OCTAVO_ROOT': str(cfg.root),
-           'OCTAVO_RESULTS_DIR': str(cfg['results_dir']),
+           'OCTAVO_VALUES_DIR': str(cfg['values_dir']),
            'OCTAVO_FIGURE_DIR': str(cfg['figure_dir']),
            'OCTAVO_TABLE_DIR': str(cfg['table_dir'])}
     py = venv_python(Path(cfg.root) / '.venv')
@@ -182,7 +182,7 @@ def render(cfg, u: Unit, report: list) -> bool:
         cmd += ['--to', str(cfg['analysis_to'])]
     cmd += [str(a) for a in (cfg['analysis_args'] or ())]
 
-    Path(cfg['results_dir']).mkdir(parents=True, exist_ok=True)
+    Path(cfg['values_dir']).mkdir(parents=True, exist_ok=True)
     t0 = time.time()
     try:
         r = subprocess.run(cmd, cwd=str(cfg.root), env=_env(cfg),
@@ -221,12 +221,12 @@ def pick(cfg, names) -> list:
 
 def run(cfg, force: bool = False, report: list | None = None,
         names=None, auto: bool = False, on_start=None) -> tuple:
-    """古い .qmd を走らせる。(走らせた本数, 失敗が無かったか) を返す。
+    """古い .qmd を実行する。(実行した本数, 失敗がなかったか) を返す。
 
-    names  走らせる .qmd を名指しする。**名指ししたものは古くなくても走らせる**
+    names  実行する .qmd を名指しする。**名指ししたものは古くなくても実行する**
            （わざわざ選んだのだから）。
-    auto   octavo build から呼ぶとき。manual の .qmd は走らせず、古ければ言うだけ。
-    on_start  1本走らせる直前に key を渡して呼ぶ（長い分析の進み具合を見せる）。
+    auto   octavo build から呼ぶとき。manual の .qmd は実行せず、古ければ言うだけ。
+    on_start  1本実行する直前に key を渡して呼ぶ（長い分析の進み具合を見せる）。
     """
     report = report if report is not None else []
     us = units(cfg)
@@ -270,13 +270,13 @@ def run(cfg, force: bool = False, report: list | None = None,
             'no quarto, so {units} cannot be run. The numbers in {dir}/ may be '
             'stale (octavo doctor says how to install it)',
             units=sep.join(key(cfg, u) for u in todo),
-            dir=Path(cfg['results_dir']).name))
+            dir=Path(cfg['values_dir']).name))
         return 0, True
 
-    # **並び順に、その時点で判定し直しながら**走らせる。分析を分けたとき、
+    # **並び順に、その時点で判定し直しながら**実行する。分析を分けたとき、
     # 前の .qmd が data/derived/ を書き換えて後ろの .qmd を古くすることが
     # ある。todo を先に固定すると、そういう .qmd が1回分あとに取り残される。
-    valmod.snapshot(cfg)          # 走らせる前の値を「前回」として残す
+    valmod.snapshot(cfg)          # 実行する前の値を「前回」として残す
     ok, ran = True, 0
     for u in us:
         if not (force or is_stale(cfg, u, stamp)):
@@ -293,7 +293,7 @@ def run(cfg, force: bool = False, report: list | None = None,
 
 
 def orphan_results(cfg) -> list:
-    """登録された .qmd に対応しない results/*.json。
+    """登録された .qmd に対応しない assets/values/*.json。
 
     .qmd を消した・名前を変えたとき、前に書いた値のファイルは残る。本文が
     まだその名前を参照していると、**古い数値が黙って入り続ける。**分析を

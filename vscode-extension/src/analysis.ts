@@ -1,7 +1,7 @@
-// analysis.ts — 分析（.qmd）の状態を読み、GUI から走らせる。
+// analysis.ts — 分析（.qmd）の状態を読み、GUI から実行する。
 //
 // 状態は `octavo analysis --json` から取る（どれが古いか・手動かは CLI が決める。
-// ここで更新時刻を比べ直したりしない）。走らせるのは `octavo analysis run`。
+// ここで更新時刻を比べ直したりしない）。実行するのは `octavo analysis run`。
 // 進み具合を通知に出し、出力は「Octavo」の出力パネルに流す。ターミナルを
 // 使わないのは、ターミナルに慣れていない人でもボタンだけで済むようにするためと、
 // 終わったことを拡張が知ってプレビューやサイドバーを更新するため。
@@ -41,8 +41,8 @@ export function staleNames(report: AnalysisReport | undefined): string[] {
 }
 
 /**
- * 分析を走らせる。names が空なら古いもの全部（手動のものも含む）、
- * 名指しすれば古くなくてもそれを走らせる。成功したら true。
+ * 分析を実行する。names が空なら古いもの全部（手動のものも含む）、
+ * 名指しすれば古くなくてもそれを実行する。成功したら true。
  */
 export async function runAnalysisWithProgress(cwd: string, names: string[],
                                               output: vscode.OutputChannel): Promise<boolean> {

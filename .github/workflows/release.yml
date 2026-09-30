@@ -91,7 +91,7 @@ jobs:
           path: out
           merge-multiple: true
       # 本文は CHANGELOG のその版の節（公開側の履歴は版ごとの1コミットなので、
-      # コミットから自動で作ると中身が無い）
+      # コミットから自動で作ると中身がない）
       - name: Create the release with the wheel, sdist and .vsix attached
         env:
           GH_TOKEN: ${{ github.token }}

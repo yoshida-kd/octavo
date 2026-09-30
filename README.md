@@ -7,11 +7,11 @@
 [日本語の README](https://github.com/yoshida-kd/octavo/blob/main/README.ja.md)
 
 Write your papers, slides and lecture notes in Markdown, keep the analysis in
-Quarto, and let Octavo put the analysis's numbers, figures and tables into every
+Quarto, and let Octavo place the analysis's numbers, figures and tables in every
 document — then typeset them to PDF (with Typst) and Word, or LaTeX if you have
 TeX. Citations come from one `.bib` file, in any CSL style.
 
-![How Octavo works: the analysis writes numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-en.svg)
+![How Octavo works: the analysis and the files you make by hand give the numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-en.svg)
 
 ## What you get
 
@@ -33,7 +33,10 @@ references are filled in when it is typeset.
   when you reorder sections.
 - **Diagrams without TikZ**: `octavo new figure` gives you a Typst file to draw
   boxes and arrows in; it becomes a figure like any other.
-- **Up to submission and after**: word limits, blind review, a submission zip,
+- **Tables by hand, edited as tables**: `octavo new table` gives you a CSV that
+  the VS Code extension edits as a grid (Excel works too); it becomes a table
+  like the analysis's.
+- **Submission and beyond**: word limits, blind review, a submission zip,
   reading a coauthor's tracked changes in Word, "what moved since I submitted",
   and a replication package.
 - **A VS Code extension** with a live PDF preview, a sidebar for everything
@@ -57,7 +60,7 @@ octavo doctor                                     # reports anything still missi
 
 ## Getting started
 
-See it work first — an example with an analysis, a paper, slides and lecture notes:
+Start with the example project — an analysis, a paper, slides and lecture notes:
 
 ```bash
 octavo init demo --all --example
@@ -85,7 +88,7 @@ ov_figure(p, "trend")
 ```markdown
 The sample has {{n_obs}} cases (@fig-trend).
 
-![Trend](../../figures/trend.png){#fig-trend}
+![Trend](../../assets/figures/trend.png){#fig-trend}
 ```
 
 ## Documentation

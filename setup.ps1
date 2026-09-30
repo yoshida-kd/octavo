@@ -5,15 +5,15 @@
 #    powershell -ExecutionPolicy Bypass -File setup.ps1
 #        ふだん使う一式 / the everyday set:
 #        pandoc, Typst, quarto, fonts, R (CRAN), renv, uv, octavo
-#    -NoQuarto               quarto を入れない / leave out quarto
+#    -NoQuarto               Quarto を入れない / leave out Quarto
 #    -NoR                    R を入れない / leave out R
 #    -OctavoVersion X        octavo を PyPI の X で入れる / install octavo X from PyPI
 #    -Check                  何を入れるか見るだけ / only show what would be done
 #
 #  Windows は Linux・macOS の次の扱い。TeX（LaTeX / Beamer）はここでは入れない。
 #  Windows comes after Linux and macOS. TeX (LaTeX / Beamer) is not installed here.
-#  VS Code の拡張機能の「準備する」も、`octavo setup` も、これを走らせる。
-#  同じことを何度走らせても平気 / Safe to run again: what is there is skipped.
+#  VS Code の拡張機能の「セットアップ」も、`octavo setup` も、これを実行する。
+#  同じことを何度実行しても問題ない / Safe to run again: what is there is skipped.
 # =====================================================================
 param(
     [switch]$NoQuarto,
@@ -78,11 +78,11 @@ function Winget-Install([string]$cmd, [string[]]$arg, [string]$id, [string]$want
 Say '環境' 'System'
 Write-Host "   Windows $([Environment]::OSVersion.Version)  ($env:PROCESSOR_ARCHITECTURE)"
 if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
-    Info 'winget が無い。Microsoft Store の「アプリ インストーラー」を入れてから、もう一度走らせること' `
+    Info 'winget がない。Microsoft Store の「アプリ インストーラー」を入れてから、もう一度実行すること' `
          'winget is missing. Install "App Installer" from the Microsoft Store, then run this again'
     exit 1
 }
-Info 'インストーラーが管理者の許可を求めることがある（R・quarto）' `
+Info 'インストーラーが管理者の許可を求めることがある（R・Quarto）' `
      'Some installers ask for administrator permission (R, quarto)'
 Update-Path
 
@@ -101,7 +101,7 @@ if (-not $NoQuarto) {
 # ---------------------------------------------------------------------
 # 既定の書体（octavo/backends/typst.py の FONTS）。Windows にも BIZ UD は入っているが
 # 名前が違う（「BIZ UDMincho Medium」）ので、Linux・Mac と同じ名前の Google Fonts 版を
-# 利用者のフォントとして入れる（管理者は要らない）。無くても游明朝・游ゴシックに落ちる。
+# 利用者のフォントとして入れる（管理者は要らない）。なくても游明朝・游ゴシックに落ちる。
 Say 'フォント' 'Fonts'
 $FONT_DIR = Join-Path $env:LOCALAPPDATA 'Microsoft\Windows\Fonts'
 $FONT_REG = 'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Fonts'
@@ -174,7 +174,7 @@ function Add-RToPath {
 
 if (-not $NoR) {
     Say 'R（CRAN の最新）' 'R (latest from CRAN)'
-    Add-RToPath          # 入っているのに PATH に無いだけなら、入れ直さない
+    Add-RToPath          # 入っているのに PATH にないだけなら、入れ直さない
     Winget-Install 'Rscript' @('--version') 'RProject.R' ''
     Add-RToPath
     if ((Get-Command Rscript -ErrorAction SilentlyContinue) -and -not $Check) {

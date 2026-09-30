@@ -2,7 +2,7 @@
 """Typst スライド（学会報告・授業スライド）バックエンド。TeX が要らない。
 
 **パッケージを使わない素の Typst** で組む。体裁は templates/slides/typst-slides.typ に
-あり、Octavo はその前に題扉などの値（`#let octavo = (…)`）を、後ろに本文を
+あり、Octavo はその前にタイトルなどの値（`#let octavo = (…)`）を、後ろに本文を
 書いて完結した1つの .typ にする。アニメーション（段階表示）は持たない。
 
 原稿の書き方は Beamer と同じ:
@@ -20,8 +20,8 @@
 
     - 箇条書き
 
-見出しが1段しか無ければ、その見出しが1枚ずつのスライドになる。
-`::: notes`（発表者ノート）は PDF に出す場所が無いので落とす。
+見出しが1段しかなければ、その見出しが1枚ずつのスライドになる。
+`::: notes`（発表者ノート）は PDF に出す場所がないので落とす。
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ class TypstSlidesBackend(TypstBackend):
     wants_abstract_file = False
 
     def pandoc_args(self, ctx: Ctx) -> list:
-        # 題扉とページの体裁は自前のテンプレートが持つので --standalone にしない
+        # タイトルスライドとページの体裁は自前のテンプレートが持つので --standalone にしない
         return ['-t', self.writer(ctx), '--wrap=preserve',
                 '--top-level-division=section']
 
@@ -54,7 +54,7 @@ class TypstSlidesBackend(TypstBackend):
         """スライドの図は「枠に収まること」が最優先。残りの高さいっぱいに置く。
 
         キャプション（画像の alt）かラベルがあれば番号付きの図にする（プリントと
-        同じ番号。原稿の @fig-… がこれを指す）。どちらも無ければ画像だけ。
+        同じ番号。原稿の @fig-… がこれを指す）。どちらもなければ画像だけ。
         """
         rel = ctx.figure_target(m.group('path'))
         cap = ' '.join(m.group('alt').split())
@@ -67,7 +67,7 @@ class TypstSlidesBackend(TypstBackend):
         if self.figure_box == 'height: 1fr':
             # キャプションつき: 残りの高さを箱で取り、その高さを測ってからキャプションの
             # 分（2行ぶん）を引いて画像を置く。図の中に 1fr の箱を入れると画像が残りを
-            # 使い切り、キャプションの分だけはみ出して、図ごと題の無い次のページに送られる
+            # 使い切り、キャプションの分だけはみ出して、図ごと題のない次のページに送られる
             return ('\n```{=typst}\n#block(width: 100%, height: 1fr, layout(size => [#figure(\n'
                     f'  image("{rel}", width: 100%, height: size.height - 3em, fit: "contain"),\n'
                     f'  caption: [{typst_escape(cap)}],\n){tail}]))\n```\n')
@@ -141,7 +141,7 @@ def promote_sections_with_content(typ: str) -> str:
     """「#」の直後に本文があるなら、節の扉ではなく題のある1枚にする。
 
     `# 今日の狙い` の下にいきなり箇条書きがある原稿や、citeproc が足す
-    「参考文献」の見出しがこれに当たる。扉にすると中身が題の無い次の
+    「参考文献」の見出しがこれに当たる。扉にすると中身が題のない次の
     ページに流れてしまう。
     """
     lines = typ.split('\n')

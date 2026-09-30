@@ -6,16 +6,21 @@ CONFIG = {
 @@DOCUMENTS@@
 
     # ---- 書誌 ----------------------------------------------------------
-    'bib_file': 'literature.bib',      # Zotero からのエクスポート
+    'bib_file': 'literature.bib',      # 文献管理ソフト（Zotero など）からのエクスポート
     # 投稿先に合わせて変える。octavo csl list / octavo csl get <id> で増やせる
     'csl': 'chicago-author-date',
 
     # ---- 言語 ----------------------------------------------------------
     'lang': 'ja',
 
-    # ---- 図・表 --------------------------------------------------------
-    'figure_dir': 'figures',
-    'table_dir': 'tables',
+    # ---- 置き場（既定のまま。変えるときだけ書く）----------------------
+    # 手で作るもの:
+    #   'figure_src_dir': 'figures',      # Typst で描く図（<名前>.typ）、写真など
+    #   'table_src_dir': 'tables',        # 表（<名前>.csv）
+    # 分析と octavo build が書くもの（手で直さない）:
+    #   'figure_dir': 'assets/figures',   # 原稿はここの図を貼る
+    #   'table_dir': 'assets/tables',
+    #   'values_dir': 'assets/values',    # 本文の {{…}} の数値
 
     # ---- タイトル部分（原稿の front matter が優先）--------------------------
     'meta': {
@@ -24,7 +29,7 @@ CONFIG = {
     },
 
     # ---- 分析（Quarto）--------------------------------------------------
-    # analysis/*.qmd が results/*.json（本文の {{…}}）、figures/、tables/ を
+    # analysis/*.qmd が assets/values/*.json（本文の {{…}}）、assets/figures/、assets/tables/ を
     # 作る。octavo build は .qmd か deps が新しければ自動で quarto render する。
     'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
 

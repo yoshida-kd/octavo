@@ -2,14 +2,14 @@
 """Word（.docx）バックエンド。
 
 pandoc が .docx を直接書く（中間の .tex は作らない）。見た目は
-`--reference-doc` に渡す雛形 .docx の**スタイル定義**で決まる。雛形は
+`--reference-doc` に渡す .docx の**スタイル定義**で決まる。この .docx は
 
     octavo reference-docx word/reference.docx     （pandoc の既定から作る）
 
 で作り、Word で「見出し 1」「本文」「表のキャプション」等のスタイルを直してから
 `docx_reference` に指定する。中身は空でよい（スタイルだけ使う）。
 
-Word には自動採番の相互参照が無い（pandoc も振らない）ので、**節・図・表・式の
+Word には自動採番の相互参照がない（pandoc も振らない）ので、**節・図・表・式の
 番号は Octavo が数えて文字で入れる**（numbers_itself = False、数え方は crossref.py）。
 本文の `@fig-trend` は「図2.1」になり、図のブックマークへのリンクが付く。
 """
@@ -60,7 +60,7 @@ class DocxBackend(Backend):
     # -- 差し替え -----------------------------------------------------------
     def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
         """番号を文字で書き、図・表・節にはそのブックマーク（pandoc が張る）へリンクを
-        付ける。式にはブックマークが無いので文字だけ。"""
+        付ける。式にはブックマークがないので文字だけ。"""
         text = xref.text_of(item, ctx.lang, short)
         if item.kind == 'eq' or item.label not in ctx.crossref_local:
             return text
@@ -71,7 +71,7 @@ class DocxBackend(Backend):
 
 
 def make_reference_docx(dest: Path) -> Path:
-    """pandoc の既定の雛形 .docx を書き出す（Word で編集して使う）。"""
+    """pandoc の既定のスタイル定義用 .docx を書き出す（Word で編集して使う）。"""
     import subprocess
     dest.parent.mkdir(parents=True, exist_ok=True)
     r = subprocess.run(['pandoc', '-o', str(dest), '--print-default-data-file',

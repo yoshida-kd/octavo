@@ -27,6 +27,7 @@ from . import config as configmod
 from . import csl as cslmod
 from . import dataset
 from . import diagrams
+from . import handtables
 from . import doctor as doctormod
 from . import envsetup
 from . import lint as lintmod
@@ -49,7 +50,7 @@ USAGE_LINES = (
     ('octavo config [set KEY VALUE]', 'show or change the common settings'),
     ('octavo analysis', 'is the analysis (.qmd) up to date?'),
     ('octavo analysis run', 'run the stale .qmd through quarto'),
-    ('octavo values', 'cross-check {{…}} against results/'),
+    ('octavo values', 'cross-check {{…}} against assets/values/'),
     ('octavo values --diff [ref]', 'what moved since last time (or a git version)'),
     ('octavo lint', 'find results typed into the manuscript'),
     ('octavo check', 'check everything before submitting'),
@@ -63,7 +64,7 @@ USAGE_LINES = (
     ('octavo setup', 'install the tools (pandoc, Typst, quarto, R, uv, fonts)'),
     ('octavo env', "set up this project's .venv and renv"),
     ('octavo init 2026-study', 'write a project skeleton'),
-    ('octavo new paper|slides|lecture|analysis|figure name', 'add a manuscript, an analysis or a figure'),
+    ('octavo new paper|slides|lecture|analysis|figure|table name', 'add a manuscript, an analysis, a figure or a table'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
     ('octavo release name v1-submitted', 'tag this version, PDF to a GitHub Release'),
 )
@@ -97,10 +98,10 @@ def print_results(results: list, verbose: bool = True) -> int:
 # ---------------------------------------------------------------- 各コマンド
 
 def run_analysis(cfg, args, quiet: bool = False) -> int:
-    """変換の前に、古い .qmd を走らせる。0 なら変換に進んでよい。
+    """変換の前に、古い .qmd を実行する。0 なら変換に進んでよい。
 
-    quarto が無いだけなら止めない（変換自体は pandoc だけでできる）。
-    走らせて**失敗した**ときだけ止める — 古い数値のまま論文を組むと、
+    Quarto がないだけなら止めない（変換自体は pandoc だけでできる）。
+    実行して**失敗した**ときだけ止める — 古い数値のまま論文を組むと、
     本文と分析が静かに食い違うため。
     """
     if getattr(args, 'no_analysis', False) or not cfg['analysis']:
@@ -118,7 +119,7 @@ def run_analysis(cfg, args, quiet: bool = False) -> int:
     if not ok:
         print('\n' + t('the analysis failed. Building around stale numbers would '
                        'contradict the text, so this stops here.') + '\n  '
-              + t('Fix it, then octavo build. To build with results/ as it is: '
+              + t('Fix it, then octavo build. To build with assets/values/ as it is: '
                   'octavo build --no-analysis'), file=sys.stderr)
         return 1
     return 0
@@ -127,8 +128,8 @@ def run_analysis(cfg, args, quiet: bool = False) -> int:
 def run_diagrams(cfg, quiet: bool = False) -> int:
     """figures/*.typ（Typst で描いた図）のうち古いものを組む。0 なら変換に進んでよい。
 
-    分析のあとに走らせる（図が results/*.json を json() で読むことがあるため）。
-    Typst が無いだけなら止めない。組んで失敗したときだけ止める。
+    分析のあとに実行する（図が assets/values/*.json を json() で読むことがあるため）。
+    Typst がないだけなら止めない。組んで失敗したときだけ止める。
     """
     report: list = []
     ok = diagrams.run(cfg, report)
@@ -148,17 +149,37 @@ def run_diagrams(cfg, quiet: bool = False) -> int:
     return 0
 
 
+def run_tables(cfg, quiet: bool = False) -> int:
+    """tables/*.csv（手で作る表）のうち古いものを assets/tables/ に書く。0 なら進んでよい。"""
+    report: list = []
+    ok = handtables.run(cfg, report)
+    if report and not quiet:
+        head = '== ' + t('Tables made by hand') + ' '
+        print(head + '=' * max(4, 62 - len(head)))
+        for line in report:
+            print('  ' + line)
+    if not ok:
+        sys.stdout.flush()
+        if quiet:
+            print('\n'.join(report), file=sys.stderr)
+        print('\n' + t('a table could not be made, so this stops here (the PDF would '
+                       'show the old one). Fix the .csv above, then build again.'),
+              file=sys.stderr)
+        return 1
+    return 0
+
+
 def cmd_build(args) -> int:
     cfg = configmod.load(args.config)
     quiet = getattr(args, 'json', False)
     docs = args.documents or None
-    # 名前と形式の打ち間違いは、時間のかかる分析を走らせる前に止める
+    # 名前と形式の打ち間違いは、時間のかかる分析を実行する前に止める
     for name in docs or ():
         cfg.document(name)
     targets = be.resolve_targets(args.to, 'paper') if args.to else None
     if run_analysis(cfg, args, quiet=quiet):
         return 1
-    if run_diagrams(cfg, quiet=quiet):
+    if run_diagrams(cfg, quiet=quiet) or run_tables(cfg, quiet=quiet):
         return 1
     if targets is None and docs is None and not quiet:
         print(cfg.describe())
@@ -308,7 +329,7 @@ def cmd_watch(args) -> int:
                 stamps = now
                 print('\n--- ' + t('something changed, rebuilding') + ' '
                       + time.strftime('%H:%M:%S'))
-                if run_analysis(cfg, args) or run_diagrams(cfg):
+                if run_analysis(cfg, args) or run_diagrams(cfg) or run_tables(cfg):
                     continue
                 results = buildmod.run(cfg, doc_names=docs, targets=targets,
                                        appendix=args.appendix,
@@ -328,6 +349,7 @@ def _watch_targets(cfg, docs) -> list:
     out.append(Path(cfg['bib_file']))
     out += analysismod.watch_paths(cfg)          # .qmd とそのデータ
     out += diagrams.watch_paths(cfg)             # Typst で描いた図と共通の部品
+    out += handtables.watch_paths(cfg)           # 手で作る表（.csv）
     if cfg.source:
         out.append(Path(cfg.source))
     return [p for p in out if p]
@@ -362,7 +384,7 @@ def cmd_analysis(args) -> int:
 
     ver = analysismod.quarto_version()
     print('quarto: ' + (ver or t('not found (see octavo doctor)')))
-    print(t('results go in: {path}', path=cfg['results_dir']) + '\n')
+    print(t('results go in: {path}', path=cfg['values_dir']) + '\n')
     stale = manual_stale = 0
     for u, exists, out_of_date in rows:
         if not exists:
@@ -414,7 +436,7 @@ def cmd_values(args) -> int:
     if args.json:
         import json as _json
         print(_json.dumps({
-            'results_dir': str(cfg['results_dir']),
+            'values_dir': str(cfg['values_dir']),
             'values': {k: {'text': valmod.render(v, '', cfg), 'source': v.source,
                            'note': v.note} for k, v in vals.items()},
             'referenced': refs,
@@ -432,12 +454,12 @@ def cmd_values(args) -> int:
     if ph:
         sep = '、' if language() == 'ja' else ', '
         print(tag('placeholder') + ' ' + t(
-            '{files} {n|is|are} still the starter values octavo init wrote.',
+            '{files} {n|is|are} still the starter values octavo wrote.',
             files=sep.join(ph), n=len(ph)))
         print('  ' + t('Building now would put fake numbers in the text -> '
                       'octavo analysis run') + '\n')
     print(t('{n} {n|value|values} in {path} ({files} {files|file|files})',
-            n=len(vals), path=cfg['results_dir'],
+            n=len(vals), path=cfg['values_dir'],
             files=len(valmod.files(cfg))) + '\n')
     for k in sorted(vals):
         v = vals[k]
@@ -463,7 +485,7 @@ def cmd_values(args) -> int:
 
 
 def _values_diff(cfg, ref: str = '') -> int:
-    """前に分析を走らせたとき（か git の版）から、本文の数字がどう動いたか。"""
+    """前に分析を実行したとき（か git の版）から、本文の数字がどう動いたか。"""
     try:
         taken, changed, added, removed = valmod.diff(cfg, ref)
     except valmod.GitError as e:
@@ -694,9 +716,11 @@ def cmd_new(args) -> int:
         if args.kind == 'analysis':
             stem = args.name[:-len('.qmd')] if args.name.endswith('.qmd') else args.name
             opened = str(cfg.root / 'analysis' / f'{stem}.qmd')
-        elif args.kind == 'figure':
-            stem = args.name[:-len('.typ')] if args.name.endswith('.typ') else args.name
-            opened = str(Path(cfg['figure_dir']) / f'{stem}.typ')
+        elif args.kind in ('figure', 'table'):
+            ext, key = {'figure': ('.typ', 'figure_src_dir'),
+                        'table': ('.csv', 'table_src_dir')}[args.kind]
+            stem = args.name[:-len(ext)] if args.name.endswith(ext) else args.name
+            opened = str(Path(cfg[key]) / f'{stem}{ext}')
         elif args.name in cfg.documents:
             # 足したものを開く（--tex なら main.tex、--appendix なら付録、ほかは原稿）
             doc = cfg.documents[args.name]
@@ -752,7 +776,7 @@ def cmd_release(args) -> int:
 
 
 def cmd_template(args) -> int:
-    """ひな型の一覧・写し・同梱との差分（上書きの仕組みは tmpl.py）。"""
+    """ひな型の一覧・コピー・同梱との差分（上書きの仕組みは tmpl.py）。"""
     from . import tmpl
     cp = Path(args.config).resolve()
     if cp.is_dir():
@@ -867,7 +891,7 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--no-citations', action='store_true',
                    help=t('leave citations unresolved (a fast look at a draft)'))
     p.add_argument('--no-analysis', action='store_true',
-                   help=t('do not run the .qmd (build with results/ as it is)'))
+                   help=t('do not run the .qmd (build with assets/values/ as it is)'))
     p.add_argument('--force-analysis', action='store_true',
                    help=t('run the .qmd again even if it is not stale'))
     p.add_argument('--anonymous', action='store_true',
@@ -910,7 +934,7 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_analysis)
 
     p = with_config(sub.add_parser('values',
-                                   help=t('cross-check {{…}} in the text against results/')))
+                                   help=t('cross-check {{…}} in the text against assets/values/')))
     p.add_argument('--unused', action='store_true',
                    help=t('also list values the text does not use'))
     p.add_argument('--diff', nargs='?', const='', metavar='REF',
@@ -1006,9 +1030,9 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_init)
 
-    p = with_config(sub.add_parser('new', help=t('add a manuscript, an analysis or a figure')))
-    p.add_argument('kind', choices=[*scaffold.KINDS, 'analysis', 'figure'],
-                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session) / analysis=a .qmd / figure=a figure drawn in Typst (figures/<name>.typ)'))
+    p = with_config(sub.add_parser('new', help=t('add a manuscript, an analysis, a figure or a table')))
+    p.add_argument('kind', choices=[*scaffold.KINDS, 'analysis', 'figure', 'table'],
+                   help=t('paper=a paper / slides=talk slides / lecture=lecture notes (an A4 handout + a deck per session) / analysis=a .qmd / figure=a figure drawn in Typst (figures/<name>.typ) / table=a table made by hand (tables/<name>.csv)'))
     p.add_argument('name', help=t('the document name (it becomes the file or folder name)'))
     p.add_argument('--example', action='store_true',
                    help=t('write an example rather than the bare frame'))

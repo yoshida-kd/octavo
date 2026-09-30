@@ -7,7 +7,7 @@
 
     推移を @fig-trend に、記述統計を @tbl-desc に示す。推定式は @eq-model。
 
-    ![推移](../../figures/trend.png){#fig-trend}
+    ![推移](../../assets/figures/trend.png){#fig-trend}
 
     | 変数 | 平均 |
     |------|------|
@@ -140,7 +140,7 @@ def _is_table_neighbour(lines: list, i: int, step: int) -> bool:
 
 
 def top_level(md: str) -> int:
-    """最上位の見出しの深さ。`#` があれば 1、無ければ `##` を最上位とみなす
+    """最上位の見出しの深さ。`#` があれば 1、なければ `##` を最上位とみなす
     （build.preprocess の shift_headings と同じ決め方）。"""
     return 1 if re.search(r'^# \S', md, re.M) else 2
 
@@ -151,7 +151,7 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
 
     mode      'section'（節ごと 2.1）か 'document'（通し 1, 2, …）
     appendix  付録のファイル（最上位の節が A, B, …）
-    section   節の見出しが無い部分（講義の回ごとのデッキ）に使う節番号
+    section   節の見出しがない部分（講義の回ごとのデッキ）に使う節番号
     """
     top = top or top_level(md)
     lines = md.split('\n')
@@ -246,7 +246,7 @@ def references(md: str) -> list:
 def replace_references(md: str, known: dict, fmt, report: list | None = None) -> str:
     """本文の `@fig-x` を fmt(Item, short) の返す文字列に置き換える。
 
-    知らないラベルは `??` にして報告する（組版を止めない。octavo check は止める）。
+    存在しないラベルは `??` にして報告する（組版を止めない。octavo check は止める）。
     """
     missing: list = []
 
@@ -306,7 +306,7 @@ def words(lang: str) -> dict:
 
 
 def text_of(item: Item, lang: str, short: bool = False) -> str:
-    """番号を文字で書いた参照（Word と、組版側に相手が無いとき）。"""
+    """番号を文字で書いた参照（Word と、組版側に相手がないとき）。"""
     n = f'({item.number})' if item.kind == 'eq' else item.number
     if short:
         return n
@@ -325,7 +325,7 @@ def caption_head(kind: str, number: str, lang: str) -> str:
 def collect(cfg) -> dict:
     """原稿ごとのラベルと参照を突き合わせる。
 
-    missing    無いラベルへの参照（組むと ?? になる）        [(原稿:行, @label)]
+    missing    ないラベルへの参照（組むと ?? になる）        [(原稿:行, @label)]
     duplicate  同じラベルが2回                              [(原稿:行, #label)]
     unused     どこからも参照されていない図・表・式のラベル    [(原稿:行, #label)]
 

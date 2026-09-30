@@ -26,6 +26,6 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 #
 # 本文に出すものは登録して、原稿からは名前で呼ぶ:
 #   ov_value("n_obs", nrow(d))        # 本文では {{n_obs}}
-#   ov_figure(p, "trend")             # figures/trend.pdf と .png
-#   ov_table(tab, "summary")          # tables/summary.typ / .tex / .md
+#   ov_figure(p, "trend")             # assets/figures/trend.pdf と .png
+#   ov_table(tab, "summary")          # assets/tables/summary.typ / .tex / .md
 ```

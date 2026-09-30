@@ -3,14 +3,14 @@
 
     octavo init 2026-research             枠だけ（設定・書誌・CLAUDE.md・README・figures/）
     octavo init study --with analysis,paper   分析と論文から始める（--all なら4つとも）
-    octavo init demo --example            見本つき（嘘のデータの分析と、見本の論文1本）
+    octavo init demo --example            見本つき（仮のデータの分析と、見本の論文1本）
     octavo new analysis model             analysis/model.qmd（1本目は octavo.R・data/ なども）
     octavo new paper example-paper        papers/example-paper/paper.md と main.typ
                                           （--appendix で appendix.md、--tex で main.tex も）
     octavo new slides example-talk        slides/example-talk.md
     octavo new lecture example-lecture    lectures/example-lecture.md（プリント1本 + 回ごとのスライド）
 
-既定で置くのは、後で消さずに使い続けるものだけ。見本（嘘のデータ・仮の値・仮の図表・
+既定で置くのは、後で消さずに使い続けるものだけ。見本（仮のデータ・仮の値・仮の図表・
 見本の書誌・原稿の中の例）は --example のときだけ置く。CLAUDE.md は共通の節から
 始まり、部品の種類を初めて足したときにその節（templates/claude/<言語>/）が足される。
 
@@ -92,8 +92,8 @@ def documents_block(lang: str = 'ja') -> str:
 
 
 # ---------------------------------------------------------------- 仮の図
-# 図がまだ無い段階でも `octavo build --compile` が最後まで通るように、
-# 中身の無い図を置いておく。外部ライブラリは使わない。
+# 図がまだない段階でも `octavo build --compile` が最後まで通るように、
+# 中身のない図を置いておく。外部ライブラリは使わない。
 #
 # **仮の図だと分かるようにしてある。**組んだ PDF を見た人には対角線の × で、
 # `octavo check` には埋め込んだ印（PNG は tEXt チャンク、PDF はコメント行）で
@@ -103,7 +103,7 @@ PLACEHOLDER_MARK = 'octavo:placeholder'
 
 
 def is_placeholder(path: Path) -> bool:
-    """octavo init が置いた仮の図のままか。読めなければ False。"""
+    """octavo が置いた仮の図のままか。読めなければ False。"""
     try:
         head = path.read_bytes()[:4096]
     except OSError:
@@ -228,7 +228,7 @@ EXAMPLE_PAPER = 'example-paper'
 PARTS = ('analysis', 'paper', 'slides', 'lecture')
 
 # CLAUDE.md の節（templates/claude/<言語>/<節>.md）。スライドと講義ノートは同じ節。
-# 部品を足したとき、その節がまだ無ければ末尾に書き足す（印で見分ける）。
+# 部品を足したとき、その節がまだなければ末尾に書き足す（印で見分ける）。
 CLAUDE_SECTION = {'analysis': 'analysis', 'paper': 'paper',
                   'slides': 'slides', 'lecture': 'slides'}
 SECTION_MARK = '<!-- octavo:section {} -->'
@@ -237,7 +237,7 @@ SECTION_MARK = '<!-- octavo:section {} -->'
 def parse_parts(spec: str) -> dict:
     """`analysis,paper=mypaper` -> {'analysis': 'analysis', 'paper': 'mypaper'}。
 
-    知らない部品や、使えない名前は ValueError（メッセージは表示用）。
+    不明な部品や、使えない名前は ValueError（メッセージは表示用）。
     """
     out: dict = {}
     for item in filter(None, (s.strip() for s in spec.split(','))):
@@ -255,7 +255,7 @@ def _lang(value) -> str:
 
 
 def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
-    """CLAUDE.md に節が無ければ末尾に書き足す。CLAUDE.md を消してあれば何もしない。"""
+    """CLAUDE.md に節がなければ末尾に書き足す。CLAUDE.md を消してあれば何もしない。"""
     p = root / 'CLAUDE.md'
     if not p.is_file():
         return
@@ -279,7 +279,7 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     made: list = []
     name = dest.name
 
-    # 共通の部分（templates/project/<言語>）をそのまま写す。ユーザーの上書き
+    # 共通の部分（templates/project/<言語>）をそのままコピーする。ユーザーの上書き
     # （~/.config/octavo/templates/project/…）も同じ木に重なる。
     suffix = _lang(lang)
     subs = {'NAME': name, 'DOCUMENTS': documents_block(suffix)}
@@ -333,26 +333,26 @@ NAME_OK = re.compile(r'[^\s/\\.][^\s/\\]*')
 
 def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
                   made: list) -> Path:
-    """analysis/<name>.qmd を置く。分析の部分（octavo.R・data/・tables/・
-    requirements.txt）は、まだ無いものだけ置く（2本目からは何も言わない）。"""
+    """analysis/<name>.qmd を置く。分析の部分（octavo.R・data/・assets/tables/・
+    requirements.txt）は、まだないものだけ置く（2本目からは何も言わない）。"""
     root = cfg.root
     for rel, src in tmpl.tree(['analysis/common', f'analysis/{lang}'], root).items():
         if force or not (root / rel).exists():
             _write(root / rel, render(src.read_text(encoding='utf-8'), {'NAME': root.name},
                                       rel.endswith('.md')), True, made, root)
-    for d in ('data/derived', 'tables'):
-        (root / d).mkdir(parents=True, exist_ok=True)
-        (root / d / '.gitkeep').touch()
+    for d in (root / 'data/derived', Path(cfg['table_dir'])):
+        d.mkdir(parents=True, exist_ok=True)
+        (d / '.gitkeep').touch()
     folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
     qmd = root / 'analysis' / f'{name}.qmd'
     _write(qmd, render_template(f'{folder}/analysis.qmd', {'NAME': name}, root),
            force, made, root)
     if example:
-        # 見本の値・表・図。分析を走らせる前でも見本の原稿が組めるように置く
+        # 見本の値・表・図。分析を実行する前でも見本の原稿が組めるように置く
         ex = tmpl.tree([f'example/{lang}'], root)
-        values_dir = Path(cfg['results_dir'])
+        values_dir = Path(cfg['values_dir'])
         _write(values_dir / f'{name}.json',
-               ex['results/analysis.json'].read_text(encoding='utf-8'), force, made, root)
+               ex['values/analysis.json'].read_text(encoding='utf-8'), force, made, root)
         for rel, src in ex.items():
             if rel.startswith('tables/'):
                 _write(Path(cfg['table_dir']) / Path(rel).name,
@@ -361,14 +361,14 @@ def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
         if force or not (fig / 'trend.png').exists():
             write_placeholder_png(fig / 'trend.png')
             write_placeholder_pdf(fig / 'trend.pdf')
-            made.append('  ' + t('made')
-                        + '  ' + t('figures/trend.png (and .pdf — placeholders)'))
+            made.append('  ' + t('made') + '  ' + t('{path} (and .pdf — placeholders)',
+                                                  path=cfg.rel(fig / 'trend.png')))
     add_claude_section(root, lang, 'analysis', made)
     return qmd
 
 
 def _example_support(cfg, lang: str, force: bool, made: list) -> None:
-    """見本の原稿が使うもの（見本の値・図表・書誌）が無ければ足す。"""
+    """見本の原稿が使うもの（見本の値・図表・書誌）がなければ足す。"""
     from . import values as valmod
     root = cfg.root
     have, _ = valmod.load(cfg)
@@ -388,11 +388,11 @@ def _example_support(cfg, lang: str, force: bool, made: list) -> None:
 def _new_figure(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) -> int:
     """Typst で描く図 `figures/<name>.typ` を置く（組むのは octavo build。diagrams.py）。"""
     from .backends.typst import font_expr
-    folder = Path(cfg['figure_dir'])
-    src = folder / f'{name}.typ'
+    src = Path(cfg['figure_src_dir']) / f'{name}.typ'
+    out = Path(cfg['figure_dir'])
     # 同じ名前の図がもうある（分析の ov_figure が書いたものなど）なら、組むと上書き
     # してしまうので断る
-    taken = [p for p in (folder / f'{name}.pdf', folder / f'{name}.png') if p.exists()]
+    taken = [p for p in (out / f'{name}.pdf', out / f'{name}.png') if p.exists()]
     if taken and not src.exists() and not force:
         print(t('{path} is already there (a figure from the analysis?) — drawing '
                 '{name}.typ would overwrite it. Pick another name',
@@ -406,9 +406,39 @@ def _new_figure(cfg, name: str, lang: str, force: bool, quiet: bool, made: list)
     for m in made:
         print(m)
     print('\n' + t('Next:'))
-    steps = [('octavo build', t('draws it into {files}', files=f'figures/{name}.pdf, .png')),
-             (f'![…](../../figures/{name}.png){{#fig-{name}}}',
-              t('in a paper (from slides or lecture notes: ../figures/)'))]
+    fig = cfg.rel(out)
+    steps = [('octavo build', t('draws it into {files}', files=f'{fig}/{name}.pdf, .png')),
+             (f'![…](../../{fig}/{name}.png){{#fig-{name}}}',
+              t('in a paper (from slides or lecture notes: ../{folder}/)', folder=fig))]
+    width = max(len(c) for c, _ in steps)
+    for cmd, why in steps:
+        print(f'  {cmd.ljust(width)}   # {why}')
+    return 0
+
+
+def _new_table(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) -> int:
+    """手で作る表 `tables/<name>.csv` を置く（assets/tables/ に書くのは octavo build）。"""
+    from . import handtables
+    src = Path(cfg['table_src_dir']) / f'{name}.csv'
+    # 分析の ov_table が書いた同じ名前の表があるなら、作ると上書きしてしまうので断る
+    taken = [p for p in handtables.outputs(cfg, src) if p.exists() and handtables._foreign(p)]
+    if taken and not src.exists() and not force:
+        print(t('{path} is already there (a table from the analysis?) — making '
+                '{name}.csv would overwrite it. Pick another name',
+                path=cfg.rel(taken[0]), name=name), file=sys.stderr)
+        return 1
+    _write(src, render_template(f'manuscripts/{lang}/table.csv', {}, cfg.root),
+           force, made, cfg.root)
+    if quiet:
+        return 0
+    for m in made:
+        print(m)
+    print('\n' + t('Next:'))
+    steps = [(cfg.rel(src), t('fill it in (in VS Code, the Edit as a Table button; '
+                              'Excel works too)')),
+             (f': … {{#tbl-{name}}}', t('the caption line in the manuscript places it')),
+             ('octavo build', t('makes {files}',
+                                files=f'{cfg.rel(Path(cfg["table_dir"]))}/{name}.typ, .tex, .md'))]
     width = max(len(c) for c, _ in steps)
     for cmd, why in steps:
         print(f'  {cmd.ljust(width)}   # {why}')
@@ -418,16 +448,17 @@ def _new_figure(cfg, name: str, lang: str, force: bool, quiet: bool, made: list)
 def new(config: Path, kind: str, name: str, force: bool = False,
         quiet: bool = False, example: bool = False, appendix: bool = False,
         tex: bool = False, made: list | None = None) -> int:
-    """原稿・分析・図を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
+    """原稿・分析・図・表を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
 
-    既にある原稿の名前なら、無いファイルだけを足す（`--appendix` / `--tex` を後から）。
+    既にある原稿の名前なら、ないファイルだけを足す（`--appendix` / `--tex` を後から）。
     """
     from . import config as configmod
-    if kind not in KINDS and kind not in ('analysis', 'figure'):
+    if kind not in KINDS and kind not in ('analysis', 'figure', 'table'):
         print(t('unknown kind: {kind} (one of {allowed})',
-                kind=kind, allowed=' / '.join([*KINDS, 'analysis', 'figure'])), file=sys.stderr)
+                kind=kind, allowed=' / '.join([*KINDS, 'analysis', 'figure', 'table'])),
+              file=sys.stderr)
         return 1
-    ext = {'analysis': '.qmd', 'figure': '.typ'}.get(kind)
+    ext = {'analysis': '.qmd', 'figure': '.typ', 'table': '.csv'}.get(kind)
     if ext and name.endswith(ext):
         name = name[:-len(ext)]
     if not NAME_OK.fullmatch(name):
@@ -460,6 +491,8 @@ def new(config: Path, kind: str, name: str, force: bool = False,
 
     if kind == 'figure':
         return _new_figure(cfg, name, lang, force, quiet or quiet_made, made)
+    if kind == 'table':
+        return _new_table(cfg, name, lang, force, quiet or quiet_made, made)
 
     k = KINDS[kind]
     src = root / k['src'].format(name)

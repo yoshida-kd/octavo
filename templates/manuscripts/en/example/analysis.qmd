@@ -10,7 +10,7 @@ execute:
 <!-- The numbers, figures and tables in the paper are made here, not in the
      manuscript. octavo build watches the .qmd and runs quarto render when needed. -->
 
-<!-- octavo:example This .qmd is the template octavo init wrote, and right now
+<!-- octavo:example This .qmd is the template octavo wrote, and right now
      it makes up **fake data** on the spot. Once it reads your real data, delete
      the `octavo:example` marks with it. While any mark is left, octavo check
      reports it as a template leftover. -->
@@ -40,7 +40,7 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 set.seed(20260101)
 d <- data.frame(
   x = rnorm(1523, 12, 3),
-  y   = rnorm(1523, 50, 10)
+  y = rnorm(1523, 50, 10)
 )
 d$y <- d$y + 0.34 * d$x
 # octavo:example end
@@ -71,10 +71,10 @@ p <- function() {
        xlab = "x", ylab = "y")
   abline(m, lwd = 2)
 }
-ov_figure(p, "trend")      # figures/trend.pdf and .png
+ov_figure(p, "trend")      # assets/figures/trend.pdf and .png
 ```
 
-In the manuscript, write `![Trend](../../figures/trend.png){#fig-trend}` and
+In the manuscript, write `![Trend](../../assets/figures/trend.png){#fig-trend}` and
 refer to it as `@fig-trend` (it is numbered when typeset: Figure 2.1).
 
 ## Table
@@ -87,9 +87,9 @@ tab <- data.frame(
   SD = c(sd(d$x), sd(d$y))
 )
 ov_table(tab, "summary",
-         notes = paste0("Note: N = ", nrow(d), "."))
+         notes = paste0("Note: N = ", format(nrow(d), big.mark = ","), "."))
 ```
 
-This writes the table's contents (tables/summary.typ / .tex / .md). In the
+This writes the table's contents (assets/tables/summary.typ / .tex / .md). In the
 manuscript, the one line `: Descriptive statistics {#tbl-summary}` puts it
 there with its caption, and `@tbl-summary` refers to it.

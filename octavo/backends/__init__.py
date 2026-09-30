@@ -50,6 +50,6 @@ def resolve_targets(spec: str | None, profile: str) -> list:
     out = []
     for name in spec.replace(' ', '').split(','):
         if name:
-            get(name)          # 知らない名前ならここで落ちる
+            get(name)          # 不明な名前ならここで落ちる
             out.append(name)
     return out

@@ -25,13 +25,13 @@ BACKENDS = ('latex', 'typst', 'beamer', 'typst-slides', 'typst-notes', 'docx')
 PROFILES = ('paper', 'handout', 'slides')
 
 # --------------------------------------------------------------------------
-# 既定値。ここに無いキーを octavo.config.py に書くと警告する（誤字よけ）。
+# 既定値。ここにないキーを octavo.config.py に書くと警告する（誤字よけ）。
 # --------------------------------------------------------------------------
 DEFAULTS: dict = {
     # ---- 原稿（documents を書かないときの手軽な指定）----------------------
     'draft': 'draft.md',           # 論文本文
     'appendix': None,              # 付録（使わないなら None）
-    'slides': 'slides.md',         # 発表スライドの原稿（無ければ登録されない）
+    'slides': 'slides.md',         # 発表スライドの原稿（なければ登録されない）
     'handout': 'handout.md',       # 授業用 A4 プリント（同上）
 
     # ---- 文書の定義（細かく決めたいときはこちら）--------------------------
@@ -54,13 +54,13 @@ DEFAULTS: dict = {
     },
 
     # ---- 表・図 -----------------------------------------------------------
-    # 分析スクリプトが表を .tex / .typ で直接吐く運用のときだけ使う。
-    # 「本文の表番号」->「tables/ 内のファイル名（拡張子なし）」。
-    # Word / スライドは外部 .tex を取り込めないので、対応があっても
-    # マークダウンの表をそのまま使う。
-    'table_dir': 'tables',
-    'figure_dir': 'figures',
-    # 形式ごとに使う図の拡張子。書かなければ latex/beamer=.pdf、他=.png
+    # 手で作るもの（figures/）と、作られるもの（assets/）を分ける。
+    # assets/ は分析と octavo build が書くので手で直さない（git には入れる）。
+    'figure_src_dir': 'figures',   # 手で作る図: Typst で描く <名前>.typ、写真など
+    'figure_dir': 'assets/figures',   # 分析の図と、figures/*.typ から組んだ図
+    'table_src_dir': 'tables',     # 手で作る表: <名前>.csv
+    'table_dir': 'assets/tables',     # 分析の表と、tables/*.csv から作った表（.typ / .tex / .md）
+    # 形式ごとに使う図の拡張子。書かなければ Word=.png、他（Typst・LaTeX）=.pdf
     'figure_ext': {},
     'figure_width': 1.0,           # \textwidth に対する比
 
@@ -72,14 +72,14 @@ DEFAULTS: dict = {
     'analysis': [],
     'analysis_deps': [],           # 全部の .qmd に共通の依存（データ等）
     'analysis_to': None,           # quarto render --to（None なら .qmd 任せ）
-    'analysis_args': [],           # quarto に渡す追加の引数
-    'analysis_auto': True,         # octavo build のとき、古ければ自動で走らせる
+    'analysis_args': [],           # Quarto に渡す追加の引数
+    'analysis_auto': True,         # octavo build のとき、古ければ自動で実行する
 
     # ---- 分析が出した数値（本文の {{…}}）---------------------------------
-    'results_dir': 'results',      # 値マニフェスト（*.json）の置き場
+    'values_dir': 'assets/values',   # 分析が書く数値（*.json）の置き場
     'value_float_format': '.3f',   # 小数の既定書式（{{key:.2f}} が優先）
     'value_thousands_sep': True,   # 整数に桁区切りを入れる（1,523）
-    # octavo lint が「直書きされた結果」と見なさない文字列。慣例的な定数
+    # octavo lint が「手入力された結果」と見なさない文字列。慣例的な定数
     #（0.05 / 1.96 等）は既定で見逃すので、それ以外を足すときだけ書く。
     'lint_accepted': [],           # 例: ['0.5', '2.5']
 
@@ -92,7 +92,7 @@ DEFAULTS: dict = {
     # ---- 匿名審査 ---------------------------------------------------------
     # octavo build --anonymous / octavo bundle --anonymous のときだけ効く。
     # 原稿側は ::: {.no-anonymous} … ::: で謝辞などを囲む。
-    # 題扉から伏せるメタデータ:
+    # タイトル部分から伏せるメタデータ:
     'anonymous_drop_meta': ['author', 'institute', 'thanks', 'email'],
 
     # ---- 複製パッケージ（octavo bundle --replication）----------------------
@@ -106,6 +106,9 @@ DEFAULTS: dict = {
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。
     'csl': 'chicago-author-date',
     'csl_locale': None,            # 'ja-JP' 等。None なら lang から決める
+    # 日本語の文書で、英語の文献は英語の決まりで、日本語の文献（.bib の langid = {japanese}）
+    # は日本語の形（山田・田中、ほか、「」『』）で組む。False なら書誌全体を csl_locale で
+    'citations_by_language': True,
     # 書誌一覧の直前に入れる見出し。None なら lang に応じた既定
     #（日本語なら「参考文献」、英語なら "References"）。'' なら見出し無し。
     'reference_section_title': None,
@@ -135,7 +138,7 @@ DEFAULTS: dict = {
     # {'case': '事例', 'question': '論点', 'nb': '注意', 'memo': '付記'} のように
     # 書くと、`::: {.case #case:example} ... :::` が latex 出力では
     # \newtheorem 環境（ヘッダー側に \newtheorem{case}{事例}[section] が要る。
-    # octavo template copy handout/handout-header.tex で写して足す）に、それ以外の形式では
+    # octavo template copy handout/handout-header.tex でコピーして足す）に、それ以外の形式では
     # 通し番号無しの「**事例.** …」に変換される。空なら何もしない。
     'theorem_envs': {},
 
@@ -162,7 +165,7 @@ DEFAULTS: dict = {
     # どおりの黒一色に戻せる）。
     'typst_slides_accent': '#0e2f92',
     # 各スライドの左上に、いまの「#」の節を小さく出すか（既定は出さない）。
-    'typst_slides_running_header': True,   # 左上にいまの節（無ければデッキの題）
+    'typst_slides_running_header': True,   # 左上にいまの節（なければデッキの題）
     'typst_slides_font': None,      # None なら typst.FONTS の sans（BIZ UDGothic + Inter）
 
     # ---- Beamer -----------------------------------------------------------
@@ -178,12 +181,12 @@ DEFAULTS: dict = {
     'beamer_warn_lines': 28,       # 1枚が何行を超えたら「溢れそう」と言うか
 
     # ---- Word -------------------------------------------------------------
-    'docx_reference': None,        # 見た目の雛形 .docx（--reference-doc）
+    'docx_reference': None,        # 見た目の元にする .docx（--reference-doc）
     'docx_track_changes_ready': True,
 }
 
 PATH_KEYS = ('draft', 'appendix', 'slides', 'handout', 'table_dir', 'figure_dir',
-             'results_dir', 'bib_file', 'docx_reference')
+             'figure_src_dir', 'table_src_dir', 'values_dir', 'bib_file', 'docx_reference')
 
 # 原稿の冒頭（front matter）に書けば、その文書だけ設定より優先する鍵。
 # 投稿先・発表ごとに変わるもの。書かなければ octavo.config.py の値が効く。
@@ -254,7 +257,7 @@ class Document:
     split_slides: bool = False
     # 分けたうちの1つなら、その回の印（'01' か見出しの {#id}）
     part: str | None = None
-    # 設定ファイルの documents に書いた出力形式（原稿の冒頭の targets が無いときの値）
+    # 設定ファイルの documents に書いた出力形式（原稿の冒頭の targets がないときの値）
     config_targets: tuple = ('typst',)
 
     def exists(self) -> bool:
@@ -429,7 +432,7 @@ class Config:
                 #            'appendix': 'papers/*/appendix.md', …} -> フォルダ名
                 #   '講義*': {'src': 'lectures/*.md', …}          -> 講義lecture01, …
                 # 文書名は最初の `*` に当たった部分（名前に * があればそこに差し込む）。
-                # 何も当たらないのは「その種類の原稿がまだ無い」だけなので黙っている。
+                # 何も当たらないのは「その種類の原稿がまだない」だけなので黙っている。
                 if any(c in d['src'] for c in '*?['):
                     for p in sorted(self.root.glob(d['src'])):
                         stars = glob_captures(d['src'], p.relative_to(self.root))

@@ -6,8 +6,9 @@ data/raw/         raw data. **read-only.** record provenance in data/raw/README.
 data/derived/     cleaned data, written by the .qmd files. never edited by hand
 analysis/*.qmd    the analysis. every number, figure and table you present starts here
 analysis/octavo.R the analysis-side helper (ov_value / ov_figure / ov_table)
-results/*.json    values emitted by the .qmd (read by {{...}} in the text). never hand-edited
-tables/           tables written by the .qmd (<name>.typ / .tex / .md)
+assets/values/    values emitted by the .qmd (<qmd name>.json, read by {{...}} in the text). never hand-edited
+assets/tables/    tables written by the .qmd (<name>.typ / .tex / .md)
+assets/figures/   figures written by the .qmd (<name>.pdf / .png)
 requirements.txt  the Python packages the analysis uses (with renv.lock, the record of the environment)
 ```
 
@@ -39,7 +40,7 @@ the `.qmd` instead.
 - Formatting can be overridden from the prose: `{{coef_x:.2f}}` (a Python format spec)
 - Integers (R's `nrow()`) render as `1,523`; doubles (`coef()`) get 3 decimals by default
 - `octavo values` cross-checks the names the prose asks for against what's in
-  `results/`. **Run it every time the manuscript is touched.**
+  `assets/values/`. **Run it every time the manuscript is touched.**
 - Name figures (`ov_figure(p, "trend")`) and tables (`ov_table(tab, "summary")`) by
   their content, never with a number. Label the table `tbl-<table name>` and the
   analysis's table is put there. `ov_figure()` writes both the `.pdf` and the `.png`
@@ -63,7 +64,7 @@ only trace that survives in version control.
 
 The `analysis` glob in `octavo.config.py` (`analysis/*.qmd` by default) picks up
 every `.qmd`. Add heavy inputs to `deps` to have them watched too.
-`octavo build --no-analysis` converts against the current `results/` without
+`octavo build --no-analysis` converts against the current `assets/values/` without
 re-running anything — what you want when an estimation is slow.
 
 After a re-estimation, read **`octavo values --diff`**: it shows **which numbers
@@ -78,7 +79,8 @@ months nor a reviewer can reproduce the result.
 
 - Set it up (or restore it after a clone) with `octavo env`: `.venv` via uv
   plus `requirements.txt`, and renv with knitr / rmarkdown
-- Python: run inside `.venv` (`source .venv/bin/activate` or `uv run`). Add each
+- Python: run inside `.venv` (`octavo analysis run` uses it by itself; by hand, use
+  `uv run` or activate it). Add each
   package to `requirements.txt` with its version, then `octavo env` — don't
   `pip install` into anything else
 - R: run in the renv project, and always follow `install.packages()` with
@@ -99,7 +101,7 @@ The project has to work on Linux, macOS and Windows alike:
 ## Splitting the analysis across several .qmd files
 
 Split the analysis whenever it gets long (`octavo new analysis <name>` is all it
-takes). Each `.qmd` owns `results/<its own name>.json`, and the split is invisible
+takes). Each `.qmd` owns `assets/values/<its own name>.json`, and the split is invisible
 from the manuscript: every `{{name}}` resolves the same way.
 
 **When one file produces another's input**, order them in `octavo.config.py` and
@@ -120,7 +122,7 @@ Analysis section).
 
 - If two `.qmd` files register the same name it warns and **the later one wins**;
   check the source column in `octavo values`.
-- **When you delete or rename a `.qmd`, delete its `results/*.json` too.** Left
+- **When you delete or rename a `.qmd`, delete its `assets/values/*.json` too.** Left
   behind, the manuscript keeps picking up stale numbers (`octavo analysis` and
   `octavo values` flag these as value files with no matching `.qmd`).
 
@@ -136,12 +138,12 @@ used. **Drift you didn't cause is an accident, not a nuisance.**
 
 ## Never, in the analysis
 
-- **Never hand-edit what the analysis generates: `results/*.json`, `tables/`, the
-  figures it writes.** The thing to fix is always the `.qmd`.
+- **Never hand-edit what the analysis generates: `assets/values/`, `assets/tables/`,
+  `assets/figures/`.** The thing to fix is always the `.qmd`.
 - **Never type an analysis result into the manuscript** (see above).
 - **Never modify `data/raw/`.**
 - When a number doesn't line up, never replace `{{...}}` with a literal to "make it
-  build". If the value is missing, the correct fix is a `ov_value()` in the `.qmd`.
+  build". If the value is missing, the correct fix is an `ov_value()` in the `.qmd`.
 - **Never hand-edit `data/HASHES.json`.** Regenerate it with `octavo data hash`
   only when the data itself changed.
 - When something is off, `octavo analysis` says which `.qmd` is stale.

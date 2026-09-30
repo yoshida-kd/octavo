@@ -4,8 +4,8 @@
     python3 -m unittest discover -s tests -v
     あるいは  python3 tests/test_octavo.py
 
-pandoc が要るテストは、無ければ自動で飛ばす。CSL 引用（pandoc 2.11 以上）が
-無い環境でも通るように、変換のテストは --no-citations 相当で走らせる。
+pandoc が要るテストは、なければ自動で飛ばす。CSL 引用（pandoc 2.11 以上）が
+ない環境でも通るように、変換のテストは --no-citations 相当で実行する。
 """
 from __future__ import annotations
 
@@ -205,7 +205,7 @@ class ConditionalDivs(unittest.TestCase):
         self.assertIn('ウェブ以外', out)
         self.assertIn('発表者ノート', out)
         self.assertIn('::: notes', out)
-        self.assertIn('::: {.warning}', out)          # 印の無い div は囲みも残す
+        self.assertIn('::: {.warning}', out)          # 印のない div は囲みも残す
         self.assertNotIn('slides-only', out)          # 条件付きの囲みは外す
 
     def test_print(self):
@@ -310,10 +310,10 @@ class TheoremDivs(unittest.TestCase):
 class RebaseLinks(unittest.TestCase):
     """図のパスを「原稿から見た相対」から「出力先から見た相対」へ。
 
-    原稿は `![](../figures/x.png)` とエディタで見える形で書く。出力は
-    build/ の下で階層が違うので、そのまま写すと組版が file not found で
+    原稿は `![](../assets/figures/x.png)` とエディタで見える形で書く。出力は
+    build/ の下で階層が違うので、そのままコピーすると組版が file not found で
     落ちる。キャプション付きの図は fmt_figure が名前から作り直すので
-    無事だったが、**キャプションの無い図だけが素通りして落ちていた。**
+    無事だったが、**キャプションのない図だけが素通りして落ちていた。**
     """
 
     def rebase(self, text: str, src: str, out: str) -> str:
@@ -321,17 +321,17 @@ class RebaseLinks(unittest.TestCase):
 
     def test_slides_and_papers_gain_a_level(self):
         self.assertEqual(
-            self.rebase('![](../figures/a.png)', 'slides', 'build/typst-slides'),
-            '![](../../figures/a.png)')
+            self.rebase('![](../assets/figures/a.png)', 'slides', 'build/typst-slides'),
+            '![](../../assets/figures/a.png)')
         self.assertEqual(
-            self.rebase('![図](../../figures/a.png "説明")',
+            self.rebase('![図](../../assets/figures/a.png "説明")',
                         'papers/x', 'build/typst/x'),
-            '![図](../../../figures/a.png "説明")')
+            '![図](../../../assets/figures/a.png "説明")')
 
     def test_angle_bracket_form(self):
         self.assertEqual(
-            self.rebase('![](<../figures/b.png>)', 'slides', 'build/typst-slides'),
-            '![](<../../figures/b.png>)')
+            self.rebase('![](<../assets/figures/b.png>)', 'slides', 'build/typst-slides'),
+            '![](<../../assets/figures/b.png>)')
 
     def test_external_targets_are_left_alone(self):
         for target in ('https://example.com/a.png', '/abs/a.png',
@@ -345,18 +345,18 @@ class RebaseLinks(unittest.TestCase):
 
     def test_code_is_left_alone(self):
         # 原稿が「図はこう書く」と見本を載せることがある。そこを書き換えると
-        # 読者に嘘を見せる（{{…}} で同じことをやって直した）
+        # 読者に誤った内容を見せる（{{…}} で同じことをやって直した）
         src = ded("""
             ```markdown
-            ![](../figures/a.png)
+            ![](../assets/figures/a.png)
             ```
 
-            インラインは `![](../figures/a.png)` と書く。
+            インラインは `![](../assets/figures/a.png)` と書く。
         """)
         self.assertEqual(self.rebase(src, 'slides', 'build/typst-slides'), src)
 
     def test_same_directory_is_untouched(self):
-        src = '![](figures/a.png)'
+        src = '![](assets/figures/a.png)'
         self.assertEqual(self.rebase(src, 'x', 'x'), src)
 
 
@@ -579,7 +579,7 @@ class ConfigAndDocuments(unittest.TestCase):
                          "'appendix': 'papers/*/appendix.md', 'profile': 'paper'}}}")
         self.assertEqual(sorted(cfg.documents), ['another', 'mypaper'])
         self.assertEqual(cfg.rel(cfg.document('mypaper').appendix), 'papers/mypaper/appendix.md')
-        self.assertIsNone(cfg.document('another').appendix)      # 無い付録は結ばない
+        self.assertIsNone(cfg.document('another').appendix)      # ない付録は結ばない
         self.assertEqual([cfg.rel(p) for _, p, _ in cfg.sources()],
                          ['papers/another/paper.md', 'papers/mypaper/paper.md',
                           'papers/mypaper/appendix.md'])
@@ -708,7 +708,7 @@ class Registry(unittest.TestCase):
             be.resolve_targets('revealjs', 'paper')
 
     def test_doctor_knows_what_every_backend_needs(self):
-        """doctor.NEEDS に無い形式は「出せるか」を一度も見てもらえない。
+        """doctor.NEEDS にない形式は「出せるか」を一度も見てもらえない。
 
         バックエンドを足したときに**黙って**漏れる（doctor は何も言わない）ので、
         表そのものを突き合わせる。TEX_TARGETS も、TeX が要る形式だけが
@@ -716,9 +716,9 @@ class Registry(unittest.TestCase):
         """
         from octavo import doctor
         self.assertEqual(set(be.ALL) - set(doctor.NEEDS), set(),
-                         'doctor.NEEDS に無い形式がある')
+                         'doctor.NEEDS にない形式がある')
         self.assertEqual(set(doctor.NEEDS) - set(be.ALL), set(),
-                         'doctor.NEEDS に知らない形式がある')
+                         'doctor.NEEDS に不明な形式がある')
         self.assertEqual(set(doctor.TEX_TARGETS), {'latex', 'beamer'})
 
     def test_every_backend_has_an_out_dir(self):
@@ -755,7 +755,7 @@ class Packaging(unittest.TestCase):
         # 設定を読むテストだけ 3.10 では飛ばす。
         tomllib = __import__('tomllib') if sys.version_info >= (3, 11) else None
         if tomllib is None:
-            self.skipTest('tomllib が無い（Python 3.10）')
+            self.skipTest('tomllib がない（Python 3.10）')
         with open(ROOT / 'pyproject.toml', 'rb') as fh:
             return tomllib.load(fh)
 
@@ -766,7 +766,7 @@ class Packaging(unittest.TestCase):
         self.assertIsNotNone(paths.setup_script())
 
     def test_installed_layout_falls_back_into_the_package(self):
-        """repo 直下に無ければパッケージの中を見る（pip で入れたとき）。"""
+        """repo 直下になければパッケージの中を見る（pip で入れたとき）。"""
         with tempfile.TemporaryDirectory() as tmp:
             with unittest.mock.patch.object(paths, 'REPO', Path(tmp)):
                 self.assertEqual(paths.templates_dir(),
@@ -801,7 +801,7 @@ class Packaging(unittest.TestCase):
         inc = (self.pyproject()['tool']['hatch']['build']['targets']
                ['wheel']['force-include'])
         for src, dest in inc.items():
-            self.assertTrue((ROOT / src).exists(), f'{src} が無い')
+            self.assertTrue((ROOT / src).exists(), f'{src} がない')
             self.assertTrue(dest.startswith('octavo/'),
                             f'{dest} はパッケージの外')
         for name in ('templates', 'config.example.py', 'config.example.ja.py'):
@@ -836,7 +836,7 @@ class DocSettings(unittest.TestCase):
         self.assertEqual(got, {'csl': 'apa', 'word_limit': 8000, 'targets': ('typst', 'docx'),
                                'typst_slides_section_slides': True,
                                'typst_slides_accent': None})
-        self.assertNotIn('title', got)                    # 題扉のものは設定ではない
+        self.assertNotIn('title', got)                    # タイトル部分のものは設定ではない
         for bad in ('word_limit: many', 'targets: [html]', 'typst_slides_section_slides: maybe'):
             with self.assertRaises(SystemExit):
                 config.doc_settings(self.paper, text=f'---\n{bad}\n---\n')
@@ -896,7 +896,7 @@ class DocSettings(unittest.TestCase):
         with self.assertRaises(self.ce.EditError):
             self.ce.set_doc_value(self.cfg(), self.cfg().document('deck'), 'targets', 'docx')
 
-    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が無い')
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc がない')
     def test_the_build_uses_the_document_settings(self):
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
@@ -955,7 +955,7 @@ class ConfEdit(unittest.TestCase):
 
     def test_a_bad_value_leaves_the_file_alone(self):
         for key, raw in (('typst_slides_accent', 'blue'),        # Config が弾く
-                         ('typst_slides_aspect', '5-4'),         # 選択肢に無い
+                         ('typst_slides_aspect', '5-4'),         # 選択肢にない
                          ('word_limit', 'many'),
                          ('lang', 'fr')):
             with self.assertRaises(self.ce.EditError, msg=key):
@@ -993,8 +993,8 @@ class ConfEdit(unittest.TestCase):
 class Messages(unittest.TestCase):
     """画面に出す文字列。**原文は英語**で、日本語は lang_ja.py の対訳表。
 
-    言語は OCTAVO_LANG、無ければロケール（LC_ALL / LC_MESSAGES / LANG）。
-    訳が無ければ英語のまま出て落ちないので、**抜けは誰も教えてくれない**。
+    言語は OCTAVO_LANG、なければロケール（LC_ALL / LC_MESSAGES / LANG）。
+    訳がなければ英語のまま出て落ちないので、**抜けは誰にも知らされない**。
     それを数えるのがこのクラス。
     """
     SRC = sorted(list((ROOT / 'octavo').glob('*.py'))
@@ -1063,7 +1063,7 @@ class Messages(unittest.TestCase):
         from octavo.lang_ja import MESSAGES
         used = self.used()
         self.assertGreater(len(used), 200, 't() がほとんど見つかっていない')
-        self.assertEqual(used - set(MESSAGES), set(), '日本語訳が無い文字列')
+        self.assertEqual(used - set(MESSAGES), set(), '日本語訳がない文字列')
 
     def test_no_unused_translations(self):
         from octavo.lang_ja import MESSAGES
@@ -1076,7 +1076,7 @@ class Messages(unittest.TestCase):
         def names(s):
             return set(_SLOT.findall(s)) | {m[0] for m in _PLURAL.findall(s)}
         for en, ja in MESSAGES.items():
-            # 単複の形 `{n|file|files}` は英語にしか無く、訳は `{n}` で書くので、
+            # 単複の形 `{n|file|files}` は英語にしかなく、訳は `{n}` で書くので、
             # 「片方で使う名前が、もう片方でも（どちらかの形で）使われている」を見る
             self.assertLessEqual(set(_SLOT.findall(en)), names(ja), f'訳で穴が空く: {en!r}')
             self.assertLessEqual(set(_SLOT.findall(ja)), names(en), f'訳だけの名前: {en!r}')
@@ -1097,7 +1097,7 @@ class Messages(unittest.TestCase):
             self.assertEqual(i18n.t('made {n} {n|file|files}', n=1), '1 ファイル作った')
 
     def test_every_plural_form_is_in_english_only(self):
-        """日本語の訳に単複の形を書いても意味が無い（書いたら書き間違い）。"""
+        """日本語の訳に単複の形を書いても意味がない（書いたら書き間違い）。"""
         from octavo.lang_ja import MESSAGES
         from octavo.i18n import _PLURAL
         self.assertEqual([ja for ja in MESSAGES.values() if _PLURAL.search(ja)], [])
@@ -1126,7 +1126,7 @@ class VSCodeExtensionL10n(unittest.TestCase):
     """拡張の表示文字列が英語で書かれ、日本語訳が揃っていること。
 
     ここを Python 側のテストで見張るのは、リポジトリに JS のテスト基盤が
-    無いため。tsc は「訳が無い」を見つけてくれない（実行時に原文のまま
+    ないため。tsc は「訳がない」を見つけてくれない（実行時に原文のまま
     出るだけ）ので、機械で数えられるこれだけは数えておく。
     """
     EXT = ROOT / 'vscode-extension'
@@ -1139,10 +1139,10 @@ class VSCodeExtensionL10n(unittest.TestCase):
 
     def test_manifest_keys_resolve_in_both_languages(self):
         used = set(re.findall(r'%([\w.]+)%', self.manifest()))
-        self.assertTrue(used, '%key% が1つも無い')
+        self.assertTrue(used, '%key% が1つもない')
         en, ja = self.nls('package.nls.json'), self.nls('package.nls.ja.json')
-        self.assertEqual(used - set(en), set(), 'package.nls.json に無いキー')
-        self.assertEqual(used - set(ja), set(), 'package.nls.ja.json に無いキー')
+        self.assertEqual(used - set(en), set(), 'package.nls.json にないキー')
+        self.assertEqual(used - set(ja), set(), 'package.nls.ja.json にないキー')
         self.assertEqual(set(en), set(ja), '英語と日本語でキーが違う')
         self.assertEqual(set(en) - used, set(), '使われていないキー')
 
@@ -1150,7 +1150,7 @@ class VSCodeExtensionL10n(unittest.TestCase):
         """Marketplace に出すのに要るものが揃っていること。
 
         LICENSE は vsce が拡張のフォルダの中にしか探さないので、ルートの
-        写しを置いている。写しが食い違わないよう中身まで比べる。
+        コピーを置いている。コピーが食い違わないよう中身まで比べる。
         """
         m = json.loads(self.manifest())
         self.assertNotIn('private', m, '"private": true だと vsce publish が断る')
@@ -1159,14 +1159,14 @@ class VSCodeExtensionL10n(unittest.TestCase):
         self.assertEqual(icon.read_bytes()[:8], b'\x89PNG\r\n\x1a\n')
         self.assertEqual((self.EXT / 'LICENSE').read_text(encoding='utf-8'),
                          (ROOT / 'LICENSE').read_text(encoding='utf-8'),
-                         'vscode-extension/LICENSE をルートの LICENSE から写し直す')
+                         'vscode-extension/LICENSE をルートの LICENSE からコピーし直す')
         self.assertTrue((self.EXT / 'CHANGELOG.md').is_file())
         # CLI と拡張は同じ版番号で出す（公開のタグ v<版> が両方を指す）
         import octavo
         self.assertEqual(m['version'], octavo.__version__)
         self.assertIn(f"## {m['version']}",
                       (self.EXT / 'CHANGELOG.md').read_text(encoding='utf-8'),
-                      'CHANGELOG.md に今の版の節が無い')
+                      'CHANGELOG.md に今の版の節がない')
 
     def test_manifest_has_no_japanese_left(self):
         """訳に回し忘れた文字列が残っていないこと。
@@ -1191,8 +1191,8 @@ class VSCodeExtensionL10n(unittest.TestCase):
                 found.add(re.sub(r'\\(.)',
                                  lambda m: {'n': '\n', 't': '\t'}.get(m.group(1), m.group(1)),
                                  lit))
-        self.assertTrue(found, 'vscode.l10n.t( が1つも無い')
-        self.assertEqual(found - set(bundle), set(), '日本語訳が無い文字列')
+        self.assertTrue(found, 'vscode.l10n.t( が1つもない')
+        self.assertEqual(found - set(bundle), set(), '日本語訳がない文字列')
         self.assertEqual(set(bundle) - found, set(), '使われていない訳')
 
     def test_l10n_folder_is_declared(self):
@@ -1220,7 +1220,7 @@ class PreviewContract(unittest.TestCase):
         """
         text = (src or self.PREVIEW).read_text(encoding='utf-8')
         m = re.search(r'(?:export )?interface %s\s*\{' % name, text)
-        self.assertIsNotNone(m, f'interface {name} が無い')
+        self.assertIsNotNone(m, f'interface {name} がない')
         depth, i = 1, m.end()
         while depth and i < len(text):
             depth += {'{': 1, '}': -1}.get(text[i], 0)
@@ -1253,7 +1253,7 @@ class PreviewContract(unittest.TestCase):
         self.assertEqual(self.fields('Part') - set(doc['parts'][0]), set())
 
     def test_doctor_json_has_every_field_the_setup_reads(self):
-        """拡張の setup.ts は doctor --json を見て「準備する」を出すかを決める。"""
+        """拡張の setup.ts は doctor --json を見て「セットアップ」を出すかを決める。"""
         got = doctor.as_json()
         src = ROOT / 'vscode-extension' / 'src' / 'setup.ts'
         self.assertEqual(self.fields('DoctorReport', src) - set(got), set())
@@ -1307,6 +1307,13 @@ class PreviewContract(unittest.TestCase):
         self.assertTrue(got['open'].endswith('added-deck.md'))
         got = self.cli_json('new', 'analysis', 'extra', '--json')
         self.assertTrue(got['open'].endswith('extra.qmd'))
+        # 手で作る図と表は、元のファイル（組んだ assets/ のものではなく）を開く
+        got = self.cli_json('new', 'figure', 'dag', '--json')
+        self.assertEqual(Path(got['open']).parent.name, 'figures')
+        self.assertTrue(Path(got['open']).is_file())
+        got = self.cli_json('new', 'table', 'compare', '--json')
+        self.assertEqual(Path(got['open']).parent.name, 'tables')
+        self.assertTrue(Path(got['open']).is_file())
         # 既にある論文に付録を足すと、付録を開く
         paper = next(n for n, d in config.load(self.cfg_path).documents.items()
                      if d.profile == 'paper')
@@ -1347,7 +1354,7 @@ class PreviewContract(unittest.TestCase):
 
 # =====================================================================
 class Placeholders(unittest.TestCase):
-    """図がまだ無くても組版が通るように置く仮の画像。"""
+    """図がまだなくても組版が通るように置く仮の画像。"""
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
@@ -1389,7 +1396,7 @@ class Values(unittest.TestCase):
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
         (self.d / 'draft.md').write_text('# x\n', encoding='utf-8')
-        (self.d / 'results').mkdir()
+        (self.d / 'assets' / 'values').mkdir(parents=True)
 
     def tearDown(self):
         shutil.rmtree(self.d, ignore_errors=True)
@@ -1400,7 +1407,7 @@ class Values(unittest.TestCase):
         return config.load(self.d / 'octavo.config.py')
 
     def results(self, name: str, obj: dict) -> None:
-        (self.d / 'results' / f'{name}.json').write_text(
+        (self.d / 'assets' / 'values' / f'{name}.json').write_text(
             json.dumps(obj, ensure_ascii=False), encoding='utf-8')
 
     def sub(self, text: str, cfg=None, report=None) -> str:
@@ -1468,7 +1475,7 @@ class Values(unittest.TestCase):
         self.assertTrue(any('is in both' in r for r in rep))
 
     def test_broken_json_is_reported_not_raised(self):
-        (self.d / 'results' / 'bad.json').write_text('{ oops', encoding='utf-8')
+        (self.d / 'assets' / 'values' / 'bad.json').write_text('{ oops', encoding='utf-8')
         vals, rep = values.load(self.cfg())
         self.assertEqual(vals, {})
         self.assertTrue(any('cannot read' in r for r in rep))
@@ -1514,7 +1521,7 @@ class Values(unittest.TestCase):
 
 # =====================================================================
 class AnalysisUnits(unittest.TestCase):
-    """.qmd の登録と、走らせ直しの要否。"""
+    """.qmd の登録と、再実行の要否。"""
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
@@ -1575,13 +1582,13 @@ class AnalysisUnits(unittest.TestCase):
         os.utime(self.d / 'data' / 'x.csv', (later, later))
         self.assertTrue(analysis.is_stale(cfg, u, analysis.read_stamp(cfg)))
 
-    def test_stamp_lives_in_results_dir(self):
+    def test_stamp_lives_in_values_dir(self):
         cfg = self.cfg("'analysis': ['analysis/one.qmd']")
-        self.assertEqual(analysis.stamp_path(cfg).parent, Path(cfg['results_dir']))
+        self.assertEqual(analysis.stamp_path(cfg).parent, Path(cfg['values_dir']))
 
     def test_run_without_quarto_warns_but_succeeds(self):
         if shutil.which('quarto'):
-            self.skipTest('quarto があるので「無いとき」の挙動は試せない')
+            self.skipTest('Quarto があるので「ないとき」の挙動は試せない')
         cfg = self.cfg("'analysis': ['analysis/one.qmd']")
         rep: list = []
         n, ok = analysis.run(cfg, report=rep)
@@ -1615,8 +1622,8 @@ class ValuesInPreprocess(unittest.TestCase):
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
-        (self.d / 'results').mkdir()
-        (self.d / 'results' / 'a.json').write_text(
+        (self.d / 'assets' / 'values').mkdir(parents=True)
+        (self.d / 'assets' / 'values' / 'a.json').write_text(
             '{"n_obs": 1523, "coef": 0.342}', encoding='utf-8')
         (self.d / 'draft.md').write_text(ded("""
             ---
@@ -1695,7 +1702,7 @@ class LectureSplit(unittest.TestCase):
         self.assertIn('## 狙い', body)
         self.assertIn('# これは見出しではない', body)          # コードの中は分けない
         self.assertNotIn('前置き', body)
-        self.assertNotIn('# 第1回', body)               # 見出しは題扉に回した
+        self.assertNotIn('# 第1回', body)               # 見出しはタイトル部分に回した
         self.assertNotIn('## 例', body)
 
     def test_unknown_session_is_none(self):
@@ -1741,7 +1748,7 @@ class ProjectScaffold(unittest.TestCase):
         for rel in ('figures/.gitkeep', 'literature.bib',
                     'octavo.config.py', 'CLAUDE.md', 'README.md', '.gitignore'):
             self.assertTrue((d / rel).exists(), rel)
-        # 分析も原稿も、足すまでは無い
+        # 分析も原稿も、足すまではない
         for rel in ('draft.md', 'appendix.md', 'papers', 'slides', 'lectures', 'build',
                     'analysis', 'data', 'tables', 'results', 'requirements.txt'):
             self.assertFalse((d / rel).exists(), rel)
@@ -1752,8 +1759,8 @@ class ProjectScaffold(unittest.TestCase):
         for lang in ('ja', 'en'):
             d = self.d / f'bare-{lang}'
             scaffold.init(d, lang=lang, quiet=True)
-            for rel in ('results', 'figures/trend.png', 'figures/trend.pdf',
-                        'tables/summary.typ', 'notes', 'refs'):
+            for rel in ('results', 'assets/figures/trend.png', 'assets/figures/trend.pdf',
+                        'assets/tables/summary.typ', 'notes', 'refs'):
                 self.assertFalse((d / rel).exists(), rel)
             for f in d.rglob('*'):
                 if f.is_file() and f.name != 'CLAUDE.md':     # CLAUDE.md は印の説明を持つ
@@ -1801,8 +1808,8 @@ class ProjectScaffold(unittest.TestCase):
     def test_init_example_is_a_whole_example(self):
         d = self.d / 'demo'
         scaffold.init(d, quiet=True, example=True)
-        for rel in ('results/analysis.json', 'figures/trend.png', 'figures/trend.pdf',
-                    'tables/summary.typ', 'papers/example-paper/paper.md',
+        for rel in ('assets/values/analysis.json', 'assets/figures/trend.png', 'assets/figures/trend.pdf',
+                    'assets/tables/summary.typ', 'papers/example-paper/paper.md',
                     'papers/example-paper/appendix.md', 'papers/example-paper/main.typ'):
             self.assertTrue((d / rel).exists(), rel)
         self.assertIn('set.seed', (d / 'analysis/analysis.qmd').read_text(encoding='utf-8'))
@@ -1928,8 +1935,8 @@ class ProjectScaffold(unittest.TestCase):
             self.assertIn(f, marked, f)
         # 仮の値・仮の図にも、それと分かる印が入っている
         self.assertEqual(values.placeholder_files(cfg), ['analysis.json'])
-        self.assertTrue(scaffold.is_placeholder(d / 'figures' / 'trend.png'))
-        self.assertTrue(scaffold.is_placeholder(d / 'figures' / 'trend.pdf'))
+        self.assertTrue(scaffold.is_placeholder(d / 'assets' / 'figures' / 'trend.png'))
+        self.assertTrue(scaffold.is_placeholder(d / 'assets' / 'figures' / 'trend.pdf'))
 
     def test_analysis_env_scaffolding(self):
         d = self.make(docs=())
@@ -1969,7 +1976,7 @@ class ProjectScaffold(unittest.TestCase):
                   'octavo new analysis'):
             self.assertIn(s, text)                    # 何を足せるかは最初から書いてある
         for s in ('data/raw', '投稿する', '講義ノート **1本から**'):
-            self.assertNotIn(s, text)                 # 足していないものの約束は無い
+            self.assertNotIn(s, text)                 # 足していないものの約束はない
         cfg = d / 'octavo.config.py'
         scaffold.new(cfg, 'slides', 'talk', quiet=True)
         scaffold.new(cfg, 'lecture', 'course', quiet=True)     # スライドと同じ節
@@ -1999,7 +2006,7 @@ class ProjectScaffold(unittest.TestCase):
         self.assertFalse((d / 'slides').exists())
         self.assertFalse((d / 'lectures').exists())
         self.assertEqual(list(config.load(d / 'octavo.config.py').documents), ['p'])
-        # CLI: --all は4つとも、名前は部品の名前。知らない部品は止まる
+        # CLI: --all は4つとも、名前は部品の名前。不明な部品は止まる
         from octavo import cli
         with contextlib_redirect(), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main(['init', str(self.d / 'all'), '--all']), 0)
@@ -2019,7 +2026,7 @@ class ProjectScaffold(unittest.TestCase):
         vals, _ = values.load(cfg)
         used = values.referenced((d / 'slides/deck.md').read_text(encoding='utf-8'))
         self.assertEqual(used - set(vals), set())
-        self.assertTrue((d / 'figures/trend.png').exists())
+        self.assertTrue((d / 'assets/figures/trend.png').exists())
         bib = (d / 'literature.bib').read_text(encoding='utf-8')
         self.assertIn('mine2024', bib)                 # 書誌は上書きせず書き足す
         self.assertIn('yamada2020', bib)
@@ -2045,7 +2052,7 @@ class ProjectScaffold(unittest.TestCase):
         self.assertEqual([analysis.key(loaded, u) for u, _, _ in analysis.status(loaded)],
                          ['analysis/01-clean.qmd', 'analysis/02-model.qmd'])
         for rel in ('analysis/octavo.R', 'data/raw/README.md', 'data/derived/.gitkeep',
-                    'tables/.gitkeep', 'requirements.txt'):
+                    'assets/tables/.gitkeep', 'requirements.txt'):
             self.assertTrue((d / rel).exists(), rel)
         with contextlib_redirect():
             self.assertEqual(scaffold.new(cfg, 'analysis', 'x', appendix=True, quiet=True), 1)
@@ -2072,7 +2079,7 @@ class ProjectScaffold(unittest.TestCase):
         self.assertIn('!data/raw/README.md', text)
         self.assertIn('data/derived/*', text)
 
-    @unittest.skipUnless(shutil.which('git'), 'git が無い')
+    @unittest.skipUnless(shutil.which('git'), 'git がない')
     def test_git_tracks_the_layout_but_no_generated_output(self):
         """手で書く main.typ / main.tex は原稿の隣。build/ は丸ごと生成物。"""
         d = self.make(docs=(('paper', 'mypaper'),))
@@ -2088,17 +2095,17 @@ class ProjectScaffold(unittest.TestCase):
                                capture_output=True, text=True).stdout.split('\n')
         self.assertIn('papers/mypaper/main.typ', files)
         self.assertIn('papers/mypaper/main.tex', files)
-        # build/ の下は写したものも含めて1つも入らない
+        # build/ の下はコピーしたものも含めて1つも入らない
         self.assertFalse([f for f in files if f.startswith('build/')], files)
 
     def test_generated_config_registers_the_analysis(self):
         cfg = config.load(self.make(docs=()) / 'octavo.config.py')
         us = analysis.units(cfg)
         self.assertEqual([u.src.name for u in us], ['analysis.qmd'])
-        self.assertEqual(Path(cfg['results_dir']).name, 'results')
+        self.assertEqual(Path(cfg['values_dir']).name, 'values')
 
     def test_manuscript_placeholders_resolve_out_of_the_box(self):
-        """分析を1度も走らせていなくても、どの原稿のテンプレートの {{…}} も埋まること。"""
+        """分析を1度も実行していなくても、どの原稿のテンプレートの {{…}} も埋まること。"""
         for lang in ('ja', 'en'):
             d = make_project(self.d / lang, docs=ALL_KINDS, lang=lang)
             cfg = config.load(d / 'octavo.config.py')
@@ -2127,11 +2134,11 @@ class MultipleSources(unittest.TestCase):
         (self.d / 'appendix.md').write_text('# 付録 {{b}} @tanaka2019\n',
                                             encoding='utf-8')
         (self.d / 'analysis').mkdir()
-        (self.d / 'results').mkdir()
+        (self.d / 'assets' / 'values').mkdir(parents=True)
         for n in ('01-clean', '02-model'):
             (self.d / 'analysis' / f'{n}.qmd').write_text('---\n---\n',
                                                           encoding='utf-8')
-            (self.d / 'results' / f'{n}.json').write_text('{}', encoding='utf-8')
+            (self.d / 'assets' / 'values' / f'{n}.json').write_text('{}', encoding='utf-8')
 
     def tearDown(self):
         shutil.rmtree(self.d, ignore_errors=True)
@@ -2164,7 +2171,7 @@ class MultipleSources(unittest.TestCase):
         out = self.d / 'build' / 'typst'
         out.mkdir(parents=True)
         typ = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=out, profile='paper')
-        self.assertIsNone(be.get('typst').compile_main(typ))   # main.typ がまだ無い
+        self.assertIsNone(be.get('typst').compile_main(typ))   # main.typ がまだない
         (out / 'main.typ').write_text('', encoding='utf-8')
         self.assertEqual(be.get('typst').compile_main(typ), out / 'main.typ')
         tex = Ctx(cfg=cfg, backend=be.get('latex'), out_dir=out, profile='paper')
@@ -2231,19 +2238,19 @@ class MultipleSources(unittest.TestCase):
     def test_orphan_results_are_found(self):
         cfg = self.cfg(", 'analysis': ['analysis/*.qmd']")
         self.assertEqual(analysis.orphan_results(cfg), [])
-        (self.d / 'results' / 'old.json').write_text('{}', encoding='utf-8')
+        (self.d / 'assets' / 'values' / 'old.json').write_text('{}', encoding='utf-8')
         self.assertEqual([p.name for p in analysis.orphan_results(cfg)],
                          ['old.json'])
 
     def test_no_orphans_reported_without_analysis(self):
-        """分析を登録していないなら results/ は手で置いたものなので黙る。"""
-        (self.d / 'results' / 'manual.json').write_text('{}', encoding='utf-8')
+        """分析を登録していないなら assets/values/ は手で置いたものなので黙る。"""
+        (self.d / 'assets' / 'values' / 'manual.json').write_text('{}', encoding='utf-8')
         self.assertEqual(analysis.orphan_results(self.cfg()), [])
 
     def test_values_from_several_files_merge(self):
-        (self.d / 'results' / '01-clean.json').write_text(
+        (self.d / 'assets' / 'values' / '01-clean.json').write_text(
             '{"a": 1}', encoding='utf-8')
-        (self.d / 'results' / '02-model.json').write_text(
+        (self.d / 'assets' / 'values' / '02-model.json').write_text(
             '{"b": 2.5}', encoding='utf-8')
         vals, warn = values.load(self.cfg())
         self.assertEqual(set(vals), {'a', 'b'})
@@ -2254,7 +2261,7 @@ class MultipleSources(unittest.TestCase):
         """前段が後段の入力を書き換えたら、その回のうちに後段も走ること。
 
         todo を先に固定していると、後段が1回分あとに取り残される。
-        quarto は呼ばず、render を差し替えて順序だけ見る。
+        Quarto は呼ばず、render を差し替えて順序だけ見る。
         """
         data = self.d / 'data'
         data.mkdir()
@@ -2290,7 +2297,7 @@ class MultipleSources(unittest.TestCase):
 
     def _all_stale(self, extra):
         cfg = self.cfg(extra)
-        analysis.write_stamp(cfg, {})             # 記録が無い = 全部古い
+        analysis.write_stamp(cfg, {})             # 記録がない = 全部古い
         return cfg
 
     def _run(self, cfg, **kw):
@@ -2309,7 +2316,7 @@ class MultipleSources(unittest.TestCase):
               "{'src': 'analysis/02-model.qmd'}]")
 
     def test_build_skips_a_manual_qmd_and_says_so(self):
-        """時間のかかる .qmd（manual）は、組むたびには走らせない。"""
+        """時間のかかる .qmd（manual）は、組むたびには実行しない。"""
         cfg = self._all_stale(self.MANUAL)
         ran, report = self._run(cfg, auto=True)
         self.assertEqual(ran, ['02-model'])
@@ -2347,7 +2354,7 @@ class MultipleSources(unittest.TestCase):
 
 # =====================================================================
 class Lint(unittest.TestCase):
-    """原稿に直書きされた分析結果らしき数値を見つける。"""
+    """原稿に手入力された分析結果らしき数値を見つける。"""
 
     def find(self, text: str, accepted=()) -> list:
         return lint.scan(text, lint.CONVENTIONAL | set(accepted))
@@ -2428,7 +2435,7 @@ class ValuesDiff(unittest.TestCase):
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
-        (self.d / 'results').mkdir()
+        (self.d / 'assets' / 'values').mkdir(parents=True)
         (self.d / 'octavo.config.py').write_text(
             "CONFIG = {'lang': 'ja'}", encoding='utf-8')
         self.cfg = config.load(self.d / 'octavo.config.py')
@@ -2437,7 +2444,7 @@ class ValuesDiff(unittest.TestCase):
         shutil.rmtree(self.d, ignore_errors=True)
 
     def write(self, obj: dict) -> None:
-        (self.d / 'results' / 'a.json').write_text(
+        (self.d / 'assets' / 'values' / 'a.json').write_text(
             json.dumps(obj), encoding='utf-8')
 
     def test_no_snapshot_yet(self):
@@ -2464,7 +2471,7 @@ class ValuesDiff(unittest.TestCase):
     def test_diff_against_a_git_tag(self):
         """R&R で要るのは「投稿した版」との比較。git のタグに乗せる。"""
         if not shutil.which('git'):
-            self.skipTest('git が無い')
+            self.skipTest('git がない')
 
         def git(*args):
             subprocess.run(['git', *args], cwd=self.d, capture_output=True)
@@ -2485,7 +2492,7 @@ class ValuesDiff(unittest.TestCase):
 
     def test_unknown_git_ref_is_reported_not_raised_silently(self):
         if not shutil.which('git'):
-            self.skipTest('git が無い')
+            self.skipTest('git がない')
         subprocess.run(['git', 'init', '-q'], cwd=self.d, capture_output=True)
         with self.assertRaises(values.GitError):
             values.diff(self.cfg, 'no-such-tag')
@@ -2515,14 +2522,14 @@ class Audit(unittest.TestCase):
         return {i.label: i for i in audit.collect(cfg or self.cfg)}
 
     def test_a_fresh_project_is_fatal_only_for_the_placeholder_values(self):
-        # 仮の値のまま組むと本文に嘘の数字が入るので、これは致命的。
+        # 仮の値のまま組むと本文に仮の数字が入るので、これは致命的。
         # それ以外で新品のプロジェクトが引っかかってはいけない。
         bad = [i.label for i in audit.collect(self.cfg) if not i.ok and i.fatal]
         self.assertEqual(bad, ['placeholder values'])
 
     def test_real_values_clear_the_placeholder_item(self):
         # octavo.R が書き直すと _placeholder ごと消える
-        (self.root / 'results' / 'analysis.json').write_text(
+        (self.root / 'assets' / 'values' / 'analysis.json').write_text(
             '{"_generated": "2026-09-18 10:00:00", "n_obs": 1523, '
             '"coef_x": 0.342, "p_x": "< .001"}', encoding='utf-8')
         cfg = config.load(self.root / 'octavo.config.py')
@@ -2555,17 +2562,17 @@ class Audit(unittest.TestCase):
         item = self.items()['placeholder figures and tables']
         self.assertFalse(item.ok)
         self.assertFalse(item.fatal)
-        self.assertIn('figures/trend.png', item.lines)
-        self.assertIn('tables/summary.typ', item.lines)       # 仮の表も
-        # 本物の図に差し替えれば黙る（印は octavo init の書いたものにしか無い）
+        self.assertIn('assets/figures/trend.png', item.lines)
+        self.assertIn('assets/tables/summary.typ', item.lines)       # 仮の表も
+        # 本物の図に差し替えれば黙る（印は octavo init の書いたものにしかない）
         for ext in ('.png', '.pdf'):
-            (self.root / 'figures' / f'trend{ext}').write_bytes(b'real figure')
+            (self.root / 'assets' / 'figures' / f'trend{ext}').write_bytes(b'real figure')
         self.assertEqual([x for x in audit.placeholder_figures(self.cfg)
-                          if x.startswith('figures/')], [])
+                          if x.startswith('assets/figures/')], [])
 
     def test_missing_figure_is_fatal(self):
-        # 既定の形式は typst で、図は .png を使う
-        (self.root / 'figures' / 'trend.png').unlink()
+        # 既定の形式は typst で、図は .pdf を使う（.png は Word 用）
+        (self.root / 'assets' / 'figures' / 'trend.pdf').unlink()
         item = self.items()['figure files']
         self.assertFalse(item.ok)
         self.assertTrue(item.fatal)
@@ -2596,9 +2603,9 @@ class Audit(unittest.TestCase):
         self.assertFalse(item.fatal)
 
     def test_a_missing_analysis_table_is_fatal(self):
-        # 本文の `: 記述統計 {#tbl-summary}` は tables/summary.* を差し込む
+        # 本文の `: 記述統計 {#tbl-summary}` は assets/tables/summary.* を差し込む
         self.assertTrue(self.items()['table files'].ok)
-        (self.root / 'tables' / 'summary.typ').unlink()
+        (self.root / 'assets' / 'tables' / 'summary.typ').unlink()
         item = self.items()['table files']
         self.assertFalse(item.ok)
         self.assertTrue(item.fatal)
@@ -2616,7 +2623,7 @@ class Audit(unittest.TestCase):
 
 # =====================================================================
 class Bundle(unittest.TestCase):
-    """投稿用に固め直す。"""
+    """投稿用にまとめ直す。"""
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
@@ -2627,10 +2634,10 @@ class Bundle(unittest.TestCase):
         out.mkdir(parents=True, exist_ok=True)
         (out / 'body.tex').write_text(
             '\\includegraphics[width=1.0\\textwidth]'
-            '{../../../figures/trend.pdf}\n'
-            '\\inputtable{../../../tables/summary}\n', encoding='utf-8')
+            '{../../../assets/figures/trend.pdf}\n'
+            '\\inputtable{../../../assets/tables/summary}\n', encoding='utf-8')
         (out / 'abstract.tex').write_text('要旨。\n', encoding='utf-8')
-        (self.root / 'tables' / 'summary.tex').write_text(
+        (self.root / 'assets' / 'tables' / 'summary.tex').write_text(
             '\\begin{table}\\end{table}\n', encoding='utf-8')
 
     def tearDown(self):
@@ -2662,23 +2669,23 @@ class Bundle(unittest.TestCase):
                          '\n'.join(res.report))
 
     def test_optional_include_may_be_absent(self):
-        """main.tex の \\IfFileExists{abstract.tex} は無くても欠落にしない。"""
+        """main.tex の \\IfFileExists{abstract.tex} はなくても欠落にしない。"""
         (self.cfg.out_dir('latex', self.cfg.document('paper')) / 'abstract.tex').unlink()
         res = bundle.collect(self.cfg, 'latex', self.d / 'out', self.cfg.document('paper'))
         self.assertTrue(res.ok, '\n'.join(res.report))
 
     def test_missing_reference_is_reported(self):
-        (self.root / 'figures' / 'trend.pdf').unlink()
+        (self.root / 'assets' / 'figures' / 'trend.pdf').unlink()
         res = bundle.collect(self.cfg, 'latex', self.d / 'out', self.cfg.document('paper'))
         self.assertFalse(res.ok)
         self.assertTrue(any('[missing]' in r for r in res.report))
 
     def test_typst_comment_lines_are_not_followed(self):
-        """main.typ の `// #include "appendix.typ"` を辿ると、付録が無いだけで欠落になる。"""
+        """main.typ の `// #include "appendix.typ"` を辿ると、付録がないだけで欠落になる。"""
         text, refs = be.get('typst').flatten_assets(
             '// #include "appendix.typ"\n#include "body.typ"\n'
-            '#image("../../../figures/a.png")\n')
-        self.assertEqual(refs, ['body.typ', '../../../figures/a.png'])
+            '#image("../../../assets/figures/a.png")\n')
+        self.assertEqual(refs, ['body.typ', '../../../assets/figures/a.png'])
         self.assertIn('// #include "appendix.typ"', text)
 
     def test_which_paper_to_bundle(self):
@@ -2698,13 +2705,13 @@ class Bundle(unittest.TestCase):
 
 
 # =====================================================================
-@unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'quarto と R が要る')
+@unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')
 class AnalysisEndToEnd(unittest.TestCase):
-    """**octavo.R を実際に走らせる。**
+    """**octavo.R を実際に実行する。**
 
     ここが通らないかぎり、分析側は「設計しただけ」の状態にとどまる。
-    手元に quarto と R があれば走り、無ければ飛ぶ。CI は専用の job で
-    quarto と R を入れて、飛ばされていないことまで確かめている。
+    手元に Quarto と R があれば走り、なければ飛ぶ。CI は専用の job で
+    Quarto と R を入れて、飛ばされていないことまで確かめている。
     """
 
     @classmethod
@@ -2713,7 +2720,7 @@ class AnalysisEndToEnd(unittest.TestCase):
         make_project(cls.d / 'p')
         cls.cfg = config.load(cls.d / 'p' / 'octavo.config.py')
         # 出荷時の仮の値と仮の図を消す。**.qmd が本当に書いたか**を見るため。
-        (Path(cls.cfg['results_dir']) / 'analysis.json').unlink()
+        (Path(cls.cfg['values_dir']) / 'analysis.json').unlink()
         for ext in ('.pdf', '.png'):
             (Path(cls.cfg['figure_dir']) / f'trend{ext}').unlink()
         cls.report = []
@@ -2781,7 +2788,7 @@ class AnalysisEndToEnd(unittest.TestCase):
 
 # =====================================================================
 class DataFingerprint(unittest.TestCase):
-    """data/HASHES.json —「同じデータで走らせたか」の記録。"""
+    """data/HASHES.json —「同じデータで実行したか」の記録。"""
 
     def setUp(self):
         self.d = Path(tempfile.mkdtemp())
@@ -2859,7 +2866,7 @@ class TypstSlides(unittest.TestCase):
 
     def test_a_figure_caption_and_label_make_a_numbered_figure(self):
         # キャプションとラベルがあれば番号付きの図（プリントと同じ番号、@fig-… の先）
-        out = self.figure('![推移の説明](../figures/trend.png){#fig-trend}')
+        out = self.figure('![推移の説明](../assets/figures/trend.png){#fig-trend}')
         self.assertIn('image("', out)
         self.assertIn('#figure(', out)
         self.assertIn('caption: [推移の説明]', out)
@@ -2882,7 +2889,7 @@ class TypstSlides(unittest.TestCase):
         self.assertTrue(any('CJK' in r for r in ctx.report), ctx.report)
 
     def test_a_figure_without_a_caption_stays_bare(self):
-        out = self.figure('![](../figures/trend.png)')
+        out = self.figure('![](../assets/figures/trend.png)')
         self.assertIn('image("', out)
         self.assertNotIn('#figure(', out)
 
@@ -2980,7 +2987,7 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('= 背景', out)                    # 直後が見出し -> 節の扉のまま
         self.assertIn('== 今日の狙い', out)             # 直後が本文 -> 1枚
         self.assertIn('#heading(level: 2, numbering: none)[参考文献]', out)
-        self.assertIn('= まとめ', out)                  # 最後で中身が無い -> 扉のまま
+        self.assertIn('= まとめ', out)                  # 最後で中身がない -> 扉のまま
 
     def test_meta_is_escaped_and_anonymous_drops_the_author(self):
         ctx = self.ctx(anonymous=True)
@@ -2989,7 +2996,7 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('title: [題 \\[仮\\] \\#1]', block)
         self.assertIn('author: none', block)            # anonymous_drop_meta に author
         self.assertIn('slide-level: 2', block)
-        # 既定は等幅の BIZ UDゴシック、欧文だけ Inter、無ければ Noto に落ちる
+        # 既定は等幅の BIZ UDゴシック、欧文だけ Inter、なければ Noto に落ちる
         self.assertIn('font: ((name: "Inter", covers: "latin-in-cjk"), '
                       '"BIZ UDGothic", "Noto Sans CJK JP", "Hiragino Kaku Gothic ProN", '
                       '"Yu Gothic", )',
@@ -3030,13 +3037,13 @@ class TypstSlides(unittest.TestCase):
         from octavo.backends.typst import FONTS, PLATFORM_FALLBACKS
         for kind, (_, cjk) in FONTS.items():
             for plat, names in PLATFORM_FALLBACKS.items():
-                self.assertTrue(set(names) & set(cjk), f'{kind}: {plat} の受け皿が無い')
-            # 受け皿は並びの最後（ほかのどれも無いときだけ使う）
+                self.assertTrue(set(names) & set(cjk), f'{kind}: {plat} の受け皿がない')
+            # 受け皿は並びの最後（ほかのどれもないときだけ使う）
             tail = cjk[-len(PLATFORM_FALLBACKS):]
             self.assertTrue(all(any(n in names for names in PLATFORM_FALLBACKS.values())
                                 for n in tail), cjk)
 
-    @unittest.skipUnless(shutil.which('pandoc'), 'pandoc が無い')
+    @unittest.skipUnless(shutil.which('pandoc'), 'pandoc がない')
     def test_the_handout_passes_the_font_list_through_header_includes(self):
         from octavo.backends.typst import TypstBackend
         b = TypstBackend()
@@ -3067,7 +3074,7 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('theorem-counter.update(0)', tmpl)
         self.assertIn('theorem-section.step()', tmpl)
 
-    @unittest.skipUnless(shutil.which('typst'), 'typst が無い')
+    @unittest.skipUnless(shutil.which('typst'), 'typst がない')
     def test_theorem_helpers_compile_and_reset_per_section(self):
         # 事例・論点・余談・注意・付記（旧ベーマープリアンブルの \newtheorem 相当）を
         # 原稿の素通しブロックから呼んで、節をまたいでも typst compile が通ることを見る。
@@ -3102,7 +3109,7 @@ class TypstSlides(unittest.TestCase):
         """本文のあとのキャプションつきの図は、同じスライドの残りに収まる。
 
         図の中に「残りの高さ」の箱を入れていた頃は、画像が残りを使い切って
-        キャプションの分だけはみ出し、図ごと題の無い次のページに送られていた。
+        キャプションの分だけはみ出し、図ごと題のない次のページに送られていた。
         """
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
@@ -3116,7 +3123,7 @@ class TypstSlides(unittest.TestCase):
 
             本文が1行ある。推移は@fig-trend。
 
-            ![推移](../figures/trend.png){#fig-trend}
+            ![推移](../assets/figures/trend.png){#fig-trend}
 
             ## まとめ
 
@@ -3126,7 +3133,7 @@ class TypstSlides(unittest.TestCase):
                             citations=False, offline=True, do_compile=True)
         self.assertTrue(r.ok, '\n'.join(r.report))
         pdf = r.compiled.read_bytes()
-        # 題扉 + 結果 + まとめ = 3 ページ（はみ出せば 4 になる）
+        # タイトルスライド + 結果 + まとめ = 3 ページ（はみ出せば 4 になる）
         self.assertEqual(len(re.findall(rb'/Type\s*/Page(?!s)', pdf)), 3)
 
 
@@ -3165,7 +3172,7 @@ class TemplateOverrides(unittest.TestCase):
         return code, out.getvalue(), err.getvalue()
 
     def test_the_languages_ship_the_same_files(self):
-        """ja と en で片方にしか無いひな型があると、その言語のプロジェクトだけ欠ける。"""
+        """ja と en で片方にしかないひな型があると、その言語のプロジェクトだけ欠ける。"""
         names = self.tmpl.bundled_names()
         for group in ('project', 'manuscripts', 'paper', 'replication'):
             ja = {n.split('/', 2)[2] for n in names if n.startswith(f'{group}/ja/')}
@@ -3184,7 +3191,7 @@ class TemplateOverrides(unittest.TestCase):
                 self.assertIsNone(kana.search(text), p.relative_to(proj))
 
     def test_every_file_init_writes_is_listed(self):
-        """init が書くものはどれも template list に出る（＝写して直せる）。
+        """init が書くものはどれも template list に出る（＝コピーして直せる）。
 
         一度、名前が README.md のものを全部「説明書き」として落としていた。
         """
@@ -3279,7 +3286,7 @@ class TemplateOverrides(unittest.TestCase):
         """上書きの仕組みは1つだけ。`headers` はもう設定のキーではない。"""
         self.assertNotIn('headers', config.DEFAULTS)
 
-    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が無い')
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc がない')
     def test_a_project_override_reaches_the_build(self):
         proj = make_project(self.d / 'p', docs=(('slides', 'deck'),))
         mine = proj / 'templates/slides/typst-slides.typ'
@@ -3294,7 +3301,7 @@ class TemplateOverrides(unittest.TestCase):
 
 
 # =====================================================================
-@unittest.skipUnless(shutil.which('git'), 'git が無い')
+@unittest.skipUnless(shutil.which('git'), 'git がない')
 class GitHubRelease(unittest.TestCase):
     """`octavo release`: 節目の版にタグを打ち、組んだ PDF を GitHub Release に付ける。
 
@@ -3307,8 +3314,8 @@ class GitHubRelease(unittest.TestCase):
         self.gr = ghrelease
         self.d = Path(tempfile.mkdtemp())
         self.proj = make_project(self.d / 'p', docs=(('paper', 'mypaper'),))
-        # 分析を走らせた後の状態にする（仮の値ではなく、刻印も新しい）
-        (self.proj / 'results/analysis.json').write_text(
+        # 分析を実行した後の状態にする（仮の値ではなく、刻印も新しい）
+        (self.proj / 'assets/values/analysis.json').write_text(
             '{"n_obs": 1523, "coef_x": 0.342, "se_x": 0.081, "p_x": "< .001"}\n',
             encoding='utf-8')
         cfg = config.load(self.proj / 'octavo.config.py')
@@ -3338,7 +3345,7 @@ class GitHubRelease(unittest.TestCase):
         """1つ直すたびに次の問題が出る、にならないように全部まとめて言う。"""
         self.git('tag', 'mypaper-v1')
         (self.proj / 'papers/mypaper/paper.md').write_text('changed\n', encoding='utf-8')
-        (self.proj / 'results/analysis.json').write_text(
+        (self.proj / 'assets/values/analysis.json').write_text(
             '{"_placeholder": "x", "n_obs": 1}\n', encoding='utf-8')
         with self.assertRaises(self.gr.ReleaseError) as cm:
             self.gr.preflight(self.cfg, 'mypaper', 'v1', need_gh=False)
@@ -3388,7 +3395,7 @@ class GitHubRelease(unittest.TestCase):
                          ['mypaper-v1.pdf', 'mypaper-v1.docx',
                           'deck-v1-typst-slides.pdf', 'deck-v1-typst-notes.pdf'])
 
-    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc か typst が無い')
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc か typst がない')
     @unittest.skipIf(os.name == 'nt', 'gh の代役が sh のスクリプト')
     def test_release_tags_pushes_and_uploads_the_fresh_pdf(self):
         bin_ = self.d / 'bin'
@@ -3533,13 +3540,13 @@ class TypstNotes(unittest.TestCase):
     def test_a_figure_is_capped_so_the_note_fits_on_the_page(self):
         backend = be.get('typst-notes')
         ctx = Ctx(cfg=self.cfg, backend=backend, out_dir=self.d, profile='slides')
-        m = crossref.IMAGE.match('![推移](../figures/trend.png){#fig-trend}')
+        m = crossref.IMAGE.match('![推移](../assets/figures/trend.png){#fig-trend}')
         out = backend.fmt_figure(m, 'fig-trend', ctx)
         self.assertIn('height: 6cm', out)
         self.assertNotIn('1fr', out)
 
     def test_the_two_templates_define_the_same_helpers(self):
-        """同じ原稿が両方に通るので、`#case[…]` 等が片方に無いと落ちる。"""
+        """同じ原稿が両方に通るので、`#case[…]` 等が片方にないと落ちる。"""
         import re as _re
         def helpers(name):
             text = (ROOT / 'templates' / name).read_text(encoding='utf-8')
@@ -3557,7 +3564,7 @@ class TypstNotes(unittest.TestCase):
         for name in ('octavo-note', 'case', 'question', 'aside', 'nb', 'memo'):
             self.assertLess(text.index(f'#let {name}'), show, name)
 
-    @unittest.skipUnless(shutil.which('typst'), 'typst が無い')
+    @unittest.skipUnless(shutil.which('typst'), 'typst がない')
     def test_a_real_script_pdf_comes_out(self):
         """ノートと事例の両方を入れて、本当に typst compile まで通ること。"""
         if not pandocrun.at_least(3, 1):
@@ -3803,7 +3810,7 @@ class Anonymous(unittest.TestCase):
 
 # =====================================================================
 class WordReview(unittest.TestCase):
-    """共著者が返してきた .docx から赤入れを拾う。"""
+    """共著者が返してきた .docx から変更履歴を拾う。"""
 
     W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 
@@ -3936,12 +3943,22 @@ class SubmissionChecks(unittest.TestCase):
         res = bundle.replication(cfg, dest)
         names = {p.relative_to(dest).as_posix() for p in res.files}
         self.assertIn('analysis/analysis.qmd', names)
-        self.assertIn('results/analysis.json', names)
+        self.assertIn('assets/values/analysis.json', names)
         self.assertIn('data/HASHES.json', names)
         self.assertIn('data/derived/clean.csv', names)
         self.assertIn('analysis/octavo.R', names)
         self.assertIn('README.md', names)
         self.assertIn('literature.bib', names)
+
+    def test_replication_keeps_the_project_layout(self):
+        # 分析の書き出し先（assets/…）も、手で描いた図の元（figures/*.typ）も、プロジェクトと同じ場所
+        cfg = self.cfg()
+        (self.root / 'figures' / 'dag.typ').write_text('#box[]', encoding='utf-8')
+        names = {p.relative_to(self.d / 'rep2').as_posix()
+                 for p in bundle.replication(cfg, self.d / 'rep2').files}
+        self.assertIn('figures/dag.typ', names)
+        self.assertTrue(any(n.startswith('assets/figures/') for n in names), names)
+        self.assertTrue(any(n.startswith('assets/tables/') for n in names), names)
 
     def test_raw_data_is_excluded_unless_asked(self):
         cfg = self.cfg()
@@ -3959,6 +3976,94 @@ class SubmissionChecks(unittest.TestCase):
             .read_text(encoding='utf-8')
         self.assertNotIn('@@', text)
         self.assertIn('octavo data status', text)
+
+
+class CitationsByLanguage(unittest.TestCase):
+    """日本語の文書: 英語の文献は英語の決まりで、日本語の文献（langid）は日本語の形で組む。"""
+
+    BIB = textwrap.dedent("""\
+        @article{smith2003, author={Smith, John and Taylor, Ann and Brown, Bob and Green, Carl},
+          title={An Example Article}, journaltitle={Journal of Examples}, date={2003},
+          volume={4}, pages={1--10}, langid={english}}
+        @article{yamada2020, author={山田, 太郎 and 田中, 花子}, title={日本語論文の例},
+          journaltitle={見本学会誌}, date={2020}, volume={12}, pages={1--20}, langid={japanese}}
+        @book{sato2018, author={佐藤, 一郎 and 鈴木, 次郎 and 高橋, 三郎 and 伊藤, 四郎},
+          title={日本語の本}, publisher={見本出版}, date={2018}, langid={japanese}}
+        @incollection{kato2015, author={加藤, 五郎}, title={論文集の章}, booktitle={論文集の名前},
+          editor={中村, 六郎}, publisher={見本出版}, date={2015}, pages={10--20}, langid={japanese}}
+        @article{ito2021, author={伊藤, 七子}, title={号と DOI}, journaltitle={見本学会誌},
+          date={2021}, volume={3}, number={2}, pages={5--9}, doi={10.1234/abcd}, langid={japanese}}
+        """)
+
+    # APA のように、2人を & でつなぎ、年の前に , を置く書式（CSL はキャッシュで CI に無いので、ここで書く）
+    APA_LIKE = textwrap.dedent("""\
+        <?xml version="1.0" encoding="utf-8"?>
+        <style xmlns="http://purl.org/net/xbiblio/csl" class="in-text" version="1.0">
+          <info><title>t</title><id>t</id><updated>2020-01-01T00:00:00+00:00</updated></info>
+          <citation et-al-min="3" et-al-use-first="1">
+            <layout prefix="(" suffix=")" delimiter="; ">
+              <group delimiter=", "><names variable="author"><name form="short" and="symbol"/></names>
+              <date variable="issued"><date-part name="year"/></date></group></layout>
+          </citation>
+          <bibliography><layout><names variable="author"><name and="symbol"/></names>
+            <text value=". "/><text variable="title" font-style="italic"/></layout></bibliography>
+        </style>
+        """)
+
+    def filter_for(self, lang, **cfg_over):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'p'
+            make_project(root, docs=(), lang=lang, analysis=False)
+            cfg = config.load(root / 'octavo.config.py')
+            cfg._v.update(cfg_over)
+            ctx = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=root, profile='paper')
+            return build.citation_filter(cfg, ctx)
+
+    def test_only_japanese_documents_use_the_filter(self):
+        self.assertEqual(self.filter_for('ja').name, 'japanese.lua')
+        self.assertIsNone(self.filter_for('en'))
+        self.assertIsNone(self.filter_for('ja', citations_by_language=False))
+        self.assertIsNone(self.filter_for('ja', csl_locale='en-US'))
+
+    def run_filter(self, text, csl=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            bib = Path(tmp) / 'r.bib'
+            bib.write_text(self.BIB, encoding='utf-8')
+            style = None
+            if csl:
+                style = Path(tmp) / 's.csl'
+                style.write_text(csl, encoding='utf-8')
+            lua = tmpl.find('citations/japanese.lua')
+            args = pandocrun.citeproc_args(bib, style, 'ja-JP', '参考文献', lua_filter=lua)
+            self.assertIn('--lua-filter', args)
+            self.assertNotIn('--citeproc', args)
+            return pandocrun.run(text, ['-f', 'markdown', '-t', 'plain', '--wrap=none', *args],
+                                 cwd=Path(tmp))
+
+    @unittest.skipUnless(HAVE_PANDOC and pandocrun.at_least(2, 19, 1), 'needs pandoc 2.19.1+')
+    def test_japanese_entries_do_not_depend_on_the_style(self):
+        out = self.run_filter('[@yamada2020]、[@sato2018]、[@kato2015]、[@ito2021]。\n',
+                              self.APA_LIKE)
+        self.assertIn('(山田・田中, 2020)', out)              # & も ・ に。年の前の , は書式のまま
+        self.assertIn('(佐藤ほか, 2018)', out)
+        self.assertIn('山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12: 1–20.', out)
+        self.assertIn('加藤五郎 (2015)「論文集の章」中村六郎編『論文集の名前』見本出版, 10–20.', out)
+        self.assertIn('伊藤七子 (2021)「号と DOI」『見本学会誌』3(2): 5–9. '
+                      'https://doi.org/10.1234/abcd', out)
+        self.assertNotIn('山田太郎.', out)                     # 書式の書誌の形（名前. 題）は使わない
+
+    @unittest.skipUnless(HAVE_PANDOC and pandocrun.at_least(2, 19, 1), 'needs pandoc 2.19.1+')
+    def test_each_work_in_its_own_language(self):
+        out = self.run_filter('@smith2003、[@yamada2020]、@sato2018。\n')
+        self.assertIn('Smith et al. (2003)', out)            # 英語の文献は英語のまま
+        self.assertIn('(山田・田中 2020)', out)
+        self.assertIn('佐藤ほか (2018)', out)
+        self.assertIn('Ann Taylor, Bob Brown, and Carl Green. 2003.', out)
+        self.assertIn('“An Example Article.”', out)
+        self.assertIn('山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12: 1–20.', out)
+        self.assertIn('伊藤四郎 (2018)『日本語の本』見本出版.', out)
+        self.assertNotIn('年', out)                          # ja-JP の「2003年」にならない
+        self.assertNotIn('ほか (2003', out)
 
 
 class MathMacros(unittest.TestCase):
@@ -4018,7 +4123,7 @@ class MathMacros(unittest.TestCase):
         self.assertEqual(md.drop_output_macros(tex, ['\\newcommand{\\E}{\\mathbb{E}}']),
                          '\\(\\mathbb{E}[x]\\)\n')
 
-    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が無い')
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc がない')
     def test_body_abstract_appendix_and_sessions_all_expand(self):
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc が古い')
@@ -4070,9 +4175,9 @@ class CrossRefs(unittest.TestCase):
 
         @sec-analysisで述べる。推移は@fig-trendに、式は[-@eq-model]。
 
-        ![推移](figures/trend.png){#fig-trend}
+        ![推移](assets/figures/trend.png){#fig-trend}
 
-        ![](figures/bare.png)
+        ![](assets/figures/bare.png)
 
         $$
         y = x
@@ -4094,12 +4199,12 @@ class CrossRefs(unittest.TestCase):
         y = a + b x
         $$ {#eq-model}
 
-        ![キャプションだけの図](figures/x.png)
+        ![キャプションだけの図](assets/figures/x.png)
 
         ## 補足 {.unnumbered}
 
         ```markdown
-        ![見本](figures/code.png){#fig-code}  と @fig-nowhere は数えない
+        ![見本](assets/figures/code.png){#fig-code}  と @fig-nowhere は数えない
         ```
         """)
 
@@ -4111,13 +4216,13 @@ class CrossRefs(unittest.TestCase):
         self.assertEqual(got[('sec', 'sec-intro')].number, '1')
         self.assertEqual(got[('sec', 'sec-detail')].number, '2.1')
         self.assertEqual(got[('fig', 'fig-trend')].number, '1.1')
-        # キャプションの無い図は数えない。ラベルの無いキャプション付きの図は数える
+        # キャプションのない図は数えない。ラベルのないキャプション付きの図は数える
         self.assertEqual(got[('fig', None)].number, '2.1')
         self.assertEqual(got[('tbl', 'tbl-desc')].number, '2.1')
         self.assertEqual(got[('tbl', 'tbl-summary')].number, '2.2')
-        self.assertTrue(got[('tbl', 'tbl-summary')].external)     # 中身の無いキャプション
+        self.assertTrue(got[('tbl', 'tbl-summary')].external)     # 中身のないキャプション
         self.assertFalse(got[('tbl', 'tbl-desc')].external)
-        # ラベルの無い式は数えない
+        # ラベルのない式は数えない
         self.assertEqual(got[('eq', 'eq-model')].number, '2.1')
         self.assertNotIn(('sec', None), got)                      # {.unnumbered}
         self.assertNotIn(('fig', 'fig-code'), got)                # コードの中
@@ -4186,7 +4291,7 @@ class CrossRefs(unittest.TestCase):
         self.assertIn('(2.1)', body)
 
     def test_labels_and_link_targets_are_not_counted_as_prose(self):
-        text = '## 分析 {#sec-analysis}\n\n![推移](../../figures/trend.png){#fig-trend width=80%}\n'
+        text = '## 分析 {#sec-analysis}\n\n![推移](../../assets/figures/trend.png){#fig-trend width=80%}\n'
         self.assertEqual(md.char_count(text), len('分析推移'))
         self.assertEqual(md.word_count('## Data {#sec-data}\n\nSee [the site](https://x.org).')[0], 4)
 
@@ -4234,7 +4339,7 @@ class CrossRefs(unittest.TestCase):
 
 
 # =====================================================================
-@unittest.skipUnless(HAVE_PANDOC, 'pandoc が無い')
+@unittest.skipUnless(HAVE_PANDOC, 'pandoc がない')
 class EndToEnd(unittest.TestCase):
     """実際に pandoc を呼んで変換する。引用の解決は環境に依存するので外す。"""
 
@@ -4256,7 +4361,7 @@ class EndToEnd(unittest.TestCase):
     def test_latex_body(self):
         r = self.build('paper', 'latex')
         self.assertTrue(r.ok, '\n'.join(r.report))
-        # main.tex は既定では作らない。無ければ足し方を言う
+        # main.tex は既定では作らない。なければ足し方を言う
         self.assertTrue(any('octavo new paper paper --tex' in line for line in r.report),
                         r.report)
         tex = (self.cfg.out_dir('latex', self.cfg.document('paper')) / 'body.tex').read_text(encoding='utf-8')
@@ -4311,7 +4416,7 @@ class EndToEnd(unittest.TestCase):
 
     def test_typst_citations_are_formatted_by_csl(self):
         # 新しい pandoc は --citeproc でも #cite(<key>) を出す。CSL の書式が
-        # 捨てられ、main.typ に書誌が無いので typst compile も止まる
+        # 捨てられ、main.typ に書誌がないので typst compile も止まる
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
         r = build.build_one(self.cfg, self.cfg.document('paper'), 'typst',
@@ -4337,7 +4442,7 @@ class EndToEnd(unittest.TestCase):
         tex = (self.cfg.out_dir('latex', doc) / 'body.tex').read_text(encoding='utf-8')
         self.assertIn(f'\\section*{{{title}}}', tex)
 
-    @unittest.skipUnless(shutil.which('typst'), 'typst が無い')
+    @unittest.skipUnless(shutil.which('typst'), 'typst がない')
     def test_typst_compiles_to_pdf(self):
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
@@ -4367,20 +4472,20 @@ class EndToEnd(unittest.TestCase):
                                      f'{doc} -> {target}: {out.name}')
 
     def test_an_uncaptioned_figure_path_is_rebased(self):
-        # キャプションの無い図は fmt_figure を通らないので、rebase_links が
-        # 直していないと `../figures/…` のまま出て組版が落ちる
+        # キャプションのない図は fmt_figure を通らないので、rebase_links が
+        # 直していないと `../assets/figures/…` のまま出て組版が落ちる
         doc = self.cfg.document('slides')
         original = doc.src.read_text(encoding='utf-8')
         self.addCleanup(doc.src.write_text, original, encoding='utf-8')
         doc.src.write_text('---\ntitle: 図\n---\n\n## 図だけ\n\n'
-                           '![](../figures/trend.png)\n', encoding='utf-8')
+                           '![](../assets/figures/trend.png)\n', encoding='utf-8')
         r = build.build_one(self.cfg, doc, 'typst-slides',
                             citations=False, offline=True)
         self.assertTrue(r.ok, '\n'.join(r.report))
         typ = (self.cfg.out_dir('typst-slides', doc)
                / 'slides.typ').read_text(encoding='utf-8')
-        self.assertIn('../../figures/trend.png', typ)
-        self.assertNotIn('"../figures/', typ)
+        self.assertIn('../../assets/figures/trend.pdf', typ)     # Typst は .pdf（ベクター）
+        self.assertNotIn('"../assets/figures/', typ)
         # 素通りしていたときは check が「OK」と言ってしまっていた
         self.assertFalse(any('not reachable from the output' in line for line in r.report),
                          '\n'.join(r.report))
@@ -4390,7 +4495,7 @@ class EndToEnd(unittest.TestCase):
         original = doc.src.read_text(encoding='utf-8')
         self.addCleanup(doc.src.write_text, original, encoding='utf-8')
         doc.src.write_text('---\ntitle: 図\n---\n\n## 図だけ\n\n'
-                           '![](../figures/typo/trend.png)\n', encoding='utf-8')
+                           '![](../assets/figures/typo/trend.png)\n', encoding='utf-8')
         r = build.build_one(self.cfg, doc, 'typst-slides',
                             citations=False, offline=True)
         self.assertTrue(any('not reachable from the output' in line for line in r.report),
@@ -4409,7 +4514,7 @@ class EndToEnd(unittest.TestCase):
             '## Abstract\n\n要旨。\n\n'
             '## はじめに {#sec-intro}\n\n本文。\n\n'
             '## 分析\n\n@sec-introで述べたとおり、推移を@fig-trendに示す。\n\n'
-            '![推移](../../figures/trend.png){#fig-trend}\n',
+            '![推移](../../assets/figures/trend.png){#fig-trend}\n',
             encoding='utf-8')
         r = build.build_one(self.cfg, self.cfg.document('paper'), 'typst',
                             citations=False, offline=True)
@@ -4419,7 +4524,7 @@ class EndToEnd(unittest.TestCase):
         self.assertIn('#ref(<sec-intro>)で述べたとおり', typ)
         self.assertIn('#ref(<fig-trend>)に示す', typ)
 
-    @unittest.skipUnless(shutil.which('typst'), 'typst が無い')
+    @unittest.skipUnless(shutil.which('typst'), 'typst がない')
     def test_a_crossref_followed_by_japanese_compiles(self):
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
@@ -4437,7 +4542,7 @@ class EndToEnd(unittest.TestCase):
         self.assertTrue(r.ok, '\n'.join(r.report))
         res = bundle.collect(self.cfg, 'typst', self.d / 'sub', doc)
         self.assertTrue(res.ok, '\n'.join(res.report))
-        self.assertLessEqual({'main.typ', 'body.typ', 'trend.png'},
+        self.assertLessEqual({'main.typ', 'body.typ', 'trend.pdf'},
                              {p.name for p in res.files})
 
     def test_a_session_deck_has_its_own_title(self):
@@ -4499,12 +4604,12 @@ class StaleRPackages(unittest.TestCase):
             self.assertIn('51 packages built for an older R (4.3) do not load', out)
             self.assertIn("update.packages(lib.loc='/usr/local/lib/R/site-library'", out)
             self.assertFalse(data['tools']['r_packages']['ok'])
-        # 「準備する」では直らないので、拡張機能が見る analysis には入れない
+        # 「セットアップ」では直らないので、拡張機能が見る analysis には入れない
         self.assertNotIn('r_packages', data['analysis'])
 
 
 class MacOS(unittest.TestCase):
-    """Mac 向けの出し分け。手元に Mac は無いので、ここでは platform を差し替えて見る
+    """Mac 向けの出し分け。手元に Mac はないので、ここでは platform を差し替えて見る
     （実機に近い確認は CI の macos ジョブが Homebrew で入れて組むところまでやる）。"""
 
     def test_hints_are_homebrew_on_macos(self):
@@ -4513,7 +4618,7 @@ class MacOS(unittest.TestCase):
             self.assertTrue(doctor.is_macos())
             self.assertEqual(doctor.hint('pandoc'), 'brew install pandoc')
             self.assertIn('brew', doctor.hint('typst_default_fonts'))
-            # Mac 用が無いものは共通の案内
+            # Mac 用がないものは共通の案内
             with unittest.mock.patch.dict(doctor.HINTS, {'common-only': 'same everywhere'}):
                 self.assertEqual(doctor.hint('common-only'), 'same everywhere')
         with unittest.mock.patch('platform.system', return_value='Linux'):
@@ -4551,7 +4656,7 @@ class MacOS(unittest.TestCase):
         for pkg in ('pandoc', 'typst', 'quarto', 'font-biz-udmincho', 'mactex-no-gui'):
             self.assertIn(pkg, text)
         # Windows の bash は WSL の起動用（System32\\bash.exe）のことがあり、WSL が
-        # 無いと黙って失敗する。構文は Linux と macOS の CI が見る
+        # ないと黙って失敗する。構文は Linux と macOS の CI が見る
         if shutil.which('bash') and os.name != 'nt':
             r = subprocess.run(['bash', '-n', str(ROOT / 'setup.sh')],
                                capture_output=True, text=True)
@@ -4560,10 +4665,10 @@ class MacOS(unittest.TestCase):
 
 
 class ToolSetup(unittest.TestCase):
-    """道具を入れる入口（setup.sh / octavo setup / 拡張機能の「準備する」）。
+    """道具を入れる入口（setup.sh / octavo setup / 拡張機能の「セットアップ」）。
 
-    apt や sudo を実際に走らせるテストは無い。setup.sh を拡張機能と同じ置き方
-    （clone の外）で走らせる確認は、apt と sudo を差し替えて手で行っている。
+    apt や sudo を実際に実行するテストはない。setup.sh を拡張機能と同じ置き方
+    （clone の外）で実行する確認は、apt と sudo を差し替えて手で行っている。
     """
     SETUP = ROOT / 'setup.sh'
     EXT = ROOT / 'vscode-extension'
@@ -4584,7 +4689,7 @@ class ToolSetup(unittest.TestCase):
     @unittest.skipIf(os.name == 'nt', 'bash が WSL の起動用のことがある')
     def test_a_stale_clone_is_left_alone_but_named(self):
         """clone へのリンクは入れ替えない。古ければ git pull を案内する（黙っていると、
-        拡張機能が「古い」と言い続けるのに「準備する」を押しても何も変わらない）。"""
+        拡張機能が「古い」と言い続けるのに「セットアップ」を押しても何も変わらない）。"""
         with tempfile.TemporaryDirectory() as d:
             # setup.sh はリンクを解決した先を出す（macOS の /var は /private/var）
             d = Path(d).resolve()
@@ -4597,7 +4702,7 @@ class ToolSetup(unittest.TestCase):
             fake.write_text('#!/bin/sh\necho "octavo 0.1.0"\n', encoding='utf-8')
             fake.chmod(0o755)
             (home / '.local' / 'bin' / 'octavo').symlink_to(fake)
-            script = d / 'setup.sh'                    # clone の外から走らせる
+            script = d / 'setup.sh'                    # clone の外から実行する
             shutil.copy(self.SETUP, script)
             env = dict(os.environ, HOME=str(home), OCTAVO_LANG='en')
 
@@ -4620,12 +4725,12 @@ class ToolSetup(unittest.TestCase):
             self.assertIsNone(doctor.as_json()['clone'])
 
     def test_every_message_is_in_both_languages(self):
-        """拡張機能から英語の人も走らせるので、say / msg は必ず2言語で書く。"""
+        """拡張機能から英語の人も実行するので、say / msg は必ず2言語で書く。"""
         for n, line in enumerate(self.SETUP.read_text(encoding='utf-8').splitlines(), 1):
             s = line.strip()
             if re.match(r'(say|msg) ', s):
                 self.assertTrue(s.endswith('\\') or re.search(r'"\s+"', s),
-                                f'setup.sh:{n}: 片方の言語しか無い: {s}')
+                                f'setup.sh:{n}: 片方の言語しかない: {s}')
 
     def test_cli_setup_passes_the_flags_and_the_version(self):
         from octavo import cli
@@ -4673,8 +4778,8 @@ class ToolSetup(unittest.TestCase):
     def test_setup_ps1_matches_setup_sh(self):
         """Windows 用は別のスクリプトだが、版と入れるものは setup.sh とそろえる。"""
         raw = (ROOT / 'setup.ps1').read_bytes()
-        # BOM が無いと Windows PowerShell 5.1 が日本語を読み違える
-        self.assertTrue(raw.startswith(b'\xef\xbb\xbf'), 'setup.ps1 に BOM が無い')
+        # BOM がないと Windows PowerShell 5.1 が日本語を読み違える
+        self.assertTrue(raw.startswith(b'\xef\xbb\xbf'), 'setup.ps1 に BOM がない')
         ps1 = raw.decode('utf-8-sig')
         sh = self.SETUP.read_text(encoding='utf-8')
         for var in ('PANDOC_VER', 'TYPST_VER', 'QUARTO_VER', 'UV_VER'):
@@ -4691,7 +4796,7 @@ class ToolSetup(unittest.TestCase):
             s = line.strip()
             if re.match(r'(Say|Info) ', s):
                 self.assertTrue(s.endswith('`') or re.search(r"""['"]\s+['"]""", s),
-                                f'setup.ps1:{n}: 片方の言語しか無い: {s}')
+                                f'setup.ps1:{n}: 片方の言語しかない: {s}')
 
     def test_setup_sh_checks_r_packages_the_same_way_as_doctor(self):
         text = self.SETUP.read_text(encoding='utf-8')
@@ -4736,7 +4841,7 @@ class ToolSetup(unittest.TestCase):
             bad = [line.strip() for line in text.splitlines() if pat.search(line)]
             self.assertEqual(bad, [], name)
 
-    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell が無い')
+    @unittest.skipUnless(shutil.which('pwsh'), 'PowerShell がない')
     def test_setup_ps1_parses(self):
         script = ('$e=$null; [void][System.Management.Automation.Language.Parser]::ParseFile('
                   f"'{ROOT / 'setup.ps1'}',[ref]$null,[ref]$e); if ($e) {{ $e; exit 1 }}")
@@ -4763,7 +4868,7 @@ class ToolSetup(unittest.TestCase):
             cli.cmd_setup(cli.make_parser().parse_args(['setup', '--with-tex']))
 
     @unittest.skipUnless(shutil.which('apt-get') and shutil.which('sudo'),
-                         'apt の無い環境（setup.sh --check は apt の道を見る）')
+                         'apt のない環境（setup.sh --check は apt の道を見る）')
     def test_check_mode_changes_nothing(self):
         r = subprocess.run(['bash', str(self.SETUP), '--check', '--no-r'],
                            capture_output=True, text=True, timeout=300,
@@ -4813,7 +4918,7 @@ class ProjectEnv(unittest.TestCase):
         self.assertEqual(self.run_env(), 0)
         calls = self.calls()
         self.assertTrue(calls[0].startswith('uv venv '), calls)
-        # ひな型の requirements.txt はコメントだけなので、入れるものは無い
+        # ひな型の requirements.txt はコメントだけなので、入れるものはない
         self.assertFalse(any(' pip install ' in c for c in calls), calls)
         r = self.log.read_text(encoding='utf-8').split('Rscript ', 1)[1]
         for s in ('renv::init(', 'renv::restore(', '"knitr"', '"rmarkdown"', 'renv::snapshot('):
@@ -4862,7 +4967,8 @@ class TypstFigures(unittest.TestCase):
         self.root = Path(self.tmp.name) / 'proj'
         make_project(self.root, docs=(('paper', 'mypaper'),), analysis=False)
         self.cfg = config.load(self.root / 'octavo.config.py')
-        self.figs = self.root / 'figures'
+        self.figs = self.root / 'figures'                  # 手で書く .typ
+        self.out = self.root / 'assets' / 'figures'        # 組んだ .pdf / .png
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -4895,8 +5001,8 @@ class TypstFigures(unittest.TestCase):
         self.assertIn('"Inter"', text)                 # 英語の文書の書体の並び
 
     def test_a_figure_from_the_analysis_is_not_overwritten(self):
-        self.figs.mkdir(exist_ok=True)
-        (self.figs / 'trend.png').write_bytes(b'png')
+        self.out.mkdir(parents=True, exist_ok=True)
+        (self.out / 'trend.png').write_bytes(b'png')
         self.assertEqual(self.new_figure('trend'), 1)
         self.assertFalse((self.figs / 'trend.typ').exists())
 
@@ -4907,10 +5013,10 @@ class TypstFigures(unittest.TestCase):
         parts = self.figs / '_parts.typ'
         parts.write_text('#let y = 1', encoding='utf-8')
         self.assertEqual(names(self.diagrams.sources(self.cfg)), ['a.typ'])   # _ で始まるものは組まない
-        for out in self.diagrams.outputs(src):
+        for out in self.diagrams.outputs(self.cfg, src):
             out.write_bytes(b'drawn')
         future = time.time() + 5
-        for out in self.diagrams.outputs(src):
+        for out in self.diagrams.outputs(self.cfg, src):
             os.utime(out, (future, future))
         self.assertEqual(self.diagrams.stale(self.cfg), [])
         later = future + 5
@@ -4923,7 +5029,7 @@ class TypstFigures(unittest.TestCase):
         with unittest.mock.patch('shutil.which', return_value=None):
             self.assertTrue(self.diagrams.run(self.cfg, report))
         self.assertIn('figures/dag.typ', ' '.join(report))
-        self.assertFalse((self.figs / 'dag.png').exists())
+        self.assertFalse((self.out / 'dag.png').exists())
 
     def test_check_reports_figures_not_drawn(self):
         self.new_figure()
@@ -4940,8 +5046,8 @@ class TypstFigures(unittest.TestCase):
         self.new_figure()
         report: list = []
         self.assertTrue(self.diagrams.run(self.cfg, report), report)
-        self.assertEqual((self.figs / 'dag.pdf').read_bytes()[:5], b'%PDF-')
-        self.assertEqual((self.figs / 'dag.png').read_bytes()[:4], b'\x89PNG')
+        self.assertEqual((self.out / 'dag.pdf').read_bytes()[:5], b'%PDF-')
+        self.assertEqual((self.out / 'dag.png').read_bytes()[:4], b'\x89PNG')
         self.assertEqual(self.diagrams.stale(self.cfg), [])
         (self.figs / 'broken.typ').write_text('#undefined-thing\n', encoding='utf-8')
         report = []
@@ -4956,6 +5062,215 @@ class TypstFigures(unittest.TestCase):
         self.assertEqual(md.cited_keys(text), {'smith2003'})
 
 
+class HandTables(unittest.TestCase):
+    """tables/<name>.csv（手で作る表）を octavo build が assets/tables/ の3形式にする。"""
+
+    def setUp(self):
+        from octavo import handtables
+        self.ht = handtables
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name) / 'proj'
+        make_project(self.root, docs=(('paper', 'mypaper'),), analysis=False)
+        self.cfg = config.load(self.root / 'octavo.config.py')
+        self.src = self.root / 'tables'
+        self.out = self.root / 'assets' / 'tables'
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def new_table(self, name='compare', **kw):
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            return scaffold.new(self.root / 'octavo.config.py', 'table', name, **kw)
+
+    def write(self, name, text, encoding='utf-8'):
+        self.src.mkdir(exist_ok=True)
+        (self.src / f'{name}.csv').write_bytes(text.encode(encoding))
+
+    GROUPED = ',2020年,,2024年,\n地域,人数,割合,人数,割合\n北部,120,0.31,135,0.33\n'
+
+    def test_merged_headings_make_two_heading_rows(self):
+        tb = self.ht.parse(self.GROUPED)
+        self.assertEqual((tb.head, tb.spans), (2, {1: 2, 3: 2}))
+        self.assertEqual(tb.align, ['l', 'r', 'r', 'r', 'r'])
+        typ = self.ht.to_typst(tb, 'tables/x.csv')
+        self.assertIn('table.cell(colspan: 2, align: center, strong("2020年"))', typ)
+        self.assertIn('table.hline(start: 3, end: 5, stroke: 0.5pt)', typ)
+        tex = self.ht.to_latex(tb, 'tables/x.csv')
+        self.assertIn(r'\multicolumn{2}{c}{\textbf{2024年}}', tex)
+        self.assertIn(r'\cmidrule(lr){2-3} \cmidrule(lr){4-5}', tex)
+        # Word（パイプ表）は結合できないので、見出しを1行にまとめる
+        self.assertIn('| 地域 | 2020年 人数 | 2020年 割合 |', self.ht.to_markdown(tb, 'x'))
+
+    def test_a_label_over_an_empty_cell_moves_down(self):
+        """Excel で縦に結合した「地域」は、CSV では1行目にあり2行目が空になる。"""
+        tb = self.ht.parse('地域,2020年,\n,人数,割合\n北部,1,2\n')
+        self.assertEqual(tb.head, 2)
+        self.assertEqual(tb.rows[:2], [['', '2020年', ''], ['地域', '人数', '割合']])
+
+    def test_plain_tables_and_ragged_csv(self):
+        tb = self.ht.parse('観点,A,B\n目的,短い\n\n罰則,あり,なし,\n\n')
+        self.assertEqual(tb.head, 1)
+        self.assertEqual(tb.spans, {})
+        self.assertEqual(tb.rows, [['観点', 'A', 'B'], ['目的', '短い', ''], ['罰則', 'あり', 'なし']])
+        long = self.ht.parse('観点,説明\n目的,' + 'とても長い説明の文章' * 4 + '\n')
+        self.assertEqual(long.long, [False, True])
+        self.assertIn('columns: (auto, 1fr,)', self.ht.to_typst(long, 'x'))
+        # 数字の列: 桁区切り・括弧・負号・%・有意の印も数字、ダッシュは空欄あつかい
+        nums = self.ht.parse('a,b\nx,"1,234"\ny,(0.05)\nz,−0.12***\nw,—\nv,12%\n')
+        self.assertEqual(nums.align, ['l', 'r'])
+
+    def test_cells_are_plain_text_in_every_format(self):
+        tb = self.ht.parse('a,b\n"say ""hi"" \\ #x","@key *em* _u_ $5"\n')
+        typ = self.ht.to_typst(tb, 'x')
+        self.assertIn(r'"say \"hi\" \\ #x"', typ)
+        md_ = self.ht.to_markdown(tb, 'x')
+        self.assertIn(r'\@key \*em\* \_u\_ \$5', md_)
+        tex = self.ht.to_latex(tb, 'x')
+        self.assertIn(r'\_u\_ \$5', tex)
+
+    def test_shift_jis_from_excel_is_read(self):
+        self.write('sjis', '項目,内容\n見本,日本語\n', encoding='cp932')
+        report: list = []
+        self.assertTrue(self.ht.run(self.cfg, report), report)
+        self.assertIn('Shift_JIS', report[0])
+        self.assertIn('"日本語"', (self.out / 'sjis.typ').read_text(encoding='utf-8'))
+
+    def test_new_table_then_build_makes_three_files(self):
+        self.assertEqual(self.new_table('compare.csv'), 0)       # 拡張子は付けても付けなくても
+        self.assertEqual((self.src / 'compare.csv').read_text(encoding='utf-8').splitlines()[0],
+                         '項目,内容')
+        self.assertEqual(names(self.ht.stale(self.cfg)), ['compare.csv'])
+        report: list = []
+        self.assertTrue(self.ht.run(self.cfg, report), report)
+        for ext in ('.typ', '.tex', '.md'):
+            self.assertTrue((self.out / f'compare{ext}').is_file(), ext)
+        self.assertEqual(self.ht.stale(self.cfg), [])
+        items = {i.label: i for i in audit.collect(self.cfg)}
+        self.assertTrue(items['tables made by hand'].ok)
+        # 再現用パッケージにも元の .csv が入る（プロジェクトと同じ場所に）
+        with contextlib.redirect_stdout(io.StringIO()):
+            rep = bundle.replication(self.cfg, Path(self.tmp.name) / 'rep')
+        self.assertIn('tables/compare.csv',
+                      [p.relative_to(Path(self.tmp.name) / 'rep').as_posix() for p in rep.files])
+
+    def test_an_english_project_gets_the_english_template(self):
+        d = Path(self.tmp.name) / 'en'
+        make_project(d, docs=(), lang='en', analysis=False)
+        with contextlib.redirect_stdout(io.StringIO()):
+            scaffold.new(d / 'octavo.config.py', 'table', 'compare')
+        self.assertNotRegex((d / 'tables' / 'compare.csv').read_text(encoding='utf-8'),
+                            r'[぀-ヿ]')
+
+    def test_a_table_from_the_analysis_is_not_overwritten(self):
+        self.out.mkdir(parents=True, exist_ok=True)
+        (self.out / 'summary.typ').write_text(
+            '// octavo.R の ov_table() が作ったファイル。手で直さない。\n#table()\n',
+            encoding='utf-8')
+        self.assertEqual(self.new_table('summary'), 1)
+        self.assertFalse((self.src / 'summary.csv').exists())
+        # .csv を手で置いても、組むときに止める（どちらが組まれるかが順番で変わるため）
+        self.write('summary', 'a,b\n1,2\n')
+        report: list = []
+        self.assertFalse(self.ht.run(self.cfg, report))
+        self.assertIn('summary', report[0])
+        items = {i.label: i for i in audit.collect(self.cfg)}
+        self.assertFalse(items['tables made by hand'].ok)
+        self.assertTrue(items['tables made by hand'].fatal)
+
+    def test_a_placeholder_table_may_be_replaced(self):
+        self.out.mkdir(parents=True, exist_ok=True)
+        (self.out / 'summary.typ').write_text('// octavo:placeholder 仮の表\n#table()\n',
+                                              encoding='utf-8')
+        self.write('summary', 'a,b\n1,2\n')
+        report: list = []
+        self.assertTrue(self.ht.run(self.cfg, report), report)
+        self.assertIn('tables/summary.csv', (self.out / 'summary.typ').read_text(encoding='utf-8'))
+
+    def test_no_row_without_hand_tables(self):
+        labels = [i.label for i in audit.collect(self.cfg)]
+        self.assertNotIn('tables made by hand', labels)
+
+    def test_a_bad_csv_stops_the_build(self):
+        self.write('empty', '\n\n')
+        report: list = []
+        self.assertFalse(self.ht.run(self.cfg, report))
+        self.assertIn('tables/empty.csv', '\n'.join(report))
+
+    @unittest.skipUnless(shutil.which('typst'), 'needs typst')
+    def test_the_typst_file_compiles(self):
+        self.write('grouped', self.GROUPED)
+        self.write('long', '観点,制度A,制度B\n目的,"' + 'とても長い説明の文章' * 5
+                   + '\n二行目",短い\n')
+        report: list = []
+        self.assertTrue(self.ht.run(self.cfg, report), report)
+        doc = self.root / 'doc.typ'
+        doc.write_text('#figure(include "assets/tables/grouped.typ", kind: table)\n'
+                       '#figure(include "assets/tables/long.typ", kind: table)\n',
+                       encoding='utf-8')
+        r = subprocess.run(['typst', 'compile', str(doc)], capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stderr)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'needs pandoc')
+    def test_the_manuscript_places_it_by_its_caption_line(self):
+        self.write('compare', '観点,A\n目的,@nocite *x*\n')
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertTrue(self.ht.run(self.cfg, []))
+        paper = self.root / 'papers' / 'mypaper' / 'paper.md'
+        paper.write_text(paper.read_text(encoding='utf-8').replace(
+            '## はじめに {#sec-intro}',
+            '## はじめに {#sec-intro}\n\n@tbl-compare を見る。\n\n: 比較 {#tbl-compare}\n'),
+            encoding='utf-8')
+        doc = self.cfg.document('mypaper')
+        for target in ('typst', 'docx'):
+            res = build.build_one(self.cfg, doc, target, citations=False, offline=True)
+            self.assertFalse([l for l in res.report if 'missing' in l or 'がない' in l],
+                             res.report)
+        body = (self.cfg.out_dir('typst', doc) / 'body.typ').read_text(encoding='utf-8')
+        self.assertIn('assets/tables/compare.typ', body)
+
+
+class AssetsLayout(unittest.TestCase):
+    """手で作るもの（figures/）と、分析と build が書くもの（assets/）の置き場。"""
+
+    def test_defaults(self):
+        d = config.DEFAULTS
+        self.assertEqual((d['figure_src_dir'], d['table_src_dir'], d['figure_dir'],
+                          d['table_dir'], d['values_dir']),
+                         ('figures', 'tables', 'assets/figures', 'assets/tables',
+                          'assets/values'))
+
+    def test_vector_figures_everywhere_but_word(self):
+        cfg = {'figure_ext': {}}
+        for name in ('typst', 'typst-slides', 'typst-notes', 'latex', 'beamer'):
+            self.assertEqual(be.get(name).figure_ext(cfg), '.pdf', name)
+        self.assertEqual(be.get('docx').figure_ext(cfg), '.png')
+        self.assertEqual(be.get('typst').figure_ext({'figure_ext': {'typst': '.png'}}), '.png')
+
+    def test_a_hand_placed_photo_is_left_as_it_is(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'p'
+            make_project(root, docs=(('paper', 'mypaper'),), analysis=False)
+            cfg = config.load(root / 'octavo.config.py')
+            doc = cfg.document('mypaper')
+            ctx = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=cfg.out_dir('typst', doc),
+                      profile='paper', doc_name='mypaper')
+            photo = os.path.relpath(root / 'figures' / 'site.png', ctx.out_dir)
+            drawn = os.path.relpath(root / 'assets' / 'figures' / 'trend.png', ctx.out_dir)
+            self.assertEqual(ctx.figure_target(photo), photo)
+            self.assertTrue(ctx.figure_target(drawn).endswith('assets/figures/trend.pdf'))
+
+    def test_a_new_project_writes_into_assets(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'p'
+            make_project(root, docs=(('paper', 'mypaper'),))      # 見本の分析つき
+            self.assertTrue((root / 'figures').is_dir())            # 手で作る図の置き場
+            for rel in ('assets/values/analysis.json', 'assets/figures/trend.pdf',
+                        'assets/tables/summary.typ'):
+                self.assertTrue((root / rel).is_file(), rel)
+            for old in ('results', 'tables'):
+                self.assertFalse((root / old).exists(), old)
+
+
 class Website(unittest.TestCase):
     """site/（GitHub Pages に出すページ）は公開リポジトリにそのまま出る。"""
 
@@ -4968,7 +5283,8 @@ class Website(unittest.TestCase):
         """外部のスクリプト・スタイル・画像・フォントを読まない（訪問者の情報を外に出さない）。"""
         for lang in self.PAGES:
             html = self.read(lang)
-            self.assertNotIn('<script', html, lang)
+            # インラインの script だけ（言語の自動切り替え）。外から読むものはない
+            self.assertNotRegex(html, r'<script\b[^>]*\bsrc=', lang)
             loaded = re.findall(r'<(?:img|link|source|iframe)\b[^>]*\b(?:src|href)="([^"]+)"', html)
             loaded = [u for u in loaded if not u.endswith(('/', '.html'))]
             self.assertTrue(loaded, lang)
@@ -5007,6 +5323,17 @@ class Website(unittest.TestCase):
         self.assertIn('href="../"', ja)
         # 日本語は、HTML の改行が空白として出ないように、文の途中で改行しない
         self.assertNotRegex(ja, r'[^\x00-\x7f]\n[ \t]*[^<\s]')
+
+    def test_the_language_switch_respects_a_choice(self):
+        """英語版は日本語のブラウザだけを日本語版へ移し、リンクで選んだ人は動かさない。"""
+        en, ja = self.read('en'), self.read('ja')
+        self.assertIn("location.replace('ja/'", en)
+        self.assertIn("localStorage.getItem('octavo-lang')", en)
+        self.assertIn('data-lang="ja"', en)
+        self.assertIn('data-lang="en"', ja)
+        self.assertIn("localStorage.setItem('octavo-lang'", ja)
+        self.assertNotIn('location.replace', ja)
+        self.assertIn('hreflang="x-default"', en)
 
     def test_the_workflow_runs_only_on_the_public_repo(self):
         wf = (ROOT / '.github' / 'workflows' / 'pages.yml').read_text(encoding='utf-8')

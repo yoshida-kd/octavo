@@ -5,7 +5,7 @@
 使い方をすべて書いた手引き。Octavo が何をするものか、どう始めるかは
 [README](../README.ja.md) を見る。[English guide](guide.md)
 
-マークダウンで書いた**1つの原稿**を、**Typst（論文・プリント・スライド）/ Word / LaTeX / Beamer**
+Markdown で書いた**1つの原稿**を、**Typst（論文・プリント・スライド）/ Word / LaTeX / Beamer**
 に出し分けるコマンドラインツール。文献は `.bib` と CSL の仕組みに
 一本化してある。日本語と英語のどちらの原稿でも同じように動く。
 
@@ -19,6 +19,7 @@ octavo new analysis model             # 分析（.qmd）を足す
 octavo new paper example-paper        # 論文を足す（何本でも）
 octavo new lecture example-lecture    # 講義ノートを足す
 octavo new figure dag                 # Typst で描く図を足す（TikZ の代わり）
+octavo new table compare              # 手で作る表を足す（.csv）
 octavo build                          # 全部を作る
 octavo build example-paper --to docx  # Word にする
 octavo build example-lecture --to typst-slides --compile  # 回ごとのスライドを PDF まで
@@ -42,16 +43,16 @@ TeX Live を足す（`bash setup.sh --with-tex`）。
 
 ---
 
-## 1. 入れる
+## 1. インストール
 
-動く環境は Linux（Ubuntu/Debian 系のマシン、Ubuntu サーバ、または Windows 上の
+対応する環境は Linux（Ubuntu/Debian 系のマシン、Ubuntu サーバ、または Windows 上の
 WSL2/Ubuntu）と macOS（Mac では先に [Homebrew](https://brew.sh) を入れておく）。
 
 **VS Code で使うなら、拡張機能を入れるだけでよい。**
 [Octavo の拡張機能](../vscode-extension/README.ja.md)は最初に起動したときにツールが
 そろっているかを確かめ、足りなければ **「セットアップ」** を出す。押すとターミナルで
 `setup.sh`（拡張機能に同梱してある）が実行され、パスワードを1回聞いたあと、pandoc・
-Typst・quarto・フォント・R（CRAN の最新）・renv・uv・`octavo` コマンドそのものを
+Typst・Quarto・フォント・R（CRAN の最新）・renv・uv・`octavo` コマンドそのものを
 入れる。clone も pip も要らない。Remote-SSH や WSL のウィンドウなら、その先の
 マシンに入る。拡張機能を更新したときなどは、Octavo のサイドバーの
 **「ツール → ツールをインストール・更新する」** からいつでもやり直せる。
@@ -61,8 +62,8 @@ Typst・quarto・フォント・R（CRAN の最新）・renv・uv・`octavo` コ
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh   # uv（まだなければ）
 uv tool install octavo-kit                        # octavo コマンド
-octavo setup                                      # pandoc / Typst / quarto / フォント / R / renv
-octavo doctor                                     # 足りないものを教えてくれる
+octavo setup                                      # pandoc / Typst / Quarto / フォント / R / renv
+octavo doctor                                     # 足りないものを報告する
 octavo selftest                                   # 実際に1本通して引用の組み方を見る
 ```
 
@@ -75,7 +76,7 @@ bash ~/octavo/setup.sh
 
 `octavo selftest` は一時ディレクトリに小さな原稿（日本語と英語の文献、団体著者、
 表、図、相互参照、`\poscite`）を作って変換し、**出てきた引用と書誌の実物を
-印字する**。環境ごとに1度は通しておくと、CSL の書式が思ったとおりか目で
+表示する**。環境ごとに1度は通しておくと、CSL の書式が思ったとおりか目で
 確かめられる。
 
 ### 表示の言語
@@ -101,9 +102,9 @@ shell の設定に `export OCTAVO_LANG=ja` を1行書いておくのが確実。
 ### `setup.sh` がすること
 
 `octavo setup` も拡張機能も、`setup.sh`（パッケージに同梱）を実行する。何度
-実行しても平気で、入っていて十分新しいものは飛ばす。Linux では apt で:
+実行しても安全で、入っていて十分新しいものは飛ばす。Linux では apt で:
 
-- pandoc・Typst・quarto を動作を確かめた版で（それより新しければそのまま）、
+- pandoc・Typst・Quarto を動作を確かめた版で（それより新しければそのまま）、
   それとフォント
 - **R は CRAN の最新**。Ubuntu では CRAN の apt リポジトリを足す（ほかの Debian 系は
   そのディストリの `r-base`）。tidyverse などのパッケージが要る開発用ライブラリも
@@ -139,7 +140,7 @@ PyPI が使わせない）で、コマンドと Python のパッケージ名は 
 | pandoc | 2.11 | 3.11 | 2.11 で `--citeproc`（CSL 引用）、3.1 で Typst 出力。3.11 で動作を確かめてある |
 | Python | 3.9 | — | 標準ライブラリだけ使う（外部パッケージ不要） |
 | LuaLaTeX（任意） | — | TeX Live 2021+ | `texlive-lang-japanese` が要る |
-| Typst | — | 0.15 | Typst スライドは 0.12 以上。日本語フォントは同梱されない（`setup.sh` が入れる） |
+| Typst | — | 0.15 | 0.14 以上（図を PDF のまま埋め込む）。日本語フォントは同梱されない（`setup.sh` が入れる） |
 
 ### Windows
 
@@ -150,7 +151,7 @@ PyPI が使わせない）で、コマンドと Python のパッケージ名は 
   では Remote-WSL でフォルダを開き、ファイルは Linux 側（か `/mnt/...` の下）に置く。
 - **Windows で直接使う**。`octavo setup`（と、WSL にディストリがないときの拡張機能の
   「セットアップ」）は `setup.sh` の代わりに `setup.ps1` を実行する。winget で pandoc・
-  Typst・quarto・R（CRAN の最新。R のインストーラーは `PATH` を触らないので、R の
+  Typst・Quarto・R（CRAN の最新。R のインストーラーは `PATH` を触らないので、R の
   `bin` を利用者の `PATH` に足す）を入れ、BIZ UD と Inter を利用者のフォントとして
   入れ（管理者は要らない。なければ游明朝・游ゴシックで組む）、renv を R の
   ライブラリに、`octavo` コマンドを uv で入れる。Windows では TeX は入れない（LaTeX / Beamer が要るなら
@@ -164,7 +165,7 @@ PyPI が使わせない）で、コマンドと Python のパッケージ名は 
   ```
 
 原稿と分析の書き方はどの OS でも同じ。プロジェクトをどこでも動くように保つ
-習慣が2つある: パスは `/` で書く（`../figures/fig1.png`。Windows もこれを読む。
+習慣が2つある: パスは `/` で書く（`../assets/figures/fig1.png`。Windows もこれを読む。
 `\` は Markdown では記号の打ち消しになる）、Python でテキストファイルを開くときは
 `encoding="utf-8"` を書く（Windows の既定はシステムの文字コード）。ファイル名の
 大文字・小文字も原稿の書き方とそろえる（Windows は `Fig1.png` と `fig1.png` を
@@ -172,7 +173,7 @@ PyPI が使わせない）で、コマンドと Python のパッケージ名は 
 
 ### 分析の環境はプロジェクトごとに（.venv と renv）
 
-pandoc・Typst・quarto・R・Octavo はマシンに1つ（上の `setup.sh`）。**分析に使う
+pandoc・Typst・Quarto・R・Octavo はマシンに1つ（上の `setup.sh`）。**分析に使う
 パッケージはプロジェクトごとに持ち**、それを用意するのはコマンド1つ:
 
 ```bash
@@ -180,12 +181,12 @@ cd 2026-research
 octavo env      # uv で .venv（+ requirements.txt）、renv（+ knitr, rmarkdown）
 ```
 
-VS Code なら Octavo のサイドバーの **「ツール → このプロジェクトの分析の環境を
+VS Code なら Octavo のサイドバーの **「ツール → このプロジェクトの分析環境を
 用意する」**。`octavo env` は uv で `.venv` を作って `requirements.txt` に書いた
 ものを入れ、R では `renv::init()`（`.qmd` がすでに使っているパッケージも入る）の
-あとに knitr と rmarkdown（quarto が R の `.qmd` を render するのに要る）を足して
+あとに knitr と rmarkdown（Quarto が R の `.qmd` を render するのに要る）を足して
 `renv.lock` を書く。clone してきたプロジェクトなら `renv.lock` から戻す。何度
-実行しても平気で、`requirements.txt` に足したものを入れるのもこれ。
+実行しても安全で、`requirements.txt` に足したものを入れるのもこれ。
 
 git に入るのは**記録だけ**（`requirements.txt` / `renv.lock`）で、環境の中身は
 入らない。Python のパッケージは `requirements.txt` に書いて `octavo env`、R では
@@ -284,18 +285,27 @@ Octavo は「**どの原稿を、どの用途で、どの形式に出すか**」
   README.md          自分で書き足す数行（何の研究か、再現のしかた）
   octavo.config.py   設定（原稿の種類ごとのグロブ、分析の登録）
   literature.bib     書誌（文献管理ソフトからエクスポートしたもの。最初は空）
-  figures/           図（分析が書くか、Typst で描くか、手で置く）
+  figures/           手で作る図: Typst で描く <name>.typ、写真など
+  tables/            手で作る表: <name>.csv
+  assets/            分析と octavo build が書くもの。手で直さない（git には入れる）
+    values/          本文の {{…}} の数値（<qmd の名前>.json）
+    figures/         図（.pdf と .png）。分析の図と、figures/*.typ から組んだ図
+    tables/          表（.typ / .tex / .md）。分析の表と、tables/*.csv から作った表
 ```
+
+原稿は図を `assets/figures/` から貼る（`figures/` に置いた写真はそこから）。フォルダは
+`octavo.config.py` で変えられる（`figure_src_dir`・`table_src_dir`・`figure_dir`・`table_dir`・`values_dir`）。
 
 ```bash
 octavo new analysis model           # analysis/model.qmd — 1本目は octavo.R、data/raw/（+ README.md）、
-                                    #   data/derived/、tables/、requirements.txt も置く
+                                    #   data/derived/、assets/tables/、requirements.txt も置く
 octavo new paper example-paper      # papers/example-paper/ に paper.md と体裁の main.typ
 octavo new paper example-paper --appendix   # appendix.md を足す（既にある論文にも）
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
 octavo new slides example-talk      # slides/example-talk.md
 octavo new lecture example-lecture  # lectures/example-lecture.md
 octavo new figure dag               # figures/dag.typ — Typst で描く図
+octavo new table compare            # tables/compare.csv — 手で作る表
 ```
 
 最初から部品を置くなら、`init` に並べる:
@@ -333,7 +343,7 @@ octavo new slides talk --example    # どのプロジェクトにも、どの種
 
 見本は、すべての経路（値・図・分析の表・引用・相互参照・付録）が一緒に動くところを
 見せる。どれも**見本だと分かる印**が入っている。原稿・`analysis.qmd`・`literature.bib` には
-`octavo:example` のコメント、`results/analysis.json` には `_placeholder`、仮の図は
+`octavo:example` のコメント、`assets/values/analysis.json` には `_placeholder`、仮の図は
 枠と × だけの絵。自分の中身に置き換えたら印ごと消す。残りは `octavo check` が数える。
 **仮の値のまま組むのは「致命的」**として止まる（分析を1度も実行していなくても
 `{{…}}` は全部解決してしまうので、仮の数字が入った PDF が黙って作れてしまう）。
@@ -430,11 +440,11 @@ targets: [typst, docx]
 | 参考文献節 | `## References` / `## 参考文献` | 変換時に落とす（書誌は `.bib` から組む） |
 | 引用 | `@key`（地の文）、`[@key; @key2]`（括弧） | |
 | 所有格引用 | `\poscite{key}` | "Smith and Taylor's (2003)" / 「山田・田中(2020)」 |
-| 分析の数値 | `{{n_obs}}` / `{{coef:.2f}}` | `.qmd` が `results/*.json` に出した値が入る（§4） |
+| 分析の数値 | `{{n_obs}}` / `{{coef:.2f}}` | `.qmd` が `assets/values/*.json` に出した値が入る（§4） |
 | 数式 | `$\hat\beta$`（文中）、`$$ … $$`（別行） | LaTeX の書き方。どの形式にも変換される（下の「数式」） |
-| 表 | マークダウンの表 + すぐ下に `: 表題 {#tbl-desc}` | 分析が書いた表なら表題の行だけ（§4） |
+| 表 | Markdown の表 + すぐ下に `: 表題 {#tbl-desc}` | 分析の表と、手で作る表（`tables/*.csv`）なら表題の行だけ（下） |
 | 式 | `$$ … $$ {#eq-model}` | ラベルを付ければ番号が付く |
-| 図 | `![表題](figures/trend.png){#fig-trend}` | 拡張子は形式ごとに付け替える（LaTeX は `.pdf`） |
+| 図 | `![表題](assets/figures/trend.png){#fig-trend}` | 拡張子は形式ごとに付け替える（LaTeX は `.pdf`） |
 | 相互参照 | `@fig-trend` `@tbl-desc` `@eq-model` `@sec-analysis` | 「図2.1」「表2.1」「式(2.1)」「第2節」（下の「相互参照」） |
 | タイトル部分 | 先頭の YAML front matter | `title` / `author` / `institute` / `date` |
 
@@ -450,7 +460,7 @@ targets: [typst, docx]
 @fig-trend shows the trend and @tbl-desc the descriptive statistics.
 We estimate @eq-model (see also [-@eq-model]).
 
-![Trend](../../figures/trend.png){#fig-trend}
+![Trend](../../assets/figures/trend.png){#fig-trend}
 
 | Variable | Mean |
 |----------|------|
@@ -463,8 +473,8 @@ y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
 $$ {#eq-model}
 ```
 
-- ラベルは Quarto と同じ書き方: `fig-` `tbl-` `eq-` `sec-` のあとに英数字と `-` `_`。
-  ラベルに使えるのは英数字と `-` `_` だけなので、日本語は空けずに続けて書ける（`@fig-trendに示す`）。
+- ラベルは Quarto と同じ書き方: `fig-` `tbl-` `eq-` `sec-` のあとに、英数字と `-` `_` だけが使える。
+  そのため、日本語は空けずに続けて書ける（`@fig-trendに示す`）。
 - `@fig-trend` は「図2.1」（英語の文書では "Figure 2.1"）、`@tbl-desc` は「表2.1」、
   `@eq-model` は「式(2.1)」、`@sec-analysis` は「第2節」、付録の節は「付録A」になる。
   `[-@eq-model]` は番号だけ（「(2.1)」）。
@@ -474,7 +484,7 @@ $$ {#eq-model}
   ある表、ラベルのある式。
 - ラベルは論文と付録、講義ノートの回どうしをまたいで使える（回ごとのデッキでは、
   ほかの回への参照は、プリントでの番号を文字で書く）。
-- `octavo check` は、ないラベルへの参照（変換では `??` になる）と、2回付けたラベルで
+- `octavo check` は、存在しないラベルへの参照（変換では `??` になる）と、2回付けたラベルで
   止める。どこからも参照されていない図・表・式のラベルは注意として出す。
 
 形式ごとのやり方: **Typst と LaTeX は組版側が番号を振る**。体裁は `crossref.typ` /
@@ -529,30 +539,33 @@ $$
 
 ### 図の拡張子
 
-原稿には `.png` を1つ貼れば足りる。出力ごとに次を探す。
+原稿には `.png` を書く（エディタの Markdown プレビューに出る）。`assets/figures/` の
+図は、出力ごとに次のファイルを使う。
 
-| 形式 | 探すファイル |
+| 形式 | 使うファイル |
 |---|---|
-| `latex` / `beamer` | `figures/trend.pdf` |
-| `typst` / `typst-slides` / `typst-notes` / `docx` | `figures/trend.png` |
+| `typst` / `typst-slides` / `typst-notes` / `latex` / `beamer` | `assets/figures/trend.pdf` — ベクター。拡大してもぼやけず、図の中の文字も検索できる |
+| `docx` | `assets/figures/trend.png` — Word は PDF を図として入れられない |
 
-`figure_ext` で変えられる。足りないファイルは変換時に「欠落」として出る。
+`figure_ext` で変えられる（新しい Word でもベクターにするなら `{'docx': '.svg'}`。ただし分析の
+図を SVG にできるのは R に cairo がある環境だけで、Mac は XQuartz がないと作れない）。
+`assets/figures/` の外の図（`figures/` に置いた写真など）は、書いたとおりに使う。足りないファイルは変換時に「欠落」として出る。
 
 ### Typst で図を描く（TikZ の代わり）
 
-箱と矢印の図・因果の図・流れ図などは、TeX の頃の standalone の TikZ のように、別の
-ファイルに Typst で描く。Octavo がそれを普通の図にするので、どの形式にも出て、番号が
-振られ、参照できる。
+箱と矢印の図、因果グラフ、フローチャートなどは、TeX の standalone TikZ のように、専用の
+ファイルに Typst で描く。Octavo がそれを通常の図として組み込むので、どの出力形式でも使え、
+番号が付き、参照できる。
 
 ```bash
 octavo new figure dag       # figures/dag.typ（小さな diagram() と見本入り）
-octavo build                # dag.typ のほうが新しければ figures/dag.pdf と .png を組む
+octavo build                # dag.typ のほうが新しければ assets/figures/dag.pdf と .png を組む
 ```
 
 ```markdown
 @fig-dag に仮説を示す。
 
-![仮説](../../figures/dag.png){#fig-dag width=60%}
+![仮説](../../assets/figures/dag.png){#fig-dag width=60%}
 ```
 
 `.typ` の中では、`diagram()` に箱（中心の位置を cm で、と文字）と矢印（箱から箱へ。
@@ -578,7 +591,7 @@ octavo build                # dag.typ のほうが新しければ figures/dag.pd
 - 名前が `_` で始まるファイルは図として組まない。何枚もの図で使う部品は
   `figures/_parts.typ` に置き、`#import "/figures/_parts.typ": *` と書く（`/` で
   始まるパスはプロジェクトのフォルダから）。これを変えると、全部の図が組み直される
-- 図に分析の数値を出せる: `#let v = json("/results/analysis.json")` として `#v.n_obs`
+- 図に分析の数値を出せる: `#let v = json("/assets/values/analysis.json")` として `#v.n_obs`
 - キャプション・ラベル・大きさ（`width=`）は、どの図とも同じく原稿の側に書く。
   原稿に Typst を直接書いても（`` ```{=typst} `` のブロック）組めるが、Typst の出力に
   しか出ず、そこに書いたラベルは Octavo から見えない
@@ -589,7 +602,7 @@ octavo build                # dag.typ のほうが新しければ figures/dag.pd
 
 ### 分析が作った表
 
-分析が作った表も、原稿には書き写さない。`ov_table()` が表の中身を `tables/<名前>.typ`・
+分析が作った表も、原稿には書き写さない。`ov_table()` が表の中身を `assets/tables/<名前>.typ`・
 `.tex`・`.md` に書き、原稿には表題の行だけを、ラベル `tbl-<名前>` を付けて置く:
 
 ```markdown
@@ -601,6 +614,54 @@ Typst は `.typ` を読み込み、LaTeX は `.tex` を表題とラベルつき�
 `\inputtable` し、Word には Markdown 版が入る。`@tbl-summary` でほかの表と同じく
 参照できる。原稿が出す形式に要るファイルがなければ `octavo check` が止める。
 
+### 手で作る表（CSV）
+
+分析から出てこない表 — 概念や制度を文章で並べる比較表、文献から集めた数字、授業の小さな表 —
+は、原稿に Markdown の表として書いてもよいが、列が多いと打つのが面倒で、長い文章は
+セルに収まりにくい。そういう表は CSV にする: `tables/<名前>.csv`（`table_src_dir`）。
+`octavo build` がそれを `ov_table()` と同じ `assets/tables/<名前>.typ`・`.tex`・`.md` にするので、
+原稿には分析の表と同じく表題の行だけを置く:
+
+```bash
+octavo new table compare     # tables/compare.csv（書き始めのひな型）
+```
+
+```markdown
+@tbl-compare sets the two side by side.
+
+: The two schemes compared {#tbl-compare}
+```
+
+VS Code では、`.csv` のタブの右上の**「表として編集」**ボタンで表の形になる（サイドバーから
+足した表は、はじめからこの形で開く）。行と列の追加・移動、Enter で次の行、
+Alt+Enter でセルの中の改行、Excel でコピーした範囲の貼り付け。「テキストで編集」で CSV の
+まま開ける）。Excel や LibreOffice で編集してもよい。設定はなく、見た目は中身から決まる:
+
+- 1行目が見出し。**見出しの中身のあるセルの右隣が空なら、そのセルと結合する** — Excel で
+  見出しのセルを結合して CSV に保存すると、ちょうどこの形になる。結合があれば2行目も見出しに
+  なり（上の見出しが下の列をまとめる）、1行目の見出しの下が空なら、その見出しは2行目に下りる:
+
+  ```
+  ,2020,,2024,
+  Region,N,Share,N,Share
+  North,120,0.31,135,0.33
+  ```
+
+- 数字だけの列（`1,234`、`(0.05)`、`−0.12`、`12%`、`0.31***`。`-` や `—` は空欄あつかい）は
+  右揃え、それ以外は左揃え
+- 長い文章の列は余った幅を取って折り返す（Typst は `1fr`、LaTeX は `p{}`）。ほかの列は中身の幅
+- セルは文字どおりに出る。`*`・`@`・`#` はどの形式でも書いたままになる
+- Typst と LaTeX は分析の表と同じ罫線（上・見出しの下・下）で、結合した見出しの下には
+  短い線を引く。Word は Markdown の表なので結合できず、2行の見出しは1つにまとめる（`2020 N`）
+- 文字コードは UTF-8 で読み（BOM があってもよい）、UTF-8 でなければ Shift_JIS で読む
+  （日本語版の Excel がそう保存することがある）。Octavo と拡張機能は BOM を付けない。
+  **Windows の Excel で UTF-8 の CSV を開く**と日本語が化けることがあるので、
+  「データ → テキストまたは CSV から」で UTF-8 を選んで開くか、VS Code で編集する
+
+`.csv` を直したあと作られていない表は `octavo check` が注意し、`octavo release` は止まる。
+分析の `ov_table()` と同じ名前の表は build を止める（どちらが組まれるかが実行の順で変わるため）。
+`.csv` を保存すると、開いているプレビューが組み直される。
+
 ---
 
 ## 4. 分析（Quarto）と原稿の分業
@@ -611,9 +672,9 @@ Typst は `.typ` を読み込み、LaTeX は `.tex` を表題とラベルつき�
 食い違いが起きない。
 
 ```
-analysis/*.qmd  --quarto render-->  results/*.json   本文の {{…}}
-                                    figures/*.pdf|png  図
-                                    tables/*.tex|typ   表
+analysis/*.qmd  --quarto render-->  assets/values/*.json   本文の {{…}}
+                                    assets/figures/*.pdf|png  図
+                                    assets/tables/*.tex|typ|md  表
 
 manuscripts + the three above  --octavo build-->  Typst / Word / LaTeX / Beamer
 ```
@@ -622,7 +683,7 @@ manuscripts + the three above  --octavo build-->  Typst / Word / LaTeX / Beamer
 
 `octavo new analysis <name>` は `analysis/` に `.qmd` の枠を置き、1本目のときは
 ヘルパーの `octavo.R` も置く（`--example` なら分析の例になる）。枠の最初の
-チャンクが、もう読み込んでいる:
+チャンクが、すでに読み込んでいる:
 
 ```r
 root <- Sys.getenv("OCTAVO_ROOT", unset = "")
@@ -632,19 +693,19 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 | 渡すもの | 分析側（.qmd） | 原稿側（.md） |
 |---|---|---|
 | 数値 | `ov_value("n_obs", nrow(d))` | `{{n_obs}}` |
-| 図 | `ov_figure(p, "trend")` | `![推移](../../figures/trend.png){#fig-trend}` |
+| 図 | `ov_figure(p, "trend")` | `![推移](../../assets/figures/trend.png){#fig-trend}` |
 | 表 | `ov_table(tab, "summary")` | `: 記述統計 {#tbl-summary}`（表題の行だけ） |
 
 - `ov_value(name, x, fmt = NULL, note = NULL)` — 値を1つ登録する。
-  `results/<この .qmd の名前>.json` に貯まる。`ov_values(a = 1, b = 2)` でまとめ書きも可。
-- `ov_figure(x, name, width, height, dpi)` — `figures/` に **`.pdf` と `.png` の両方**を
-  書く。LaTeX は `.pdf`、Word と Typst は `.png` を使う既定にそのまま乗る。
+  `assets/values/<この .qmd の名前>.json` に貯まる。`ov_values(a = 1, b = 2)` でまとめ書きも可。
+- `ov_figure(x, name, width, height, dpi)` — `assets/figures/` に **`.pdf` と `.png` の両方**を
+  書く。Typst と LaTeX は `.pdf`（拡大してもぼやけない）、Word は `.png` を使う既定にそのまま乗る。
   `x` は ggplot でも、base graphics を描く関数でもよい。
-- `ov_table(x, name, notes, align)` — `tables/` に表の**中身**を `.tex`・`.typ`・`.md`
+- `ov_table(x, name, notes, align)` — `assets/tables/` に表の**中身**を `.tex`・`.typ`・`.md`
   で書く。`x` は data.frame か、出来合いの文字列を入れた
   `list(tex = …, typ = …, md = …)`。表題とラベルは原稿が持つ（`: 表題 {#tbl-<name>}`）
   ので、`caption` の引数はない。
-- `ov_pval(p)` — p 値を慣例どおり（`0.023` → `.023`、`< .001`）文字にする。
+- `ov_pval(p)` — p 値を慣例の書き方（`0.023` → `.023`、`< .001`）の文字列にする。
 
 ### 4.2 数値の書式
 
@@ -666,7 +727,7 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 ### 4.3 いつ実行されるか
 
 `octavo build` は変換の前に `.qmd` の更新時刻を見て、**前に実行したときより
-新しければ** `quarto render` を実行する。記録は `results/.analysis-stamp.json`。
+新しければ** `quarto render` を実行する。記録は `assets/values/.analysis-stamp.json`。
 
 ```python
 'analysis': ['analysis/*.qmd'],
@@ -674,19 +735,19 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],
 'analysis_deps': [],       # 全部の .qmd に共通の依存
 'analysis_to': None,       # quarto render --to（None なら .qmd の指定に従う）
-'analysis_args': [],       # quarto に渡す追加の引数
+'analysis_args': [],       # Quarto に渡す追加の引数
 'analysis_auto': True,     # False にすると octavo analysis run のときだけ実行される
-'results_dir': 'results',
+'values_dir': 'assets/values',
 'value_float_format': '.3f',
 'value_thousands_sep': True,
 ```
 
-- `octavo build --no-analysis` — 実行しない（いまの `results/` のまま変換する）
+- `octavo build --no-analysis` — 実行しない（いまの `assets/values/` のまま変換する）
 - `octavo build --force-analysis` — 古くなくても再実行する
 - `octavo analysis` — どれが古いか、値がいくつあるかを見る
 - `octavo analysis run [--force]` — 古いものを実行する（手動のものも含む）
 - `octavo analysis run analysis/01-clean.qmd` — その1本だけを実行する（古くなくても）
-- `octavo values [--unused] [--json]` — 本文の `{{…}}` と `results/` の突き合わせ
+- `octavo values [--unused] [--json]` — 本文の `{{…}}` と `assets/values/` の突き合わせ
 - `octavo values --diff` — **前に分析を実行したときから、本文の数字がどう動いたか**
 
 **時間のかかる `.qmd` は `'manual': True` にする**（次の節）。`octavo build` は
@@ -696,10 +757,10 @@ source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R"
 `.qmd` ごとの状態（最新・古い・手動）と実行するボタンが並び、`.qmd` を開いて
 いればエディタ右上のボタンでその1本を実行できる。**プレビューは分析を実行
 しない**。古い分析があれば PDF の上に帯が出るので、そこのボタンで実行すると、
-終わったあとにプレビューが組み直される。進み具合は右下の通知に、quarto の出力は
+終わったあとにプレビューが組み直される。進み具合は右下の通知に、Quarto の出力は
 「出力」パネルの Octavo に出る。
 
-**quarto が入っていなければ警告して素通りする**（変換自体は pandoc だけでできる）。
+**Quarto が入っていなければ警告して素通りする**（変換自体は pandoc だけでできる）。
 入っているのに `render` が失敗したときは、古い数値のまま論文を組まないよう
 **変換を止める**。止めたくないときは `--no-analysis`。
 
@@ -727,7 +788,7 @@ Changed (2):
 'analysis': ['analysis/*.qmd'],
 ```
 
-1本の `.qmd` は `results/<その .qmd の名前>.json` を持つ。ファイルが分かれて
+1本の `.qmd` は `assets/values/<その .qmd の名前>.json` を持つ。ファイルが分かれて
 いても本文からは区別なく `{{名前}}` で呼べる（`octavo` が全部の `*.json` を
 読んで1つにまとめる）。**同じ名前を2つの `.qmd` が書いたときは警告を出して
 後を採る**ので、`octavo values` の `source` 欄で出所を確かめること。
@@ -755,7 +816,7 @@ VS Code ならサイドバーのボタン。整形が実行されて `data/deriv
 `data/derived/` を書き換えたら、**同じ 1 回の `octavo build` の中で**
 `02-model` も再実行される（判定は1本ずつ、その時点でやり直している）。
 
-`.qmd` を消したり名前を変えたりすると、前に書いた `results/<古い名前>.json`
+`.qmd` を消したり名前を変えたりすると、前に書いた `assets/values/<古い名前>.json`
 が残る。本文がまだその名前を参照していると**古い数値が黙って入り続ける**ので、
 `octavo analysis` と `octavo values` が「対応する `.qmd` がない値のファイル」
 として知らせる。
@@ -783,10 +844,10 @@ octavo build example-paper --to typst --appendix  # body.typ と appendix.typ �
 同梱のヘルパーは R 向けだが、`octavo` 側が見ているのは**置き場所と形だけ**なので、
 Python でも Julia でも規約に合わせれば動く。
 
-- `results/<何か>.json` に `{"名前": 値}` を書く。整数と小数は JSON 上で
+- `assets/values/<何か>.json` に `{"名前": 値}` を書く。整数と小数は JSON 上で
   区別される（`1523` と `1523.0` で既定の書式が変わる）。`{"名前":
   {"value": …, "fmt": ".2f", "note": "…"}}` の形も読む。`_` で始まるキーは無視する
-- 図は `figures/<name>.pdf` と `.png`、表は `tables/<name>.tex` と `.typ`
+- 図は `assets/figures/<name>.pdf` と `.png`、表は `assets/tables/<name>.tex` と `.typ`
 
 ---
 
@@ -798,6 +859,35 @@ Python でも Julia でも規約に合わせれば動く。
 `bib_file` の場所（既定は `literature.bib`）に置く。Zotero なら Better BibTeX の
 自動エクスポート（Keep updated）を使うと、書誌を直すたびに `.bib` も追随し、
 引用キーも途中で変わらない。
+
+### 日本語と英語の文献を1つの書誌に
+
+pandoc は書誌全体を1つの言語で組むので、日本語の文書では英語の文献まで
+「Smith ほか (2003年)」になり、英語の題が「」に入っていた。日本語で投稿する雑誌の多くは、
+欧文献と和文献に別の書き方を決めているので、日本語の文書（`lang: 'ja'`）では Octavo も
+そうする:
+
+- **本文の中の引用と英語の文献**は、選んだ書式（`csl`）を英語の決まりでそのまま使う
+  （Chicago、APA、APSA など）。引用の中の日本語の名前は、*and* / *&* の代わりに「・」で
+  つなぎ、*et al.* は「ほか」にする
+- **`.bib` で日本語と印を付けた文献**（`langid = {japanese}`）は、**書式にかかわらず**、
+  `.bib` の中身から1つの日本語の形で書く:
+
+```
+Smith et al. (2003), (山田・田中 2020), 佐藤ほか (2018)
+
+Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." Journal of Examples 4: 1–10.
+山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12(3): 1–20.
+佐藤一郎・鈴木次郎・高橋三郎・伊藤四郎 (2018)『日本語の本』見本出版.
+加藤五郎 (2015)「論文集の章」中村六郎編『論文集の名前』見本出版, 10–20.
+```
+
+論文と章の題は「」、本と雑誌の名前は『』、年は名前のあとに括弧で入れ（同じ年の2本は、書式が
+付ける a / b も）、`.bib` に DOI か URL があれば最後に付ける。`langid` のない日本語の文献は
+英語の決まりのまま組まれる（`octavo checkbib` が一覧にする）。`citations_by_language: False`
+にすると、書誌全体を `csl_locale` の言語で組む。日本語の形は pandoc のフィルター
+`templates/citations/japanese.lua` にあり、和文献の書き方に独自の決まりがある雑誌には、
+プロジェクト用の写しを作って直す（`octavo template copy citations/japanese.lua`、§7）。
 
 ### 検査する
 
@@ -872,7 +962,7 @@ octavo watch [documents...] [--to formats]     原稿・.qmd を保存するた�
 octavo documents [--json]                      登録されている原稿の一覧
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]  設定を見る・変える（--doc はその文書の設定）
 octavo analysis [status|run] [--force]         分析 (.qmd) の状態を見る／実行する
-octavo values [--unused] [--diff [ref]] [--json]  本文の {{…}} と results/
+octavo values [--unused] [--diff [ref]] [--json]  本文の {{…}} と assets/values/
 octavo lint [--json]                           原稿に手入力された数値を探す
 octavo check [--strict] [--anonymous]          投稿前にまとめて検査する
 octavo bundle [--anonymous] [--replication] [--with-raw-data]
@@ -885,7 +975,7 @@ octavo doctor [--json]
 octavo setup [--with-tex] [--no-quarto] [--no-r] [--check]   ツールを入れる（setup.sh を実行する）
 octavo env                                     プロジェクトの .venv（uv）と renv を用意する
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--example]
-octavo new paper|slides|lecture|analysis <name> [--example] [--json]   原稿か分析を足す
+octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--json]   原稿・分析・図・表を足す
 octavo new paper <name> --appendix|--tex      appendix.md / main.tex を足す（後からでも）
 octavo template list|copy|diff [name] [--user]  自分用のテンプレート（§7）
 octavo release <document> <label> [--dry-run]   この版にタグ、PDF を GitHub Release へ
@@ -902,7 +992,7 @@ octavo targets                          出力できる形式の一覧
 `latexmk` を回す。
 
 `--no-citations` は引用を解決せずに変換する。書きながら見た目だけ確かめたい
-ときに速い。`--no-analysis` は `.qmd` を実行せず、いまの `results/` のまま
+ときに速い。`--no-analysis` は `.qmd` を実行せず、いまの `assets/values/` のまま
 変換する（重い推定を待ちたくないとき）。`--anonymous` は匿名審査用に組む
 （下記）。
 
@@ -910,7 +1000,7 @@ octavo targets                          出力できる形式の一覧
 
 `octavo check` は、散らばっている検査を1回にまとめる。**致命的**（そのまま
 組むと壊れる・間違う）と**注意**（人が判断する）を分け、既定では致命的が
-あるときだけ非 0 で終わる。
+あるときだけ終了コードが 0 以外になる。
 
 ```
 $ octavo check
@@ -919,8 +1009,8 @@ $ octavo check
            analysis/02-model.qmd
            -> octavo analysis run
 [fatal ] figure files     1 missing
-           figures/fig2_effect.pdf
-           -> octavo analysis run, or drop it into figures/
+           assets/figures/effect.pdf
+           -> octavo analysis run (or octavo build, for a figure drawn in Typst)
 ```
 
 見るもの: 原稿の実在 / 分析が最新か / 対応する .qmd がなくなった値のファイル / 本文の `{{…}}`
@@ -1009,8 +1099,8 @@ octavo check --anonymous               # 自己引用の候補も出す
 ### 投稿用にまとめ直す
 
 雑誌の投稿システムはたいてい階層を持てない。`octavo bundle` は
-`image("../../figures/fig1.png")` を `image("fig1.png")` に（LaTeX なら
-`\includegraphics{../../figures/fig1.pdf}` を `{fig1.pdf}` に）書き換え、
+`image("../../assets/figures/fig1.png")` を `image("fig1.png")` に（LaTeX なら
+`\includegraphics{../../assets/figures/fig1.pdf}` を `{fig1.pdf}` に）書き換え、
 参照しているファイルを1つに集めて zip にする。既定は Typst で、LaTeX で
 投稿するなら `--to latex` を付ける。まとめるのは**論文1本**なので名前を渡す
 （リポジトリに論文が1本しかなければ省略できる）。
@@ -1018,7 +1108,7 @@ octavo check --anonymous               # 自己引用の候補も出す
 ```bash
 octavo build example-paper
 octavo bundle example-paper                     # submission-example-paper.zip
-octavo bundle example-paper --dir --out example-talk  # zip にせずフォルダで
+octavo bundle example-paper --dir --out submission  # zip にせずフォルダで
 ```
 
 `main.tex` の `\newcommand` やコメント行、`main.typ` の `//` コメント行は参照として拾わない。
@@ -1076,7 +1166,7 @@ Octavo・pandoc・Typst の版を書き残す。ファイルは GitHub に置か
 
 コミットしていない変更がある（タグが組んだものを指さなくなる）、分析が古い・
 仮の値のまま、タグがもうある、のどれかなら出さない（理由はまとめて全部出す）。
-組むのはその場で、分析は実行しない（実行するとコミットの後で `results/` が
+組むのはその場で、分析は実行しない（実行するとコミットの後で `assets/values/` が
 変わる）。`--dry-run` は確認と組版だけ、`--anonymous` は匿名版を出す。
 [GitHub CLI](https://cli.github.com/)（`gh auth login` 済み）と、`origin` という
 名前の GitHub のリモートが要る。
@@ -1128,7 +1218,7 @@ octavo bundle --replication                 # replication.zip
 octavo bundle --replication --with-raw-data # 原データも入れる
 ```
 
-入るのは `analysis/`（`octavo.R` ごと）`results/` `figures/` `tables/`
+入るのは `analysis/`（`octavo.R` ごと）`assets/`（数値・図・表）`figures/`
 `data/derived/` `data/HASHES.json` `octavo.config.py` `literature.bib` と、
 再現の手順書（`_session` の記録つき）。**原データは既定で入れない** —
 再配布できないことがあるため、`--with-raw-data` で明示する。
@@ -1217,13 +1307,13 @@ Typst で `typst_citations: 'native'` にすると、CSL ではなく Typst の
 ### Typst スライド
 
 `typst-slides` は**パッケージを使わない素の Typst** で組む。組むときにネットワークは
-要らない（Typst 0.12 以上）。段階表示などのアニメーションは持たない。
+要らない（Typst 0.14 以上）。段階表示などのアニメーションは持たない。
 
 - `#` と `##` の両方があれば、`#` が節、`##` が1枚のスライド。見出しが1段
   だけなら、その見出しが1枚ずつになる。節は `typst_slides_section_slides` を
   `True` にしたときだけ扉のスライドになる。`#` の直下にいきなり本文があれば、
   タイトルつきの1枚になる
-- 図は残りの高さいっぱいに収まるように置く。図表に番号は付けない
+- 図は残りの高さいっぱいに収まるように置く。図・表・式にはプリントと同じ番号が付き、`@ラベル` で参照できる
 - タイトル部分は front matter の `title` / `subtitle` / `author` / `institute` / `date`
 - 体裁は `templates/slides/typst-slides.typ`。変えるなら
   `octavo template copy slides/typst-slides.typ` でコピーして直す（§7）。設定で変えられるのは:
@@ -1281,7 +1371,7 @@ luatexja が見るので babel は要らない）。
 
 ```
 octavo/
-  octavo                   入口（これを PATH に通す）
+  bin/octavo               入口（これを PATH に通す）
   pyproject.toml           pip で入れるための設定（配布名 octavo-kit・コマンド octavo）
   setup.sh                 Linux / WSL2（apt）と macOS（Homebrew）にツールを入れる。
                            octavo setup も拡張機能の「セットアップ」もこれを実行する
@@ -1294,6 +1384,8 @@ octavo/
     md.py                  形式に依存しない前処理（見出し・表・図・条件付きブロック）
     values.py              分析が出した数値を本文の {{…}} に差し込む／前回との差分
     analysis.py            .qmd の鮮度判定と quarto render
+    diagrams.py            Typst で描く図（figures/*.typ -> assets/figures/）
+    handtables.py          手で作る表（tables/*.csv -> assets/tables/）
     lint.py                原稿に手入力された数値を探す
     audit.py               octavo check（検査をまとめる）
     bundle.py              octavo bundle（投稿用・再現用パッケージ）
@@ -1358,8 +1450,8 @@ python3 tests/test_octavo.py       # 足りないツールが要る項目は自�
 - 数値の差し込み（`{{…}}` の書式・欠落の扱い・ファイル間の衝突・コード
   ブロックを避けること）と、`.qmd` の鮮度判定（更新時刻と刻印の比較、
   依存ファイルの追随、連鎖する `.qmd`）
-- 同梱の分析の見本を `octavo.R` ごと `quarto render` し、`results/`・`figures/`・
-  `tables/` に書かれた中身を検査すること
+- 同梱の分析の見本を `octavo.R` ごと `quarto render` し、`assets/values/`・`assets/figures/`・
+  `assets/tables/` に書かれた中身を検査すること
 - 手入力の数値の検出、`octavo check` の判定、`octavo bundle` のパス平坦化
 - 匿名審査の出し分け（条件付きブロック・タイトル部分・フラグ・漏れの検出）、
   投稿規定の分量、データのハッシュ値、`.docx` の変更履歴の読み取り、
@@ -1392,7 +1484,7 @@ python3 tests/test_octavo.py       # 足りないツールが要る項目は自�
 
 `vscode-extension/` に、この CLI を VS Code から使うための拡張が入っている。
 コマンドパレットから `build` / `checkbib` / `doctor` などを呼べるほか、
-マークダウン上で `@` と打つと `.bib` の文献を補完し、`{{` と打つと分析が
+Markdown 上で `@` と打つと `.bib` の文献を補完し、`{{` と打つと分析が
 出した値を補完する。ない引用キーと、解決できない `{{…}}` には赤波線が出る
 （判定は `octavo checkbib --json` と `octavo values --json` を読むだけで、
 Python 側とロジックが二重にならないようにしてある）。最初に起動したときにツールが
@@ -1401,7 +1493,8 @@ Python 側とロジックが二重にならないようにしてある）。最�
 `wsl.exe` 経由で自動的に WSL 内の `octavo` を呼ぶ。詳しくは
 `vscode-extension/README.md`。**プレビュー**もここにある — 原稿の隣の列に
 組み上がった PDF が出て保存のたびに組み直し、講義ノートなら3列目にカーソルの
-ある回のスライドが出る（台本に切り替えたり、2分割に戻したりできる）。
+ある回のスライドが出る（台本に切り替えたり、2分割に戻したりできる）。手で作る表
+（`tables/*.csv`）は表の形で編集できる。
 
 表示は既定が英語で、VS Code を日本語で使っていれば日本語になり、CLI にも
 同じ言語を渡す。
@@ -1416,7 +1509,7 @@ npx @vscode/vsce package   # .vsix ができる。VS Code に「VSIX からイ�
 
 ## Contributing
 
-Issue・PR 歓迎(日本語でも可)。[CONTRIBUTING.md](../CONTRIBUTING.md) を参照。
+Issue・PR 歓迎（日本語でも可）。[CONTRIBUTING.md](../CONTRIBUTING.md) を参照。
 
 ## ライセンス
 

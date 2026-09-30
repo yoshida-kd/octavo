@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""データの指紋（`data/HASHES.json`）。
+"""データのハッシュ値（`data/HASHES.json`）。
 
     octavo data hash      いまの data/ の中身を記録する
     octavo data status    記録と食い違っていないか見る
 
-`_session`（分析を走らせた環境）はソフトウェアの版しか残さない。再現性の
-もう半分は「**同じデータで走らせたか**」で、それを保証するのがここ。
+`_session`（分析を実行した環境）はソフトウェアの版しか残さない。再現性の
+もう半分は「**同じデータで実行したか**」で、それを保証するのがここ。
 
 `data/raw/` と `data/derived/` は `.gitignore` で git に入らない。つまり
 リポジトリだけ渡されても中身は再現できない。`data/HASHES.json` は
@@ -90,7 +90,7 @@ def scan(cfg) -> dict:
 
 
 def read(cfg) -> tuple:
-    """(記録した日時, {相対パス: {...}}) を返す。無ければ ('', {})。"""
+    """(記録した日時, {相対パス: {...}}) を返す。なければ ('', {})。"""
     try:
         d = json.loads(manifest_path(cfg).read_text(encoding='utf-8'))
     except (OSError, ValueError):
@@ -113,7 +113,7 @@ def write(cfg) -> tuple:
 
 
 def compare(cfg) -> list:
-    """記録といまの中身の食い違い。記録が無ければ空を返す（未記録は別に扱う）。"""
+    """記録といまの中身の食い違い。記録がなければ空を返す（未記録は別に扱う）。"""
     _, recorded = read(cfg)
     if not recorded:
         return []

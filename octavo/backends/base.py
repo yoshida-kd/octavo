@@ -89,7 +89,7 @@ class Ctx:
         if override is not None:
             return override
         if not self.backend.numbers_itself:
-            return False           # 番号はマークダウン段階で入れてある
+            return False           # 番号は Markdown 段階で入れてある
         return PROFILES[self.profile]['number_sections']
 
     @property
@@ -123,8 +123,9 @@ class Ctx:
     def figure_target(self, path: str) -> str:
         """原稿の図のパス（out_dir からの相対に直したもの）を、この形式の拡張子に。
 
-        figures/ の中の図だけ付け替える（ov_figure は .pdf と .png の両方を書く。
-        LaTeX は .pdf、ほかは .png）。URL や figures/ の外の図はそのまま。
+        figure_dir（assets/figures/）の中の図だけ付け替える（ov_figure も Typst で描いた図も
+        .pdf と .png の両方を書く。Typst・LaTeX は .pdf、Word は .png）。URL や、手で置いた
+        figures/ の写真など、figure_dir の外の図はそのまま。
         """
         bare = path[1:-1] if path.startswith('<') else path
         if '://' in bare or bare.startswith(('data:', '#')):
@@ -170,7 +171,7 @@ class Backend:
     # main.tex / main.typ が匿名審査に対応しているかを見分ける目印（表示用）。
     anonymous_guard = ''
     # 手で書く体裁ファイルの名前（main.* 方式の形式だけ持つ）。**正本は原稿の隣**
-    # （papers/<名前>/main.typ）に置き、組版のたびに out_dir へ写す。build/ の中に
+    # （papers/<名前>/main.typ）に置き、組版のたびに out_dir へコピーする。build/ の中に
     # 手で書くファイルを置くと、生成物として消したときに体裁ごと消える。
     main_name = ''
 
@@ -185,11 +186,11 @@ class Backend:
     def pandoc_args(self, ctx: Ctx) -> list:
         return ['-t', self.pandoc_to, '--wrap=preserve']
 
-    # -- 差し替え（マークダウン段階）---------------------------------------
+    # -- 差し替え（Markdown 段階）---------------------------------------
     def fmt_figure(self, m: re.Match, label: str | None, ctx: Ctx) -> str:
         """段落に1つだけの画像（crossref.IMAGE）。既定は画像リンクのまま pandoc に
         図にさせる（ラベルもキャプションの書式もそのまま渡る）。拡張子を形式に
-        合わせ、幅の指定が無ければ figure_width を足す。"""
+        合わせ、幅の指定がなければ figure_width を足す。"""
         attr = (m.group('attr') or '').strip()
         if 'width=' not in attr:
             w = int(float(ctx.cfg['figure_width']) * 100)
@@ -199,12 +200,11 @@ class Backend:
         return f'![{m.group("alt")}]({path}{m.group("title") or ""}){{{attr}}}'
 
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
-        """分析が書いた表（tables/<名前>）を差し込む。既定は Markdown 版（.md）を
+        """分析が書いた表（か、手で作った tables/<名前>.csv から作った表）（tables/<名前>）を差し込む。既定は Markdown 版（.md）を
         本文の表として入れ、キャプションを付ける（Word はこれ）。"""
         p = ctx.table_path(name, '.md')     # Word など、.typ も .tex も読めない形式
         if not p.is_file():
-            ctx.say(f'{tag("table")} ' + t('{path} is missing (octavo analysis run, or '
-                                           'ov_table() in the .qmd)', path=ctx.cfg.rel(p)))
+            ctx.say(f'{tag("table")} ' + missing_table(ctx, p, name))
             return f'**[{name}.md ?]**\n\n: {caption} {{#{label}}}'
         ctx.say(f'{tag("table")} {label} -> {ctx.cfg.rel(p)}')
         return p.read_text(encoding='utf-8').strip() + f'\n\n: {caption} {{#{label}}}'
@@ -254,18 +254,18 @@ class Backend:
     def flags(self, ctx: Ctx) -> tuple | None:
         """(ファイル名, 中身) を返す。`main.tex` を持つ形式だけ実装する。
 
-        題扉は `main.tex` / `main.typ` が持っていて Octavo は触らない。だから
+        タイトル部分は `main.tex` / `main.typ` が持っていて Octavo は触らない。だから
         匿名審査の切り替えは**フラグを1つ渡して向こうに判断させる**。
         `\\input{flags}` / `#import "flags.typ"` を書いておけば、
         `octavo build --anonymous` のたびに中身が入れ替わる。
         """
         return None
 
-    # -- 投稿用に固め直す（octavo bundle）-----------------------------------
+    # -- 投稿用にまとめ直す（octavo bundle）-----------------------------------
     def flatten_assets(self, text: str) -> tuple:
         """外部ファイルへの参照を**ファイル名だけ**にする。
 
-        投稿システムは階層を持てないことが多いので、`../../figures/fig1.pdf`
+        投稿システムは階層を持てないことが多いので、`../../assets/figures/fig1.pdf`
         のような相対パスを `fig1.pdf` に直し、参照しているパスの一覧を返す。
         呼び出し側（bundle.py）はそれを1つの場所に集める。
 
@@ -291,3 +291,10 @@ class Backend:
 
     def next_step(self, ctx: Ctx) -> str:
         return ''
+
+
+def missing_table(ctx: Ctx, path: Path, name: str) -> str:
+    """表のファイルがないときの一言（分析の表か、手で作る表か）。"""
+    csv = ctx.cfg.rel(Path(ctx.cfg['table_src_dir']) / f'{name}.csv')
+    return t('{path} is missing (octavo analysis run, or write {csv} and octavo build)',
+             path=ctx.cfg.rel(path), csv=csv)

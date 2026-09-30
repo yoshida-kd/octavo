@@ -38,8 +38,8 @@ renv/python/
 # Python's cache from reading octavo.config.py
 __pycache__/
 
-# Quarto's working files (results/*.json is output and is committed)
+# Quarto's working files (assets/values/*.json is output and is committed)
 /.quarto/
 **/*_files/
 analysis/*.html
-results/.analysis-stamp.json
+assets/values/.analysis-stamp.json

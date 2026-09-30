@@ -6,16 +6,21 @@ CONFIG = {
 @@DOCUMENTS@@
 
     # ---- Bibliography --------------------------------------------------
-    'bib_file': 'literature.bib',      # exported from Zotero
+    'bib_file': 'literature.bib',      # exported from your reference manager (e.g. Zotero)
     # Match the journal. Add styles with octavo csl list / octavo csl get <id>
     'csl': 'chicago-author-date',
 
     # ---- Language ------------------------------------------------------
     'lang': 'en',
 
-    # ---- Figures and tables --------------------------------------------
-    'figure_dir': 'figures',
-    'table_dir': 'tables',
+    # ---- Where things go (the defaults; write a key only to change it) --
+    # What you make by hand:
+    #   'figure_src_dir': 'figures',      # figures drawn in Typst (<name>.typ), photos
+    #   'table_src_dir': 'tables',        # tables (<name>.csv)
+    # What the analysis and octavo build write (never edited by hand):
+    #   'figure_dir': 'assets/figures',   # the manuscript places figures from here
+    #   'table_dir': 'assets/tables',
+    #   'values_dir': 'assets/values',    # the numbers behind {{…}}
 
     # ---- Title block (a manuscript's front matter wins) ----------------
     'meta': {
@@ -24,8 +29,8 @@ CONFIG = {
     },
 
     # ---- Analysis (Quarto) ---------------------------------------------
-    # analysis/*.qmd writes results/*.json (the {{…}} in the text), figures/
-    # and tables/. octavo build runs quarto render when a .qmd or its deps
+    # analysis/*.qmd writes assets/values/*.json (the {{…}} in the text), assets/figures/
+    # and assets/tables/. octavo build runs quarto render when a .qmd or its deps
     # are newer than the last run.
     'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
 

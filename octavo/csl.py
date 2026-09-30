@@ -5,7 +5,7 @@
 
   * `.csl` ファイルへのパス（プロジェクト相対でも絶対でも）
   * CSL スタイル ID（例 `apa`, `modern-language-association`）
-    -> 下の探索順で見つける。無ければ Zotero スタイルリポジトリから取得して
+    -> 下の探索順で見つける。なければ Zotero スタイルリポジトリから取得して
        `octavo/csl/` にキャッシュする
   * 別名（下の ALIASES。`apa`, `mla`, `ieee` 等）
 
@@ -15,7 +15,7 @@
   2. octavo/csl/<id>.csl（共有キャッシュ）
   3. ネットワーク（`octavo csl get <id>` か build 時の自動取得）
 
-pandoc の内蔵既定は chicago-author-date なので、それだけは .csl が無くても
+pandoc の内蔵既定は chicago-author-date なので、それだけは .csl がなくても
 `--csl` を省く形で通る（`resolve()` が None を返す）。
 """
 from __future__ import annotations

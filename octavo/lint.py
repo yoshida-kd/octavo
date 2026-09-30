@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""原稿に**直書きされた分析結果らしき数値**を見つける。
+"""原稿に**手入力された分析結果らしき数値**を見つける。
 
     octavo lint
 
@@ -19,7 +19,7 @@
 **見ない場所**（数字があって当たり前のところ）:
 
     コードブロック・インラインコード      values.py の伏せ字と同じ扱い
-    マークダウンの表（`|` で始まる行）    表の中身は数値でよい
+    Markdown の表（`|` で始まる行）    表の中身は数値でよい
     見出し（`## 2.1 …`）                  節番号
     front matter                          日付など
     URL・DOI（`10.1093/…`）               版数のような小数
@@ -125,7 +125,7 @@ def scan(text: str, accepted: set) -> list:
 # `octavo init` / `octavo new` が置いたひな型には、**例**の塊に印が入れてある。
 #     <!-- octavo:example ここから -->  …  <!-- octavo:example ここまで -->
 # 自分の中身に置き換えたら印ごと消す約束なので、残っていれば「まだひな型のまま」。
-# 直書きの数値と同じで、**原稿に残っていてはいけないもの**なのでここが見る。
+# 手入力の数値と同じで、**原稿に残っていてはいけないもの**なのでここが見る。
 
 EXAMPLE_MARK = 'octavo:example'
 # 説明文の中で `octavo:example` と名前を出しているだけのものは印ではない
@@ -143,7 +143,7 @@ def leftovers(cfg) -> list:
     """ひな型の印が残っているファイルを返す。list[Leftover]。
 
     見るのは、ひな型を書いた先（原稿・付録・登録された .qmd・書誌）だけ。
-    ユーザーが自分で書いた文書に印が入ることは無い。
+    ユーザーが自分で書いた文書に印が入ることはない。
     """
     seen: list = []
     targets = [src for _, src, _ in cfg.sources()]
@@ -164,7 +164,7 @@ def leftovers(cfg) -> list:
     return seen
 
 
-# ---------------------------------------------------------------- 直書きの数値
+# ---------------------------------------------------------------- 手入力の数値
 
 def collect(cfg) -> list:
     """設定にある原稿（付録も）を全部見る。list[Finding] を返す。"""
@@ -215,10 +215,6 @@ def run(cfg, quiet: bool = False) -> int:
     print('  ' + t('If it is not:       add the string to lint_accepted in '
                    'octavo.config.py'))
     return 1
-
-
-def leftovers_json(cfg) -> list:
-    return [asdict(lo) for lo in leftovers(cfg)]
 
 
 def as_json(cfg) -> list:

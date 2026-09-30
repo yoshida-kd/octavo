@@ -18,7 +18,7 @@ function valueMarkdown(name: string, v: ValueInfo | undefined): vscode.MarkdownS
     const md = new vscode.MarkdownString(undefined, true);
     if (!v) {
         md.appendMarkdown(`**{{${name}}}** — $(warning) ` +
-            vscode.l10n.t('no such value under results/') + '\n\n');
+            vscode.l10n.t('no such value under assets/values/') + '\n\n');
         md.appendMarkdown(vscode.l10n.t(
             'Run the analysis with `octavo analysis run`, or check the spelling.'));
         return md;
@@ -140,7 +140,7 @@ export class ValueDiagnostics implements vscode.Disposable {
             const range = new vscode.Range(doc.positionAt(m.index),
                                            doc.positionAt(m.index + m[0].length));
             const d = new vscode.Diagnostic(range,
-                vscode.l10n.t('No such value under results/: {0}', name) + '\n' +
+                vscode.l10n.t('No such value under assets/values/: {0}', name) + '\n' +
                 vscode.l10n.t(
                     'Add ov_value("{0}", …) to the .qmd and run octavo analysis run, '
                     + 'or check the spelling.', name),
