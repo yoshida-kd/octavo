@@ -11,6 +11,14 @@ README the only record that survives.** Add a line whenever you add data.
 | File | Source | Retrieved | Terms of use |
 |---|---|---|---|
 
+## Data transcribed by hand
+
+Numbers typed in from a government PDF or read off a chart go here too, with "typed in
+from …" as the source above. Once transcribed, don't change them like any other raw data;
+if you fix a mistake, write down here what you changed and why. Hand-made data cannot be
+fetched again, so unless it can't be shared, add `!data/raw/<file>.csv` to `.gitignore`
+to keep it in git.
+
 ## How to get it again
 
 (Write down how to fetch the same data again: the URL, where to apply, the

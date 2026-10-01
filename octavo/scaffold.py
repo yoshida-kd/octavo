@@ -331,6 +331,32 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
 NAME_OK = re.compile(r'[^\s/\\.][^\s/\\]*')
 
 
+def qmd_header(cfg, name: str, lang: str) -> dict:
+    """`.qmd` の冒頭に入れる値。著者・所属・メールは octavo.config.py の meta から
+    （meta の affiliation がなければ institute）。date は作った日、更新日は quarto が
+    組むたびに入れる（date-modified: today）。"""
+    import datetime
+    meta = cfg['meta'] or {}
+
+    def q(v) -> str:
+        return '"' + str(v).replace('\\', '\\\\').replace('"', '\\"') + '"'
+    authors = meta.get('author') or []
+    authors = [authors] if isinstance(authors, str) else list(authors)
+    aff = meta.get('affiliation') or meta.get('institute')
+    email = meta.get('email')
+    block = ''
+    if authors:
+        block = 'author:\n'
+        for a in authors:
+            block += f'  - name: {q(a)}\n'
+            if aff:
+                block += f'    affiliation: {q(aff)}\n'
+            if email:
+                block += f'    email: {q(email)}\n'
+    return {'NAME': name, 'TITLE': name, 'AUTHOR': block,
+            'DATE': datetime.date.today().isoformat(), 'LANG': lang}
+
+
 def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
                   made: list) -> Path:
     """analysis/<name>.qmd を置く。分析の部分（octavo.R・data/・assets/tables/・
@@ -345,7 +371,7 @@ def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
         (d / '.gitkeep').touch()
     folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
     qmd = root / 'analysis' / f'{name}.qmd'
-    _write(qmd, render_template(f'{folder}/analysis.qmd', {'NAME': name}, root),
+    _write(qmd, render_template(f'{folder}/analysis.qmd', qmd_header(cfg, name, lang), root),
            force, made, root)
     if example:
         # 見本の値・表・図。分析を実行する前でも見本の原稿が組めるように置く

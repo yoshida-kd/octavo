@@ -151,21 +151,101 @@ SECTION_HEADING = re.compile(r'^#[ 　]+(?P<title>.*?)[ 　]*(?:\{(?P<attr>[^}]*
 FENCE_LINE = re.compile(r'^\s*(```|~~~)')
 
 
-def _sections(body: str) -> tuple[str, list, list]:
-    """(最初の `#` より前, [(印, 題, 中身)], [見出しの行番号]) に分ける。
+SESSION_OPEN = re.compile(r'^:{3,}\s*\{(?P<attr>(?:[^}]*\s)?\.session(?:\s[^}]*)?)\}\s*$')
 
-    コードブロックの中の `#` は見ない。印は見出しに `{#id}` があればその id、
+
+def session_attrs(attr: str) -> dict:
+    """区切りの属性（id・title・subtitle・date・author・institute）。"""
+    from . import crossref as xref
+    out = {}
+    m = re.search(r'(?:^|\s)#([\w.:-]+)', attr)
+    if m:
+        out['id'] = m.group(1)
+    for k in ('title', 'subtitle', 'date', 'author', 'institute'):
+        v = xref.attr_value(attr, k)
+        if v is not None:
+            out[k] = v
+    return out
+
+
+def _marker_lines(lines: list) -> list:
+    """[(開きの行, 閉じの行 or None, 属性)]。コードブロックの中は見ない。
+
+    区切りは中身を持たない div（`::: {.session …}` のすぐ後に `:::`）。中身を
+    書いた場合は、閉じの行だけを落として中身はその回の頭に残す。
+    """
+    out = []
+    fence = None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            i += 1
+            continue
+        m = None if fence else SESSION_OPEN.match(line)
+        if m:
+            depth, close = 1, None
+            for j in range(i + 1, len(lines)):
+                if DIV_CLOSE.match(lines[j]):
+                    depth -= 1
+                    if depth == 0:
+                        close = j
+                        break
+                elif DIV_OPEN.match(lines[j]):
+                    depth += 1
+            out.append((i, close, session_attrs(m.group('attr'))))
+        i += 1
+    return out
+
+
+def has_session_markers(md: str) -> bool:
+    return bool(_marker_lines(md.split('\n')))
+
+
+def _sections(body: str) -> tuple[str, list, list]:
+    """(最初の区切りより前, [(印, 題, 中身, 属性)], [区切りの行番号]) に分ける。
+
+    区切りは `::: {.session #id title="…"}` + `:::`。原稿に1つもなければ、
+    `#` 見出しが回の区切りになる（見出しの題が回の題）。
+
+    コードブロックの中は見ない。印は区切り（または見出し）に `#id` があればその id、
     なければ出てきた順の2桁（'01'）。回を途中に挿し込むと番号がずれて出力の
-    ファイル名も変わるので、名前を固定したい回には `{#id}` を付ける。
+    ファイル名も変わるので、名前を固定したい回には id を付ける。
 
     3つ目の行番号（`drop_references(body)` の中での0始まり）は section_spans
-    のためだけにある。**見出しの拾い方を2箇所に書かない**ための持ち回りで、
+    のためだけにある。**区切りの拾い方を2箇所に書かない**ための持ち回りで、
     回ごとのスライドと「カーソルのある回」は必ず同じ答えになる。
     """
     lines = drop_references(body).split('\n')
+    markers = _marker_lines(lines)
     head: list = []
     parts: list = []
     at: list = []
+    if markers:
+        skip = {c for _, c, _ in markers if c is not None}
+        starts = {o: a for o, _, a in markers}
+        for i, line in enumerate(lines):
+            if i in starts:
+                a = starts[i]
+                key = a.get('id') or f'{len(parts) + 1:02d}'
+                parts.append([key, a.get('title'), [], a])
+                at.append(i)
+            elif i in skip:
+                continue
+            elif parts:
+                parts[-1][2].append(line)
+            else:
+                head.append(line)
+        out = []
+        for key, title, text, a in parts:
+            text = '\n'.join(text)
+            if title is None:
+                h = re.search(r'^#{1,6}[ 　]+(.*?)[ 　]*(?:\{[^}]*\})?[ 　]*$', text, re.M)
+                title = h.group(1) if h else key
+            out.append((key, title, text, a))
+        return '\n'.join(head), out, at
     fence = None
     for i, line in enumerate(lines):
         f = FENCE_LINE.match(line)
@@ -175,13 +255,16 @@ def _sections(body: str) -> tuple[str, list, list]:
         if m:
             ident = re.search(r'#([\w.:-]+)', m.group('attr') or '')
             key = ident.group(1) if ident else f'{len(parts) + 1:02d}'
-            parts.append([key, m.group('title'), []])
+            # スライドの題を別に決めてあれば（{slide-title="…"}）、それが回の題
+            from . import crossref as xref
+            title = xref.attr_value(m.group('attr') or '', 'slide-title') or m.group('title')
+            parts.append([key, title, [], None])
             at.append(i)
         elif parts:
             parts[-1][2].append(line)
         else:
             head.append(line)
-    return '\n'.join(head), [(k, t, '\n'.join(b)) for k, t, b in parts], at
+    return '\n'.join(head), [(k, t, '\n'.join(b), a) for k, t, b, a in parts], at
 
 
 def section_spans(md: str) -> list:
@@ -199,35 +282,184 @@ def section_spans(md: str) -> list:
         kept.pop()          # 末尾の改行が作る空要素。参考文献節の行に食い込む
     last = len(kept) - 1
     out = []
-    for i, (key, title, _text) in enumerate(parts):
+    for i, (key, title, _text, _a) in enumerate(parts):
         end = at[i + 1] - 1 if i + 1 < len(at) else last
         out.append((key, title, offset + at[i] + 1, offset + end + 1))
     return out
 
 
 def section_keys(md: str) -> list:
-    """[(印, 題)] — 原稿を `#` 見出しで分けたときの各回。"""
+    """[(印, 題)] — 原稿を回に分けたときの各回。"""
     _, body = split_front_matter(md)
-    return [(k, t) for k, t, _ in _sections(body)[1]]
+    return [(k, t) for k, t, _, _ in _sections(body)[1]]
 
 
 def section_part(md: str, key: str) -> str | None:
     """1回分だけの原稿を返す。なければ None。
 
-    その回の `#` 見出しはタイトル部分に回す（題 = 見出し、副題 = 原稿全体の題）。
-    見出しのまま残すと、タイトル部分のすぐ後に同じ題のスライドがもう1枚出るため。
-    最初の `#` より前（ノート全体の前置き）はどの回にも入れない。
+    タイトル部分は、区切りに書いた title / subtitle / date / author / institute が
+    優先。書いていなければ、題 = 回の最初の見出し（`#` で分ける原稿ならその `#`）、
+    副題 = 原稿全体の題、日付などは原稿の front matter のまま。題にした見出しが
+    回の頭にあれば落とす（残すとタイトルスライドのすぐ後に同じ題のスライドが出る）。
+    最初の区切りより前（ノート全体の前置き）はどの回にも入れない。
     """
     meta, body = split_front_matter(md)
-    for k, title, text in _sections(body)[1]:
+    for k, title, text, a in _sections(body)[1]:
         if k != key:
             continue
+        marked = a is not None
+        a = a or {}
         whole = meta.get('title')
         meta = {**meta, 'title': title}
-        if whole:
+        meta.pop('subtitle', None)
+        if a.get('subtitle'):
+            meta['subtitle'] = a['subtitle']
+        elif whole:
             meta['subtitle'] = whole
+        for f in ('date', 'author', 'institute'):
+            if a.get(f):
+                meta[f] = a[f]
+        text = text.lstrip('\n')
+        if marked and not a.get('title'):
+            # 題にした見出しが回の頭にあれば落とす
+            text = re.sub(r'\A#{1,6}[ 　]+.*\n?', '', text, count=1)
         return to_yaml_block(meta) + text.lstrip('\n')
     return None
+
+
+def session_start_sections(md: str, key: str) -> tuple[int, bool]:
+    """回のデッキの節番号を講義ノート全体とそろえるための (前の節の数, 回に `#` があるか)。
+
+    区切りより前にある番号付きの `#` 見出しを数える。`#` で分ける原稿では、回そのものが
+    `#` なので (その回の順番, False)。
+    """
+    meta, body = split_front_matter(md)
+    _, parts, at = _sections(body)
+    keys = [p[0] for p in parts]
+    if key not in keys:
+        return 0, False
+    idx = keys.index(key)
+    if parts[idx][3] is None:
+        return idx + 1, False
+    lines = drop_references(body).split('\n')
+    fence, before = None, 0
+    for line in lines[:at[idx]]:
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            continue
+        m = None if fence else SECTION_HEADING.match(line)
+        if m and not re.search(r'(?:^|\s)(?:\.unnumbered|-)(?:\s|$)', m.group('attr') or ''):
+            before += 1
+    # 題を取った `#` 見出しを落とした回は、その `#` がこの回の節
+    a = parts[idx][3]
+    first = next((l for l in parts[idx][2].split('\n') if l.strip()), '')
+    m = SECTION_HEADING.match(first)
+    if not a.get('title') and m and not re.search(
+            r'(?:^|\s)(?:\.unnumbered|-)(?:\s|$)', m.group('attr') or ''):
+        before += 1
+    part = section_part(md, key) or ''
+    _, ptext = split_front_matter(part)
+    own = any(SECTION_HEADING.match(l) for l in ptext.split('\n') if not FENCE_LINE.match(l))
+    return before, own
+
+
+SLIDE_MARK = re.compile(r'^:{3,}\s*\{(?P<attr>(?:[^}]*\s)?\.slide(?:\s[^}]*)?)\}\s*$')
+ANY_HEADING = re.compile(r'^(?P<hash>#{1,6})[ 　]+(?P<title>.*?)[ 　]*(?:\{(?P<attr>[^}]*)\})?[ 　]*$')
+
+
+def slide_marks(md: str, slides: bool, lang: str = 'ja') -> str:
+    """スライドの区切りと題を原稿で決める書き方を、出力に合わせて直す。
+
+        ::: {.slide title="題"}     ここから新しいスライド（title を省くと直前の題に「（続き）」）
+        :::
+        ## 見出し {.same-slide}      この見出しでは新しいスライドにしない（前のスライドに続ける）
+        ## 長い見出し {slide-title="短い題"}   スライドでだけ題を差し替える
+
+    スライド（slides=True）では、区切りを1枚分の見出しに、`.same-slide` の見出しを
+    太字の段落に、`slide-title` を見出しの題にする。それ以外の出力では、区切りを落とし、
+    見出しはそのまま（属性は pandoc が無視する）。
+    """
+    from . import crossref as xref
+    lines = md.split('\n')
+    # スライド1枚になる見出しの段（typst-slides の決め方と同じ）: いちばん浅い段と
+    # その1つ下があれば下の段、なければいちばん浅い段。講義の回は `#` が題になって
+    # いるので、`##` 節・`###` スライドなら `###`、`##` だけなら `##`
+    levels, fence = set(), None
+    for line in lines:
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            continue
+        h = None if fence else ANY_HEADING.match(line)
+        if h:
+            levels.add(len(h.group('hash')))
+    top = min(levels) if levels else 1
+    depth = top + 1 if (top + 1 in levels or not levels) else top
+    cont = '（続き）' if lang == 'ja' else ' (cont.)'
+    out, last_title, fence = [], '', None
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            out.append(line)
+            i += 1
+            continue
+        if fence:
+            out.append(line)
+            i += 1
+            continue
+        m = SLIDE_MARK.match(line)
+        if m:
+            # 中身のない div。閉じの `:::` まで飛ばす
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            end = j if j < len(lines) and DIV_CLOSE.match(lines[j]) else i
+            if slides:
+                title = xref.attr_value(m.group('attr'), 'title') or (last_title + cont).strip()
+                out += ['', '#' * depth + ' ' + title + ' {.unnumbered}', '']
+            i = end + 1
+            continue
+        h = ANY_HEADING.match(line)
+        if h and slides and h.group('attr'):
+            attr = h.group('attr')
+            if re.search(r'(?:^|\s)\.same-slide(?:\s|$)', attr):
+                out.append('**' + h.group('title') + '**')
+                i += 1
+                continue
+            short = xref.attr_value(attr, 'slide-title')
+            if short:
+                line = f"{h.group('hash')} {short} {{{attr}}}"
+                h = ANY_HEADING.match(line)
+        if h and len(h.group('hash')) == depth:
+            last_title = h.group('title')
+        out.append(line)
+        i += 1
+    return '\n'.join(out)
+
+
+def replace_session_markers(md: str, fmt) -> str:
+    """区切りの div を fmt(属性) の返す文字列にする（A4 プリントの改ページと目印）。"""
+    lines = md.split('\n')
+    marks = _marker_lines(lines)
+    if not marks:
+        return md
+    opens = {o: a for o, _, a in marks}
+    closes = {c for _, c, _ in marks if c is not None}
+    out = []
+    n = 0
+    for i, line in enumerate(lines):
+        if i in opens:
+            n += 1
+            a = dict(opens[i])
+            a.setdefault('id', f'{n:02d}')
+            out.append(fmt(a))
+        elif i not in closes:
+            out.append(line)
+    return '\n'.join(out)
 
 
 def tidy_headings(md: str) -> str:
@@ -401,92 +633,6 @@ def filter_divs(md: str, keep: set, keep_notes: bool = False,
     return '\n'.join(out)
 
 
-# ---------------------------------------------------------------- 事例・論点等のdiv
-
-THEOREM_ID = re.compile(r'#([\w:.-]+)')
-
-
-def _bold_prefix(label: str, body: str) -> str:
-    """`\\newtheorem` がないバックエンド向けの素の Markdown での代用表現。"""
-    lines = body.split('\n')
-    for i, ln in enumerate(lines):
-        if ln.strip():
-            lines[i] = f'**{label}.** {ln.lstrip()}'
-            return '\n'.join(lines)
-    return f'**{label}.**'
-
-
-def replace_theorem_divs(md: str, envs: dict, raw: bool,
-                         report: list | None = None) -> str:
-    """`octavo.config.py` の `theorem_envs`（例: `{'case': '事例', 'nb': '注意'}`）に
-    挙げたクラスの div を、\\newtheorem 環境（`raw=True`）か、素のボールド
-    段落（`raw=False`、通し番号は付かない）に変換する。
-
-        ::: {.case #case:example}
-        見本の事例をここに書く.
-        :::
-
-        ::: nb
-        私語は厳禁.
-        :::
-
-    `raw=True` のとき、ヘッダー側に対応する `\\newtheorem{case}{事例}[section]`
-    （`octavo template copy handout/handout-header.tex` でコピーして足す）が要る。
-    `theorem_envs` にないクラスの div はそのまま通す。`filter_divs` の後に呼ぶこと。
-    """
-    if not envs:
-        return md
-    out: list = []
-    stack: list = []   # 各フレーム: {'theorem': bool, 'cls', 'label', 'lines'}
-    hits = 0
-
-    def emit(line: str) -> None:
-        for frame in reversed(stack):
-            if frame['theorem']:
-                frame['lines'].append(line)
-                return
-        out.append(line)
-
-    for line in md.split('\n'):
-        opening = DIV_OPEN.match(line) and not DIV_CLOSE.match(line)
-        if opening:
-            m = DIV_OPEN.match(line)
-            cls_list = _classes(m.group(2), m.group(3))
-            theorem_cls = next((c for c in cls_list if c in envs), None)
-            if theorem_cls:
-                idm = THEOREM_ID.search(m.group(2) or '')
-                stack.append({'theorem': True, 'cls': theorem_cls,
-                             'label': idm.group(1) if idm else None, 'lines': []})
-            else:
-                stack.append({'theorem': False})
-                emit(line)
-            continue
-
-        if DIV_CLOSE.match(line) and stack:
-            frame = stack.pop()
-            if not frame['theorem']:
-                emit(line)
-                continue
-            hits += 1
-            body = '\n'.join(frame['lines'])
-            if raw:
-                tag = f"\\label{{{frame['label']}}}" if frame['label'] else ''
-                rendered = f"\\begin{{{frame['cls']}}}{tag}\n{body}\n\\end{{{frame['cls']}}}"
-            else:
-                rendered = _bold_prefix(envs[frame['cls']], body)
-            for ln in rendered.split('\n'):
-                emit(ln)
-            continue
-
-        emit(line)
-
-    if hits and report is not None:
-        how = t('newtheorem environments') if raw else t('bold paragraphs, unnumbered')
-        report.append(f'{tag("theorem divs")} ' + t('converted {n} theorem {n|div|divs} ({how})',
-                                                   n=hits, how=how))
-    return '\n'.join(out)
-
-
 # ---------------------------------------------------------------- \poscite
 
 POSCITE = re.compile(r'\\poscite\{([\w:.#$%&+?<>~/-]+)\}')
@@ -500,8 +646,13 @@ def replace_poscite(md: str, formatter) -> str:
 CITE_KEY = re.compile(r'(?<![\w.@-])@([\w][\w:.#$%&+?<>~/-]*)')
 
 
-def cited_keys(md: str) -> set:
-    """本文が引いている citation key を集める（参考文献節より前だけ）。"""
+def cited_keys(md: str, kinds=None) -> set:
+    """本文が引いている citation key を集める（参考文献節より前だけ）。
+
+    kinds は相互参照のラベルの頭（crossref.kinds_of）。省くと同梱の既定。
+    """
+    from . import crossref as xref
+    kinds = tuple(kinds or xref.kinds_of())
     body = drop_references(md)
     # コードブロック（```{=typst} の `#import "@preview/…"` なども）を先に消す。
     # インラインコードを先に消すと、``` の最初の `` が空のインラインコードとして
@@ -511,7 +662,7 @@ def cited_keys(md: str) -> set:
     keys = set(CITE_KEY.findall(body)) | set(POSCITE.findall(body))
     # `@fig-…` などは相互参照で、引用ではない（crossref.py）
     return {k.rstrip('.,;:') for k in keys
-            if not re.match(r'(?:fig|tbl|eq|sec)-', k)}
+            if not any(k.startswith(x + '-') for x in kinds)}
 
 
 # ---------------------------------------------------------------- 検査

@@ -3,6 +3,72 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.5.0
+
+- **Lecture handouts get a layout of their own.** The A4 handout is now set
+  from `templates/handout/handout.typ` instead of pandoc's default template:
+  the cover on a page of its own, the contents on pages i, ii, …, the body
+  from page 1, and Japanese type after the LaTeX class jsarticle (11pt, a
+  1.6× line pitch, 1-character paragraph indent, Gothic section heads). The
+  body text is set in BIZ UDGothic with Inter. New keys, also settable at the top of the notes:
+  `first_section` (`0` numbers a guidance session "0"), `handout_pagebreak`,
+  `handout_font` (replaces `typst_mainfont`), `handout_fontsize`, and
+  `date_format`; `date: today` prints the day it was built.
+- **Session markers.** `::: {.session #third title="…" date="…"}` + `:::`
+  marks where a session starts, so a session no longer has to be exactly one
+  `#` heading. Its `title` / `subtitle` / `date` go on the session deck's title
+  slide, and the deck keeps the handout's numbers. Notes without markers are
+  split by `#` as before.
+- **`octavo extract`** cuts the handout into one PDF per session
+  (`build/handouts/`), keeping the page numbers of the whole
+  (`--session`, `--pages 12-19`, `--cover`). In VS Code: "Make the session
+  handouts" under lecture notes in the sidebar, and they are remade in the
+  background each time notes with session markers are saved
+  (`octavo.updateHandoutsOnSave`, on by default; it waits for the preview).
+- **Cases, questions and other numbered blocks** in every format:
+  `::: {.question #question-why title="…"}` is numbered by section like a
+  figure ("Question 2.1"), referred to with `@question-why`, repeated with
+  `::: {.restate #question-why}` and listed with `::: {.list-of .question}`.
+  Built-in kinds: case, question, aside, nb, memo, theorem, lemma,
+  proposition, corollary, definition, example, remark; `theorem_envs` renames
+  or adds. `# Title {.appendix}` starts an appendix inside a file. Setting
+  `theorem_envs` used to crash the build — fixed.
+- **The preview's text can be selected** and its links clicked (contents,
+  cross-references; URLs open in the browser), and ☰ lists the bookmarks.
+- The table editor opens `data/**/*.csv` too (no heading merges there). New
+  projects re-run the analysis when `data/raw/` changes.
+- **A page on making lecture notes**, beside the guide on the web page: the
+  steps in VS Code, every mark (sessions, slide breaks, handout-only and
+  slides-only parts, numbered blocks, URLs and footnotes) with a quick
+  reference, and the commands as a footnote.
+- Links are black in handouts, slides and scripts (cross-references and
+  restated blocks had taken the accent colour); an appendix starts a new page
+  of the handout; a restated block no longer prints "(→ p. N)" — its number
+  links back to the original.
+- **Fixed:** an appendix heading on a session deck read "0.1" when slide
+  headings are not numbered.
+- **Fixed:** in lecture notes written as `#` session / `##` section / `###`
+  slide, `::: {.slide}` made a new section instead of a new slide.
+- **Fixed:** a deck (or paper) that cites nothing no longer gets an empty
+  References slide or heading.
+- **The guide moved to the web page** —
+  <https://yoshida-kd.github.io/octavo/guide/> (日本語:
+  <https://yoshida-kd.github.io/octavo/ja/guide/>) — and was rewritten for
+  users: installation step by step for Linux, macOS and Windows (WSL or not),
+  and without the notes meant for Octavo's own development (now in
+  CONTRIBUTING.md).
+- **Slide breaks and titles from the manuscript**: `::: {.slide}` + `:::` starts a new
+  slide, `{.same-slide}` on a heading keeps it on the current slide, and
+  `{slide-title="…"}` gives a heading another title on the slide.
+- **The form of Japanese works is a choice** (`japanese_citation_form`: `standard`,
+  `fullwidth`, `period`), and it and `citations_by_language` are in the sidebar's settings.
+- `octavo lint` points out nested list items that are out of line.
+- `octavo new analysis` writes a header ready to hand out as one HTML file
+  (author, affiliation and email from `meta`, dates, contents, numbered
+  sections, `embed-resources`). `octavo.R` gains `ov_palette()`, `ov_tint()`
+  and `ov_scale_colour_cud()` / `ov_scale_fill_cud()` for colour-universal
+  design.
+
 ## 0.4.0
 
 - **A new project layout: what you make by hand, and what gets made.**

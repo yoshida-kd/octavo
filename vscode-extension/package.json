@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -184,6 +184,12 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.extract",
+        "title": "%command.extract.title%",
+        "category": "Octavo",
+        "icon": "$(files)"
+      },
+      {
         "command": "octavo.addAppendix",
         "title": "%command.addAppendix.title%",
         "category": "Octavo",
@@ -232,7 +238,8 @@
         { "command": "octavo.buildDoc", "when": "view == octavo.project && viewItem =~ /^octavo\\.doc/", "group": "inline" },
         { "command": "octavo.analysisRunOne", "when": "view == octavo.project && viewItem == octavo.analysisUnit", "group": "inline" },
         { "command": "octavo.addAppendix", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@1" },
-        { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" }
+        { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" },
+        { "command": "octavo.extract", "when": "view == octavo.project && viewItem == octavo.doc.lecture", "group": "octavo@1" }
       ],
       "commandPalette": [
         { "command": "octavo.editSetting", "when": "false" },
@@ -288,6 +295,10 @@
         },
         {
           "command": "octavo.addAppendix",
+          "when": "false"
+        },
+        {
+          "command": "octavo.extract",
           "when": "false"
         },
         {
@@ -432,6 +443,11 @@
           "default": "slides",
           "description": "%config.previewLectureColumn.description%"
         },
+        "octavo.updateHandoutsOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.updateHandoutsOnSave.description%"
+        },
         "octavo.typstAutoOpenPdf": {
           "type": "boolean",
           "default": true,
@@ -443,7 +459,8 @@
       {
         "viewType": "octavo.tableEditor",
         "displayName": "%customEditor.table%",
-        "selector": [{ "filenamePattern": "**/tables/*.csv" }],
+        "selector": [{ "filenamePattern": "**/tables/*.csv" },
+                     { "filenamePattern": "**/data/**/*.csv" }],
         "priority": "option"
       }
     ],

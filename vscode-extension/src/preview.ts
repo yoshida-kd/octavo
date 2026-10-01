@@ -37,6 +37,7 @@ export interface DocInfo {
     split_slides: boolean;
     exists: boolean;
     parts: Part[];
+    handouts: boolean;       // 回の区切りがあり、回ごとの配布資料に切り出せる
 }
 
 interface DocumentsReport { root: string; config: string | null; documents: DocInfo[] }
@@ -65,7 +66,7 @@ function lastJson<T>(text: string): T | undefined {
     }
 }
 
-function samePath(a: string | undefined, b: string | undefined): boolean {
+export function samePath(a: string | undefined, b: string | undefined): boolean {
     if (!a || !b) {
         return false;
     }
@@ -76,7 +77,7 @@ function samePath(a: string | undefined, b: string | undefined): boolean {
 }
 
 /** 実行環境側の絶対パスを、エディタ側のパスと比べられる形にする。 */
-function editorPath(toolPath: string | null | undefined): string | undefined {
+export function editorPath(toolPath: string | null | undefined): string | undefined {
     return toolPath ? resolvePathFromTool(toolPath)?.fsPath : undefined;
 }
 
@@ -94,7 +95,13 @@ class PdfPanel {
             { enableScripts: true, retainContextWhenHidden: true,
               localResourceRoots: [media] });
         this.panel.webview.html = this.html();
-        this.panel.webview.onDidReceiveMessage((m: { type?: string }) => {
+        this.panel.webview.onDidReceiveMessage((m: { type?: string; url?: string }) => {
+            if (m?.type === 'open' && typeof m.url === 'string'
+                    && /^(https?|mailto):/i.test(m.url)) {
+                // PDF の中の URL は、ふつうのブラウザ（メールなら既定のアプリ）で開く
+                void vscode.env.openExternal(vscode.Uri.parse(m.url));
+                return;
+            }
             if (m?.type === 'runAnalysis') {
                 void vscode.commands.executeCommand('octavo.analysisRun');
                 return;
@@ -174,8 +181,10 @@ class PdfPanel {
   <button id="out" title="${vscode.l10n.t('Zoom out')}">−</button>
   <button id="fit" title="${vscode.l10n.t('Fit to width')}">⤢</button>
   <button id="in" title="${vscode.l10n.t('Zoom in')}">＋</button>
+  <button id="toc" title="${vscode.l10n.t('Bookmarks')}" style="display:none">☰</button>
   <span id="pages"></span>
 </div>
+<div id="outline"></div>
 <div id="stale"><span id="stale-text"></span><button id="stale-run"></button></div>
 <div id="view"><div id="pages-host"></div></div>
 <div id="message"></div>
@@ -197,6 +206,10 @@ export class PreviewManager implements vscode.Disposable {
     private again = false;
     private readonly subs: vscode.Disposable[] = [];
     private readonly media: vscode.Uri;
+    private readonly busyEmitter = new vscode.EventEmitter<boolean>();
+    /** 組んでいるあいだ true。回ごとの配布資料の更新は、これが false になるまで待つ
+     *  （同じ build/typst/<名前>.typ を書くので、同時には実行しない）。 */
+    readonly onBusy = this.busyEmitter.event;
 
     constructor(context: vscode.ExtensionContext,
                 private readonly log: (s: string) => void) {
@@ -211,8 +224,13 @@ export class PreviewManager implements vscode.Disposable {
         for (const s of this.subs) {
             s.dispose();
         }
+        this.busyEmitter.dispose();
         this.main?.dispose();
         this.side?.dispose();
+    }
+
+    get busy(): boolean {
+        return this.building;
     }
 
     private get live(): boolean {
@@ -391,6 +409,7 @@ export class PreviewManager implements vscode.Disposable {
             return;
         }
         this.building = true;
+        this.busyEmitter.fire(true);
         try {
             do {
                 this.again = false;
@@ -403,6 +422,7 @@ export class PreviewManager implements vscode.Disposable {
             } while (this.again);
         } finally {
             this.building = false;
+            this.busyEmitter.fire(false);
         }
     }
 

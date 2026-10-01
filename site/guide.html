@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="$lang$">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- 手引きのページのひな型（pandoc）。site/build.sh が docs/guide*.md と docs/lectures*.md から組む。
+     slug はページのフォルダー名（guide / lectures）。 -->
+<title>$pagetitle$</title>
+<meta name="description" content="$description$">
+<link rel="alternate" hreflang="en" href="${root}${slug}/">
+<link rel="alternate" hreflang="ja" href="${root}ja/${slug}/">
+<link rel="alternate" hreflang="x-default" href="${root}${slug}/">
+$if(en)$
+<script>
+/* 日本語のブラウザで英語版を開いたときだけ日本語版へ移す。外へは何も送らない。
+   言語のリンクを押した人は、その選択を覚えて、そちらに従う。 */
+(function () {
+  try {
+    document.addEventListener('click', function (e) {
+      var a = e.target.closest && e.target.closest('a[data-lang]');
+      if (a) localStorage.setItem('octavo-lang', a.getAttribute('data-lang'));
+    });
+    var chosen = localStorage.getItem('octavo-lang');
+    var l = chosen || (navigator.languages && navigator.languages[0]) || navigator.language || '';
+    if (/^ja\b/i.test(l)) location.replace('../ja/${slug}/' + location.hash);
+  } catch (e) {}
+})();
+</script>
+$else$
+<script>
+/* 言語のリンクを押したら、その選択を覚える（英語版はそれに従って移らなくなる）。 */
+document.addEventListener('click', function (e) {
+  try {
+    var a = e.target.closest && e.target.closest('a[data-lang]');
+    if (a) localStorage.setItem('octavo-lang', a.getAttribute('data-lang'));
+  } catch (err) {}
+});
+</script>
+$endif$
+<link rel="icon" href="$root$icon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="$root$style.css">
+</head>
+<body class="guide">
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="$home$">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect width="24" height="24" rx="5" fill="#0e2f92"/><g fill="none" stroke="#fff" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3.5h7.2L17.5 6.8v13.7H7z" fill="#fff" fill-opacity="0.08"/><path d="M14.2 3.5v3.3h3.3"/><path d="M9.4 10h5.7M9.4 12.8h5.7M9.4 15.6h5.7M9.4 18.4h3.3"/></g></svg>
+      Octavo
+    </a>
+    <nav>
+$if(en)$
+      <a href="$home$#install">Install</a>
+      <a href="${root}guide/">Guide</a>
+      <a href="${root}lectures/">Lecture notes</a>
+      <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
+      <a href="${root}ja/${slug}/" hreflang="ja" lang="ja" data-lang="ja">日本語</a>
+$else$
+      <a href="$home$#install">インストール</a>
+      <a href="${root}ja/guide/">手引き</a>
+      <a href="${root}ja/lectures/">講義ノート</a>
+      <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
+      <a href="${root}${slug}/" hreflang="en" lang="en" data-lang="en">English</a>
+$endif$
+    </nav>
+  </div>
+</header>
+
+<div class="wrap doc">
+  <!-- 目次は2つ: 広い画面では横に並べ、狭い画面では閉じた折りたたみにする（スクリプトなしで） -->
+  <nav class="toc toc-side" aria-label="$toclabel$">
+    <p class="toc-label">$toclabel$</p>
+$toc$
+  </nav>
+  <details class="toc toc-fold">
+    <summary>$toclabel$</summary>
+$toc$
+  </details>
+  <main class="content">
+$body$
+  </main>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>Octavo · MIT License · by <a href="https://github.com/yoshida-kd">yoshida-kd</a></span>
+    <span><a href="https://github.com/yoshida-kd/octavo">Source</a> ·
+    <a href="https://pypi.org/project/octavo-kit/">PyPI</a> ·
+    <a href="https://github.com/yoshida-kd/octavo/issues">Issues</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

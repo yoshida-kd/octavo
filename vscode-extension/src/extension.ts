@@ -8,6 +8,7 @@
 //   values.ts       `octavo values --json` のキャッシュ
 //   valueui.ts      {{名前}} の補完・ホバー・未解決への警告
 //   setup.ts        道具がそろっているかを見て、足りなければ setup.sh を実行する
+//   handouts.ts     講義ノートの回ごとの配布資料（手で、また保存のたびに）
 
 import * as path from 'path';
 import * as vscode from 'vscode';
@@ -15,6 +16,7 @@ import { AnalysisUnit, fetchAnalysis, runAnalysisWithProgress } from './analysis
 import { BibCache } from './bib';
 import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
+import { HandoutManager } from './handouts';
 import { PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
 import { AddKind, addToProject, initProject } from './scaffold';
@@ -53,8 +55,9 @@ export function activate(context: vscode.ExtensionContext): void {
     const valuesCache = new ValuesCache();
     const valueDiagnostics = new ValueDiagnostics(valuesCache);
     const preview = new PreviewManager(context, (line) => output.appendLine(line));
+    const handouts = new HandoutManager(preview, (line) => output.appendLine(line));
     const tree = new OctavoTree((line) => output.appendLine(line));
-    context.subscriptions.push(valuesCache, valueDiagnostics, preview, tree,
+    context.subscriptions.push(valuesCache, valueDiagnostics, preview, handouts, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree),
         TableEditorProvider.register(context));
     // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
@@ -416,6 +419,12 @@ export function activate(context: vscode.ExtensionContext): void {
             if (await addToProject((line) => output.appendLine(line),
                                    { kind: 'paper', name: node.doc.name, appendix: true })) {
                 afterAdding();
+            }
+        }),
+        // 講義ノートの A4 プリントを回ごとの PDF に切り分ける（octavo extract）
+        vscode.commands.registerCommand('octavo.extract', async (node?: { doc?: { name: string } }) => {
+            if (node?.doc) {
+                await handouts.makeNow(node.doc.name);
             }
         }),
         vscode.commands.registerCommand('octavo.addTex', async (node: { doc?: { name: string } }) => {

@@ -41,7 +41,7 @@ Tools**) or the command palette (**Octavo: Install or Update the Tools**) — fo
 example after updating the extension, so the `octavo` command follows. TeX is
 not installed; only the LaTeX and Beamer outputs need it (`octavo setup
 --with-tex` from a terminal). See the
-[Octavo guide](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#1-install) for the full
+[Octavo guide](https://yoshida-kd.github.io/octavo/guide/#1-install) for the full
 picture, including installing from a terminal.
 
 ## Getting started
@@ -86,8 +86,15 @@ the one the file you are editing belongs to.
 - **Live preview.** Rebuilds on save, keeps your scroll position across
   rebuilds, and shows build errors in the panel rather than swallowing them.
   "Preview: What Goes in the Third Column…" switches lecture notes between
-  the deck, the speaker script and a plain two-column layout. The PDF is
+  the deck, the speaker script and a plain two-column layout. Text can be
+  selected and copied, links (contents, cross-references, URLs) work — a URL
+  opens in your browser — and ☰ lists the PDF's bookmarks. The PDF is
   drawn by a bundled copy of [pdf.js]; nothing is fetched at runtime.
+- **Handouts per session.** For lecture notes with session markers, "Make the
+  session handouts" under the notes in the sidebar cuts the A4 handout into one
+  PDF per session in `build/handouts/` (`octavo extract`), keeping the page
+  numbers of the whole. They are remade in the background each time the notes
+  are saved (setting `octavo.updateHandoutsOnSave`).
 - **Analysis (Quarto).** The sidebar's Analysis section shows each `.qmd` as up
   to date, stale or manual, with a run button; an open `.qmd` gets a run button
   in the editor's title bar. The preview never runs the analysis itself: a bar
@@ -109,7 +116,8 @@ the one the file you are editing belongs to.
   for a line break in a cell, paste a range copied from Excel. Leave a heading
   cell empty to merge it into the one on its left. `octavo build` turns it into
   the table the manuscript's `: Caption {#tbl-<name>}` line places. "Edit as
-  text" gets the plain CSV back.
+  text" gets the plain CSV back. Data you type in by hand (`data/**/*.csv`)
+  opens the same way; there the first row is just the column names.
 - **Snippets** for tables, figures, possessive citations and conditional
   blocks (`ptable`, `pfigure`, `pposcite`, `phandout`, `pslides`, `pnotes`, …).
 - **English and Japanese**, following VS Code's display language — and the

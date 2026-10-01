@@ -26,6 +26,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from . import bib as bibmod
+from . import crossref as xref
 from . import md as mdlib
 from .i18n import t, tag
 
@@ -77,8 +78,9 @@ def collect(cfg) -> Report:
 
     per_doc: dict = {}
     cited: set = set()
+    kinds = xref.kinds_of(xref.theorem_envs(cfg))
     for _, src, _ in cfg.sources():
-        k = mdlib.cited_keys(mdlib.read(src))
+        k = mdlib.cited_keys(mdlib.read(src), kinds)
         per_doc[cfg.rel(src)] = sorted(k)
         cited |= k
 
@@ -133,8 +135,9 @@ def self_citations(cfg) -> list:
 
     entries = bibmod.parse(Path(cfg['bib_file']))
     cited: set = set()
+    kinds = xref.kinds_of(xref.theorem_envs(cfg))
     for _, src, _ in cfg.sources():
-        cited |= mdlib.cited_keys(mdlib.read(src))
+        cited |= mdlib.cited_keys(mdlib.read(src), kinds)
     out = []
     for key in sorted(cited):
         e = entries.get(key)

@@ -27,9 +27,44 @@ body {
 #view { flex: 1 1 auto; overflow: auto; padding: 10px 0 24px; }
 #pages-host { display: flex; flex-direction: column; align-items: center; gap: 10px; }
 /* ページは常に白地で出す（暗いテーマでも紙は紙） */
-#pages-host canvas {
-  background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); max-width: 100%;
+#pages-host .page {
+  position: relative; flex: none;
+  background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35);
 }
+#pages-host canvas { display: block; }
+/* 文字の層（pdf.js の text layer。pdf_viewer.css の必要なところだけ）。
+   文字は透明で、選択したところだけ色が付く */
+.textLayer {
+  position: absolute; inset: 0; overflow: hidden; line-height: 1;
+  text-align: initial; opacity: 1; text-size-adjust: none; forced-color-adjust: none;
+  transform-origin: 0 0; z-index: 1;
+}
+.textLayer span, .textLayer br {
+  color: transparent; position: absolute; white-space: pre;
+  cursor: text; transform-origin: 0% 0%;
+}
+.textLayer .markedContent { top: 0; height: 0; }
+.textLayer ::selection { background: rgba(0, 100, 255, .3); }
+.textLayer .endOfContent { display: block; position: absolute; inset: 100% 0 0; z-index: -1; cursor: default; user-select: none; }
+/* リンクの層（文字の層より上） */
+.linkLayer { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.linkLayer a { position: absolute; pointer-events: auto; cursor: pointer; }
+.linkLayer a:hover { background: rgba(255, 210, 0, .18); }
+/* しおり */
+#outline {
+  display: none; position: absolute; right: 8px; top: 34px; z-index: 5;
+  max-height: 70%; overflow: auto; min-width: 220px; max-width: 60%;
+  flex-direction: column; padding: 4px 0;
+  background: var(--vscode-editorWidget-background, #252526);
+  border: 1px solid var(--vscode-editorWidget-border, rgba(128,128,128,.4));
+  box-shadow: 0 2px 8px rgba(0,0,0,.35);
+}
+#outline.on { display: flex; }
+#outline button {
+  border: none; background: transparent; text-align: left; cursor: pointer;
+  padding: 3px 10px; color: var(--vscode-foreground); font: inherit;
+}
+#outline button:hover { background: var(--vscode-list-hoverBackground, rgba(128,128,128,.2)); }
 #message {
   display: none; flex: none; max-height: 45%; overflow: auto;
   white-space: pre-wrap; padding: 10px 14px;

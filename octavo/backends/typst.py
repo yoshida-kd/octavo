@@ -56,19 +56,25 @@ class TypstBackend(Backend):
         return 'typst'
 
     def pandoc_args(self, ctx: Ctx) -> list:
-        args = ['-t', self.writer(ctx), '--wrap=preserve', '--top-level-division=section']
-        if ctx.standalone:
-            # pandoc の Typst テンプレートは mainfont を**1つしか**受け取らないので、
-            # 候補の並び（欧文と和文を分ける covers を含む）は前置きの #set で渡す。
-            # mainfont を渡さなければテンプレートは font を上書きしない。
-            font = font_expr(ctx.lang, 'serif', ctx.cfg['typst_mainfont'])
-            args += ['--standalone', '-V', f'header-includes=#set text(font: {font})',
-                     '-V', 'header-includes=' + crossref_rules(ctx)]
-            if ctx.profile_opt('toc'):
-                args += ['--toc', f'--toc-depth={ctx.cfg["toc_depth"]}']
-        if ctx.profile_opt('number_sections'):
-            args += ['--number-sections']
-        return args
+        # A4 プリントも --standalone にしない。表紙・目次・版面は自前のテンプレート
+        # （templates/handout/handout.typ）が持ち、postprocess で前後を付けて完結させる。
+        # pandoc の既定テンプレートは表紙の後の改ページ・目次のページ番号・字下げなどを
+        # 差し替える口がないため
+        return ['-t', self.writer(ctx), '--wrap=preserve', '--top-level-division=section']
+
+    def postprocess(self, typ: str, ctx: Ctx) -> str:
+        body = super().postprocess(typ, ctx)
+        if ctx.is_handout:
+            return (f'// octavo build --to {self.name} が作った。手で直さない。\n'
+                    + handout_meta(ctx) + '\n'
+                    + ctx.template('handout/handout.typ').read_text(encoding='utf-8').rstrip()
+                    + '\n\n' + crossref_rules(ctx) + '\n' + body
+                    + '\n\n#context [#metadata(octavo-page-mark()) <octavo-end>]\n')
+        if not ctx.standalone and re.search(r'#octavo-(?:theorem|restate)\b', body):
+            # body.typ / appendix.typ は main.typ から #include されるので、main.typ の
+            # import は届かない。ブロックの関数だけ自分で読む
+            body = ('#import "crossref.typ": octavo-theorem, octavo-restate\n\n' + body)
+        return body
 
     # -- 差し替え -----------------------------------------------------------
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
@@ -94,6 +100,48 @@ class TypstBackend(Backend):
             return xref.text_of(item, ctx.lang, short)
         sup = ', supplement: []' if short else ''
         return f'`#ref(<{item.label}>{sup})`{{=typst}}'
+
+    # -- 回の区切り・事例などのブロック ----------------------------------------
+    def fmt_session(self, attrs: dict, ctx: Ctx) -> str:
+        if not ctx.is_handout:
+            return ''
+        title = attrs.get('title')
+        tt = f', title: {typst_string(title)}' if title else ''
+        return f'\n```{{=typst}}\n#octavo-session({typst_string(attrs["id"])}{tt})\n```\n'
+
+    def fmt_appendix_start(self, ctx: Ctx) -> str:
+        # A4 プリントでは付録を新しいページから始める
+        brk = '#pagebreak(weak: true)\n' if ctx.is_handout else ''
+        # 見出しに番号を振らないスライドでは、付録でも振らない（振ると「0.1」が出る）
+        bare = ctx.backend.is_slides and not ctx.cfg['typst_slides_numbering']
+        show = 'octavo-appendix.with(heading-numbering: none)' if bare else 'octavo-appendix'
+        return '\n```{=typst}\n' + brk + f'#show: {show}\n```\n'
+
+    def fmt_theorem(self, env, item, title: str, body: str, ctx: Ctx) -> str:
+        """`#octavo-theorem(…)[` 本文（Markdown のまま） `] <ラベル>`。"""
+        args = [f'"{env.counter or env.name}"', f'[{_content_escape(env.word)}]',
+                f'lang: "{ctx.lang}"']
+        if title:
+            args.append(f'title: [{_content_escape(title)}]')
+        if not env.counter:
+            args.append('numbered: false')
+        lab = f' <{item.label}>' if item is not None and item.label else ''
+        return ('```{=typst}\n#octavo-theorem(' + ', '.join(args) + ')[\n```\n\n'
+                + body.strip('\n') + '\n\n```{=typst}\n]' + lab + '\n```')
+
+    def fmt_restate(self, env, item, title: str, body: str, ctx: Ctx,
+                    short: bool = False) -> str:
+        args = [f'word: [{_content_escape(env.word)}]', f'lang: "{ctx.lang}"']
+        if item is not None:
+            if item.label and item.label in ctx.crossref_local:
+                args.append(f'target: <{item.label}>')
+            args.append(f'number: "{item.number}"')
+        if title:
+            args.append(f'title: [{_content_escape(title)}]')
+        if short:
+            return '```{=typst}\n#octavo-restate(' + ', '.join(args + ['short: true']) + ')[]\n```'
+        return ('```{=typst}\n#octavo-restate(' + ', '.join(args) + ')[\n```\n\n'
+                + body.strip('\n') + '\n\n```{=typst}\n]\n```')
 
     def includes_appendix(self, layout: str) -> bool:
         code = '\n'.join(l.split('//', 1)[0] for l in layout.split('\n'))
@@ -152,7 +200,9 @@ class TypstBackend(Backend):
         # 「図」「表」は英語の文書では組まれないので数えない
         check_cjk(typ, ctx, '.typ', t('main.typ must set a CJK font '
                                       '(check it is installed with: typst fonts)'),
-                  templates=[ctx.template('typst/crossref.typ')] if ctx.standalone else [])
+                  templates=([ctx.template('typst/crossref.typ')]
+                             + ([ctx.template('handout/handout.typ')] if ctx.is_handout else []))
+                  if ctx.standalone else [])
 
     @staticmethod
     def root_arg(ctx: Ctx) -> str:
@@ -224,7 +274,7 @@ OPTIONAL_FONTS = ('Yu Mincho',)
 def font_expr(lang: str, kind: str, override=None) -> str:
     """Typst の `font:` に渡す並び（Typst の式の文字列）。
 
-    `override` は設定の typst_mainfont / typst_slides_font。文字列かリストで、
+    `override` は設定の handout_font / typst_slides_font。文字列かリストで、
     書いてあればそれをそのまま使う（covers は付けない）。
     """
     if override:
@@ -234,6 +284,11 @@ def font_expr(lang: str, kind: str, override=None) -> str:
     first = (f'(name: "{latin}", covers: "latin-in-cjk")' if lang == 'ja'
              else f'"{latin}"')
     return '(' + first + ', ' + ''.join(f'"{n}", ' for n in cjk) + ')'
+
+
+def typst_string(s: str) -> str:
+    """Typst の文字列リテラル（"…"）。"""
+    return '"' + str(s).replace('\\', '\\\\').replace('"', '\\"') + '"'
 
 
 def typst_escape(s: str) -> str:
@@ -255,8 +310,56 @@ def crossref_template(ctx: Ctx) -> str:
 def crossref_args(ctx: Ctx, section: str = 'auto') -> str:
     within = 'true' if ctx.numbering_mode() == 'section' else 'false'
     slides = 'true' if ctx.backend.is_slides else 'false'
+    kinds = sorted({e.counter for e in ctx.envs.values() if e.counter})
     return (f'lang: "{ctx.lang}", within: {within}, section: {section}, '
-            f'count-unnumbered: {slides}')
+            f'count-unnumbered: {slides}, offset: {ctx.first_section - 1}, '
+            f'preset: {ctx.crossref_preset}, '
+            'theorem-kinds: (' + ''.join(f'"{k}", ' for k in kinds) + ')')
+
+
+def handout_meta(ctx: Ctx) -> str:
+    """A4 プリントのテンプレート（handout/handout.typ）に渡す `#let octavo = (…)`。"""
+    cfg = ctx.cfg
+    drop = set(cfg['anonymous_drop_meta'] or ()) if ctx.anonymous else set()
+    fields = []
+    for k in ('title', 'subtitle', 'author', 'institute', 'date'):
+        v = ctx.meta.get(k) if k not in drop else None
+        if isinstance(v, (list, tuple)):
+            fields.append(f'  {k}: (' + ''.join(f'[{_content_escape(str(x))}], ' for x in v) + ')')
+        else:
+            fields.append(f'  {k}: ' + ('none' if v in (None, '') else
+                                         f'[{_content_escape(str(v))}]'))
+    brk = cfg['handout_pagebreak']
+    if brk == 'session':
+        # 区切りがあれば区切り（いつも改ページする）、なければ `#` が回
+        brk = None if ctx.has_sessions else 'section'
+    main = cfg['handout_font']
+    fields += [f'  lang: "{ctx.lang}"',
+               # 講義ノートの本文はゴシック（BIZ UDゴシック + Inter）。線の太さが均一で、
+               # 読みに困難のある読み手にも、画面で読む人にも明朝より読みやすい
+               '  font: ' + font_expr(ctx.lang, 'sans', main),
+               '  head-font: ' + font_expr(ctx.lang, 'sans'),
+               '  bold-font: ' + font_expr(ctx.lang, 'sans'),
+               f'  fontsize: {cfg["handout_fontsize"]}',
+               '  toc: ' + ('true' if ctx.profile_opt('toc') else 'false'),
+               f'  toc-depth: {int(cfg["toc_depth"])}',
+               '  numbering: ' + ('true' if _numbers_sections(ctx) else 'false'),
+               f'  first-section: {ctx.first_section}',
+               '  pagebreak: ' + (f'"{brk}"' if brk else 'none')]
+    return '#let octavo = (\n' + ',\n'.join(fields) + ',\n)\n'
+
+
+def _numbers_sections(ctx: Ctx) -> bool:
+    override = ctx.cfg.get('number_sections')
+    if override is not None:
+        return bool(override)
+    from .base import PROFILES
+    return PROFILES[ctx.profile]['number_sections']
+
+
+def _content_escape(s: str) -> str:
+    """`[…]` の中に置く文字列。角括弧も閉じないように逃がす。"""
+    return typst_escape(s).replace('[', '\\[').replace(']', '\\]')
 
 
 def crossref_rules(ctx: Ctx, section: str = 'auto') -> str:

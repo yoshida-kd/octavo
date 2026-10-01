@@ -33,7 +33,7 @@ os.environ['XDG_CONFIG_HOME'] = tempfile.mkdtemp(prefix='octavo-test-config-')
 sys.path.insert(0, str(ROOT))
 
 import octavo                                                        # noqa: E402
-from octavo import (analysis, audit, bib, build, bundle, check,      # noqa: E402
+from octavo import (analysis, audit, bib, build, bundle, check, theorems,      # noqa: E402
                       config, crossref, csl, dataset, doctor, envsetup, lint, md,
                       pandocrun, paths, review, scaffold, selftest, tmpl, values)
 from octavo import backends as be                                    # noqa: E402
@@ -242,68 +242,449 @@ class ConditionalDivs(unittest.TestCase):
 
 
 # =====================================================================
-class TheoremDivs(unittest.TestCase):
-    ENVS = {'case': '事例', 'nb': '注意'}
+class TheoremBlocks(unittest.TestCase):
+    """事例・論点などのブロック: 番号・参照・再掲・一覧。pandoc は呼ばない。"""
 
-    def test_raw_with_label(self):
-        src = ded('''
-            ::: {.case #case:example}
-            見本の事例をここに書く.
-            :::
-        ''')
-        out = md.replace_theorem_divs(src, self.ENVS, raw=True)
-        self.assertIn('\\begin{case}\\label{case:example}', out)
-        self.assertIn('見本の事例をここに書く.', out)
-        self.assertIn('\\end{case}', out)
-        self.assertNotIn(':::', out)
+    SRC = ded("""
+        # ガイダンス
 
-    def test_raw_without_label(self):
-        src = ded('''
-            ::: nb
-            私語は厳禁.
-            :::
-        ''')
-        out = md.replace_theorem_divs(src, self.ENVS, raw=True)
-        self.assertIn('\\begin{nb}\n私語は厳禁.\n\\end{nb}', out)
-        self.assertNotIn('\\label', out)
+        本文では @question-why と [-@case-civil] を指す。
 
-    def test_fallback_bold(self):
-        src = ded('''
-            ::: {.case #case:example}
-            見本の事例をここに書く.
-            :::
-        ''')
-        out = md.replace_theorem_divs(src, self.ENVS, raw=False)
-        self.assertIn('**事例.** 見本の事例をここに書く.', out)
-        self.assertNotIn('\\begin', out)
-        self.assertNotIn('#case:example', out)
+        ::: nb
+        私語は禁止する。
+        :::
 
-    def test_unregistered_class_passes_through(self):
-        src = '::: {.warning}\nふつうの div。\n:::\n'
-        out = md.replace_theorem_divs(src, self.ENVS, raw=True)
-        self.assertEqual(src, out)
+        # 公務員とは
 
-    def test_empty_envs_is_noop(self):
-        src = '::: {.case #x}\nY\n:::\n'
-        self.assertEqual(src, md.replace_theorem_divs(src, {}, raw=True))
+        ::: {.case #case-civil}
+        公務員は少ない。
+        :::
 
-    def test_nested_plain_div_captured(self):
-        src = ded('''
-            ::: {.case #case:x}
-            外側。
-            ::: {.warning}
-            中の警告。
-            :::
-            :::
-            後ろ。
-        ''')
-        out = md.replace_theorem_divs(src, self.ENVS, raw=True)
-        self.assertIn('\\begin{case}\\label{case:x}', out)
-        self.assertIn('外側。', out)
-        self.assertIn('::: {.warning}', out)   # 中の div 自体はそのまま残る
-        self.assertIn('中の警告。', out)
-        self.assertIn('\\end{case}', out)
-        self.assertIn('後ろ。', out)
+        ::: {.question #question-why title="なぜか"}
+        なぜ政府か。
+        :::
+
+        ::: {.list-of .question}
+        :::
+        """)
+
+    def test_blocks_share_a_counter_and_reset_per_section(self):
+        items = {it.label: it for it in crossref.number(self.SRC).items if it.label}
+        self.assertEqual(items['case-civil'].number, '2.1')
+        self.assertEqual(items['question-why'].number, '2.2')
+        self.assertEqual(items['question-why'].word, '論点')
+        self.assertEqual(items['question-why'].title, 'なぜか')
+
+    def test_the_list_is_not_counted_as_a_block(self):
+        kinds = [it.kind for it in crossref.number(self.SRC).items]
+        self.assertEqual(kinds.count('question'), 1)
+
+    def test_first_section_zero(self):
+        items = {it.label or it.number: it for it in crossref.number(self.SRC, start=0).items}
+        self.assertEqual(items['case-civil'].number, '1.1')
+        secs = [it.number for it in crossref.number(self.SRC, start=0).items if it.kind == 'sec']
+        self.assertEqual(secs, ['0', '1'])
+
+    def test_references_to_blocks_are_not_citations(self):
+        self.assertEqual(md.cited_keys(self.SRC), set())
+
+    def test_config_adds_and_renames_kinds(self):
+        cfg = {'lang': 'ja', 'theorem_envs': {'case': '事例その', 'claim': {
+            'name': {'ja': '主張', 'en': 'Claim'}, 'counter': 'case'}, 'hint': {
+            'name': 'ヒント', 'numbered': False}}}
+        envs = crossref.theorem_envs(cfg)
+        self.assertEqual(envs['case'].word, '事例その')
+        self.assertEqual(envs['claim'].counter, 'case')
+        self.assertIsNone(envs['hint'].counter)
+        self.assertIn('claim', crossref.kinds_of(envs))
+        self.assertNotIn('hint', crossref.kinds_of(envs))
+
+    def test_restate_and_list_are_expanded_from_the_whole_document(self):
+        envs = crossref.theorem_envs({'lang': 'ja', 'theorem_envs': {}})
+        blocks = theorems.collect([(self.SRC, False)], envs, 'section')
+        self.assertEqual([b.label for b in blocks], [None, 'case-civil', 'question-why'])
+        out = theorems.expand('::: {.restate #question-why}\n:::\n', blocks, envs)
+        self.assertIn('octavo-restated n=2', out)
+        self.assertIn('なぜ政府か。', out)
+        report = []
+        theorems.expand('::: {.restate #question-nothing}\n:::\n', blocks, envs, report)
+        self.assertIn('question-nothing', report[0])
+
+    def test_labels_inside_a_copy_are_dropped(self):
+        envs = crossref.theorem_envs({'lang': 'ja', 'theorem_envs': {}})
+        src = '# A\n\n::: {.case #case-x}\n![図](a.png){#fig-a}\n:::\n\n::: {.restate #case-x}\n:::\n'
+        out = theorems.expand(src, theorems.collect([(src, False)], envs, 'section'), envs)
+        self.assertEqual(out.count('#fig-a'), 1)
+
+
+class TheoremBlocksBuilt(unittest.TestCase):
+    """組んだ出力（Typst の A4 プリント・LaTeX・Word）。"""
+
+    BODY = ded("""
+        ---
+        title: 講義
+        first_section: 0
+        ---
+
+        # ガイダンス
+
+        @question-why を見る。
+
+        ::: {.session #first title="第1回" date="2026-10-08"}
+        :::
+
+        # 公務員とは
+
+        ::: {.question #question-why title="なぜか"}
+        なぜ政府か。
+        :::
+
+        ::: nb
+        注意の本文。
+        :::
+
+        # 論点集 {.appendix}
+
+        ::: {.restate #question-why}
+        :::
+        """)
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        make_project(self.d / 'p', docs=(('lecture', 'notes'),), example=False, analysis=False)
+        (self.d / 'p/lectures/notes.md').write_text(self.BODY, encoding='utf-8')
+        self.cfg = config.load(self.d / 'p/octavo.config.py')
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def out(self, target: str, doc: str = 'notes') -> str:
+        r = build.build_one(self.cfg, self.cfg.document(doc), target,
+                            citations=False, offline=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        return r.outputs[0].read_text(encoding='utf-8') if target != 'docx' else ''
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_typst_handout(self):
+        typ = self.out('typst')
+        self.assertIn('first-section: 0', typ)
+        self.assertIn('#octavo-theorem("case", [論点], lang: "ja", title: [なぜか])[', typ)
+        self.assertIn('] <question-why>', typ)
+        self.assertIn('numbered: false', typ)                  # 注意
+        self.assertIn('#octavo-session("first", title: "第1回")', typ)
+        self.assertIn('#show: octavo-appendix', typ)
+        self.assertIn('#octavo-restate(word: [論点], lang: "ja", target: <question-why>, '
+                      'number: "1.1"', typ)
+        # 区切りがあるので `#` ごとの改ページはしない（区切りで必ず改ページ）
+        self.assertIn('pagebreak: none', typ)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_latex_handout(self):
+        tex = self.out('latex')
+        self.assertIn('\\begin{question}[なぜか]\\label{question-why}', tex)
+        self.assertIn('\\newtheorem{question}[case]{論点}', tex)
+        self.assertIn('\\setcounter{section}{-1}', tex)
+        self.assertIn('\\appendix', tex)
+        self.assertIn('論点\\ref{question-why}', tex)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_it_compiles_and_the_numbers_come_out(self):
+        r = build.build_one(self.cfg, self.cfg.document('notes'), 'typst',
+                            citations=False, offline=True, do_compile=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        if shutil.which('pdftotext'):
+            text = subprocess.run(['pdftotext', str(r.compiled), '-'], capture_output=True,
+                                  text=True).stdout
+            self.assertIn('論点 1.1', text)                    # 参照と、ブロックの頭
+            self.assertIn('ガイダンス', text)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_the_session_deck_keeps_the_handout_numbers(self):
+        r = build.build_one(self.cfg, self.cfg.document('notes-first'), 'typst-slides',
+                            citations=False, offline=True, do_compile=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        if shutil.which('pdftotext'):
+            text = subprocess.run(['pdftotext', str(r.compiled), '-'], capture_output=True,
+                                  text=True).stdout
+            self.assertIn('論点 1.1', text)
+            self.assertIn('2026 年 10 月 8 日', text)            # 区切りの date
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_the_appendix_heading_on_a_deck_has_no_number_unless_slides_are_numbered(self):
+        """番号を振らないスライドで、付録の見出しが「0.1」になっていた。"""
+        def deck():
+            r = build.build_one(self.cfg, self.cfg.document('notes-first'), 'typst-slides',
+                                citations=False, offline=True, do_compile=True)
+            self.assertTrue(r.ok, '\n'.join(r.report))
+            return r
+        typ = deck().outputs[0].read_text(encoding='utf-8')
+        self.assertIn('#show: octavo-appendix.with(heading-numbering: none)', typ)
+        if shutil.which('pdftotext'):
+            text = subprocess.run(['pdftotext', str(deck().compiled), '-'],
+                                  capture_output=True, text=True).stdout
+            self.assertIn('論点集', text)
+            self.assertNotIn('0.1', text)
+        self.cfg._v['typst_slides_numbering'] = '1.1'
+        typ = deck().outputs[0].read_text(encoding='utf-8')
+        self.assertIn('#show: octavo-appendix\n', typ)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_extract_cuts_one_pdf_per_session(self):
+        from octavo import extract
+        r = extract.run(self.cfg, 'notes', offline=True)
+        self.assertEqual([k for k, _ in r['made']], ['first'])
+        table = json.loads(r['table'].read_text(encoding='utf-8'))
+        s = table['sessions'][0]
+        self.assertEqual(s['key'], 'first')
+        self.assertGreater(s['first'], table['body'] - 1)
+        # 印字のページ番号は全体のまま（表紙・目次の後の本文が 1 から）
+        self.assertEqual(s['shown_first'], str(s['first'] - table['body'] + 1))
+        self.assertTrue(r['made'][0][1].is_file())
+        with self.assertRaises(extract.ExtractError):
+            extract.run(self.cfg, 'notes', sessions=['nope'], offline=True)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_extract_json_has_what_the_extension_reads(self):
+        # extension.ts の octavo.extract が読むのは ok / error / made[].pdf
+        from octavo import cli
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = cli.main(['extract', 'notes', '--json', '--offline',
+                             '-c', str(self.d / 'p/octavo.config.py')])
+        res = json.loads(buf.getvalue().strip().split('\n')[-1])
+        self.assertEqual(code, 0)
+        self.assertTrue(res['ok'])
+        self.assertTrue(Path(res['made'][0]['pdf']).is_file())
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = cli.main(['extract', 'notes', '--json', '--offline', '-s', 'nope',
+                             '-c', str(self.d / 'p/octavo.config.py')])
+        res = json.loads(buf.getvalue().strip().split('\n')[-1])
+        self.assertFalse(res['ok'])
+        self.assertIn('nope', res['error'])
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_word_writes_the_numbers(self):
+        self.out('docx')
+        docx = self.cfg.out_dir('docx', self.cfg.document('notes')) / 'notes.docx'
+        text = subprocess.run(['pandoc', str(docx), '-t', 'plain'], capture_output=True,
+                              text=True).stdout
+        self.assertIn('論点1.1（なぜか）', text)
+        self.assertIn('付録A', text)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_theorem_envs_in_the_config_does_not_crash_the_build(self):
+        # 表示用の tag() をローカル変数が隠して、theorem_envs を書くと build が落ちていた
+        cp = self.d / 'p/octavo.config.py'
+        cp.write_text(cp.read_text(encoding='utf-8').replace(
+            "CONFIG = {", "CONFIG = {\n    'theorem_envs': {'case': '事例', 'nb': '注意'},", 1),
+            encoding='utf-8')
+        self.cfg = config.load(cp)
+        self.assertIn('\\begin{question}', self.out('latex'))
+        self.assertIn('#octavo-theorem', self.out('typst'))
+
+    def test_a_paper_body_imports_the_block_functions(self):
+        from octavo.backends.typst import TypstBackend
+        b = TypstBackend()
+        ctx = Ctx(cfg=self.cfg, backend=b, out_dir=self.d, profile='paper')
+        out = b.postprocess('#octavo-theorem("case", [事例])[x]\n', ctx)
+        self.assertTrue(out.startswith('#import "crossref.typ": octavo-theorem'))
+
+
+class SessionMarkers(unittest.TestCase):
+    """回の区切り（`::: {.session}`）。"""
+
+    SRC = ded("""
+        ---
+        title: 講義
+        date: 2026-04-01
+        ---
+
+        前置き
+
+        # ガイダンス
+
+        ::: {.session #first title="第1回" subtitle="副" date="2026-10-08"}
+        :::
+
+        # 公務員とは
+
+        ## 小節
+
+        ::: {.session}
+        :::
+
+        # 政策と政府
+
+        本文
+
+        ```
+        ::: {.session #fake}
+        :::
+        ```
+        """)
+
+    def test_markers_decide_the_sessions(self):
+        self.assertEqual(md.section_keys(self.SRC), [('first', '第1回'), ('02', '政策と政府')])
+
+    def test_the_marker_fills_the_title_slide(self):
+        meta, body = md.split_front_matter(md.section_part(self.SRC, 'first'))
+        self.assertEqual((meta['title'], meta['subtitle'], meta['date']), ('第1回', '副', '2026-10-08'))
+        self.assertIn('# 公務員とは', body)                  # 題は区切りなので見出しは残る
+
+    def test_without_a_title_the_first_heading_is_used_and_dropped(self):
+        meta, body = md.split_front_matter(md.section_part(self.SRC, '02'))
+        self.assertEqual((meta['title'], meta['subtitle']), ('政策と政府', '講義'))
+        self.assertNotIn('# 政策と政府', body)
+        self.assertIn('::: {.session #fake}', body)           # コードの中は区切りではない
+
+    def test_section_numbers_before_a_session(self):
+        # first: 前に `#` が1つ（ガイダンス）、回の中に自分の `#` がある
+        self.assertEqual(md.session_start_sections(self.SRC, 'first'), (1, True))
+        # 02: 題にした `#`（政策と政府）がこの回の節
+        self.assertEqual(md.session_start_sections(self.SRC, '02'), (3, False))
+
+    def test_heading_sessions_still_work_without_markers(self):
+        src = '# 第1回\n\n本文\n\n# 第2回 {#second}\n\n本文\n'
+        self.assertEqual(md.section_keys(src), [('01', '第1回'), ('second', '第2回')])
+        self.assertEqual(md.session_start_sections(src, 'second'), (2, False))
+
+    def test_spans_follow_the_markers(self):
+        spans = md.section_spans(self.SRC)
+        self.assertEqual([k for k, *_ in spans], ['first', '02'])
+        lines = self.SRC.split('\n')
+        self.assertTrue(lines[spans[0][2] - 1].startswith('::: {.session #first'))
+
+
+class SlideMarks(unittest.TestCase):
+    """スライドの区切りと題（`::: {.slide}`・`{.same-slide}`・`{slide-title=…}`）。"""
+
+    SRC = ded("""
+        # 公務員とは
+
+        ## 定員の推移 {#sec-teiin slide-title="定員"}
+
+        前半。
+
+        ::: {.slide}
+        :::
+
+        後半。
+
+        ## 細目 {.same-slide}
+
+        細目の本文。
+
+        ::: {.slide title="比べる"}
+        :::
+
+        ```
+        ::: {.slide}
+        :::
+        ```
+        """)
+
+    def test_on_slides(self):
+        out = md.slide_marks(self.SRC, True, 'ja')
+        self.assertIn('## 定員 {#sec-teiin slide-title="定員"}', out)   # ラベルはそのまま
+        self.assertIn('## 定員（続き） {.unnumbered}', out)
+        self.assertIn('**細目**', out)
+        self.assertIn('## 比べる {.unnumbered}', out)
+        self.assertIn('```\n::: {.slide}\n:::\n```', out)               # コードの中は見ない
+
+    def test_elsewhere_only_the_markers_go(self):
+        out = md.slide_marks(self.SRC, False, 'ja')
+        self.assertIn('## 定員の推移 {#sec-teiin slide-title="定員"}', out)
+        self.assertIn('## 細目 {.same-slide}', out)
+        self.assertNotIn('比べる', out)
+        self.assertEqual(out.count('::: {.slide}'), 1)                   # コードの中の1つだけ
+
+    def test_english_continuation(self):
+        out = md.slide_marks('## Results\n\nA.\n\n::: {.slide}\n:::\n\nB.\n', True, 'en')
+        self.assertIn('## Results (cont.) {.unnumbered}', out)
+
+    def test_with_sections_and_slides_the_slide_is_the_deeper_one(self):
+        """回のスライドで `##` 節・`###` スライドのとき、区切りは `###` の1枚になる
+        （`##` の節になっていた）。`##` だけなら `##`。"""
+        src = '## 節\n\n### 1枚目\n\n前半。\n\n::: {.slide}\n:::\n\n後半。\n\n#### 細目\n'
+        out = md.slide_marks(src, True, 'ja')
+        self.assertIn('### 1枚目（続き） {.unnumbered}', out)
+        out = md.slide_marks('## 1枚目\n\nA.\n\n::: {.slide}\n:::\n', True, 'ja')
+        self.assertIn('## 1枚目（続き） {.unnumbered}', out)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_deck_that_cites_nothing_has_no_references_slide(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            make_project(d / 'p', docs=(('lecture', 'notes'),), example=False, analysis=False)
+            (d / 'p/lectures/notes.md').write_text(ded("""
+                # 第1回 {#one}
+
+                ## 節
+
+                ### 1枚目
+
+                本文。
+                """), encoding='utf-8')
+            cfg = config.load(d / 'p/octavo.config.py')
+            r = build.build_one(cfg, cfg.document('notes-one'), 'typst-slides', offline=True)
+            self.assertTrue(r.ok, '\n'.join(r.report))
+            typ = r.outputs[0].read_text(encoding='utf-8')
+            self.assertNotIn('{#refs}', typ)
+            self.assertNotIn('参考文献', typ.split('#let octavo')[0] + typ.split('\n= ', 1)[-1])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_a_session_takes_its_slide_title(self):
+        src = '# 第1回 とても長い題 {#first slide-title="第1回"}\n\n本文\n'
+        self.assertEqual(md.section_keys(src), [('first', '第1回')])
+
+
+class DisplayDate(unittest.TestCase):
+    def test_formats(self):
+        self.assertEqual(build.display_date('2026-10-08', None, 'ja'), '2026年10月8日')
+        self.assertEqual(build.display_date('2026-10-08', None, 'en'), 'October 8, 2026')
+        self.assertEqual(build.display_date('2026-10-08', '%Y/%m/%d', 'ja'), '2026/10/08')
+        self.assertEqual(build.display_date('2026年度前期', None, 'ja'), '2026年度前期')
+        import datetime
+        self.assertEqual(build.display_date('today', '%Y-%m-%d', 'ja'),
+                         datetime.date.today().isoformat())
+
+
+class ListIndents(unittest.TestCase):
+    def test_shallow_and_mixed(self):
+        src = '- a\n  - b\n    - c\n- d\n    - e\n\n1. one\n  - two\n   - three\n'
+        self.assertEqual([(l, k) for l, k, _ in lint.list_indents(src)],
+                         [(5, 'mixed'), (8, 'shallow')])
+
+    def test_code_and_front_matter_are_skipped(self):
+        src = '---\ntitle: x\n---\n\n```\n1. a\n  - b\n```\n'
+        self.assertEqual(lint.list_indents(src), [])
+
+    def test_consistent_four_spaces_is_fine(self):
+        self.assertEqual(lint.list_indents('- a\n    - b\n        - c\n'), [])
+
+
+class AnalysisHeader(unittest.TestCase):
+    def test_the_qmd_header_takes_the_author_from_meta(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            scaffold.init(d / 'p', lang='ja', quiet=True)
+            cp = d / 'p/octavo.config.py'
+            text = cp.read_text(encoding='utf-8').replace(
+                "'author': '著者名',", "'author': '著者名', 'affiliation': '所属', "
+                "'email': 'a@example.org',")
+            cp.write_text(text, encoding='utf-8')
+            scaffold.new(cp, 'analysis', 'model', quiet=True)
+            qmd = (d / 'p/analysis/model.qmd').read_text(encoding='utf-8')
+            self.assertIn('title: "model"', qmd)
+            self.assertIn('  - name: "著者名"\n    affiliation: "所属"\n    email: "a@example.org"', qmd)
+            self.assertIn('date-modified: today', qmd)
+            self.assertIn('embed-resources: true', qmd)
+            self.assertIn('lang: ja', qmd)
+            self.assertNotIn('@@', qmd)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 # =====================================================================
@@ -3044,15 +3425,21 @@ class TypstSlides(unittest.TestCase):
                                 for n in tail), cjk)
 
     @unittest.skipUnless(shutil.which('pandoc'), 'pandoc がない')
-    def test_the_handout_passes_the_font_list_through_header_includes(self):
-        from octavo.backends.typst import TypstBackend
+    def test_the_handout_template_gets_the_font_list(self):
+        # A4 プリントは自前のテンプレート（handout/handout.typ）で組む。pandoc には
+        # --standalone も mainfont も渡さず、書体の並びは `#let octavo = (…)` で渡る
+        from octavo.backends.typst import TypstBackend, handout_meta
         b = TypstBackend()
         ctx = Ctx(cfg=self.cfg, backend=b, out_dir=self.d, profile='handout')
-        args = b.pandoc_args(ctx)
-        joined = ' '.join(args)
-        self.assertIn('header-includes=#set text(font: (', joined)
-        self.assertIn('BIZ UDMincho', joined)
-        self.assertNotIn('mainfont=', joined)
+        args = ' '.join(b.pandoc_args(ctx))
+        self.assertNotIn('--standalone', args)
+        self.assertNotIn('mainfont=', args)
+        meta = handout_meta(ctx)
+        # 講義ノートの本文はゴシック（明朝は使わない）
+        font = meta.split('  font: ')[1].split('\n')[0]
+        self.assertIn('BIZ UDGothic', font)
+        self.assertNotIn('Mincho', font)
+        self.assertIn('head-font: ((name: "Inter"', meta)
 
     def test_aspect_is_validated(self):
         (self.d / 'x.config.py').write_text(
@@ -3639,6 +4026,21 @@ class PreviewCli(unittest.TestCase):
             self.assertTrue(lines[part['start_line'] - 1].startswith('# '))
             self.assertGreaterEqual(part['end_line'], part['start_line'])
 
+    def test_a_lecture_says_whether_it_can_be_cut_into_handouts(self):
+        """拡張は handouts を見て「回ごとの配布資料を作る」を出し、保存のたびに作り直す。
+        回の区切り（::: {.session}）がなければ切り出せないので false。"""
+        def lecture():
+            return next(d for d in self.run_cli('documents', '--json')['documents']
+                        if d['name'] == '講義')
+        self.assertFalse(lecture()['handouts'])
+        src = Path(lecture()['src'])
+        text = src.read_text(encoding='utf-8')
+        at = text.index('\n# ')
+        src.write_text(text[:at] + '\n\n::: {.session #one}\n:::\n' + text[at:], encoding='utf-8')
+        self.assertTrue(lecture()['handouts'])
+        others = [d for d in self.run_cli('documents', '--json')['documents'] if d['name'] != '講義']
+        self.assertFalse(any(d['handouts'] for d in others))
+
     def test_sessions_cover_the_cursor_without_gaps(self):
         """カーソル行から回を引くので、回と回のあいだに隙間があってはいけない。"""
         lec = next(d for d in self.run_cli('documents', '--json')['documents']
@@ -4025,7 +4427,7 @@ class CitationsByLanguage(unittest.TestCase):
         self.assertIsNone(self.filter_for('ja', citations_by_language=False))
         self.assertIsNone(self.filter_for('ja', csl_locale='en-US'))
 
-    def run_filter(self, text, csl=None):
+    def run_filter(self, text, csl=None, form=None):
         with tempfile.TemporaryDirectory() as tmp:
             bib = Path(tmp) / 'r.bib'
             bib.write_text(self.BIB, encoding='utf-8')
@@ -4035,6 +4437,8 @@ class CitationsByLanguage(unittest.TestCase):
                 style.write_text(csl, encoding='utf-8')
             lua = tmpl.find('citations/japanese.lua')
             args = pandocrun.citeproc_args(bib, style, 'ja-JP', '参考文献', lua_filter=lua)
+            if form:
+                args += ['-M', f'octavo-ja-form={form}']
             self.assertIn('--lua-filter', args)
             self.assertNotIn('--citeproc', args)
             return pandocrun.run(text, ['-f', 'markdown', '-t', 'plain', '--wrap=none', *args],
@@ -4051,6 +4455,38 @@ class CitationsByLanguage(unittest.TestCase):
         self.assertIn('伊藤七子 (2021)「号と DOI」『見本学会誌』3(2): 5–9. '
                       'https://doi.org/10.1234/abcd', out)
         self.assertNotIn('山田太郎.', out)                     # 書式の書誌の形（名前. 題）は使わない
+
+    @unittest.skipUnless(HAVE_PANDOC and pandocrun.at_least(2, 19, 1), 'needs pandoc 2.19.1+')
+    def test_the_form_of_japanese_works_can_be_chosen(self):
+        text = '[@yamada2020]、[@sato2018]、[@kato2015]、[@ito2021]。\n'
+        out = self.run_filter(text, form='fullwidth')
+        self.assertIn('山田太郎・田中花子（2020）「日本語論文の例」『見本学会誌』12巻、1–20頁。', out)
+        self.assertIn('佐藤一郎・鈴木次郎・高橋三郎・伊藤四郎（2018）『日本語の本』見本出版。', out)
+        self.assertIn('加藤五郎（2015）「論文集の章」中村六郎編『論文集の名前』見本出版、10–20頁。', out)
+        self.assertIn('伊藤七子（2021）「号と DOI」『見本学会誌』3巻2号、5–9頁。 '
+                      'https://doi.org/10.1234/abcd', out)
+        out = self.run_filter(text, form='period')
+        self.assertIn('山田太郎・田中花子．2020．「日本語論文の例」『見本学会誌』12巻、1–20頁。', out)
+        # 本文中の引用は書式（CSL）のまま
+        self.assertIn('(山田・田中 2020)', out)
+
+    def test_the_form_reaches_the_filter_only_when_it_is_used(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'p'
+            make_project(root, docs=(), lang='ja', analysis=False)
+            cfg = config.load(root / 'octavo.config.py')
+            cfg._v['japanese_citation_form'] = 'period'
+            ctx = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=root, profile='paper')
+            self.assertEqual(build.citation_form_args(cfg, ctx), ['-M', 'octavo-ja-form=period'])
+            cfg._v['citations_by_language'] = False
+            self.assertEqual(build.citation_form_args(cfg, ctx), [])
+
+    def test_an_unknown_form_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            p = Path(tmp) / 'x.config.py'
+            p.write_text("CONFIG = {'japanese_citation_form': 'nenpo'}", encoding='utf-8')
+            with self.assertRaises(SystemExit), contextlib_redirect():
+                config.load(p)
 
     @unittest.skipUnless(HAVE_PANDOC and pandocrun.at_least(2, 19, 1), 'needs pandoc 2.19.1+')
     def test_each_work_in_its_own_language(self):
@@ -5303,6 +5739,11 @@ class Website(unittest.TestCase):
                 rel = path.relative_to((ROOT / 'site').resolve())
                 if rel.parts[0] == 'images':
                     path = ROOT / 'docs' / Path(*rel.parts)
+                for slug in ('guide', 'lectures'):
+                    if slug in rel.parts:
+                        # 手引きのページは docs/<slug>*.md から組む（site/build.sh）
+                        path = ROOT / 'docs' / (f'{slug}.ja.md' if rel.parts[0] == 'ja'
+                                                else f'{slug}.md')
                 self.assertTrue(path.is_file(), f'{lang}: {url}')
 
     def test_no_personal_details(self):
@@ -5339,6 +5780,85 @@ class Website(unittest.TestCase):
         wf = (ROOT / '.github' / 'workflows' / 'pages.yml').read_text(encoding='utf-8')
         self.assertIn("if: github.repository == 'yoshida-kd/octavo'", wf)
         self.assertIn('cp docs/images/* _site/images/', wf)
+        self.assertIn('sh site/build.sh _site', wf)
+
+
+class GuidePages(unittest.TestCase):
+    """手引き（docs/guide*.md）と講義ノートの手引き（docs/lectures*.md）、それを組んだ
+    Pages のページ（site/build.sh）。"""
+
+    GUIDES = {'en': ROOT / 'docs' / 'guide.md', 'ja': ROOT / 'docs' / 'guide.ja.md'}
+    # 英語と日本語の組。どの組もコードと見出しの数がそろっている
+    PAIRS = {'guide': GUIDES,
+             'lectures': {'en': ROOT / 'docs' / 'lectures.md',
+                          'ja': ROOT / 'docs' / 'lectures.ja.md'}}
+
+    @staticmethod
+    def code_blocks(text: str) -> list:
+        """コードブロックの中身から、コメントと日本語の説明を除いたもの（英日で同じはず）。"""
+        out = []
+        for lang, body in re.findall(r'^```(\w*)\n(.*?)^```', text, re.S | re.M):
+            lines = []
+            for line in body.split('\n'):
+                line = re.sub(r'\s+#\s.*$', '', line)            # シェル・Python のコメント
+                line = re.sub(r'\s+//.*$', '', line)
+                if lang == '' and re.search(r'[^\x00-\x7f]', line):
+                    # 説明つきの一覧（フォルダーの中身・コマンド一覧）は、左の列だけ比べる
+                    line = re.split(r'\s{2,}', line.strip())[0]
+                lines.append(line.rstrip())
+            out.append((lang, '\n'.join(lines).strip()))
+        return out
+
+    def test_the_two_guides_have_the_same_code(self):
+        """日本語の手引きのコードは英語のものと同じ（訳すのはコメントだけ）。"""
+        for name, pair in self.PAIRS.items():
+            en = self.code_blocks(pair['en'].read_text(encoding='utf-8'))
+            ja = self.code_blocks(pair['ja'].read_text(encoding='utf-8'))
+            self.assertEqual(len(en), len(ja), name)
+            for (le, e), (lj, j) in zip(en, ja):
+                self.assertEqual(le, lj, name)
+                if le in ('bash', 'powershell', 'markdown', 'python', 'typst', 'r'):
+                    self.assertEqual(e, j, name)
+
+    def test_the_two_guides_have_the_same_chapters(self):
+        count = lambda p, pat: len(re.findall(pat, p.read_text(encoding='utf-8'), re.M))
+        for name, pair in self.PAIRS.items():
+            for pat in (r'^## ', r'^### ', r'^#### '):
+                self.assertEqual(count(pair['en'], pat), count(pair['ja'], pat), (name, pat))
+
+    def test_install_has_a_section_for_each_system(self):
+        for lang, p in self.GUIDES.items():
+            text = p.read_text(encoding='utf-8')
+            for heading in ('### Linux', '### macOS', '### Windows'):
+                self.assertIn(heading + '\n', text, lang)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_the_pages_build_and_every_link_inside_works(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            subprocess.run(['sh', str(ROOT / 'site' / 'build.sh'), str(d)], check=True,
+                           capture_output=True)
+            for lang, rel in (('en', 'guide/index.html'), ('ja', 'ja/guide/index.html'),
+                              ('en', 'lectures/index.html'), ('ja', 'ja/lectures/index.html')):
+                html = (d / rel).read_text(encoding='utf-8')
+                ids = set(re.findall(r'\bid="([^"]+)"', html))
+                broken = [a for a in re.findall(r'href="#([^"]+)"', html) if a not in ids]
+                self.assertEqual(broken, [], lang)
+                # 外から何も読まない
+                self.assertNotRegex(html, r'<(?:script|img|link|iframe)\b[^>]*\b(?:src|href)="(?:https?:)?//', lang)
+                # GitHub で読む人への案内は落ちている
+                self.assertNotIn('pages:skip', html)
+                # 言語の切り替えは同じページの別の言語へ
+                other = rel.replace('ja/', '') if lang == 'ja' else 'ja/' + rel
+                self.assertIn('/' + other.replace('index.html', '') + '"', html)
+                if 'guide' in rel:
+                    self.assertIn('Linux', html)
+                if lang == 'ja':
+                    # 本文の日本語の途中に改行（＝空白）がない（コードブロックの中は除く）
+                    prose = re.sub(r'<pre\b.*?</pre>', '', html, flags=re.S)
+                    self.assertNotRegex(prose, r'[^\x00-\x7f]\n[^<\s]')
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
 
 
 if __name__ == '__main__':

@@ -55,6 +55,13 @@ When you add data, record its **provenance, retrieval date and terms of use** in
 `data/raw/README.md` — `data/raw/` itself is gitignored, so that README is the
 only trace that survives in version control.
 
+**Data you transcribe by hand** (numbers read off a government PDF or a chart) goes in
+`data/raw/` too. While you are transcribing, add rows freely; **once it is done, treat it
+like downloaded data.** To fix a mistake, check it against the source and note the fix in
+`data/raw/README.md`. Hand-made data cannot be fetched again, so unless it can't be shared,
+add `!data/raw/<file>.csv` to `.gitignore` to keep it in git. The CSV can be edited in
+VS Code's table view as well.
+
 ## Adding or re-running an analysis
 
 1. Edit `analysis/*.qmd` (load data from `data/`). To add one, `octavo new analysis <name>`

@@ -1,6 +1,13 @@
 ---
-title: "Analysis"
-format: html
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
 execute:
   echo: true
   warning: false
@@ -67,7 +74,7 @@ Write `{{n_obs}}` `{{coef_x}}` `{{p_x}}` in the manuscript and these values go i
 ```{r}
 #| label: fig-trend
 p <- function() {
-  plot(d$x, d$y, pch = 16, col = "#4477aa55",
+  plot(d$x, d$y, pch = 16, col = ov_tint(ov_palette("blue"), 0.4),
        xlab = "x", ylab = "y")
   abline(m, lwd = 2)
 }

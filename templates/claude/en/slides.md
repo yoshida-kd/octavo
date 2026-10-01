@@ -15,8 +15,8 @@ octavo build example-talk --compile        # slides/example-talk.md, straight to
 ## Lecture notes
 
 **One set of lecture notes** produces the A4 handout (all sessions in one) and
-**a separate slide deck for each `#` heading**. One `#` is one session; each `##`
-is a slide.
+**a separate slide deck for each `#` heading**. One `#` is one session, `##` a section and
+`###` a slide (a session with only `##` headings makes each `##` a slide).
 
 ```bash
 octavo build example-lecture --to typst --compile           # A4 handout, straight to PDF
@@ -30,6 +30,50 @@ octavo build example-lecture-03 --to typst-slides           # just the third ses
 - A session deck's title slide takes the `#` heading as its title and the notes'
   title as its subtitle
 - Anything before the first `#` goes into the handout only
+
+### Marking sessions yourself
+
+When a session is not one `#` (two `#`s in one session, or a session starting mid-way),
+write a **session marker**. Once a manuscript has one, the markers decide the sessions
+and the `#` / `##` headings are free to be sections and subsections:
+
+```markdown
+::: {.session #third title="Session 3: policy and government" date="2026-10-14"}
+:::
+```
+
+- A session runs from its marker to just before the next one; `#third` names the deck
+  (`example-lecture-third`). `title` / `subtitle` / `date` go on the deck's title slide;
+  without `title`, the session's first heading is used
+- Slides break at headings; `::: {.slide}` + `:::` adds a break, `{.same-slide}` on a
+  heading removes one, and `{slide-title="…"}` gives a heading a different title on the slide
+- The handout always starts a session on a new page, so
+  `octavo extract example-lecture` can cut **one PDF per session** out of the whole handout
+  (`build/handouts/example-lecture-third.pdf`), keeping the page numbers of the whole
+  (`--session third`, `--pages 12-19`, `--cover` for the cover and contents)
+
+### Cases, questions and other numbered blocks
+
+```markdown
+::: {.question #question-why title="Why is government the main actor?"}
+Why is government at the centre of public policy?
+:::
+```
+
+- Kinds: `case`, `question`, `aside` (one shared numbering: Case 1.1, Question 1.2),
+  `nb`, `memo` (unnumbered), and `theorem`, `definition`, … . Refer to one with
+  `@question-why` → "Question 1.2" (the label starts with the kind)
+- `::: {.restate #question-why}` + `:::` repeats it elsewhere with its number and a link
+  back; `::: {.list-of .question}` + `:::` lists them all (`.titles` for titles only).
+  **Write a block once; never copy its text**
+
+### The handout's layout
+
+`first_section: 0` in the notes' front matter numbers the first section 0 (a guidance
+session); `date: today` prints the day it was built. The cover is a page of its own, the
+contents are numbered i, ii, and the body starts at 1. The type follows the Japanese LaTeX
+class jsarticle; the whole layout is `templates/handout/handout.typ`
+(`octavo template copy handout/handout.typ` to change it).
 
 Conditional blocks decide what goes where.
 

@@ -19,6 +19,7 @@ export interface Setting {
     label: string;
     kind: string;                   // 'choice' | 'bool' | 'color' | 'int' | 'text'
     choices: (string | null)[];
+    samples: string[];              // 選択肢ごとの見本（choices と同じ順。なければ空）
     value: unknown;
     default: unknown;
     explicit: boolean;
@@ -37,7 +38,7 @@ type Node =
     | { kind: 'section'; label: string; items: Setting[]; doc?: string }
     | { kind: 'setting'; s: Setting; doc?: string }
     | { kind: 'docSettings'; doc: DocInfo }
-    | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[] }
+    | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[]; tooltip?: string }
     | { kind: 'message'; label: string };
 
 function lastJson<T>(text: string): T | undefined {
@@ -202,6 +203,13 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                     : { kind: 'action', label: vscode.l10n.t('Add an appendix'),
                         command: 'octavo.addAppendix', icon: 'add', args: [{ doc: node.doc }] });
             }
+            // 回の区切りのある講義ノートは、回ごとの配布資料（build/handouts/）を作れる。
+            // 保存のたびにも作り直される（octavo.updateHandoutsOnSave）
+            if (node.doc.handouts) {
+                rows.push({ kind: 'action', label: vscode.l10n.t('Make the session handouts'),
+                            command: 'octavo.extract', icon: 'files', args: [{ doc: node.doc }],
+                            tooltip: vscode.l10n.t('One PDF per session in build/handouts/. They are also remade each time you save the notes (setting: Update Handouts On Save).') });
+            }
             rows.push({ kind: 'docSettings', doc: node.doc });
             return rows;
         }
@@ -308,8 +316,10 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 const it = new vscode.TreeItem(node.doc.name, node.doc.parts.length || paper ? C : N);
                 it.description = node.doc.rel;
                 it.iconPath = new vscode.ThemeIcon(DOC_ICON[node.doc.profile] ?? 'file');
-                // 論文だけ右クリックに「付録を足す」「main.tex を足す」が出る
-                it.contextValue = paper ? 'octavo.doc.paper' : 'octavo.doc';
+                // 論文だけ右クリックに「付録を足す」「main.tex を足す」、講義ノートだけ
+                // 「回ごとの配布資料を作る」が出る
+                it.contextValue = paper ? 'octavo.doc.paper'
+                    : node.doc.profile === 'handout' ? 'octavo.doc.lecture' : 'octavo.doc';
                 it.tooltip = `${node.doc.rel} · ${node.doc.profile} · ${node.doc.targets.join(', ')}`;
                 const uri = resolvePathFromTool(node.doc.src);
                 if (uri) {
@@ -381,6 +391,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             case 'action': {
                 const it = new vscode.TreeItem(node.label, N);
                 it.iconPath = new vscode.ThemeIcon(node.icon);
+                it.tooltip = node.tooltip;
                 it.command = { command: node.command, title: node.label,
                                arguments: node.args ?? [] };
                 return it;
@@ -450,10 +461,11 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 items.push({ label: vscode.l10n.t('on'), raw: 'true' },
                            { label: vscode.l10n.t('off'), raw: 'false' });
             } else if (s.kind === 'choice') {
-                for (const c of s.choices) {
+                s.choices.forEach((c, i) => {
                     items.push({ label: c === null ? vscode.l10n.t('none') : c,
+                                 description: s.samples?.[i],
                                  raw: c === null ? 'none' : c });
-                }
+                });
             } else {
                 items.push({ label: vscode.l10n.t('Enter a colour (#RRGGBB)…'), raw: 'ask' },
                            { label: vscode.l10n.t('No accent (plain black)'), raw: 'none' });

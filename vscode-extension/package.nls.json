@@ -30,6 +30,7 @@
   "command.preview.title": "Open the Live Preview",
   "command.previewColumn.title": "Preview: What Goes in the Third Column…",
   "command.previewRefresh.title": "Preview: Build It Again",
+  "config.updateHandoutsOnSave.description": "For lecture notes with session markers (::: {.session}), remake the per-session handouts in build/handouts/ each time the notes are saved. It runs in the background after the preview.",
   "config.previewLectureColumn.description": "For lecture notes, what the third column of the preview shows. The first two are always the manuscript and the A4 handout; pick \"none\" for a two-column layout.",
   "config.previewLectureColumn.slides": "The deck for the session the cursor is in",
   "config.previewLectureColumn.notes": "The speaker script (typst-notes) — the same deck on A4 with ::: notes underneath",
@@ -46,5 +47,6 @@
   "command.analysisRunOne.title": "Run This Analysis (.qmd)",
   "command.analysisRun.title": "Run the Analysis (analysis run)",
   "command.addAppendix.title": "Add an Appendix",
-  "command.addTex.title": "Add main.tex (LaTeX)"
+  "command.addTex.title": "Add main.tex (LaTeX)",
+  "command.extract.title": "Make a Handout per Session"
 }

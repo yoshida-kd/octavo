@@ -29,7 +29,8 @@ document.addEventListener('click', function (e) {
     </a>
     <nav>
       <a href="#install">インストール</a>
-      <a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引き</a>
+      <a href="guide/">手引き</a>
+      <a href="lectures/">講義ノート</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
       <a href="../" hreflang="en" lang="en" data-lang="en">English</a>
     </nav>
@@ -44,7 +45,7 @@ document.addEventListener('click', function (e) {
     <p class="lead">論文・スライド・講義ノートは Markdown で書き、分析は Quarto で行う。分析が出した数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に仕上げる（TeX があれば LaTeX にも）。文献は1つの <code>.bib</code> から、好きな CSL スタイルで整形される。</p>
     <div class="actions">
       <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">VS Code 拡張をインストール</a>
-      <a class="button secondary" href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引きを読む</a>
+      <a class="button secondary" href="guide/">手引きを読む</a>
     </div>
   </div>
 </div>
@@ -115,7 +116,7 @@ document.addEventListener('click', function (e) {
   (("z", "x"), ("z", "y"), ("x", "y"),
    ("u", "y", (dash: "dashed"))),
 )</code></pre>
-      <p><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#typst-で図を描くtikz-の代わり">手引きで詳しく</a></p>
+      <p><a href="guide/#図">手引きで詳しく</a></p>
     </div>
     <figure class="figure">
       <img src="../images/diagram-ja.png" width="579" height="324" loading="lazy"
@@ -136,6 +137,7 @@ document.addEventListener('click', function (e) {
 uv tool install octavo-kit
 octavo setup     <span class="comment"># pandoc / Typst / Quarto / フォント / R</span>
 octavo doctor    <span class="comment"># 足りないものを報告する</span></code></pre>
+      <p><a href="guide/#linux">Linux</a>・<a href="guide/#macos">macOS</a>・<a href="guide/#windows">Windows</a> ごとの手順は手引きにある。</p>
     </div>
     <div>
       <h2>始め方</h2>
@@ -156,19 +158,19 @@ octavo check     <span class="comment"># 投稿する前に</span></code></pre>
 <section>
   <div class="wrap">
     <h2>手引き</h2>
-    <p>使い方はすべて<a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md">手引き</a>にある:</p>
+    <p>使い方はすべて<a href="guide/">手引き</a>にある。講義ノートは<a href="lectures/">講義ノートの作り方</a>に1ページでまとめてある（VS Code で作る手順と、記法の早見表）。</p>
     <ol class="chapters">
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#1-インストール">インストール</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#2-文書とプロファイル">文書とプロファイル</a> <span>— init と new、講義ノート、文書ごとの設定</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#3-原稿の書き方">原稿の書き方</a> <span>— 相互参照、数式、表</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#4-分析quartoと原稿の分業">分析（Quarto）と原稿</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#5-文献bib--雑誌の書式">文献</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#6-コマンド">コマンド</a> <span>— 点検、匿名審査、投稿、改訂、再現</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#7-自分用にする-テンプレートと-word-のスタイル">自分用にする</a> <span>— テンプレートと Word のスタイル</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#8-形式ごとの違い知っておくこと">形式ごとの違い</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#9-中身の構成">中身の構成</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#10-何が確かめられていて何を自分で確かめるか">何が確かめられているか</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#11-vs-code-拡張">VS Code 拡張</a></li>
+      <li><a href="guide/#1-インストール">インストール</a> <span>— Linux・macOS・Windows を順に</span></li>
+      <li><a href="guide/#2-最初のプロジェクト">最初のプロジェクト</a> <span>— <code>octavo init</code> と <code>octavo new</code>、分析の環境</span></li>
+      <li><a href="guide/#3-原稿を書く">原稿を書く</a> <span>— 参照、番号の付くブロック、数式、図、表</span></li>
+      <li><a href="guide/#4-分析">分析</a> <span>— Quarto から数値・図・表を</span></li>
+      <li><a href="guide/#5-文献">文献</a></li>
+      <li><a href="guide/#6-論文-下書きから投稿まで">論文</a> <span>— 点検、匿名審査、投稿、改訂</span></li>
+      <li><a href="guide/#7-スライドと講義ノート">スライドと講義ノート</a> <span>— 回の区切り、回ごとの配布資料</span></li>
+      <li><a href="guide/#8-自分用にする">自分用にする</a> <span>— テンプレート、Word のスタイル、書体</span></li>
+      <li><a href="guide/#9-コマンド一覧">コマンド一覧</a></li>
+      <li><a href="guide/#10-vs-code">VS Code</a></li>
+      <li><a href="guide/#11-自分の機械で確かめること">自分の機械で確かめること</a></li>
     </ol>
   </div>
 </section>

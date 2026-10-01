@@ -92,6 +92,12 @@ CONFIG = {
     # Table of contents. None: only lecture-note handouts get one (not papers or slides); True / False for every document
     # 'toc': None,
     # 'toc_depth': 2,                  # heading depth listed (lecture notes: 1 = sessions only, 2 = sessions and sections)
+    # 'first_section': 1,              # number of the first section (0 makes a guidance session "0")
+    # How `date:` is shown on title slides and handouts; `date: today` is the build day.
+    # None: 2026年10月14日 in Japanese, October 14, 2026 in English
+    # 'date_format': '%Y-%m-%d',
+    # Japanese works in a Japanese document: 'standard' (2020)「…」 | 'fullwidth' （2020）…巻…号、…頁。 | 'period' ．2020．…
+    # 'japanese_citation_form': 'standard',
 
     # ================================================================
     # Analysis (Quarto .qmd)
@@ -147,6 +153,8 @@ CONFIG = {
         # 'title': 'Paper Title',
         # 'author': 'Jane Doe',
         # 'institute': 'Example University',
+        # 'affiliation': 'Example University',   # these two go into a new .qmd's header
+        # 'email': 'jane@example.org',
     },
 
     # ================================================================
@@ -162,15 +170,19 @@ CONFIG = {
     # 'latex_classoptions': ['11pt', 'a4paper'],
     # The preamble: octavo template copy handout/handout-header.tex, then edit it
 
-    # 事例/論点/注意のような番号付きdivを使うなら（the guide, §2）:
-    # 'theorem_envs': {'case': '事例', 'question': '論点', 'nb': '注意'},
+    # Numbered blocks (::: {.question #question-why}): case, question, aside, nb, memo,
+    # theorem, … come built in. Rename one or add your own (the guide, "Writing manuscripts"):
+    # 'theorem_envs': {'claim': {'name': {'ja': '主張', 'en': 'Claim'}, 'counter': 'case'}},
 
     # ================================================================
     # Typst
     # ================================================================
     # 'typst_citations': 'csl',     # 'csl' (same style as other formats) | 'native'
-    # A4 handouts. Default: BIZ UDMincho with Libertinus Serif for Latin (see the guide, "Typefaces")
-    # 'typst_mainfont': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # A4 handouts (lecture notes); the layout is templates/handout/handout.typ.
+    # Font default: BIZ UDGothic, with Inter for Latin
+    # 'handout_font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # 'handout_fontsize': '11pt',
+    # 'handout_pagebreak': 'session',  # 'session' | 'section' (each #) | None (only at session markers)
 
     # ================================================================
     # Slides (Typst — no TeX needed)
@@ -189,7 +201,7 @@ CONFIG = {
     # The current '#' section small in the top-left corner (on by default;
     # the deck's title where there is no section)
     # 'typst_slides_running_header': False,
-    # To change the whole look, copy the bundled template and edit it (the guide, §7):
+    # To change the whole look, copy the bundled template and edit it (the guide, "Making it yours"):
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================

@@ -1,4 +1,5 @@
-// tableEditor.ts — 手で作る表（tables/<名前>.csv）を表の形で編集する画面。
+// tableEditor.ts — 手で作る表（tables/<名前>.csv）や、手で打ち込むデータ（data/**/*.csv）を
+// 表の形で編集する画面。
 //
 // 中身は普通のテキスト文書（CSV）のまま。画面で直すと文書を書き換え、文書が外で
 // 変わる（テキストで直す・元に戻す）と画面を描き直す。保存・元に戻す・未保存の印は
@@ -82,7 +83,9 @@ export class TableEditorProvider implements vscode.CustomTextEditorProvider {
     resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): void {
         const media = vscode.Uri.joinPath(this.context.extensionUri, 'media');
         panel.webview.options = { enableScripts: true, localResourceRoots: [media] };
-        panel.webview.html = this.html(panel.webview, media);
+        // 結合の決まりがあるのは手で作る表（tables/）だけ。data/ の CSV などは1行目が列の名前
+        const isTable = /(^|\/)tables\/[^/]+\.csv$/i.test(document.uri.path);
+        panel.webview.html = this.html(panel.webview, media, isTable);
 
         const eol = (): string => (document.eol === vscode.EndOfLine.CRLF ? '\r\n' : '\n');
         // 画面から来た変更をいま文書に書いているところか（その変更で描き直さない）
@@ -126,7 +129,7 @@ export class TableEditorProvider implements vscode.CustomTextEditorProvider {
         panel.onDidDispose(() => subs.forEach((s) => s.dispose()));
     }
 
-    private html(w: vscode.Webview, media: vscode.Uri): string {
+    private html(w: vscode.Webview, media: vscode.Uri, isTable: boolean): string {
         const nonce = Array.from({ length: 32 },
             () => 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'[
                 Math.floor(Math.random() * 62)]).join('');
@@ -135,6 +138,7 @@ export class TableEditorProvider implements vscode.CustomTextEditorProvider {
                      `script-src 'nonce-${nonce}'`].join('; ');
         // 画面の文言（webview の中からは vscode.l10n を呼べないので、ここで訳して渡す）
         const words = {
+            merges: isTable,
             merge: vscode.l10n.t('← merged'),
             garbled: vscode.l10n.t('This file does not look like UTF-8 (perhaps Excel saved it as Shift_JIS). Editing it here would lose characters: reopen it with the encoding Shift_JIS (the encoding in the status bar), or save it from Excel as "CSV UTF-8".'),
         };
@@ -163,7 +167,9 @@ export class TableEditorProvider implements vscode.CustomTextEditorProvider {
   ${button('as-text', vscode.l10n.t('Edit as text'), vscode.l10n.t('Open the .csv in the text editor'))}
 </div>
 <div id="garbled"></div>
-<div id="help">${esc(vscode.l10n.t('The first row is the heading. Leave a heading cell empty to merge it into the cell on its left. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.'))}</div>
+<div id="help">${esc(isTable
+        ? vscode.l10n.t('The first row is the heading. Leave a heading cell empty to merge it into the cell on its left. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.')
+        : vscode.l10n.t('The first row holds the column names. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.'))}</div>
 <div id="grid-host"><table id="grid"></table></div>
 <script nonce="${nonce}" src="${uri('table.js')}"></script>
 </body>

@@ -90,11 +90,34 @@ Equation (2.1)). In the manuscript, give things a label and refer to them by nam
 - Adding or reordering sections and figures **never means fixing references**.
   `octavo check` stops on a reference to a missing label and on a label used twice
 
-Reference the `.png` in the manuscript; Octavo uses the `.pdf` for Typst and LaTeX on its own.
+### Figure files (`.png` in the manuscript, `.pdf` in the typeset output)
+
+**Write the `.png`** in the manuscript. Octavo swaps it per format when it builds (the
+build's `[figure] fig-… -> …/trend.pdf` line records it):
+
+| Output | File used | Why |
+|---|---|---|
+| The editor's preview | `.png` (what you wrote) | the preview cannot show a PDF figure |
+| Typst (paper, handout, slides) and LaTeX | `.pdf` | vector: sharp at any zoom, and the text inside stays selectable and searchable |
+| Word | `.png` | Word cannot embed a PDF figure |
+
+`ov_figure()` and `figures/*.typ` write both the `.pdf` and the `.png`. A `.pdf` written
+straight into the manuscript is used for typesetting but does not show in the editor's preview.
+
 Write the path relative to the manuscript (`../../assets/figures/` from a paper,
-`../assets/figures/` from slides and lectures) so editor previews work. Figures are shared
-by every manuscript: to show a paper's figure on a slide, point at the same file in
-`assets/figures/` — don't copy it.
+`../assets/figures/` from slides and lectures). Figures are shared by every manuscript:
+to show a paper's figure on a slide, point at the same file in `assets/figures/` — don't
+copy it.
+
+### Making figures (readable for every kind of colour vision)
+
+1. Pick colours from the **colour-universal-design palette**: `ov_palette(3)` in R
+   (blue, orange, green, …), `ov_scale_colour_cud()` / `ov_scale_fill_cud()` for ggplot2
+2. **Never tell things apart by colour alone.** Write values and names inside the figure
+   rather than relying on a legend; emphasise with weight, line type or position as well
+3. Neighbouring areas differ in **lightness**, not just hue. Lighten an area that carries
+   text with `ov_tint(colour, 0.6)`
+4. Don't put red next to green, or yellow next to white
 
 Diagrams such as boxes and arrows are drawn in Typst: `octavo new figure <name>` puts
 `figures/<name>.typ`, and `octavo build` turns it into `.pdf` and `.png`, so the
@@ -106,6 +129,12 @@ A comparison table in sentences or a table of hand-collected numbers goes in a C
 cell right of a filled one merges into it), and `octavo build` makes the table in
 `assets/tables/` (**edit the `.csv`**). Prefer this to typing a long Markdown table into the
 manuscript.
+
+## Indenting nested lists
+
+Line a nested item up with **its parent's text** (2 spaces under `- `, 3 under `1. `). The
+width is not fixed, but keep one width within a manuscript. `octavo lint` points out nested
+items that are out of line, and lines under a numbered item indented too little to nest.
 
 ## The examples are marked as examples
 
@@ -170,4 +199,4 @@ octavo doctor       # is pandoc / LaTeX / Typst / Quarto / R present?
 octavo selftest     # see how citations actually typeset, on real output
 ```
 
-For the `octavo` command itself, see Octavo's guide: https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md
+For the `octavo` command itself, see Octavo's guide: https://yoshida-kd.github.io/octavo/guide/

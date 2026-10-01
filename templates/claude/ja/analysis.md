@@ -50,6 +50,12 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 新しいデータを置いたら `data/raw/README.md` に**出所・取得日・利用条件**を書く
 （`data/raw/` 自体は `.gitignore` で git に入らないので、この README だけが記録に残る）。
 
+**手で写し取るデータ**（官公庁の PDF や図から数字を拾う、など）も `data/raw/` に置く。
+写し取っている間は行を足してよいが、**写し終えたら取得したデータと同じ扱い**にする。
+誤りを直すときは出典と照らし合わせ、直したことを `data/raw/README.md` に書く。
+手で作ったものは取り直せないので、再配布に問題がなければ `.gitignore` に
+`!data/raw/<ファイル>.csv` を足して git に入れる。CSV は VS Code の表の画面でも編集できる。
+
 ## 分析を足す・やり直す
 
 1. `analysis/*.qmd` を編集する（データの読み込みは `data/` から）。新しく足すなら

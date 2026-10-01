@@ -57,6 +57,13 @@ class Ctx:
     crossrefs: dict = field(default_factory=dict)
     crossref_local: set = field(default_factory=set)
     crossref_section: int | None = None             # 講義の回ごとのデッキの節番号
+    # 回ごとのデッキが自分の `#` を持つとき、講義ノートでその回より前にある `#` の数
+    # （デッキの節の数え始め。講義ノートと同じ番号にする）
+    crossref_preset: int = 0
+    # 回の区切り（`::: {.session}`）が原稿にあるか
+    has_sessions: bool = False
+    # 事例・論点などのブロックの中身（再掲・一覧用）: ラベル -> (クラス, 題, 本文)
+    theorem_blocks: dict = field(default_factory=dict)
     math_macros: list = field(default_factory=list)  # 数式のマクロの定義（本文と付録から）
 
     # -- 素性 ---------------------------------------------------------------
@@ -140,6 +147,35 @@ class Ctx:
 
     def numbering_mode(self) -> str:
         return self.cfg['crossref_numbering']
+
+    @property
+    def first_section(self) -> int:
+        """最初の節の番号（first_section）。論文は main.* が番号を持つので常に 1。"""
+        return 1 if self.profile == 'paper' else int(self.cfg['first_section'])
+
+    @property
+    def section_start(self) -> int:
+        """この出力で最初の `#` に振る番号（回ごとのデッキなら講義ノート全体での番号）。"""
+        return self.crossref_preset + self.first_section
+
+    @property
+    def section_before(self) -> int | None:
+        """最初の `#` より前の本文が属する節の番号（回ごとのデッキ）。なければ None。"""
+        if self.crossref_section is not None:
+            return self.crossref_section
+        if self.crossref_preset:
+            return self.crossref_preset + self.first_section - 1
+        return None
+
+    @property
+    def envs(self) -> dict:
+        """事例・論点などのブロック（crossref.theorem_envs）。"""
+        return xref.theorem_envs(self.cfg, self.lang)
+
+    @property
+    def is_handout(self) -> bool:
+        """完結した文書で、スライドでないもの（講義ノートの A4 プリント）。"""
+        return self.standalone and not self.backend.is_slides
 
     def template(self, rel: str) -> Path:
         """ひな型の実際のパス。プロジェクト・ユーザーの上書きがあればそちら（tmpl.py）。"""
@@ -239,6 +275,34 @@ class Backend:
     def postprocess(self, text: str, ctx: Ctx) -> str:
         return re.sub(r'\n{3,}', '\n\n', text).strip() + '\n'
 
+    # -- 回の区切り・事例などのブロック（Markdown 段階）--------------------------
+    def fmt_session(self, attrs: dict, ctx: Ctx) -> str:
+        """回の区切り（`::: {.session …}`）。既定は何も出さない。"""
+        return ''
+
+    def fmt_appendix_start(self, ctx: Ctx) -> str:
+        """`# 題 {.appendix}` の直前に入れるもの（ここから付録）。"""
+        return ''
+
+    def fmt_theorem(self, env, item, title: str, body: str, ctx: Ctx) -> str:
+        """事例・論点などのブロック。既定（Word）は番号を文字で書いた太字の頭を付け、
+        ラベルを div の id にする（pandoc がブックマークにし、参照がそこへ飛ぶ）。
+        段落のスタイルは Theorem（reference.docx で見た目を決められる）。"""
+        head = env.word if item is None else xref.text_of(item, ctx.lang)
+        ident = f'#{item.label} ' if item is not None and item.label else ''
+        return (f'::: {{{ident}custom-style="Theorem"}}\n'
+                + bold_head(head, title, body, ctx.lang) + '\n:::')
+
+    def fmt_restate(self, env, item, title: str, body: str, ctx: Ctx,
+                    short: bool = False) -> str:
+        """再掲・一覧の1項目。既定（Word）は番号を文字で書く。"""
+        head = xref.text_of(item, ctx.lang) if item is not None else env.word
+        if short:
+            tt = f'　{title}' if ctx.lang == 'ja' else f' {title}'
+            return f'**{head}**{tt if title else ""}\n'
+        return ('::: {custom-style="Theorem"}\n'
+                + bold_head(head, title, body, ctx.lang) + '\n:::')
+
     def check(self, text: str, ctx: Ctx) -> None:
         pass
 
@@ -298,3 +362,18 @@ def missing_table(ctx: Ctx, path: Path, name: str) -> str:
     csv = ctx.cfg.rel(Path(ctx.cfg['table_src_dir']) / f'{name}.csv')
     return t('{path} is missing (octavo analysis run, or write {csv} and octavo build)',
              path=ctx.cfg.rel(path), csv=csv)
+
+
+def bold_head(head: str, title: str, body: str, lang: str) -> str:
+    """「**論点2.1**（題）　本文」— 最初の段落の頭に見出し語を付ける。"""
+    tt = (f'（{title}）' if lang == 'ja' else f' ({title}).') if title else ''
+    lead = f'**{head}**{tt}' + ('　' if lang == 'ja' else ' ')
+    lines = body.split('\n')
+    for i, ln in enumerate(lines):
+        if ln.strip():
+            if re.match(r'\s*(?:[-*+]|\d+[.)]|#|\||>|```|~~~|\$\$|:::)', ln):
+                # 箇条書き・表・コードなどで始まるなら、頭は独立した段落に
+                return lead.rstrip() + '\n\n' + body
+            lines[i] = lead + ln.lstrip()
+            return '\n'.join(lines)
+    return lead.rstrip()

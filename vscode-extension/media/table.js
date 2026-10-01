@@ -16,8 +16,10 @@
         if (now) go(); else timer = setTimeout(go, 250);
     }
 
-    // 見出しの結合（handtables.py と同じ決まり: 中身のあるセルの右隣の空セル）
+    // 見出しの結合（handtables.py と同じ決まり: 中身のあるセルの右隣の空セル）。
+    // 結合があるのは tables/ の表だけ。data/ の CSV は1行目が列の名前で、空なら空のまま
     function merged(c) {
+        if (!words.merges) return false;
         const top = rows[0];
         if (!top[c]) {
             for (let k = c - 1; k >= 0; k--) {

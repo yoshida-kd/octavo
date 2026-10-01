@@ -193,3 +193,71 @@ footer a { color: var(--muted); }
   section { padding: 32px 0; }
   .top nav { gap: 12px; }
 }
+
+/* ---- 手引きのページ（site/guide.html） ---------------------------------- */
+.guide .doc {
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr);
+  gap: 40px;
+  padding-top: 24px;
+  padding-bottom: 48px;
+}
+.guide .toc { font-size: 14px; line-height: 1.5; }
+.guide .toc-side {
+  position: sticky;
+  top: 16px;
+  align-self: start;
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+.guide .toc-label, .guide .toc-fold summary {
+  color: var(--muted);
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.guide .toc-fold { display: none; }
+.guide .toc-fold summary { cursor: pointer; margin: 0; }
+.guide .toc-fold[open] summary { margin-bottom: 8px; }
+.guide .toc ul { list-style: none; margin: 0; padding: 0; }
+.guide .toc ul ul { padding-left: 14px; }
+.guide .toc a { color: var(--muted); text-decoration: none; display: block; padding: 2px 0; }
+.guide .toc a:hover { color: var(--text); }
+.guide .content { min-width: 0; }
+.guide .content h1 { font-size: clamp(30px, 5vw, 40px); line-height: 1.2; margin: 8px 0 12px; }
+.guide .content h2 {
+  margin: 48px 0 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  scroll-margin-top: 16px;
+}
+.guide .content h3 { margin: 32px 0 10px; font-size: 20px; scroll-margin-top: 16px; }
+.guide .content h4 { margin: 24px 0 8px; font-size: 17px; scroll-margin-top: 16px; }
+.guide .content hr { display: none; }                /* 章の区切りは h2 の罫で足りる */
+.guide .content ul, .guide .content ol { padding-left: 1.4em; margin: 0 0 14px; }
+.guide .content li { margin: 0 0 4px; }
+.guide .content li > p { margin: 0 0 6px; }
+.guide .content table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 0 0 18px;
+  font-size: 15px;
+}
+.guide .content th, .guide .content td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.guide .content th { background: var(--bg-alt); }
+
+@media (max-width: 860px) {
+  .guide .doc { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .guide .toc-side { display: none; }
+  .guide .toc-fold {
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 10px 14px;
+  }
+}

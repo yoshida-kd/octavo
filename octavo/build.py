@@ -21,6 +21,7 @@ from . import crossref as xref
 from . import csl as cslmod
 from . import md as mdlib
 from . import pandocrun
+from . import theorems
 from . import values as valmod
 from .backends.base import Ctx
 from .i18n import t, tag
@@ -77,6 +78,13 @@ def citation_filter(cfg, ctx: Ctx):
     return ctx.template('citations/japanese.lua')
 
 
+def citation_form_args(cfg, ctx: Ctx) -> list:
+    """日本語の文献の形（japanese_citation_form）を、フィルターにメタデータで渡す。"""
+    if citation_filter(cfg, ctx) is None:
+        return []
+    return ['-M', f'octavo-ja-form={cfg["japanese_citation_form"]}']
+
+
 def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     """原稿を pandoc に渡せる形にする。(markdown, abstract) を返す。"""
     meta, body = mdlib.split_front_matter(raw)
@@ -86,6 +94,8 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     ctx.meta = {**(cfg['meta'] or {}), **doc.meta, **meta}
     if 'lang' in ctx.meta:
         ctx.meta['lang_short'] = str(ctx.meta['lang'])[:2]
+    if ctx.meta.get('date'):
+        ctx.meta['date'] = display_date(ctx.meta['date'], cfg['date_format'], ctx.lang)
 
     body = mdlib.drop_references(body)
     # 数式のマクロは抜いておき、最後に頭へ付け直す（要旨にも）
@@ -102,15 +112,22 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
                              keep_notes=backend.keeps_notes,
                              report=ctx.report,
                              notes_wrap=backend.notes_wrap)
-    body = mdlib.replace_theorem_divs(body, cfg['theorem_envs'],
-                                      raw=backend.name == 'latex', report=ctx.report)
+    # スライドの区切りと題（`::: {.slide}`、`{.same-slide}`、`{slide-title=…}`）
+    body = mdlib.slide_marks(body, backend.is_slides, ctx.lang)
+    # 回の区切り（A4 プリントでは改ページと、octavo extract が読む目印）
+    if mdlib.has_session_markers(body):
+        ctx.has_sessions = True
+        body = mdlib.replace_session_markers(body, lambda a: backend.fmt_session(a, ctx))
+    # 再掲・一覧を、元のブロックの写しにする（写した本文の参照も後で解決される）
+    body = theorems.expand(body, ctx.theorem_blocks, ctx.envs, ctx.report)
     body = mdlib.replace_poscite(body, lambda k: backend.fmt_poscite(k, ctx))
     if doc.profile in ('paper', 'handout') and backend.tidy_headings:
         body = mdlib.tidy_headings(body)
     body, known = apply_crossrefs(body, doc, backend, ctx)
     if abstract:
         abstract = xref.replace_references(
-            abstract, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report)
+            abstract, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report,
+            kinds=xref.kinds_of(ctx.envs))
 
     # 見出しの深さ: `# 見出し` があるならそのまま、なければ `##` を最上位とみなす
     ctx.shift_headings = 0 if re.search(r'^# \S', body, re.M) else -1
@@ -131,6 +148,31 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     return body, abstract
 
 
+def display_date(value, fmt: str | None, lang: str) -> str:
+    """タイトル部分の日付。`today` は組んだ日、`2026-10-14` は date_format の形に。
+    それ以外（「2026年度前期」など）はそのまま。"""
+    import datetime
+    s = str(value).strip()
+    if s.lower() in ('today', 'now'):
+        d = datetime.date.today()
+    else:
+        m = re.fullmatch(r'(\d{4})-(\d{1,2})-(\d{1,2})', s)
+        if not m:
+            return s
+        try:
+            d = datetime.date(*(int(x) for x in m.groups()))
+        except ValueError:
+            return s
+    fmt = fmt or ('%Y年%-m月%-d日' if lang == 'ja' else '%B %-d, %Y')
+    # %-m / %-d（0 を付けない）は Windows の strftime にないので、先に自分で埋める
+    fmt = fmt.replace('%-m', str(d.month)).replace('%-d', str(d.day))
+    months = ('January', 'February', 'March', 'April', 'May', 'June', 'July',
+              'August', 'September', 'October', 'November', 'December')
+    # %B もロケールに左右されないように英語の月名で埋める
+    fmt = fmt.replace('%B', months[d.month - 1])
+    return d.strftime(fmt)
+
+
 def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
     """図・表・式・節のラベルと参照（crossref.py）。(本文, 知っているラベル) を返す。
 
@@ -142,7 +184,8 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
     """
     top = 1 if ctx.crossref_section is not None else xref.top_level(body)
     nums = xref.number(body, ctx.numbering_mode(), appendix=ctx.appendix, top=top,
-                       section=ctx.crossref_section)
+                       section=ctx.section_before, start=ctx.section_start,
+                       envs=ctx.envs)
     for lab in nums.duplicates():
         ctx.say(f'{tag("crossref")} ' + t('the label {label} is used twice', label='#' + lab))
     here = nums.labels()
@@ -158,10 +201,12 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
     else:
         body = xref.label_equations(body)
     body = xref.replace_references(
-        body, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report)
+        body, known, lambda it, short: backend.fmt_ref(it, short, ctx), ctx.report,
+        kinds=xref.kinds_of(ctx.envs))
 
     lines = body.split('\n')
     external = {it.line: it for it in nums.items if it.external}
+    appendix_started = ctx.appendix
     for i, line in xref._lines_outside_code(body):
         s = line.strip()
         m = xref.IMAGE.match(s)
@@ -172,6 +217,15 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
         if it:
             cap = xref.TABLE_CAPTION.match(s).group('cap')
             lines[i] = backend.fmt_external_table(it.label[len('tbl-'):], cap, it.label, ctx)
+            continue
+        h = xref.HEADING.match(line)
+        if h and not appendix_started and xref.appendix_heading(h.group('attr')):
+            # `# 論点・事例集 {.appendix}` — ここから付録（A, B, …）
+            appendix_started = True
+            lines[i] = backend.fmt_appendix_start(ctx) + '\n' + lines[i]
+    # 事例・論点などのブロックと、再掲・一覧の写し
+    lines = theorems.render(lines, {it.line: it for it in nums.items if it.kind in ctx.envs},
+                            ctx.theorem_blocks, ctx.envs, backend, ctx)
     return '\n'.join(lines), known
 
 
@@ -212,25 +266,40 @@ def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
         if doc.profile == 'paper' and not is_appendix:
             _, body = mdlib.split_abstract(body)
             body = mdlib.strip_title_block(body)
+        # 再掲に写す本文にも、数値と図のパスの直しが要る（行の数は変わらない）
+        body = mdlib.rebase_links(body, Path(path).parent, ctx.out_dir)
+        body = valmod.substitute(body, ctx.values, cfg)
         return mdlib.filter_divs(body, ctx.keep_classes, keep_notes=backend.keeps_notes)
 
     mode = ctx.numbering_mode()
+    envs = ctx.envs
+    first = ctx.first_section
     if doc.part is not None and not appendix:
         whole = mdlib.read(Path(doc.src))
-        keys = [k for k, _ in mdlib.section_keys(whole)]
-        if doc.part in keys:
-            ctx.crossref_section = keys.index(doc.part) + 1
-        ctx.crossrefs = xref.number(prepared(Path(doc.src), False), mode).labels()
+        before, own = mdlib.session_start_sections(whole, doc.part)
+        if own:
+            # 回のデッキに自分の `#` がある: 講義ノートでその前にある `#` の数から数え始める
+            ctx.crossref_preset = before
+        elif before > 0:
+            # `#` のない回: 講義ノートでいまいる節の番号を決め打ちにする
+            ctx.crossref_section = before + first - 1
+        text = prepared(Path(doc.src), False)
+        ctx.crossrefs = xref.number(text, mode, start=first, envs=envs).labels()
+        ctx.theorem_blocks = theorems.collect([(text, False)], envs, mode, first)
         return
+    sources = [(prepared(Path(doc.appendix if appendix else doc.src), appendix), appendix)]
     other = doc.src if appendix else doc.appendix
     if doc.profile == 'paper' and other and Path(other).is_file():
-        items = xref.number(prepared(Path(other), not appendix), mode,
-                            appendix=not appendix).labels()
+        text = prepared(Path(other), not appendix)
+        sources.append((text, not appendix))
+        sources.sort(key=lambda x: x[1])          # 本文、付録の順
+        items = xref.number(text, mode, appendix=not appendix, envs=envs).labels()
         ctx.crossrefs = items
         layout = Path(doc.src).parent / backend.main_name if backend.main_name else None
         if layout and layout.is_file() and backend.includes_appendix(
                 layout.read_text(encoding='utf-8')):
             ctx.crossref_local |= set(items)
+    ctx.theorem_blocks = theorems.collect(sources, envs, mode, first)
 
 
 def _pandoc_meta(cfg, ctx: Ctx) -> dict:
@@ -354,7 +423,11 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         # config の slides_bibliography を True にする。
         suppress = (doc.profile == 'slides' and not cfg['slides_bibliography'])
         ref_title = cfg['reference_section_title'] or None
-        if ref_title and not suppress and ctx.shift_headings < 0 \
+        # 何も引いていなければ書誌の見出しを書き足さない（講義の回のスライドに、空の
+        # 「参考文献」の1枚が付いていた）
+        cites = (bool(mdlib.cited_keys(body, xref.kinds_of(ctx.envs)))
+                 or bool(re.search(r'^nocite:', body, re.M)))
+        if ref_title and not suppress and ctx.shift_headings < 0 and cites \
                 and not re.search(r'\{#refs\}', body):
             # 見出しを `##` で書く原稿は段を1つ上げて変換する。pandoc が差し込む書誌の
             # 見出しにもそれが効いて0段目（ただの段落）になるので、1段深い見出しと
@@ -366,6 +439,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             cfg['bib_file'], ctx.csl, cfg['csl_locale'],
             ref_title, cfg['link_citations'],
             suppress_bibliography=suppress, lua_filter=citation_filter(cfg, ctx))
+        cite_args += citation_form_args(cfg, ctx)
         ctx.say(f'{tag("bib")} {Path(cfg["bib_file"]).name} + '
                 + (ctx.csl.name if ctx.csl
                    else t("pandoc's default (chicago-author-date)"))
@@ -426,7 +500,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             ab_args += pandocrun.citeproc_args(
                 cfg['bib_file'], ctx.csl, cfg['csl_locale'], None,
                 cfg['link_citations'], suppress_bibliography=True,
-                lua_filter=citation_filter(cfg, ctx))
+                lua_filter=citation_filter(cfg, ctx)) + citation_form_args(cfg, ctx)
         try:
             ab = mdlib.drop_output_macros(
                 pandocrun.run(abstract, ab_args, cwd=out_dir, quiet=True), ctx.math_macros)

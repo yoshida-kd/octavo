@@ -202,5 +202,17 @@
   "Open the .csv in the text editor": ".csv をテキストエディターで開きます",
   "← merged": "← 結合",
   "This file does not look like UTF-8 (perhaps Excel saved it as Shift_JIS). Editing it here would lose characters: reopen it with the encoding Shift_JIS (the encoding in the status bar), or save it from Excel as \"CSV UTF-8\".": "このファイルは UTF-8 ではないようです（Excel が Shift_JIS で保存したのかもしれません）。ここで編集すると文字が失われるので、ステータスバーの文字コードから Shift_JIS で開き直すか、Excel で「CSV UTF-8」として保存し直してください。",
-  "The first row is the heading. Leave a heading cell empty to merge it into the cell on its left. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.": "1行目が見出しです。見出しのセルを空にすると、左のセルと結合します。Enter で次の行、Alt+Enter でセルの中の改行。Excel でコピーした範囲も貼り付けられます。"
+  "The first row is the heading. Leave a heading cell empty to merge it into the cell on its left. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.": "1行目が見出しです。見出しのセルを空にすると、左のセルと結合します。Enter で次の行、Alt+Enter でセルの中の改行。Excel でコピーした範囲も貼り付けられます。",
+  "Bookmarks": "しおり",
+  "The first row holds the column names. Enter: next row, Alt+Enter: a line break in the cell. You can paste a range copied from Excel.": "1行目は列の名前です。Enter で次の行、Alt+Enter でセルの中の改行。Excel でコピーした範囲も貼り付けられます。",
+  "Octavo: cutting {0} into session handouts…": "Octavo: {0} を回ごとの配布資料に切り分けています…",
+  "Octavo: could not cut the handout (see the Output panel).": "Octavo: 配布資料を切り分けられませんでした（出力パネルを見てください）。",
+  "Octavo: made {0} session handouts in build/handouts/.": "Octavo: build/handouts/ に回ごとの配布資料を {0} 個作りました。",
+  "Open the folder": "フォルダーを開く",
+  "Make the session handouts": "回ごとの配布資料を作る",
+  "One PDF per session in build/handouts/. They are also remade each time you save the notes (setting: Update Handouts On Save).": "回ごとの PDF を build/handouts/ に作ります。講義ノートを保存するたびにも作り直されます（設定: Update Handouts On Save）。",
+  "Handouts": "配布資料",
+  "Octavo: updating the session handouts of {0}…": "Octavo: {0} の回ごとの配布資料を更新しています…",
+  "Octavo: could not update the session handouts of {0} (click for the Output panel).": "Octavo: {0} の回ごとの配布資料を更新できませんでした（押すと出力パネルを開きます）。",
+  "Octavo: updated {0} session handouts in build/handouts/.": "Octavo: build/handouts/ の回ごとの配布資料 {0} 個を更新しました。"
 }

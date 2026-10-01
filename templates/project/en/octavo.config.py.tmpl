@@ -32,7 +32,7 @@ CONFIG = {
     # analysis/*.qmd writes assets/values/*.json (the {{…}} in the text), assets/figures/
     # and assets/tables/. octavo build runs quarto render when a .qmd or its deps
     # are newer than the last run.
-    'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/derived/*']}],
+    'analysis': [{'src': 'analysis/*.qmd', 'deps': ['data/raw/*', 'data/derived/*']}],
 
     # Figure, table and equation numbers: 'section' (Figure 2.1) or
     # 'document' (Figure 1, straight through)

@@ -109,6 +109,10 @@ DEFAULTS: dict = {
     # 日本語の文書で、英語の文献は英語の決まりで、日本語の文献（.bib の langid = {japanese}）
     # は日本語の形（山田・田中、ほか、「」『』）で組む。False なら書誌全体を csl_locale で
     'citations_by_language': True,
+    # その日本語の文献の形: 'standard'  山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.
+    #                      'fullwidth' 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。
+    #                      'period'    山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。
+    'japanese_citation_form': 'standard',
     # 書誌一覧の直前に入れる見出し。None なら lang に応じた既定
     #（日本語なら「参考文献」、英語なら "References"）。'' なら見出し無し。
     'reference_section_title': None,
@@ -129,17 +133,30 @@ DEFAULTS: dict = {
     'toc': None,                   # None なら profile 任せ
     'number_sections': None,       # 同上
     'toc_depth': 2,
+    # 最初の節（最上位の見出し）の番号。講義のガイダンスを「0」にするなら 0。
+    # 図表・式・事例などの番号（図0.1）もこれに従う
+    'first_section': 1,
+
+    # ---- 日付 -------------------------------------------------------------
+    # タイトル部分の date: の書式（strftime。%-m / %-d は 0 を付けない月・日）。
+    # None なら言語から（日本語: 2026年10月14日、英語: October 14, 2026）。
+    # date: today と書けば組んだ日になる。2026-10-14 の形でない日付はそのまま出す
+    'date_format': None,
 
     # ---- メタデータ -------------------------------------------------------
     # 原稿の YAML front matter が優先。ここは既定値。
-    'meta': {},                    # {'title':…, 'author':…, 'institute':…, 'date':…}
+    # {'title':…, 'author':…, 'institute':…, 'date':…,
+    #  'affiliation':…, 'email':…}（affiliation と email は octavo new analysis の .qmd 用）
+    'meta': {},
 
-    # ---- 事例・論点・注意等の div ------------------------------------------
-    # {'case': '事例', 'question': '論点', 'nb': '注意', 'memo': '付記'} のように
-    # 書くと、`::: {.case #case:example} ... :::` が latex 出力では
-    # \newtheorem 環境（ヘッダー側に \newtheorem{case}{事例}[section] が要る。
-    # octavo template copy handout/handout-header.tex でコピーして足す）に、それ以外の形式では
-    # 通し番号無しの「**事例.** …」に変換される。空なら何もしない。
+    # ---- 事例・論点などのブロック（`::: {.question #question-why title="…"}`）------
+    # 同梱の既定: case 事例 / question 論点 / aside 余談（この3つは番号を通しで振る）、
+    # nb 注意 / memo 付記（番号なし）、theorem 定理 / lemma / proposition / corollary /
+    # definition / example（番号を通しで振る）、remark（番号なし）。
+    # 見出し語を変える・増やすときだけ書く:
+    #   {'case': '事例',                                    # 見出し語だけ変える
+    #    'claim': {'name': '主張', 'counter': 'case'},      # 増やす（事例と通し番号）
+    #    'hint': {'name': {'ja': 'ヒント', 'en': 'Hint'}, 'numbered': False}}
     'theorem_envs': {},
 
     # ---- LaTeX ------------------------------------------------------------
@@ -149,7 +166,13 @@ DEFAULTS: dict = {
     'latex_fontsize': '11pt',
 
     # ---- Typst ------------------------------------------------------------
-    'typst_mainfont': None,        # A4 プリントの本文フォント。None なら typst.FONTS の serif
+    # 講義ノート（A4 プリント）の体裁。templates/handout/handout.typ（octavo template copy
+    # handout/handout.typ で差し替えられる）が読む。原稿の冒頭でも変えられる
+    'handout_font': None,          # None なら BIZ UDゴシック + Inter（typst.FONTS の sans）
+    'handout_fontsize': '11pt',
+    # どこで改ページするか: 'session'（回の区切りごと。区切りを書いていなければ `#` ごと）、
+    # 'section'（`#` ごと）、None（改ページしない。区切りでは必ず改ページする）
+    'handout_pagebreak': 'session',
 
     # ---- Typst スライド（TeX 無しで組むスライド）--------------------------
     'typst_slides_aspect': '16-9',  # '16-9' | '4-3'
@@ -193,9 +216,14 @@ PATH_KEYS = ('draft', 'appendix', 'slides', 'handout', 'table_dir', 'figure_dir'
 DOC_KEYS = ('csl', 'targets', 'word_limit', 'char_limit', 'abstract_word_limit',
             'abstract_char_limit', 'typst_slides_aspect', 'typst_slides_accent',
             'typst_slides_running_header', 'typst_slides_section_slides',
-            'typst_slides_numbering')
-INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit')
-BOOL_DOC_KEYS = ('typst_slides_running_header', 'typst_slides_section_slides')
+            'typst_slides_numbering', 'first_section', 'date_format', 'handout_font',
+            'handout_fontsize', 'handout_pagebreak', 'citations_by_language',
+            'japanese_citation_form')
+JA_FORMS = ('standard', 'fullwidth', 'period')
+INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit',
+                'first_section')
+BOOL_DOC_KEYS = ('typst_slides_running_header', 'typst_slides_section_slides',
+                 'citations_by_language')
 
 
 def doc_settings(src: Path, text: str | None = None) -> dict:
@@ -479,6 +507,14 @@ class Config:
         if v['typst_slides_numbering'] is not None and not isinstance(v['typst_slides_numbering'], str):
             bad('typst_slides_numbering',
                 t("a Typst numbering string ('1.' and the like) or None"))
+        if not isinstance(v['first_section'], int) or v['first_section'] < 0:
+            bad('first_section', t('a whole number, 0 or more'))
+        if v['japanese_citation_form'] not in JA_FORMS:
+            bad('japanese_citation_form', "'" + "'/'".join(JA_FORMS) + "'")
+        if v['handout_pagebreak'] not in ('session', 'section', None):
+            bad('handout_pagebreak', "'session'/'section'/None")
+        if not re.fullmatch(r'\d+(?:\.\d+)?pt', str(v['handout_fontsize'])):
+            bad('handout_fontsize', t("a size in points like '11pt'"))
         acc = v['typst_slides_accent']
         if acc is not None and not (isinstance(acc, str)
                                     and re.fullmatch(r'#[0-9A-Fa-f]{6}', acc)):

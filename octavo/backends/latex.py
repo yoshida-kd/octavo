@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 
 from .. import md as mdlib
+from .. import crossref as xref
 from .base import Backend, Ctx, missing_table
 from ..i18n import t, tag
 
@@ -70,6 +71,37 @@ class LatexBackend(Backend):
 
     def fmt_ref(self, item, short: bool, ctx: Ctx) -> str:
         return f'`{latex_ref(item, short, ctx)}`{{=latex}}'
+
+    # -- 回の区切り・事例などのブロック ----------------------------------------
+    def fmt_session(self, attrs: dict, ctx: Ctx) -> str:
+        return '\n```{=latex}\n\\clearpage\n```\n' if ctx.standalone else ''
+
+    def fmt_appendix_start(self, ctx: Ctx) -> str:
+        brk = '\\clearpage\n' if ctx.standalone else ''
+        return '\n```{=latex}\n' + brk + '\\appendix\n```\n'
+
+    def fmt_theorem(self, env, item, title: str, body: str, ctx: Ctx) -> str:
+        opt = f'[{tex_escape(title)}]' if title else ''
+        lab = f'\\label{{{item.label}}}' if item is not None and item.label else ''
+        return (f'```{{=latex}}\n\\begin{{{env.name}}}{opt}{lab}\n```\n\n'
+                + body.strip('\n') + f'\n\n```{{=latex}}\n\\end{{{env.name}}}\n```')
+
+    def fmt_restate(self, env, item, title: str, body: str, ctx: Ctx,
+                    short: bool = False) -> str:
+        ja = ctx.lang == 'ja'
+        local = item is not None and item.label and item.label in ctx.crossref_local
+        head = (latex_ref(item, False, ctx) if local
+                else (xref.text_of(item, ctx.lang) if item is not None else env.word))
+        tt = ''
+        if title:
+            tt = f'（{tex_escape(title)}）' if ja else f' ({tex_escape(title)}).'
+        page = f'p.~\\pageref{{{item.label}}}' if local else ''
+        if short:
+            tail = f'\\dotfill{page}' if page else ''
+            return f'```{{=latex}}\n\\par\\noindent\\textbf{{{head}}}\\quad {tt}{tail}\\par\n```'
+        return (f'```{{=latex}}\n\\par\\medskip\\noindent\\textbf{{{head}}}{tt}\\quad\n```\n\n'
+                + body.strip('\n')
+                + '\n\n```{=latex}\n\\par\\medskip\n```')
 
     def includes_appendix(self, layout: str) -> bool:
         code = '\n'.join(split_comment(l)[0] for l in layout.split('\n'))
@@ -178,6 +210,8 @@ def latex_ref(item, short: bool, ctx: Ctx) -> str:
         if item.appendix:
             return f'付録{ref}' if ja else f'Appendix~{ref}'
         return f'第{ref}節' if ja else f'Section~{ref}'
+    if item.word:
+        return f'{item.word}{ref}' if ja else f'{item.word}~{ref}'
     word = {'fig': ('図', 'Figure'), 'tbl': ('表', 'Table'), 'eq': ('式', 'Equation')}
     return f'{word[item.kind][0]}{ref}' if ja else f'{word[item.kind][1]}~{ref}'
 
@@ -190,7 +224,36 @@ def crossref_tex(ctx: Ctx) -> str:
         lines += ['\\counterwithin{figure}{section}',
                   '\\counterwithin{table}{section}',
                   '\\numberwithin{equation}{section}']
+    lines += theorem_defs(ctx)
+    if ctx.standalone:
+        # 最初の節の番号（ガイダンスを 0 にする）と、`#` ごとの改ページ
+        if ctx.first_section != 1:
+            lines.append(f'\\AtBeginDocument{{\\setcounter{{section}}{{{ctx.first_section - 1}}}}}')
+        brk = ctx.cfg['handout_pagebreak']
+        if brk == 'section' or (brk == 'session' and not ctx.has_sessions):
+            lines += ['\\let\\octavosection\\section',
+                      '\\renewcommand{\\section}{\\clearpage\\octavosection}']
     return '\n'.join(lines) + '\n'
+
+
+def theorem_defs(ctx: Ctx) -> list:
+    """事例・論点などのブロックの \\newtheorem。番号の組ごとに最初の1つが番号を持ち、
+    残りはそれを共有する（\\newtheorem{question}[case]{論点}）。ヘッダーで同じ名前を
+    定義してあればそちらを使う（二重定義で止めない）。"""
+    out = ['\\usepackage{amsthm}', '\\theoremstyle{definition}', '\\makeatletter']
+    leader: dict = {}
+    within = '[section]' if ctx.numbering_mode() == 'section' else ''
+    for env in ctx.envs.values():
+        if env.counter is None:
+            d = f'\\newtheorem*{{{env.name}}}{{{env.word}}}'
+        elif env.counter in leader:
+            d = f'\\newtheorem{{{env.name}}}[{leader[env.counter]}]{{{env.word}}}'
+        else:
+            leader[env.counter] = env.name
+            d = f'\\newtheorem{{{env.name}}}{{{env.word}}}{within}'
+        out.append(f'\\@ifundefined{{{env.name}}}{{{d}}}{{}}')
+    out.append('\\makeatother')
+    return out
 
 
 def numbered_equations(tex: str) -> str:

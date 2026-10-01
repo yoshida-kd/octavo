@@ -45,6 +45,8 @@ class Knob:
     choices: tuple = ()  # choice / suggest / multi の選択肢。None は「使わない」
     docs: tuple = ()     # 原稿の冒頭で文書ごとに変えられる種類（profile）
     project: bool = True  # プロジェクトの設定として出すか
+    least: int = 1        # int のときの最小値
+    samples: tuple = ()   # choice の選択肢ごとの見本（選択肢と同じ順。画面で横に出す）
 
 
 SLIDE_DOCS = ('slides', 'handout')      # 発表スライドと講義ノート（回ごとのスライド）
@@ -71,13 +73,30 @@ KNOBS = (
          docs=SLIDE_DOCS),
     Knob('typst_slides_numbering', 'slides', 'choice', 'Heading numbers',
          (None, '1.', '1.1'), docs=SLIDE_DOCS),
+    Knob('citations_by_language', 'document', 'bool',
+         'Japanese and English works in their own forms', docs=ALL_DOCS),
+    Knob('japanese_citation_form', 'document', 'choice', 'Form of Japanese works',
+         configmod.JA_FORMS, docs=ALL_DOCS,
+         samples=('山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.',
+                  '山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。',
+                  '山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。')),
+    Knob('date_format', 'document', 'suggest', 'Date format',
+         ('%Y年%-m月%-d日', '%Y-%m-%d', '%B %-d, %Y', '%-d %B %Y'), docs=('slides', 'handout')),
+    Knob('first_section', 'handout', 'int', 'Number of the first section', docs=('handout',),
+         least=0),
+    Knob('handout_pagebreak', 'handout', 'choice', 'New page at',
+         ('session', 'section', None), docs=('handout',)),
+    Knob('handout_font', 'handout', 'text', 'Body font', docs=('handout',)),
+    Knob('handout_fontsize', 'handout', 'choice', 'Font size',
+         ('10pt', '10.5pt', '11pt', '12pt'), docs=('handout',)),
     Knob('word_limit', 'limits', 'int', 'Word limit (text)', docs=('paper',)),
     Knob('char_limit', 'limits', 'int', 'Character limit (text)', docs=('paper',)),
     Knob('abstract_word_limit', 'limits', 'int', 'Word limit (abstract)', docs=('paper',)),
     Knob('abstract_char_limit', 'limits', 'int', 'Character limit (abstract)',
          docs=('paper',)),
 )
-SECTIONS = {'document': 'Documents', 'slides': 'Slides', 'limits': 'Submission limits'}
+SECTIONS = {'document': 'Documents', 'handout': 'Lecture handout', 'slides': 'Slides',
+            'limits': 'Submission limits'}
 
 
 class EditError(Exception):
@@ -113,7 +132,7 @@ def parse_value(k: Knob, raw: str):
             n = int(s.replace(',', ''))
         except ValueError:
             raise EditError(t('{key} takes a whole number', key=k.key))
-        if n <= 0:
+        if n < k.least:
             raise EditError(t('{key} takes a whole number', key=k.key))
         return n
     if k.kind == 'multi':
@@ -146,6 +165,7 @@ def show(cfg, doc=None) -> list:
                 'key': k.key, 'section': k.section,
                 'section_label': t(SECTIONS[k.section]),
                 'label': t(k.label), 'kind': k.kind, 'choices': list(k.choices),
+                'samples': list(k.samples),
                 'value': list(doc.targets) if k.key == 'targets' else view[k.key],
                 'default': (list(doc.config_targets) if k.key == 'targets'
                             else cfg[k.key]),
@@ -163,6 +183,7 @@ def show(cfg, doc=None) -> list:
             'label': t(k.label),
             'kind': k.kind,
             'choices': list(k.choices),
+            'samples': list(k.samples),
             'value': cfg[k.key],
             'default': configmod.DEFAULTS.get(k.key),
             'explicit': k.key in cfg.explicit,

@@ -87,10 +87,33 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 - 節や図を足したり並べ替えたりしても、**参照を直す必要はない**。存在しないラベルへの
   参照と、二重に付けたラベルは `octavo check` が止める
 
-図は `.png` を原稿に貼れば足りる（Typst と LaTeX には Octavo が自動で `.pdf` を使う）。
+### 図のファイル（原稿には `.png`、組版には `.pdf`）
+
+原稿には **`.png` を書く**。組むときに Octavo が形式ごとに差し替える（ビルドの出力の
+`[figure] fig-… -> …/trend.pdf` がその記録）:
+
+| 出力 | 使われるファイル | なぜ |
+|---|---|---|
+| エディタのプレビュー | `.png`（原稿に書いたもの） | プレビューは PDF の図を表示できない |
+| Typst（論文・プリント・スライド）・LaTeX | `.pdf` | ベクターなので拡大しても粗くならず、図の中の文字も選択・検索できる |
+| Word | `.png` | Word は PDF の図を貼れない |
+
+`ov_figure()` と `figures/*.typ` は `.pdf` と `.png` の両方を書くので、どちらも揃っている。
+原稿に `.pdf` を直接書いても組版には使われるが、エディタのプレビューには出ない。
+
 パスは原稿から見た相対パスで書く（論文なら `../../assets/figures/`、スライド・講義なら
-`../assets/figures/`。エディタのプレビューに出る）。図は全部の原稿で共有する。論文の図を
-スライドに貼るときも、同じ `assets/figures/` のファイルを指せばよい（複製しない）。
+`../assets/figures/`）。図は全部の原稿で共有する。論文の図をスライドに貼るときも、
+同じ `assets/figures/` のファイルを指せばよい（複製しない）。
+
+### 図を作るときの約束（色覚の多様性に配慮する）
+
+1. 色は**カラーユニバーサルデザイン（CUD）の配色**から選ぶ。R なら `ov_palette(3)`
+   （青・橙・緑…）、ggplot2 なら `ov_scale_colour_cud()` / `ov_scale_fill_cud()`
+2. **色だけで区別しない。**値や名前を図の中に直接書き、凡例に頼らない。強調は色に加えて
+   太字・線種・位置でも示す
+3. 隣り合う面は色相だけでなく**明るさも変える**。文字を載せる面は `ov_tint(色, 0.6)` で
+   白に寄せる
+4. 赤と緑、黄と白を隣り合わせない
 
 箱と矢印の図などは `octavo new figure <name>` で `figures/<name>.typ` を置いて Typst で描く。
 `octavo build` が `.pdf` と `.png` に組むので、原稿からは普通の図と同じく `.png` を貼る
@@ -100,6 +123,12 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 書く（1行目が見出し。見出しのセルの右隣を空にすると横に結合する）。`octavo build` が
 `assets/tables/` に表を作る（**直すのは `.csv`**）。長い表を Markdown の表で原稿に打つより
 こちらがよい。
+
+## 箇条書きの字下げ
+
+入れ子の箇条書きは、**子の項目を親の本文の桁に揃える**（`- ` の下なら 2 字、`1. ` の
+下なら 3 字）。幅は決めていないが、1つの原稿の中では揃える。`octavo lint` が、揃って
+いない入れ子と、番号付きの項目の下で字下げが足りずに入れ子にならない行を知らせる。
 
 ## 見本は、見本だと分かるようにしてある
 
@@ -162,4 +191,4 @@ octavo doctor       # pandoc / LaTeX / Typst / Quarto / R が揃っているか
 octavo selftest     # 引用が実際にどう組まれるかを実物で見る
 ```
 
-`octavo` コマンド自体の仕様は Octavo の手引きを見る: https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md
+`octavo` コマンド自体の仕様は Octavo の手引きを見る: https://yoshida-kd.github.io/octavo/ja/guide/

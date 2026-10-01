@@ -30,6 +30,7 @@
   "command.preview.title": "プレビューを開く",
   "command.previewColumn.title": "プレビュー: 3列目に表示するもの…",
   "command.previewRefresh.title": "プレビュー: 組み直す",
+  "config.updateHandoutsOnSave.description": "回の区切り（::: {.session}）のある講義ノートを保存するたびに、build/handouts/ の回ごとの配布資料を作り直します。プレビューのあとに裏で実行します。",
   "config.previewLectureColumn.description": "講義ノートで、プレビューの3列目に表示するもの。1列目と2列目は原稿と A4 のプリントです。2分割にするには「表示しない」を選びます。",
   "config.previewLectureColumn.slides": "カーソルのある回のスライド",
   "config.previewLectureColumn.notes": "台本（typst-notes）。同じスライドを A4 で出力し、下に ::: notes を付けたもの",
@@ -46,5 +47,6 @@
   "command.analysisRunOne.title": "この分析を実行する (.qmd)",
   "command.analysisRun.title": "分析を実行する (analysis run)",
   "command.addAppendix.title": "付録を追加",
-  "command.addTex.title": "LaTeX 用の main.tex を追加"
+  "command.addTex.title": "LaTeX 用の main.tex を追加",
+  "command.extract.title": "回ごとの配布資料を作る"
 }

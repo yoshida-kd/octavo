@@ -85,19 +85,19 @@ The sample has {{n_obs}} cases (@fig-trend).
 
 ## 手引き
 
-使い方はすべて[手引き](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md)にある:
+使い方はすべて[手引き](https://yoshida-kd.github.io/octavo/ja/guide/)にある:
 
-1. [インストール](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#1-インストール)
-2. [文書とプロファイル](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#2-文書とプロファイル) — `octavo init` と `octavo new`、講義ノート、文書ごとの設定
-3. [原稿の書き方](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#3-原稿の書き方) — 相互参照、数式、表
-4. [分析（Quarto）と原稿](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#4-分析quartoと原稿の分業)
-5. [文献](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#5-文献bib--雑誌の書式)
-6. [コマンド](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#6-コマンド) — 点検、匿名審査、投稿、改訂、再現
-7. [自分用にする](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#7-自分用にする-テンプレートと-word-のスタイル) — テンプレートと Word のスタイル
-8. [形式ごとの違い](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#8-形式ごとの違い知っておくこと)
-9. [中身の構成](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#9-中身の構成)
-10. [何が確かめられているか](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#10-何が確かめられていて何を自分で確かめるか)
-11. [VS Code 拡張](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.ja.md#11-vs-code-拡張)
+1. [インストール](https://yoshida-kd.github.io/octavo/ja/guide/#1-インストール) — Linux・macOS・Windows を順に
+2. [最初のプロジェクト](https://yoshida-kd.github.io/octavo/ja/guide/#2-最初のプロジェクト) — `octavo init` と `octavo new`、分析の環境
+3. [原稿を書く](https://yoshida-kd.github.io/octavo/ja/guide/#3-原稿を書く) — 参照、番号の付くブロック、数式、図、表
+4. [分析](https://yoshida-kd.github.io/octavo/ja/guide/#4-分析) — Quarto から数値・図・表を
+5. [文献](https://yoshida-kd.github.io/octavo/ja/guide/#5-文献)
+6. [論文](https://yoshida-kd.github.io/octavo/ja/guide/#6-論文-下書きから投稿まで) — 点検、匿名審査、投稿、改訂
+7. [スライドと講義ノート](https://yoshida-kd.github.io/octavo/ja/guide/#7-スライドと講義ノート) — 回の区切り、回ごとの配布資料
+8. [自分用にする](https://yoshida-kd.github.io/octavo/ja/guide/#8-自分用にする) — テンプレート、Word のスタイル、書体
+9. [コマンド一覧](https://yoshida-kd.github.io/octavo/ja/guide/#9-コマンド一覧)
+10. [VS Code](https://yoshida-kd.github.io/octavo/ja/guide/#10-vs-code)
+11. [自分の機械で確かめること](https://yoshida-kd.github.io/octavo/ja/guide/#11-自分の機械で確かめること)
 
 ## 貢献とライセンス
 

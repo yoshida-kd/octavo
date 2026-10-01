@@ -1,6 +1,13 @@
 ---
-title: "Analysis"
-format: html
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
 execute:
   echo: true
   warning: false

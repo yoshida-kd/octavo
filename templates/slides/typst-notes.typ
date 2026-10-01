@@ -46,7 +46,6 @@
              text(fill: accent, size: 0.5em)[▶])
           } else { ([•], [‣], [–]) })
 #set enum(spacing: 0.6em, indent: 1.1em)
-#show link: set text(fill: accent)
 
 // 図表・式の番号と参照の体裁は、この前に Octavo が埋め込む crossref.typ が持つ
 #show figure.caption: set text(size: 0.8em, fill: luma(60))

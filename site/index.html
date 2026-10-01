@@ -36,7 +36,8 @@
     </a>
     <nav>
       <a href="#install">Install</a>
-      <a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">Guide</a>
+      <a href="guide/">Guide</a>
+      <a href="lectures/">Lecture notes</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
       <a href="ja/" hreflang="ja" lang="ja" data-lang="ja">日本語</a>
     </nav>
@@ -54,7 +55,7 @@
     Citations come from one <code>.bib</code> file, in any CSL style.</p>
     <div class="actions">
       <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Get the VS Code extension</a>
-      <a class="button secondary" href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">Read the guide</a>
+      <a class="button secondary" href="guide/">Read the guide</a>
     </div>
   </div>
 </div>
@@ -138,7 +139,7 @@
   (("z", "x"), ("z", "y"), ("x", "y"),
    ("u", "y", (dash: "dashed"))),
 )</code></pre>
-      <p><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#drawing-figures-in-typst-instead-of-tikz">More in the guide</a></p>
+      <p><a href="guide/#figures">More in the guide</a></p>
     </div>
     <figure class="figure">
       <img src="images/diagram-en.png" width="558" height="323" loading="lazy"
@@ -161,6 +162,7 @@
 uv tool install octavo-kit
 octavo setup     <span class="comment"># pandoc / Typst / Quarto / fonts / R</span>
 octavo doctor    <span class="comment"># reports anything still missing</span></code></pre>
+      <p>Step by step for <a href="guide/#linux">Linux</a>, <a href="guide/#macos">macOS</a> and <a href="guide/#windows">Windows</a> in the guide.</p>
     </div>
     <div>
       <h2>Getting started</h2>
@@ -181,19 +183,19 @@ octavo check     <span class="comment"># before you submit</span></code></pre>
 <section>
   <div class="wrap">
     <h2>Documentation</h2>
-    <p><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md">The guide</a> covers everything:</p>
+    <p><a href="guide/">The guide</a> covers everything. Lecture notes have a page of their own, <a href="lectures/">Making lecture notes</a>: the steps in VS Code and a quick reference to the marks.</p>
     <ol class="chapters">
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#1-install">Install</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#2-documents-and-profiles">Documents and profiles</a> <span>— init, new, lecture notes, settings per document</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#3-writing-the-source">Writing the source</a> <span>— cross-references, math, tables</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#4-analysis-quarto-and-manuscript-kept-apart">Analysis (Quarto) and manuscript</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#5-citations-bib--journal-style">Citations</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#6-commands">Commands</a> <span>— checking, blind review, submitting, revisions, replication</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#7-making-it-yours-templates-and-word-styles">Making it yours</a> <span>— templates and Word styles</span></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#8-differences-between-formats-worth-knowing">Differences between formats</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#9-project-layout">Project layout</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#10-what-is-tested-and-what-to-check-yourself">What is tested</a></li>
-      <li><a href="https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#11-vs-code-extension">VS Code extension</a></li>
+      <li><a href="guide/#1-install">Install</a> <span>— Linux, macOS and Windows, step by step</span></li>
+      <li><a href="guide/#2-your-first-project">Your first project</a> <span>— <code>octavo init</code> and <code>octavo new</code>, the analysis environment</span></li>
+      <li><a href="guide/#3-writing-manuscripts">Writing manuscripts</a> <span>— references, numbered blocks, math, figures, tables</span></li>
+      <li><a href="guide/#4-the-analysis">The analysis</a> <span>— numbers, figures and tables from Quarto</span></li>
+      <li><a href="guide/#5-citations">Citations</a></li>
+      <li><a href="guide/#6-papers-from-draft-to-submission">Papers</a> <span>— checking, blind review, submitting, revisions</span></li>
+      <li><a href="guide/#7-slides-and-lecture-notes">Slides and lecture notes</a> <span>— sessions, per-session handouts</span></li>
+      <li><a href="guide/#8-making-it-yours">Making it yours</a> <span>— templates, Word styles, fonts</span></li>
+      <li><a href="guide/#9-command-reference">Command reference</a></li>
+      <li><a href="guide/#10-vs-code">VS Code</a></li>
+      <li><a href="guide/#11-what-to-check-on-your-own-machine">What to check on your own machine</a></li>
     </ol>
   </div>
 </section>

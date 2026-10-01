@@ -21,8 +21,10 @@
 //    octavo.running-header 左上にいまの節（なければデッキの題）を出すか（typst_slides_running_header）
 //    octavo.font          本文フォントの候補（typst_slides_font）
 //
-//  事例・論点・余談・注意・付記（旧 Beamer プリアンブルの \newtheorem 相当）は、
-//  原稿から ```{=typst}``` の素通しブロックで呼ぶ（{{…}}の値埋め込みも普通に効く）:
+//  事例・論点などのブロックは、ふつうは原稿に `::: {.question #question-why}` と書く
+//  （A4 プリント・Word・LaTeX と同じ書き方と番号。見た目は typst/crossref.typ）。
+//  以前からの関数も残してある。原稿から ```{=typst}``` の素通しブロックで呼ぶ
+//  （{{…}}の値埋め込みも普通に効く）:
 //
 //      ```{=typst}
 //      #case[ここに事例の本文]
@@ -83,8 +85,8 @@
              text(fill: accent, size: 0.5em)[▶])
           } else { ([•], [‣], [–]) })
 #set enum(spacing: 0.9em, indent: 1.1em)
-// 差し色を設定しないときは black になるので、見た目は従来どおり
-#show link: set text(fill: accent)
+// リンク（URL・参照）は本文と同じ黒のまま。色を付けると「事例2.1」のような参照だけが
+// 色付きになり、ラベルのないブロックとちぐはぐになる
 
 // 図表・式の番号と参照の体裁は、この前に Octavo が埋め込む crossref.typ が持つ
 // （原稿の @fig-… が指す番号と、キャプションの番号が一致する）。スライドでは

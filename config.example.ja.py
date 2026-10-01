@@ -87,6 +87,11 @@ CONFIG = {
     # 目次。None なら講義ノートのプリントにだけ付く（論文・スライドには付かない）。True / False で全部の文書を揃える
     # 'toc': None,
     # 'toc_depth': 2,                  # 目次に載せる見出しの深さ（講義ノートなら 1 = 回だけ、2 = 回と節）
+    # 'first_section': 1,              # 最初の節の番号（0 でガイダンスが「0」になる）
+    # タイトル部分の date: の出し方。date: today なら組んだ日。
+    # None なら日本語は 2026年10月14日、英語は October 14, 2026
+    # 日本語の文書の日本語の文献の形: 'standard' (2020)「…」 | 'fullwidth' （2020）…巻…号、…頁。 | 'period' ．2020．…
+    # 'japanese_citation_form': 'standard',
 
     # ================================================================
     # 分析（Quarto の .qmd）
@@ -138,6 +143,8 @@ CONFIG = {
         # 'title': '論文タイトル',
         # 'author': '山田 太郎',
         # 'institute': '○○大学',
+        # 'affiliation': '○○大学',               # この2つは octavo new analysis の .qmd の冒頭に入る
+        # 'email': 'taro@example.org',
     },
 
     # ================================================================
@@ -153,12 +160,19 @@ CONFIG = {
     # 'latex_classoptions': ['11pt', 'a4paper'],
     # プリアンブルは octavo template copy handout/handout-header.tex でコピーして直す
 
+    # 番号の付くブロック（::: {.question #question-why}）: case 事例・question 論点・aside 余談・
+    # nb 注意・memo 付記・theorem 定理…は最初からある。見出し語を変える・足すなら（手引き「原稿を書く」）:
+    # 'theorem_envs': {'claim': {'name': {'ja': '主張', 'en': 'Claim'}, 'counter': 'case'}},
+
     # ================================================================
     # Typst
     # ================================================================
     # 'typst_citations': 'csl',     # 'csl'（他形式と同じ書式）| 'native'
-    # A4 プリント。既定は BIZ UD明朝＋欧文 Libertinus Serif（手引きの「書体」）
-    # 'typst_mainfont': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # A4 プリント（講義ノート）。体裁は templates/handout/handout.typ。
+    # 書体の既定は BIZ UDゴシック。欧文は Inter
+    # 'handout_font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # 'handout_fontsize': '11pt',
+    # 'handout_pagebreak': 'session',  # 'session' | 'section'（# ごと）| None（回の区切りでだけ）
 
     # ================================================================
     # スライド（Typst。TeX 無しで組む）
@@ -176,7 +190,7 @@ CONFIG = {
     # 'typst_slides_accent': '#0e2f92',
     # 左上にいまの '#' の節を小さく出す（既定で出る。節がなければデッキのタイトル）
     # 'typst_slides_running_header': False,
-    # 体裁を丸ごと変えるなら、同梱のテンプレートをコピーして直す（手引き §7）:
+    # 体裁を丸ごと変えるなら、同梱のテンプレートをコピーして直す（手引き「自分用にする」）:
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================

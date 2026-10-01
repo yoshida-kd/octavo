@@ -1,6 +1,7 @@
 name: pages
 
-# 公開用リポジトリ（yoshida-kd/octavo）の main が変わったら、site/ を
+# 公開用リポジトリ（yoshida-kd/octavo）の main が変わったら、site/ と手引き
+# （docs/guide*.md を site/build.sh で HTML にしたもの。/guide/ と /ja/guide/）を
 # https://yoshida-kd.github.io/octavo/ に出す。main は tools/release.py の
 # コミットでしか変わらないので、ページが変わるのもリリースのときだけ。
 # 図と見本の画像は README と同じ docs/images/ のものを images/ にコピーする。
@@ -34,12 +35,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # 手引き（docs/guide*.md）を HTML にするのに pandoc を使う。版は setup.sh と同じ
+      - name: Install pandoc
+        run: |
+          V=$(sed -n 's/^PANDOC_VER="\(.*\)".*/\1/p' setup.sh)
+          curl -fsSL -o pandoc.deb "https://github.com/jgm/pandoc/releases/download/${V}/pandoc-${V}-1-amd64.deb"
+          sudo apt-get install -y ./pandoc.deb
+          pandoc --version | head -1
       - name: Assemble the site
         run: |
           mkdir _site
           cp -R site/. _site/
+          rm _site/guide.html _site/build.sh
           mkdir _site/images
           cp docs/images/* _site/images/
+          sh site/build.sh _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

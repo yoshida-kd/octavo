@@ -93,19 +93,19 @@ The sample has {{n_obs}} cases (@fig-trend).
 
 ## Documentation
 
-[The guide](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md) covers everything:
+[The guide](https://yoshida-kd.github.io/octavo/guide/) covers everything:
 
-1. [Install](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#1-install)
-2. [Documents and profiles](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#2-documents-and-profiles) — `octavo init` and `octavo new`, lecture notes, settings per document
-3. [Writing the source](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#3-writing-the-source) — cross-references, math, tables
-4. [Analysis (Quarto) and manuscript](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#4-analysis-quarto-and-manuscript-kept-apart)
-5. [Citations](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#5-citations-bib--journal-style)
-6. [Commands](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#6-commands) — checking, blind review, submitting, revisions, replication
-7. [Making it yours](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#7-making-it-yours-templates-and-word-styles) — templates and Word styles
-8. [Differences between formats](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#8-differences-between-formats-worth-knowing)
-9. [Project layout](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#9-project-layout)
-10. [What is tested](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#10-what-is-tested-and-what-to-check-yourself)
-11. [VS Code extension](https://github.com/yoshida-kd/octavo/blob/main/docs/guide.md#11-vs-code-extension)
+1. [Install](https://yoshida-kd.github.io/octavo/guide/#1-install) — Linux, macOS and Windows, step by step
+2. [Your first project](https://yoshida-kd.github.io/octavo/guide/#2-your-first-project) — `octavo init` and `octavo new`, the analysis environment
+3. [Writing manuscripts](https://yoshida-kd.github.io/octavo/guide/#3-writing-manuscripts) — references, numbered blocks, math, figures, tables
+4. [The analysis](https://yoshida-kd.github.io/octavo/guide/#4-the-analysis) — numbers, figures and tables from Quarto
+5. [Citations](https://yoshida-kd.github.io/octavo/guide/#5-citations)
+6. [Papers](https://yoshida-kd.github.io/octavo/guide/#6-papers-from-draft-to-submission) — checking, blind review, submitting, revisions
+7. [Slides and lecture notes](https://yoshida-kd.github.io/octavo/guide/#7-slides-and-lecture-notes) — sessions, per-session handouts
+8. [Making it yours](https://yoshida-kd.github.io/octavo/guide/#8-making-it-yours) — templates, Word styles, fonts
+9. [Command reference](https://yoshida-kd.github.io/octavo/guide/#9-command-reference)
+10. [VS Code](https://yoshida-kd.github.io/octavo/guide/#10-vs-code)
+11. [What to check on your own machine](https://yoshida-kd.github.io/octavo/guide/#11-what-to-check-on-your-own-machine)
 
 ## Contributing and license
 

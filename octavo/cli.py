@@ -46,6 +46,7 @@ USAGE_LINES = (
     ('octavo build example-paper --to docx', 'build document example-paper as Word'),
     ('octavo build --to all --compile', 'build every format, typeset them too'),
     ('octavo watch --to beamer', 'rebuild whenever a manuscript is saved'),
+    ('octavo extract lecture-name', 'cut the lecture handout into one PDF per session'),
     ('octavo documents', 'list the registered manuscripts'),
     ('octavo config [set KEY VALUE]', 'show or change the common settings'),
     ('octavo analysis', 'is the analysis (.qmd) up to date?'),
@@ -192,6 +193,37 @@ def cmd_build(args) -> int:
     return print_results(results)
 
 
+def cmd_extract(args) -> int:
+    from . import extract as extractmod
+    cfg = configmod.load(args.config)
+    cfg.document(args.document)
+    if run_diagrams(cfg, quiet=args.json) or run_tables(cfg, quiet=args.json):
+        return 1
+    sessions = [k.strip() for k in args.session.split(',') if k.strip()] if args.session else None
+    try:
+        r = extractmod.run(cfg, args.document, sessions=sessions, pages=args.pages,
+                           cover=args.cover, offline=args.offline)
+    except extractmod.ExtractError as e:
+        if args.json:
+            import json as _json
+            print(_json.dumps({'ok': False, 'error': str(e)}, ensure_ascii=False))
+        else:
+            print(str(e), file=sys.stderr)
+        return 1
+    if args.json:
+        import json as _json
+        print(_json.dumps({'ok': True, 'pdf': str(r['pdf']), 'table': str(r['table']),
+                           'made': [{'key': k, 'pdf': str(p)} for k, p in r['made']],
+                           'sessions': r['sessions']}, ensure_ascii=False))
+        return 0
+    head = f'== {args.document} -> ' + t('handouts per session') + ' '
+    print(head + '=' * max(4, 62 - len(head)))
+    for line in r['report']:
+        print('  ' + line)
+    print('\n' + t('made {n} {n|file|files}', n=len(r['made'])))
+    return 0
+
+
 def print_results_json(results: list) -> int:
     """変換の結果を機械可読に出す（VS Code のプレビューが読む）。
 
@@ -229,9 +261,12 @@ def cmd_documents(args) -> int:
             'split_slides': bool(d.split_slides),
             'exists': d.exists(),
             'parts': [],
+            # 回の区切り（::: {.session}）があって、回ごとの配布資料に切り出せるか
+            'handouts': False,
         }
         if d.split_slides and d.exists():
             text = mdlib.read(d.src)
+            row['handouts'] = d.profile == 'handout' and mdlib.has_session_markers(text)
             for key, title, start, end in mdlib.section_spans(text):
                 row['parts'].append({
                     'name': f'{d.name}-{key}', 'key': key, 'title': title,
@@ -899,6 +934,19 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--json', action='store_true',
                    help=t('print the results as machine-readable JSON (including where the PDF landed)'))
     p.set_defaults(func=cmd_build)
+
+    p = with_config(sub.add_parser(
+        'extract', help=t('cut the lecture handout into one PDF per session')))
+    p.add_argument('document', help=t('the lecture notes (document name)'))
+    p.add_argument('--session', '-s',
+                   help=t('only these sessions (their ids, comma-separated; several make one PDF)'))
+    p.add_argument('--pages', '-p', help=t('cut these printed page numbers instead (12-19,21)'))
+    p.add_argument('--cover', action='store_true',
+                   help=t('put the cover and the contents in front'))
+    p.add_argument('--offline', action='store_true', help=t('do not go and fetch a CSL'))
+    p.add_argument('--json', action='store_true',
+                   help=t('print the result as machine-readable JSON'))
+    p.set_defaults(func=cmd_extract)
 
     p = with_config(sub.add_parser('config', help=t('show or change the common settings')))
     p.add_argument('action', nargs='?', default='show', choices=['show', 'set', 'unset'])

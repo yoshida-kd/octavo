@@ -39,12 +39,98 @@ from .i18n import t, tag
 
 KINDS = ('fig', 'tbl', 'eq', 'sec')
 _NAME = r'[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?'
-LABEL = re.compile(r'#(?P<label>(?:fig|tbl|eq|sec)-' + _NAME + r')(?![\w-])')
-# 本文の参照。`@fig-x` / `[@fig-x]`（どちらも「図2.1」）/ `[-@fig-x]`（「2.1」）。
-# メールアドレスや引用キーの途中には当てない。直前が日本語なら当てる
-# （「推定したのは@eq-modelで」。\w は日本語にも当たるので使わない）。
-REF = re.compile(r'(?:\[(?P<short>-)?@(?P<blabel>(?:fig|tbl|eq|sec)-' + _NAME + r')\]'
-                 r'|(?<![A-Za-z0-9_.@-])@(?P<label>(?:fig|tbl|eq|sec)-' + _NAME + r'))')
+
+# ---------------------------------------------------------------- 事例・論点などのブロック
+# `::: {.question #question-why title="…"}` … `:::`。ラベルの頭はクラス名。
+# counter が同じものは番号を通しで振る（事例・論点・余談は「事例1.1、論点1.2」）。
+# counter が None のものは番号を付けない（参照もできない）。
+THEOREMS = {
+    'case':        ('事例', 'Case', 'case'),
+    'question':    ('論点', 'Question', 'case'),
+    'aside':       ('余談', 'Aside', 'case'),
+    'nb':          ('注意', 'Note', None),
+    'memo':        ('付記', 'Addendum', None),
+    'theorem':     ('定理', 'Theorem', 'theorem'),
+    'lemma':       ('補題', 'Lemma', 'theorem'),
+    'proposition': ('命題', 'Proposition', 'theorem'),
+    'corollary':   ('系', 'Corollary', 'theorem'),
+    'definition':  ('定義', 'Definition', 'theorem'),
+    'example':     ('例', 'Example', 'theorem'),
+    'remark':      ('注', 'Remark', None),
+}
+
+
+@dataclass(frozen=True)
+class Env:
+    name: str                  # クラス名（ラベルの頭）
+    word: str                  # 見出し語（「論点」）
+    counter: str | None        # 番号を共有する組の名前。None なら番号なし
+
+
+def theorem_envs(cfg=None, lang: str | None = None) -> dict:
+    """{クラス名: Env}。同梱の既定に config の theorem_envs を重ねる。
+
+    config の書き方:  'case': '事例'（見出し語だけ変える）
+                      'claim': {'name': '主張', 'counter': 'case'}（増やす・番号を共有）
+                      'claim': {'name': {'ja': '主張', 'en': 'Claim'}, 'numbered': False}
+    """
+    lang = lang or (cfg['lang'] if cfg is not None else 'ja')
+    ja = lang == 'ja'
+    out = {k: Env(k, ja_w if ja else en_w, c) for k, (ja_w, en_w, c) in THEOREMS.items()}
+    for k, v in ((cfg['theorem_envs'] or {}) if cfg is not None else {}).items():
+        base = out.get(k)
+        if isinstance(v, str):
+            out[k] = Env(k, v, base.counter if base else k)
+            continue
+        v = dict(v or {})
+        name = v.get('name', base.word if base else k)
+        if isinstance(name, dict):
+            name = name.get(lang) or name.get('en') or next(iter(name.values()))
+        counter = v.get('counter', base.counter if base else k)
+        if v.get('numbered') is False:
+            counter = None
+        out[k] = Env(k, str(name), counter)
+    return out
+
+
+def kinds_of(envs: dict | None = None) -> tuple:
+    """参照できるラベルの頭（fig/tbl/eq/sec と、番号のあるブロックのクラス名）。"""
+    envs = THEOREM_DEFAULT if envs is None else envs
+    return KINDS + tuple(k for k, e in envs.items() if e.counter)
+
+
+THEOREM_DEFAULT = {k: Env(k, ja, c) for k, (ja, _en, c) in THEOREMS.items()}
+
+
+def _kind_alt(kinds) -> str:
+    return '|'.join(sorted((re.escape(k) for k in kinds), key=len, reverse=True))
+
+
+def _label_re(kinds) -> re.Pattern:
+    return re.compile(r'#(?P<label>(?:' + _kind_alt(kinds) + r')-' + _NAME + r')(?![\w-])')
+
+
+def _ref_re(kinds) -> re.Pattern:
+    """本文の参照。`@fig-x` / `[@fig-x]`（どちらも「図2.1」）/ `[-@fig-x]`（「2.1」）。
+    メールアドレスや引用キーの途中には当てない。直前が日本語なら当てる
+    （「推定したのは@eq-modelで」。\\w は日本語にも当たるので使わない）。"""
+    alt = _kind_alt(kinds)
+    return re.compile(r'(?:\[(?P<short>-)?@(?P<blabel>(?:' + alt + r')-' + _NAME + r')\]'
+                      r'|(?<![A-Za-z0-9_.@-])@(?P<label>(?:' + alt + r')-' + _NAME + r'))')
+
+
+_RE_CACHE: dict = {}
+
+
+def patterns(kinds=None) -> tuple:
+    """(LABEL, REF) の正規表現。kinds を省くと既定のブロックまで。"""
+    kinds = tuple(kinds or kinds_of())
+    if kinds not in _RE_CACHE:
+        _RE_CACHE[kinds] = (_label_re(kinds), _ref_re(kinds))
+    return _RE_CACHE[kinds]
+
+
+LABEL, REF = patterns()
 
 FENCE = re.compile(r'^\s*(```+|~~~+)')
 HEADING = re.compile(r'^(?P<hash>#{1,6})[ \t]+(?P<title>.*?)'
@@ -68,6 +154,8 @@ class Item:
     appendix: bool = False
     level: int = 0             # 節の深さ（1 が最上位）
     external: bool = False     # 分析が書いた表（中身は tables/<名前> にある）
+    word: str = ''             # 事例・論点などのブロックの見出し語
+    title: str = ''            # ブロックの題（`title="…"`）
 
 
 @dataclass
@@ -90,10 +178,51 @@ def label_in(attr: str | None, kind: str | None = None) -> str | None:
     """`{#fig-x width=80%}` の中のラベル。kind を渡せばその種類のときだけ。"""
     if not attr:
         return None
+    if kind is not None:
+        m = re.search(r'#(?P<label>' + re.escape(kind) + '-' + _NAME + r')(?![\w-])', attr)
+        return m.group('label') if m else None
     m = LABEL.search(attr)
+    return m.group('label') if m else None
+
+
+def appendix_heading(attr: str | None) -> bool:
+    """`# 論点集 {.appendix}` — ここから付録（節が A, B, …）。"""
+    return bool(attr) and bool(re.search(r'(?:^|\s)\.appendix(?:\s|$)', attr))
+
+
+DIV_OPEN = re.compile(r'^(:{3,})\s*(?:\{(?P<attr>[^}]*)\}|(?P<bare>[A-Za-z][\w-]*))\s*$')
+
+
+def div_attr(m: re.Match) -> str:
+    """`::: {.nb}` と `::: nb` を同じ属性の文字列（'.nb'）にする。"""
+    return m.group('attr') if m.group('attr') is not None else '.' + m.group('bare')
+
+
+def div_classes(attr: str) -> list:
+    return re.findall(r'(?:^|\s)\.([A-Za-z][\w-]*)', attr)
+
+
+# 再掲・一覧の div（クラスに論点などの名前を持つが、ブロックそのものではない）
+NOT_BLOCKS = ('restate', 'list-of', 'octavo-restated')
+
+
+def theorem_env(attr: str, envs: dict):
+    """その div が事例・論点などのブロックなら Env、でなければ None。"""
+    cls = div_classes(attr)
+    if any(c in NOT_BLOCKS for c in cls):
+        return None
+    return next((envs[c] for c in cls if c in envs), None)
+
+
+def attr_value(attr: str, key: str) -> str | None:
+    """`title="なぜ…"` の値（引用符なしも可）。"""
+    m = re.search(r'(?:^|\s)' + re.escape(key) + r'=(?:"((?:[^"\\]|\\.)*)"|\'([^\']*)\'|(\S+))',
+                  attr)
     if not m:
         return None
-    return m.group('label') if kind is None or m.group('label').startswith(kind + '-') else None
+    v = m.group(1) if m.group(1) is not None else (m.group(2) if m.group(2) is not None
+                                                    else m.group(3))
+    return v.replace('\\"', '"')
 
 
 def unnumbered(attr: str | None) -> bool:
@@ -146,25 +275,36 @@ def top_level(md: str) -> int:
 
 
 def number(md: str, mode: str = 'section', appendix: bool = False,
-           top: int | None = None, section: int | None = None) -> Numbering:
+           top: int | None = None, section: int | None = None, start: int = 1,
+           envs: dict | None = None) -> Numbering:
     """文書の順に数える。
 
     mode      'section'（節ごと 2.1）か 'document'（通し 1, 2, …）
-    appendix  付録のファイル（最上位の節が A, B, …）
+    appendix  付録のファイル（最上位の節が A, B, …）。`# 題 {.appendix}` の見出しから
+              後ろも付録になる
     section   節の見出しがない部分（講義の回ごとのデッキ）に使う節番号
+    start     最初の節の番号（講義のガイダンスを 0 にするなら 0）
+    envs      事例・論点などのブロック（theorem_envs()）。省くと同梱の既定
     """
     top = top or top_level(md)
+    envs = THEOREM_DEFAULT if envs is None else envs
     lines = md.split('\n')
     out = Numbering()
     heads = [0] * 7
+    seen = False               # 最上位の節を1つでも過ぎたか（start が 0 だと番号が 0 になる）
     counts = {'fig': 0, 'tbl': 0, 'eq': 0}
+    counts.update({e.counter: 0 for e in envs.values() if e.counter})
+
+    def top_number() -> str:
+        return (chr(ord('A') + heads[1] - 1) if appendix
+                else str(heads[1] + start - 1))
 
     def sec_part() -> str | None:
         if mode != 'section':
             return None
-        if heads[1]:
-            return chr(ord('A') + heads[1] - 1) if appendix else str(heads[1])
-        return str(section) if section else None
+        if seen:
+            return top_number()
+        return str(section) if section is not None else None
 
     def fmt(n: int) -> str:
         s = sec_part()
@@ -198,18 +338,33 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
         m = HEADING.match(line)
         if m:
             depth = len(m.group('hash')) - top + 1
+            if depth == 1 and appendix_heading(m.group('attr')) and not appendix:
+                appendix = True
+                heads = [0] * 7
             if depth < 1 or unnumbered(m.group('attr')):
                 continue
             heads[depth] += 1
             for d in range(depth + 1, 7):
                 heads[d] = 0
-            if depth == 1 and mode == 'section':
-                counts = {k: 0 for k in counts}
+            if depth == 1:
+                seen = True
+                if mode == 'section':
+                    counts = {k: 0 for k in counts}
             parts = [str(h) for h in heads[1:depth + 1]]
-            if appendix:
-                parts[0] = chr(ord('A') + heads[1] - 1)
+            parts[0] = top_number()
             out.items.append(Item('sec', label_in(m.group('attr'), 'sec'), '.'.join(parts),
                                   i, appendix, level=depth))
+            continue
+
+        m = DIV_OPEN.match(s)
+        if m:
+            attr = div_attr(m)
+            env = theorem_env(attr, envs)
+            if env is not None and env.counter:
+                counts[env.counter] += 1
+                out.items.append(Item(env.name, label_in(attr, env.name),
+                                      fmt(counts[env.counter]), i, appendix,
+                                      word=env.word, title=attr_value(attr, 'title') or ''))
             continue
 
         m = IMAGE.match(s)
@@ -232,23 +387,35 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
     return out
 
 
-def references(md: str) -> list:
-    """本文の参照 [(ラベル, 番号だけか, 行番号)]。コードの中は見ない。"""
+def references(md: str, kinds=None) -> list:
+    """本文の参照 [(ラベル, 番号だけか, 行番号)]。コードの中は見ない。
+
+    再掲（`::: {.restate #question-why}`）の相手も参照として数える。
+    """
+    ref = patterns(kinds)[1]
     out = []
     for i, line in _lines_outside_code(md):
+        m = DIV_OPEN.match(line.strip())
+        if m and 'restate' in div_classes(div_attr(m)):
+            lab = re.search(r'#(' + _NAME + ')', div_attr(m))
+            if lab:
+                out.append((lab.group(1), False, i))
+            continue
         line = re.sub(r'`[^`\n]*`', '', line)
-        for m in REF.finditer(line):
+        for m in ref.finditer(line):
             lab = m.group('blabel') or m.group('label')
             out.append((lab, bool(m.group('short')), i))
     return out
 
 
-def replace_references(md: str, known: dict, fmt, report: list | None = None) -> str:
+def replace_references(md: str, known: dict, fmt, report: list | None = None,
+                       kinds=None) -> str:
     """本文の `@fig-x` を fmt(Item, short) の返す文字列に置き換える。
 
     存在しないラベルは `??` にして報告する（組版を止めない。octavo check は止める）。
     """
     missing: list = []
+    REF = patterns(kinds)[1]
 
     def one(m: re.Match) -> str:
         lab = m.group('blabel') or m.group('label')
@@ -310,6 +477,8 @@ def text_of(item: Item, lang: str, short: bool = False) -> str:
     n = f'({item.number})' if item.kind == 'eq' else item.number
     if short:
         return n
+    if item.word:
+        return f'{item.word}{n}' if lang == 'ja' else f'{item.word} {n}'
     key = 'app' if item.kind == 'sec' and item.appendix else item.kind
     return words(lang)[key].format(n=n)
 
@@ -325,7 +494,7 @@ def caption_head(kind: str, number: str, lang: str) -> str:
 def collect(cfg) -> dict:
     """原稿ごとのラベルと参照を突き合わせる。
 
-    missing    ないラベルへの参照（組むと ?? になる）        [(原稿:行, @label)]
+    missing    ないラベルへの参照・再掲（組むと ?? になる）  [(原稿:行, @label)]
     duplicate  同じラベルが2回                              [(原稿:行, #label)]
     unused     どこからも参照されていない図・表・式のラベル    [(原稿:行, #label)]
 
@@ -339,24 +508,27 @@ def collect(cfg) -> dict:
     for files in by_doc.values():
         labels: dict = {}
         refs: list = []
+        envs = theorem_envs(cfg)
+        kinds = kinds_of(envs)
         for src, is_app in files:
             text = mdlib.read(src)
             where = cfg.rel(src)
-            for it in number(text, cfg['crossref_numbering'], appendix=is_app).items:
+            for it in number(text, cfg['crossref_numbering'], appendix=is_app,
+                             envs=envs).items:
                 if not it.label:
                     continue
                 if it.label in labels:
                     out['duplicate'].append((f'{where}:{it.line + 1}', '#' + it.label))
                 else:
                     labels[it.label] = (it, f'{where}:{it.line + 1}')
-            refs += [(f'{where}:{line + 1}', lab) for lab, _, line in references(text)]
+            refs += [(f'{where}:{line + 1}', lab) for lab, _, line in references(text, kinds)]
         cited = set()
         for at, lab in refs:
             cited.add(lab)
             if lab not in labels:
                 out['missing'].append((at, '@' + lab))
         for lab, (it, at) in labels.items():
-            if it.kind != 'sec' and lab not in cited:
+            if it.kind in ('fig', 'tbl', 'eq') and lab not in cited:
                 out['unused'].append((at, '#' + lab))
     return out
 

@@ -194,11 +194,26 @@ def run(cfg, quiet: bool = False) -> int:
             print(f'    {lo.line:>4}: {lo.excerpt}')
         print()
 
+    indents = indent_issues(cfg)
+    if indents:
+        print(t('{n} nested list {n|item is|items are} out of line (line a nested item up '
+                'with its parent\'s text: 2 spaces under "- ", 3 under "1. ")', n=len(indents))
+              + '\n')
+        last = None
+        for it in indents:
+            if it.file != last:
+                print(f'  {it.file}')
+                last = it.file
+            why = (t('too shallow to nest (it becomes a separate list)') if it.kind == 'shallow'
+                   else t('a different width from the rest of this file'))
+            print(f'    {it.line:>4}: {it.excerpt}   [{why}]')
+        print()
+
     found = collect(cfg)
     if not found:
-        if not quiet and not left:
+        if not quiet and not left and not indents:
             print(t('found nothing that looks like a hand-typed result'))
-        return 1 if left else 0
+        return 1 if (left or indents) else 0
 
     print(t('{n} {n|looks like a hand-typed number|look like hand-typed numbers} '
             '(if {n|it is a result, move it|they are results, move them} to '
@@ -219,3 +234,79 @@ def run(cfg, quiet: bool = False) -> int:
 
 def as_json(cfg) -> list:
     return [asdict(f) | {'label': f.label()} for f in collect(cfg)]
+
+
+# ---------------------------------------------------------------- 箇条書きの字下げ
+# 入れ子の箇条書きは、子の項目を親の本文の桁（`- ` なら 2、`1. ` なら 3）に揃える。
+# それより浅いと pandoc は入れ子にしない（番号付きの下の 2 字は入れ子にならない）。
+# 幅（2 か 4 か）は決めないが、1つの原稿の中で混ざっていると崩れに気づきにくい。
+
+LIST_ITEM = re.compile(r'^(?P<indent>[ \t]*)(?P<marker>[-*+]|\d+[.)])(?P<gap>[ \t]+)\S')
+
+
+@dataclass
+class IndentIssue:
+    file: str
+    line: int           # 1 始まり
+    kind: str           # 'shallow'（入れ子にならない）| 'mixed'（幅が混ざっている）
+    excerpt: str
+
+
+def _width(s: str) -> int:
+    return len(s.replace('\t', '    '))
+
+
+def list_indents(text: str) -> list:
+    """[(行番号, 種類, 行)]。コードブロックと front matter は見ない。"""
+    _, body = mdlib.split_front_matter(text)
+    offset = text[:len(text) - len(body)].count('\n')
+    out = []
+    stack: list = []            # [(字下げ, 本文の桁, 印が - か)]
+    steps: list = []            # [(字下げの差, 行番号, 行)] `-` の項目の下の入れ子だけ
+    fence = None
+    for i, line in enumerate(body.split('\n')):
+        f = mdlib.FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            continue
+        if fence:
+            continue
+        if not line.strip():
+            continue
+        m = LIST_ITEM.match(line)
+        if not m:
+            if not line[:1].isspace():
+                stack = []          # 字下げのない本文で箇条書きが終わる
+            continue
+        ind = _width(m.group('indent'))
+        col = ind + len(m.group('marker')) + _width(m.group('gap'))
+        bullet = m.group('marker') in '-*+'
+        while stack and ind < stack[-1][0]:
+            stack.pop()
+        if stack and ind == stack[-1][0]:
+            stack[-1] = (ind, col, bullet)
+            continue
+        if stack and ind > stack[-1][0]:
+            parent_ind, parent_col, parent_bullet = stack[-1]
+            if ind < parent_col:
+                # 入れ子にならない。親は変えずに次の行を見る
+                out.append((offset + i + 1, 'shallow', line.strip()))
+                continue
+            if parent_bullet:
+                steps.append((ind - parent_ind, offset + i + 1, line.strip()))
+            stack.append((ind, col, bullet))
+            continue
+        stack = [(ind, col, bullet)]
+    widths = [w for w, _, _ in steps]
+    if len(set(widths)) > 1:
+        common = max(set(widths), key=widths.count)
+        out += [(ln, 'mixed', ex) for w, ln, ex in steps if w != common]
+    return sorted(out)
+
+
+def indent_issues(cfg) -> list:
+    out = []
+    for _name, src, _app in cfg.sources():
+        for line, kind, excerpt in list_indents(mdlib.read(src)):
+            out.append(IndentIssue(cfg.rel(src), line, kind, excerpt[:60]))
+    return out

@@ -15,6 +15,14 @@ pandoc の citeproc は、書誌全体を1つの言語で組む。日本語（ja
       本の章    加藤五郎 (2015)「章の題」中村六郎編『書名』出版社, 10–20.
       その他    著者 (年)「題」『載っているもの』出版社. https://…
 
+    形は設定の japanese_citation_form で選ぶ（文書のメタデータ octavo-ja-form で届く）:
+      standard   上の形（既定）
+      fullwidth  山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。
+                 （『年報行政研究』に掲載された論文の文献一覧に多い形）
+      period     山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。
+                 （『年報政治学』に掲載された論文の文献一覧に見られる形）
+    どちらの雑誌も投稿規程で文献の書き方を決めてはいない。投稿先の指示があればそれに従う。
+
 文書の言語（lang）は変えない。組むあいだだけ en-US にして、あとで戻す。
 形を変えたいときは、この写しをプロジェクトの templates/citations/japanese.lua に置いて直す
 （octavo template copy citations/japanese.lua）。
@@ -99,7 +107,39 @@ local function year_of(item, rendered)
   return 'n.d.'
 end
 
-local function japanese_entry(item, rendered)
+-- 形ごとの違い: 著者と年のつなぎ、巻号・頁の書き方、区切り、最後の句点
+local FORMS = {
+  standard = {
+    head = function(who, y) return who .. ' (' .. y .. ')' end,
+    volume = function(vol, issue, pp)
+      local s = (vol or '') .. ((vol and issue) and ('(' .. issue .. ')') or (issue or ''))
+      if pp then s = s .. (s ~= '' and ': ' or '') .. pp end
+      return s
+    end,
+    pages = function(pp) return ', ' .. pp end,
+    stop = '.',
+  },
+  fullwidth = {
+    head = function(who, y) return who .. '（' .. y .. '）' end,
+  },
+  period = {
+    head = function(who, y) return who .. '．' .. y .. '．' end,
+  },
+}
+-- 和文の巻号・頁（fullwidth と period で同じ）
+local function ja_volume(vol, issue, pp)
+  local s = (vol and (vol .. '巻') or '') .. (issue and (issue .. '号') or '')
+  if pp then s = s .. (s ~= '' and '、' or '') .. pp .. '頁' end
+  return s
+end
+for _, name in ipairs({ 'fullwidth', 'period' }) do
+  FORMS[name].volume = ja_volume
+  FORMS[name].pages = function(pp) return '、' .. pp .. '頁' end
+  FORMS[name].stop = '。'
+end
+
+local function japanese_entry(item, rendered, form)
+  local f = FORMS[form] or FORMS.standard
   local who, eds = people(item.author), people(item.editor)
   local kind = item.type or ''
   local title = field(item, 'title') or ''
@@ -107,24 +147,20 @@ local function japanese_entry(item, rendered)
   local vol, issue, pp = field(item, 'volume'), field(item, 'issue'), pages(item)
 
   if not who and eds then who, eds = eds .. '編', nil end
-  local s = (who or '') .. ' (' .. year_of(item, rendered) .. ')'
+  local s = f.head(who or '', year_of(item, rendered))
   if kind == 'book' or (kind == 'thesis' and not container) then
     s = s .. '『' .. title .. '』' .. (publisher or '')
   elseif kind == 'chapter' or kind == 'paper-conference' or kind == 'entry-encyclopedia' then
     s = s .. '「' .. title .. '」' .. (eds and (eds .. '編') or '')
     if container then s = s .. '『' .. container .. '』' end
-    s = s .. (publisher or '') .. (pp and (', ' .. pp) or '')
+    s = s .. (publisher or '') .. (pp and f.pages(pp) or '')
   else
     s = s .. '「' .. title .. '」'
     if container then s = s .. '『' .. container .. '』' end
-    if vol then
-      s = s .. vol .. (issue and ('(' .. issue .. ')') or '') .. (pp and (': ' .. pp) or '')
-    elseif pp then
-      s = s .. pp
-    end
+    s = s .. f.volume(vol, issue, pp)
     if not container and publisher then s = s .. publisher end
   end
-  s = s .. '.'
+  s = s .. f.stop
   local doi = field(item, 'doi') or field(item, 'DOI')
   local url = field(item, 'url') or field(item, 'URL')
   if doi then
@@ -136,6 +172,7 @@ local function japanese_entry(item, rendered)
 end
 
 function Pandoc(doc)
+  local form = doc.meta['octavo-ja-form'] and stringify(doc.meta['octavo-ja-form']) or 'standard'
   local lang = doc.meta.lang
   doc.meta.lang = pandoc.MetaString('en-US')
   doc = pandoc.utils.citeproc(doc)
@@ -155,7 +192,7 @@ function Pandoc(doc)
     Div = function(d)
       local item = ja[d.identifier]
       if item then
-        d.content = { pandoc.Para(pandoc.Inlines(japanese_entry(item, stringify(d)))) }
+        d.content = { pandoc.Para(pandoc.Inlines(japanese_entry(item, stringify(d), form))) }
         return d
       end
     end,

@@ -85,6 +85,9 @@ class TypstSlidesBackend(TypstBackend):
         # 番号（プリントと同じ「2.1」になる）、見出しが1段だけなら通し番号
         if ctx.crossref_section is not None:
             section = str(ctx.crossref_section)
+        elif ctx.crossref_preset:
+            # 区切りで分けた回のデッキ: 講義ノートの続きから「#」を数える
+            section = 'auto'
         else:
             section = 'auto' if slide_level == 2 else 'none'
         return (f'// octavo build --to {self.name} が作った。手で直さない。\n'
@@ -153,8 +156,13 @@ def promote_sections_with_content(typ: str) -> str:
                                   or re.fullmatch(r'<[^<>\s]+>', lines[j].strip())):
             j += 1
         if j < len(lines) and heading_level(lines[j]) is None:
-            lines[i] = ('=' + line if line.startswith('=')
+            promoted = ('=' + line if line.startswith('=')
                         else line.replace('#heading(level: 1', '#heading(level: 2', 1))
+            # 節としては数える（図表・事例の番号が節ごとに振り直され、講義ノートとそろう）。
+            # 番号を振らない見出し（citeproc の「参考文献」）は数えない
+            step = ('' if 'numbering: none' in line
+                    else '#[#metadata(none) <octavo-section-step>]\n')
+            lines[i] = step + promoted
     return '\n'.join(lines)
 
 

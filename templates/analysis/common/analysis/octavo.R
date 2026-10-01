@@ -14,6 +14,7 @@
 #      ov_value("p_x", ov_pval(pv))                -> 本文の {{p_x}}
 #      ov_figure(gg, "trend")                        -> assets/figures/trend.{pdf,png}
 #      ov_table(tab, "summary")                      -> assets/tables/summary.{tex,typ,md}
+#      ov_palette(3) / ov_tint(col) / ov_scale_colour_cud()   色覚に配慮した配色
 #
 #  数値は assets/values/<この .qmd の名前>.json に貯まる。octavo build が読んで
 #  本文の {{…}} に差し込む。図は原稿に ![推移](../../assets/figures/trend.png){#fig-trend}
@@ -274,6 +275,57 @@ ov_figure <- function(x, name, width = 6, height = 4, dpi = 300,
     out <- c(out, path)
   }
   invisible(out)
+}
+
+
+# ---------------------------------------------------------------- 配色
+# 色覚の多様性に配慮した配色（カラーユニバーサルデザイン）。Okabe & Ito (2008) の
+# 8 色。図を作るときの約束（プロジェクトの CLAUDE.md）:
+#   1. 色はここから選ぶ
+#   2. 色だけで区別しない（値や名前を図の中に直接書く。強調は太字・線種・位置でも）
+#   3. 隣り合う面は明るさも変える。文字を載せる面は ov_tint() で白に寄せる
+#   4. 赤と緑、黄と白を隣り合わせない
+
+ov_cud <- c(blue = "#0072B2", orange = "#E69F00", green = "#009E73",
+            vermillion = "#D55E00", skyblue = "#56B4E9", purple = "#CC79A7",
+            yellow = "#F0E442", grey = "#999999", black = "#000000")
+
+#' CUD の色を返す。n を渡すとその数だけ（見分けやすい順）、名前を渡すとその色
+#'
+#'   ov_palette(3)                   # 青・橙・緑
+#'   ov_palette(c("blue", "grey"))
+ov_palette <- function(n = NULL) {
+  if (is.character(n)) {
+    bad <- setdiff(n, names(ov_cud))
+    if (length(bad)) stop("ov_palette: 知らない色 ", paste(bad, collapse = ", "),
+                          "（", paste(names(ov_cud), collapse = " / "), "）")
+    return(ov_cud[n])
+  }
+  order <- c("blue", "orange", "green", "vermillion", "skyblue", "purple",
+             "yellow", "grey")
+  if (is.null(n)) return(ov_cud[order])
+  if (n > length(order)) stop("ov_palette: 色は ", length(order), " まで（それより多いなら",
+                              "色ではなく線種・形・直接の文字で区別する）")
+  ov_cud[order[seq_len(n)]]
+}
+
+#' 色を白に寄せる（p = 0 でそのまま、1 で白）。面の上に黒い文字を載せるときに
+ov_tint <- function(col, p = 0.6) {
+  m <- grDevices::col2rgb(col) / 255
+  m <- m + (1 - m) * p
+  out <- grDevices::rgb(m[1, ], m[2, ], m[3, ])
+  names(out) <- names(col)
+  out
+}
+
+#' ggplot2 の色・塗りを CUD の色にする（ggplot2 を使うときだけ）
+#'
+#'   ggplot(d, aes(x, y, colour = g)) + geom_line() + ov_scale_colour_cud()
+ov_scale_colour_cud <- function(...) {
+  ggplot2::scale_colour_manual(values = unname(ov_palette()), ...)
+}
+ov_scale_fill_cud <- function(...) {
+  ggplot2::scale_fill_manual(values = unname(ov_palette()), ...)
 }
 
 
