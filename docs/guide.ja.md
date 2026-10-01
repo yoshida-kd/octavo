@@ -339,8 +339,8 @@ Unnumbered blocks need no label.
 :::
 ```
 
-- 種類: `case` 事例・`question` 論点・`aside` 余談（3つで通し番号: 事例1.1、論点1.2）、
-  `nb` 注意・`memo` 付記（番号なし）、`theorem` 定理・`lemma` 補題・`proposition` 命題・
+- 種類: `case` 事例・`question` 論点（2つで通し番号: 事例1.1、論点1.2）、
+  `aside` 余談・`nb` 注意・`memo` 付記（番号なし）、`theorem` 定理・`lemma` 補題・`proposition` 命題・
   `corollary` 系・`definition` 定義・`example` 例（別の通し番号）、`remark` 注（番号なし）。
   図と同じく節ごとに振る。
 - ラベルの頭は種類の名前（`#question-why`）。`@question-why` は「論点1.2」になる。
@@ -393,6 +393,31 @@ $$
 
 `ov_figure()` と Typst で描いた図は両方を書く。既定の幅は `figure_width`、図ごとには
 `{width=60%}` で決める。
+
+**図表の出典・注**は、図（表なら表題の行）のすぐ後の `::: {.figure-note}` に書く。中身は
+ふつうの Markdown で、リンクも脚注も書ける。図表と一緒に小さい字で組まれ、同じページに
+置かれ、図表の題には入らない。スライドでは注の分だけ図が縮む。題にも脚注を付けられる:
+
+```markdown
+![Officials by level of government[^src]](../assets/figures/staff.png){#fig-staff}
+
+::: {.figure-note}
+Source: National Personnel Authority, *Annual Report 2025*.[^checked]
+:::
+
+[^src]: Full-time staff only.
+[^checked]: Retrieved 1 October 2026.
+```
+
+**自分で撮った写真など、手元の画像**（写真・画面の写し）は、Typst の図の元と同じ
+`figures/` に置き、そこから直接貼る。`.jpg` も `.png` もどの出力でも使える。Octavo は
+縮めないので、大きな写真は先に縮めておく（長い辺が 2,000 ピクセルほどで足りる）。そのままだと
+PDF が重くなる。どこから来た画像か、使ってよいかは、データの `data/raw/README.md` と同じく
+`figures/README.md` に1行書いておくとよい。
+
+```markdown
+![The council chamber](../figures/chamber.jpg){#fig-chamber width=70%}
+```
 
 **Typst で図を描く（TikZ の代わり）。**`octavo new figure dag` が、箱と矢印を描く小さな
 `diagram()` 付きの `figures/dag.typ` を置く:
@@ -519,6 +544,22 @@ octavo values --diff         # 前回の実行で本文のどの数値が変わ�
 ],
 ```
 
+- 同じことを `.qmd` の冒頭の `octavo:` の下に書いてもよい。設定の `analysis/*.qmd` は
+  そのままにできる: `manual: true`（`octavo analysis run` のときだけ実行）と `deps`（ほかに
+  見張るファイル）。設定にその `.qmd` を個別に書いてあれば、そちらが優先。
+- **原データをネットから取ってくる処理**（API・ダウンロード・取ってくる R パッケージ）は、
+  手で実行する別の `.qmd` にする: `analysis/00-fetch-<取得元>.qmd` に `manual: true`。
+  `data/raw/` にもうあるファイルは上書きせずに止まるようにし、取得元と取得日を
+  `data/raw/README.md` に書く（`data/raw/` を git に入れないなら、残る記録はそれだけ）。
+
+```yaml
+---
+title: "Fetch the raw data"
+octavo:
+  manual: true
+---
+```
+
 - VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
   プレビューは分析を実行せず、古いものがあれば知らせる。
 
@@ -597,7 +638,10 @@ octavo lint            # 手入力の数値と、字下げの揃っていない�
 ```
 
 `octavo check` が見るもの: 図と表のファイルの欠け、解決しない `{{…}}`、仮の値、古い分析、
-引用キーと `.bib`、ラベル、見本の残り、投稿規定の分量、データのハッシュ値。分量の上限は
+引用キーと `.bib`、ラベル、見本の残り、書いたとおりに読まれない `:::` の囲み、投稿規定の分量、
+データのハッシュ値。結果でない数値（成績の配分、年など）を手入力の数値の検査から外すには、
+本文で `[40%]{.no-lint}`、段落ごとなら `::: {.no-lint}` … `:::` で囲むか、前後の文字ごと
+`lint_accepted` に書く（`'中間レポート40%'`）。分量の上限は
 設定か原稿の冒頭に書く（`word_limit: 8000`、日本語の雑誌なら `char_limit`）。
 
 ### 匿名審査
@@ -678,8 +722,12 @@ octavo build example-talk --compile
 - `{slide-title="…"}`: スライドでだけ見出しの題を差し替える（回の `#` 見出しなら、その回の
   スライドの題になる）
 
+- 見出しに `{.no-title}`: 題のない新しいスライドにする。図に高さを回せる（左上の節名は残り、
+  プリントの見出しはそのまま）
+
 `::: notes` には発表者ノートを書く。投影するスライドには出ず、`--to typst-notes` で
-**台本**（A4 で1ページに1枚、下にノート）ができる。スライドには書誌一覧を出さない。出すなら
+**台本**ができる。組んだスライドの各ページを縮小して並べ、その下にそのページのノートを置く
+（A4 に2枚ずつ）。先にスライドを組むので、絵は投影する画面と同じになる。スライドには書誌一覧を出さない。出すなら
 `slides_bibliography: True` にし、原稿の最後に見出しと `::: {#refs}` + `:::` を置く。
 
 ### 講義ノート
@@ -708,7 +756,8 @@ octavo build example-lecture-03 --to typst-slides           # 1回分だけ
 ```
 
 `title`・`subtitle`・`date` はその回のタイトルスライドに出る（`title` がなければ回の最初の
-見出しが題になる）。デッキの番号はプリントと同じ。
+見出しが題になる）。デッキの番号はプリントと同じ。どの段が1枚のスライドになるかは講義ノート
+全体で決まる（ふつうは `###`）ので、区切りを足しても変わらない。
 
 **出し分け。**条件付きブロックで、どの出力に入れるかを決める:
 

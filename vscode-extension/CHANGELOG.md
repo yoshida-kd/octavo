@@ -3,6 +3,39 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.5.1
+
+- **The speaker script shows the slides as projected**: each page of the typeset deck,
+  shrunk, two to an A4 page, with the notes written on it underneath (`--to typst-notes`
+  typesets the deck first).
+- **A source or note under a figure or table**: `::: {.figure-note}` + `:::` right after it.
+  It stays on the figure's page in small type, takes footnotes and links, and the figure
+  shrinks for it on a slide. A footnote in a figure's title no longer breaks the figure.
+- **`{.no-title}` on a slide's heading** (or `::: {.slide .no-title}`) gives a slide without
+  its title (room for a figure).
+- Figures on slides take all the height left: the space kept for the caption is the
+  caption's real height, not a fixed three lines.
+- **Handout-only / slides-only inside a list item now work**, and so does
+  `[a few words]{.handout-only}` inside a line; `.slide-only` is read as `.slides-only`.
+  `octavo lint` and `octavo check` point out a `:::` that pandoc will not read as a block
+  (no blank line before it) and a `.…-only` mark that matches no output.
+- **`[40%]{.no-lint}`** (or `::: {.no-lint}`) keeps a number that is not a result out of the
+  hand-typed check; `lint_accepted` also takes the text around a number (`'midterm 40%'`).
+- **A `.qmd` can mark itself as run by hand** in its front matter (`octavo:` →
+  `manual: true`, `deps: [...]`), so the config's `analysis/*.qmd` can stay; an entry for that
+  file in the config wins, and a file matched twice runs once.
+- Lecture notes with session markers: a marker with `title="…"` no longer changes which
+  heading is a slide (it stays `###`, decided from the whole notes); before, the session's `#`
+  stayed in the deck and `##` became the slide.
+- Lecture notes with session markers: a session with nothing in it yet gets no deck, and
+  decks left from an earlier split are removed at the next build.
+- A misspelt setting at the top of a manuscript (`first-section-number`) is reported when
+  building; the lecture-notes page now lists each setting's name.
+- **Asides (`aside`) are no longer numbered**, like `nb` and `memo`; cases
+  and questions keep their shared numbering. To number asides again, add
+  `'theorem_envs': {'aside': {'name': {'ja': '余談', 'en': 'Aside'}, 'counter': 'case'}}`
+  to `octavo.config.py`.
+
 ## 0.5.0
 
 - **Lecture handouts get a layout of their own.** The A4 handout is now set

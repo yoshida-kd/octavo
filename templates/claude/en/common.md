@@ -130,11 +130,22 @@ cell right of a filled one merges into it), and `octavo build` makes the table i
 `assets/tables/` (**edit the `.csv`**). Prefer this to typing a long Markdown table into the
 manuscript.
 
+A figure's or table's **source and notes** go in `::: {.figure-note}` + `:::` right after it
+(after a table's caption line), not in an ordinary paragraph below: then they stay with it,
+in small type, and shrink with it on a slide. **Photos and screenshots** go in `figures/` and
+are placed from there (`../figures/photo.jpg`); resize large ones first, and note where each
+came from and whether it may be used in `figures/README.md`.
+
 ## Indenting nested lists
 
 Line a nested item up with **its parent's text** (2 spaces under `- `, 3 under `1. `). The
 width is not fixed, but keep one width within a manuscript. `octavo lint` points out nested
 items that are out of line, and lines under a numbered item indented too little to nest.
+
+**Leave a blank line before every opening `:::`** (inside a list item too, indented to the
+item's text); without it pandoc prints the `:::` as text. `octavo lint` reports that, and a
+`.xxx-only` mark that matches no output. A number in the prose that is not a result (a grading
+split) is marked `[40%]{.no-lint}` so the hand-typed check skips it.
 
 ## The examples are marked as examples
 

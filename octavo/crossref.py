@@ -42,12 +42,12 @@ _NAME = r'[A-Za-z0-9](?:[A-Za-z0-9_-]*[A-Za-z0-9])?'
 
 # ---------------------------------------------------------------- 事例・論点などのブロック
 # `::: {.question #question-why title="…"}` … `:::`。ラベルの頭はクラス名。
-# counter が同じものは番号を通しで振る（事例・論点・余談は「事例1.1、論点1.2」）。
+# counter が同じものは番号を通しで振る（事例・論点は「事例1.1、論点1.2」）。
 # counter が None のものは番号を付けない（参照もできない）。
 THEOREMS = {
     'case':        ('事例', 'Case', 'case'),
     'question':    ('論点', 'Question', 'case'),
-    'aside':       ('余談', 'Aside', 'case'),
+    'aside':       ('余談', 'Aside', None),
     'nb':          ('注意', 'Note', None),
     'memo':        ('付記', 'Addendum', None),
     'theorem':     ('定理', 'Theorem', 'theorem'),
@@ -136,7 +136,8 @@ FENCE = re.compile(r'^\s*(```+|~~~+)')
 HEADING = re.compile(r'^(?P<hash>#{1,6})[ \t]+(?P<title>.*?)'
                      r'(?:[ \t]*\{(?P<attr>[^}]*)\})?[ \t]*$')
 # 段落に画像が1つだけ（pandoc がこれを図にする）
-IMAGE = re.compile(r'^!\[(?P<alt>(?:[^\]\\]|\\.)*)\]\((?P<path>[^)\s]+)(?P<title>\s+"[^"]*")?\)'
+# alt には角括弧が1段入ってよい（題に付けた脚注 `[^src]`、引用 `[@key]`）
+IMAGE = re.compile(r'^!\[(?P<alt>(?:[^\[\]\\]|\\.|\[[^\[\]]*\])*)\]\((?P<path>[^)\s]+)(?P<title>\s+"[^"]*")?\)'
                    r'(?:\{(?P<attr>[^}]*)\})?[ \t]*$')
 # 表のキャプション（`: キャプション {#tbl-x}` / `Table: …`）
 TABLE_CAPTION = re.compile(r'^(?:Table)?:[ \t]+(?P<cap>.*?)(?:[ \t]*\{(?P<attr>[^}]*)\})?[ \t]*$')
@@ -227,6 +228,69 @@ def attr_value(attr: str, key: str) -> str | None:
 
 def unnumbered(attr: str | None) -> bool:
     return bool(attr) and bool(re.search(r'(?:^|\s)(?:\.unnumbered|-)(?:\s|$)', attr))
+
+
+FIGURE_NOTE = 'figure-note'
+
+
+def _block_start(lines: list, j: int) -> int:
+    """j 行目を含む、空行で区切られた塊の最初の行。"""
+    while j > 0 and lines[j - 1].strip():
+        j -= 1
+    return j
+
+
+def figure_notes(lines: list) -> tuple:
+    """図・表の直後の `::: {.figure-note}`（出典・注）。([(先頭, 開き, 閉じ, 'fig'|'tbl')], [離れた開きの行])。
+
+    先頭は図なら画像の行、表なら表とキャプションの塊の最初の行。直前の塊が図でも表でも
+    ない注は、2つ目の並びに入れる（ふつうの囲みとして組まれる）。
+    """
+    found, stray = [], []
+    text = '\n'.join(lines)
+    outside = {i for i, _ in _lines_outside_code(text)}
+    i = 0
+    while i < len(lines):
+        if i not in outside:
+            i += 1
+            continue
+        m = DIV_OPEN.match(lines[i].strip())
+        if not (m and (m.group('bare') == FIGURE_NOTE
+                       or FIGURE_NOTE in div_classes(m.group('attr') or ''))):
+            i += 1
+            continue
+        depth, k = 1, i + 1
+        while k < len(lines):
+            st = lines[k].strip()
+            if re.match(r'^:{3,}\s*$', st):
+                depth -= 1
+                if not depth:
+                    break
+            elif DIV_OPEN.match(st):
+                depth += 1
+            k += 1
+        j = i - 1
+        while j >= 0 and not lines[j].strip():
+            j -= 1
+        start, kind = None, None
+        prev = lines[j].strip() if j >= 0 else ''
+        if j >= 0 and IMAGE.match(prev):
+            start, kind = j, 'fig'
+        elif j >= 0 and (TABLE_CAPTION.match(prev) or TABLE_ROW.match(lines[j])):
+            kind, start = 'tbl', _block_start(lines, j)
+            above = _block_start(lines, start - 2) if start >= 2 and not lines[start - 1].strip() else None
+            if above is not None:
+                if TABLE_CAPTION.match(lines[start].strip()) and TABLE_ROW.match(lines[above]):
+                    start = above                    # 表 / 空行 / キャプション
+                elif TABLE_ROW.match(lines[start]) and above == start - 2 \
+                        and TABLE_CAPTION.match(lines[above].strip()):
+                    start = above                    # キャプション / 空行 / 表
+        if start is None:
+            stray.append(i)
+        else:
+            found.append((start, i, min(k, len(lines) - 1), kind))
+        i = k + 1
+    return found, stray
 
 
 def _lines_outside_code(md: str):

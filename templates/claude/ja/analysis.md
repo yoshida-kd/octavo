@@ -117,7 +117,12 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 **データの整形のように時間がかかるものは別の `.qmd` にして `'manual': True`**
 を付ける。`octavo build` もプレビューもそれを実行せず、古いと知らせるだけになる。
 実行するのは `octavo analysis run analysis/01-clean.qmd`（VS Code ならサイドバーの
-「分析」のボタン）。
+「分析」のボタン）。設定のグロブはそのままで、`.qmd` の冒頭に `octavo:` と
+`  manual: true`（と `  deps: [...]`）を書いてもよい。
+
+**原データをネットから取る処理**（API・ダウンロード）もこの形にする:
+`analysis/00-fetch-<取得元>.qmd` に `manual: true`。`data/raw/` にもうあるファイルは上書きせずに
+止まるようにし、取得元と取得日を `data/raw/README.md` に書く。
 
 - 同じ名前を2つの `.qmd` が登録すると警告が出て**後が勝つ**。
   `octavo values` の出所欄で確かめる

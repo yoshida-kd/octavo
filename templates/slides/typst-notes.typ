@@ -5,9 +5,10 @@
 //  を、**後ろに**本文を書いて1つの完結した .typ にする。使える値は
 //  slides/typst-slides.typ とまったく同じ（同じ meta_block を通る）。
 //
-//  スライド（typst-slides）と対になっている。**中身の取捨は同じ**で、違うのは
-//  A4 縦1ページ＝スライド1枚で組むことと、スライド側が落とす `::: notes` を
-//  #octavo-note[…] として下に置くこと。
+//  スライド（typst-slides）と対になっている。上に**組んだスライドの PDF のページ**を
+//  縮小して貼り、その下に、そのページにあった `::: notes` を #octavo-note[…] として置く。
+//  本文は #octavo-script(ページの対応, スライドの PDF)[ノート1][ノート2]… の1つだけ。
+//  ページの対応（<name>.notes.json）は octavo build --compile が書く。
 //
 //  体裁を変えるなら octavo template copy slides/typst-notes.typ でコピーして直す
 //  （typst-slides.typ と同じやり方）。
@@ -66,7 +67,7 @@
   },
 )
 
-// -- 事例／論点／余談・注意／付記（typst-slides.typ と同じ） ------------
+// -- 事例／論点・余談／注意／付記（typst-slides.typ と同じ） ------------
 #let theorem-counter = counter("octavo-theorem")
 #let theorem-section = counter("octavo-theorem-section")
 #let theorem(label, body) = {
@@ -90,13 +91,31 @@
 }
 #let case(body) = theorem(if octavo.lang == "ja" { "事例" } else { "Case" }, body)
 #let question(body) = theorem(if octavo.lang == "ja" { "論点" } else { "Question" }, body)
-#let aside(body) = theorem(if octavo.lang == "ja" { "余談" } else { "Aside" }, body)
+#let aside(body) = labeled(if octavo.lang == "ja" { "余談" } else { "Aside" }, body)
 #let nb(body) = labeled(if octavo.lang == "ja" { "注意" } else { "Note" }, body)
 #let memo(body) = labeled(if octavo.lang == "ja" { "付記" } else { "Memo" }, body)
 #let smallgray(body) = text(fill: luma(120), size: 9pt, body)
+// 題のないスライド（原稿の `### 題 {.no-title}`）。新しいページにするだけ
+#let octavo-untitled-slide() = pagebreak(weak: true)
 
 // -- 見出し -------------------------------------------------------------
 // 1ページ＝スライド1枚。節（`#`）は扉を作らず、小さな見出しを置くだけ。
+// -- 台本: スライドの各ページと、その下のノート ---------------------------
+// data は (count: スライドのページ数, pages: (ノート1のページ, ノート2のページ, …))。
+// ノートのないページは絵だけ。絵とノートは同じページに置く（絵だけ前のページに残さない）
+#let octavo-script(data, deck, ..notes) = {
+  let notes = notes.pos()
+  for p in range(1, data.count + 1) {
+    let mine = range(notes.len()).filter(i => data.pages.at(i, default: 0) == p)
+    block(above: 1.4em, below: 0.5em, breakable: false, sticky: mine.len() > 0, {
+      text(size: 8pt, fill: luma(130), [#p])
+      v(0.2em, weak: true)
+      align(center, box(stroke: 0.5pt + luma(170), image(deck, page: p, width: 85%)))
+    })
+    for i in mine { octavo-note(notes.at(i)) }
+  }
+}
+
 #show heading: it => {
   let num = if it.numbering != none and it.level <= octavo.slide-level {
     counter(heading).display(it.numbering) + h(0.45em)
@@ -120,18 +139,8 @@
   }
 }
 
-// -- 表紙（1ページだけの簡単なもの） ------------------------------------
-#if octavo.title != none {
-  block(text(size: 20pt, weight: "bold", fill: accent, octavo.title))
-  if octavo.subtitle != none {
-    block(above: 0.4em, text(size: 14pt, fill: accent, octavo.subtitle))
-  }
-  v(0.8em)
-  for part in (octavo.author, octavo.institute, octavo.date) {
-    if part != none { block(above: 0.3em, text(size: 11pt, part)) }
-  }
-  v(0.8em)
-  text(size: 9pt, fill: luma(120),
-       if octavo.lang == "ja" { "発表者用の台本。投影する PDF とは別。" }
-       else { "Speaker script — not the projected deck." })
-}
+// -- 頭の1行（表紙はスライドの1ページ目がそのまま下に出る） ----------------
+#text(size: 9pt, fill: luma(120),
+      (if octavo.title != none { [#octavo.title — ] })
+      + if octavo.lang == "ja" { "発表者用の台本。投影する PDF とは別。" }
+        else { "Speaker script — not the projected deck." })

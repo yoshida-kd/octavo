@@ -58,8 +58,8 @@ octavo build example-lecture-03 --to typst-slides           # 3回目だけ
 :::
 ```
 
-- 種類: `case` 事例・`question` 論点・`aside` 余談（3つで通し番号: 事例1.1、論点1.2）、
-  `nb` 注意・`memo` 付記（番号なし）、ほかに `theorem` 定理・`definition` 定義など。
+- 種類: `case` 事例・`question` 論点（2つで通し番号: 事例1.1、論点1.2）、
+  `aside` 余談・`nb` 注意・`memo` 付記（番号なし）、ほかに `theorem` 定理・`definition` 定義など。
   参照は `@question-why` → 「論点1.2」（ラベルの頭は種類の名前）
 - `::: {.restate #question-why}` + `:::` で、同じブロックを元の番号とページへの
   リンク付きで再掲する。`::: {.list-of .question}` + `:::` で一覧（`.titles` を足すと題だけ）。

@@ -52,10 +52,15 @@ def _marks(typ: Path, root: str, label: str) -> list:
     return json.loads(out or '[]')
 
 
-def page_table(typ: Path, root: str) -> dict:
+def page_table(typ: Path, root: str, skip=()) -> dict:
     """{'body': 本文の最初の物理ページ, 'last': 最後の物理ページ,
-        'sessions': [{'key', 'title', 'first', 'last', 'shown_first', 'shown_last'}]}"""
-    sessions = _marks(typ, root, 'octavo-session')
+        'sessions': [{'key', 'title', 'first', 'last', 'shown_first', 'shown_last'}]}
+
+    skip は中身のない回の印。その目印は数えない: 後ろに何もない区切りでは改ページが
+    起きず、目印が前の回の最後のページに乗るので、数えると前の回の最後のページが
+    次の回に取られる。
+    """
+    sessions = [m for m in _marks(typ, root, 'octavo-session') if m.get('key') not in skip]
     body = _marks(typ, root, 'octavo-body')
     end = _marks(typ, root, 'octavo-end')
     if not end:
@@ -112,7 +117,8 @@ def run(cfg, name: str, sessions: list | None = None, pages: str | None = None,
     typ = ctx_dir / f'{doc.name}.typ'
     root = be.get('typst').root_arg(_Ctx(cfg, ctx_dir))
     _run(['typst', 'compile', '--root', root, typ.name], ctx_dir)
-    table = page_table(typ, root)
+    empty = buildmod.empty_sessions(doc)
+    table = page_table(typ, root, skip=empty)
     table_path = ctx_dir / f'{doc.name}.pages.json'
     table_path.write_text(json.dumps(table, ensure_ascii=False, indent=2) + '\n',
                           encoding='utf-8')
@@ -140,6 +146,13 @@ def run(cfg, name: str, sessions: list | None = None, pages: str | None = None,
 
     out_dir = Path(cfg['out_dirs']['typst']).parent / 'handouts'
     out_dir.mkdir(parents=True, exist_ok=True)
+    for key in sorted(empty):
+        # 中身のない回の配布資料は作らない。前に作った（前の回の続きが入った）ものは消す
+        old = out_dir / f'{doc.name}-{key}.pdf'
+        if old.is_file():
+            old.unlink()
+        report.append(f'{tag("handout")} ' + t('{key}: nothing in it yet, so no handout',
+                                                key=key))
     made = []
     for key, ranges in jobs:
         if cover and table['body'] > 1:

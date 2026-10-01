@@ -40,7 +40,7 @@ from pathlib import Path
 
 from .base import Backend, Ctx
 from ..i18n import t, tag
-from .latex import (check_assets, check_cjk, latex_ref, no_babel_for_japanese,
+from .latex import (check_assets, check_cjk, latex_figure_note, latex_ref, no_babel_for_japanese,
                     numbered_equations, tex_escape)
 
 
@@ -84,7 +84,10 @@ class BeamerBackend(Backend):
         return args + no_babel_for_japanese(ctx)
 
     # -- 差し替え -----------------------------------------------------------
-    def fmt_figure(self, m: re.Match, label, ctx: Ctx) -> str:
+    def fmt_figure_note(self, part: str, kind: str, ctx: Ctx) -> str:
+        return latex_figure_note(part)
+
+    def fmt_figure(self, m: re.Match, label, ctx: Ctx, note: bool = False) -> str:
         """スライドの図は「枠に収まること」が最優先。高さで制限する。"""
         rel = ctx.figure_target(m.group('path'))
         cap = ' '.join(m.group('alt').split())

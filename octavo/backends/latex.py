@@ -20,6 +20,14 @@ from .base import Backend, Ctx, missing_table
 from ..i18n import t, tag
 
 
+def latex_figure_note(part: str) -> str:
+    """図表の直後の出典・注を小さい字で。LaTeX の図表は浮動体なので、注は図表の
+    直後の本文に置く（浮動体が動くと離れることがある）。"""
+    raw = {'open': '', 'middle': '\\par\\begingroup\\footnotesize',
+           'close': '\\par\\endgroup'}[part]
+    return f'\n```{{=latex}}\n{raw}\n```\n' if raw else ''
+
+
 class LatexBackend(Backend):
     name = 'latex'
     label = 'LaTeX (LuaLaTeX)'
@@ -58,6 +66,9 @@ class LatexBackend(Backend):
         return args
 
     # -- 差し替え -----------------------------------------------------------
+    def fmt_figure_note(self, part: str, kind: str, ctx: Ctx) -> str:
+        return latex_figure_note(part)
+
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
         """分析が書いた表の中身（tables/<名前>.tex）を、table 環境・キャプション・
         ラベルで包んで入れる。中身の読み込みは \\inputtable（なければ目印を出す）。"""

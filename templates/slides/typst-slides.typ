@@ -30,7 +30,7 @@
 //      #case[ここに事例の本文]
 //      ```
 //
-//  事例・論点・余談は「事例2.1」のように節ごとにリセットした番号を共有する
+//  事例・論点は「事例2.1」のように節ごとにリセットした番号を共有する
 //  （3つで通し番号。元の \newtheorem[case]{question}{論点} 相当）。注意・付記は
 //  番号を振らない。出典などを小さくグレーで出す #smallgray[出典: …] もある。
 // =====================================================================
@@ -96,7 +96,7 @@
 // 見出しの番号（octavo.numbering が none なら振らない）
 #set heading(numbering: octavo.numbering)
 
-// 事例／論点／余談（`\newtheorem{case}{事例}[section]` 相当）のカウンタ。
+// 事例／論点（`\newtheorem{case}{事例}[section]` 相当）のカウンタ。
 // 節の扉が来るたびに #show heading（下）でリセット／進める。
 #let theorem-counter = counter("octavo-theorem")
 #let theorem-section = counter("octavo-theorem-section")
@@ -113,7 +113,7 @@
     ])
   }
 }
-// 注意／付記（`\newtheorem*` 相当）は番号を振らない
+// 余談／注意／付記（`\newtheorem*` 相当）は番号を振らない
 #let labeled(label, body) = {
   let punct = if octavo.lang == "ja" { "．" } else { "." }
   block(above: 0.8em, below: 0.8em, text(fill: accent)[
@@ -122,9 +122,11 @@
 }
 #let case(body) = theorem(if octavo.lang == "ja" { "事例" } else { "Case" }, body)
 #let question(body) = theorem(if octavo.lang == "ja" { "論点" } else { "Question" }, body)
-#let aside(body) = theorem(if octavo.lang == "ja" { "余談" } else { "Aside" }, body)
+#let aside(body) = labeled(if octavo.lang == "ja" { "余談" } else { "Aside" }, body)
 #let nb(body) = labeled(if octavo.lang == "ja" { "注意" } else { "Note" }, body)
 #let memo(body) = labeled(if octavo.lang == "ja" { "付記" } else { "Memo" }, body)
+// 題のないスライド（原稿の `### 題 {.no-title}`）。新しいページにするだけ
+#let octavo-untitled-slide() = pagebreak(weak: true)
 // 出典などを小さくグレーで（元のプリアンブルの \smallgray 相当）
 #let smallgray(body) = text(fill: luma(120), size: 10pt, body)
 
@@ -137,7 +139,7 @@
   // 差し色があるときは色で立てる（太字にしない）。なければ従来どおり太字の黒
   let w = if styled { "regular" } else { "bold" }
   if it.level < octavo.slide-level {
-    // 節が変わるたびに事例／論点／余談の番号をリセットする（下の #theorem 参照）。
+    // 節が変わるたびに事例／論点の番号をリセットする（下の #theorem 参照）。
     // section-slides: false で扉を出さないときも、節としては数える。
     theorem-counter.update(0)
     theorem-section.step()

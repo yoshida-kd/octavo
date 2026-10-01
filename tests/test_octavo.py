@@ -3352,7 +3352,7 @@ class TypstSlides(unittest.TestCase):
                                    doc.src.read_text(encoding='utf-8'))
         self.assertIn('スライドにだけ出る', body)
         self.assertNotIn('プリントにだけ出る', body)
-        self.assertEqual(ctx.keep_classes, {'slides', 'screen', 'typst-slides'})
+        self.assertEqual(ctx.keep_classes, {'slides', 'slide', 'screen', 'typst-slides'})
 
     def test_notes_are_kept_only_where_they_can_be_shown(self):
         self.assertFalse(self.backend.keeps_notes)
@@ -3908,7 +3908,7 @@ class TypstNotes(unittest.TestCase):
         self.assertIn('ここで*例*を出す。', out)   # 中身は Markdown のまま
         self.assertNotIn('::: notes', out)
         # 開きと閉じが同じ数だけ出ること
-        self.assertEqual(out.count('#octavo-note['), out.count('\n]\n'))
+        self.assertEqual(out.count('#octavo-note['), out.count('] // octavo-note'))
 
     def test_beamer_still_gets_the_div_itself(self):
         # beamer は div のまま pandoc に渡すと \note{} になる。包んではいけない
@@ -3929,7 +3929,7 @@ class TypstNotes(unittest.TestCase):
         ctx = Ctx(cfg=self.cfg, backend=backend, out_dir=self.d, profile='slides')
         m = crossref.IMAGE.match('![推移](../assets/figures/trend.png){#fig-trend}')
         out = backend.fmt_figure(m, 'fig-trend', ctx)
-        self.assertIn('height: 6cm', out)
+        self.assertIn('height: 5cm', out)
         self.assertNotIn('1fr', out)
 
     def test_the_two_templates_define_the_same_helpers(self):
@@ -3943,12 +3943,12 @@ class TypstNotes(unittest.TestCase):
         slides = helpers('slides/typst-slides.typ')
         notes = helpers('slides/typst-notes.typ')
         self.assertEqual(slides - notes, set())
-        self.assertEqual(notes - slides, {'octavo-note'})
+        self.assertEqual(notes - slides, {'octavo-note', 'octavo-script'})
 
     def test_helpers_are_defined_before_the_show_rule(self):
         text = (ROOT / 'templates' / 'slides/typst-notes.typ').read_text(encoding='utf-8')
         show = text.index('#show heading: it =>')
-        for name in ('octavo-note', 'case', 'question', 'aside', 'nb', 'memo'):
+        for name in ('octavo-note', 'case', 'question', 'aside', 'nb', 'memo', 'octavo-untitled-slide'):
             self.assertLess(text.index(f'#let {name}'), show, name)
 
     @unittest.skipUnless(shutil.which('typst'), 'typst がない')
@@ -3976,8 +3976,42 @@ class TypstNotes(unittest.TestCase):
         self.assertTrue(r.ok, '\n'.join(r.report))
         self.assertIsNotNone(r.compiled, '\n'.join(r.report))
         self.assertTrue(r.compiled.exists())
-        self.assertIn('#octavo-note[',
-                      r.outputs[0].read_text(encoding='utf-8'))
+        self.assertIn('#octavo-script(', r.outputs[0].read_text(encoding='utf-8'))
+        # ノートは、スライドの PDF の中で書いてあったページに付く
+        pages = json.loads((r.outputs[0].parent / 'deck.notes.json').read_text(encoding='utf-8'))
+        deck_pdf = self.cfg.out_dir('typst-slides', self.cfg.document('deck')) / 'deck.pdf'
+        self.assertTrue(deck_pdf.is_file())
+        self.assertEqual(pages['pages'][-1], pages['count'])     # 最後に足したスライド
+        if shutil.which('pdftotext'):
+            text = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(r.compiled), '-'],
+                                  capture_output=True, text=True, encoding='utf-8').stdout
+            self.assertIn('話すだけ', text)
+            self.assertIn('台本を試す', text)        # スライドの絵（PDF のページ）の文字
+
+    def test_the_deck_marks_where_each_note_was(self):
+        b = be.get('typst-slides')
+        ctx = Ctx(cfg=self.cfg, backend=b, out_dir=self.d, profile='slides')
+        out = md.filter_divs(self.src + '\n::: notes\n2つ目\n:::\n', ctx.keep_classes,
+                             keep_notes=False, notes_mark=b.notes_mark)
+        self.assertIn('#metadata(0) <octavo-note-at>', out)
+        self.assertIn('#metadata(1) <octavo-note-at>', out)
+        self.assertNotIn('2つ目', out)
+
+    def test_the_script_keeps_only_the_notes(self):
+        b = be.get('typst-notes')
+        doc = self.cfg.document('deck')
+        ctx = Ctx(cfg=self.cfg, backend=b, out_dir=self.d, profile='slides', doc_name='deck',
+                  document=doc)
+        body = md.filter_divs('## 題\n\n見せる[^a]\n\n::: notes\n話す\n:::\n\n- 項目\n\n'
+                              '  ::: notes\n  - 字下げ\n  :::\n\n[^a]: 脚注\n',
+                              ctx.keep_classes, keep_notes=True, notes_wrap=b.notes_wrap)
+        out = b.final_markdown(body, ctx)
+        self.assertNotIn('見せる', out)
+        self.assertIn('話す', out)
+        self.assertIn('\n- 字下げ', out)                # 字下げは外す
+        self.assertIn('[^a]: 脚注', out)
+        self.assertIn('#octavo-script(json("deck.notes.json")', out)
+        self.assertEqual(out.count('```{=typst}\n][\n```'), 1)
 
 
 # =====================================================================
@@ -5859,6 +5893,307 @@ class GuidePages(unittest.TestCase):
                     self.assertNotRegex(prose, r'[^\x00-\x7f]\n[^<\s]')
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+# =====================================================================
+class LectureRequests(unittest.TestCase):
+    """講義ノートを書く中で出た不具合・要望（出し分け・囲みの検査・図表の注・題のない
+    スライド・中身のない回・.qmd の冒頭の設定・綴り違いの知らせ）。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        make_project(self.d / 'p', docs=(('lecture', 'lec'),), example=False)
+        self.cfg = config.load(self.d / 'p' / 'octavo.config.py')
+        self.notes = self.d / 'p' / 'lectures' / 'lec.md'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    SLIDES = {'slides', 'slide', 'screen', 'typst-slides'}
+    PRINT = {'print', 'doc', 'typst', 'handout'}
+
+    def test_conditional_blocks_inside_a_list_item(self):
+        src = ded("""
+            - 親.
+
+              ::: {.handout-only}
+              - プリントだけ
+              :::
+
+              ::: {.slides-only}
+              - スライドだけ
+              :::
+            """)
+        self.assertNotIn('スライドだけ', md.filter_divs(src, self.PRINT))
+        self.assertIn('  - プリントだけ', md.filter_divs(src, self.PRINT))
+        self.assertNotIn('プリントだけ', md.filter_divs(src, self.SLIDES))
+
+    def test_inline_conditional_text(self):
+        src = 'a [P]{.handout-only}[S]{.slides-only} [x]{#k .print-only} [l](u){.slides-only}'
+        self.assertEqual(md.filter_divs(src, self.PRINT), 'a P [x]{#k} [l](u){.slides-only}')
+        self.assertEqual(md.filter_divs(src, self.SLIDES), 'a S  [l](u){.slides-only}')
+
+    def test_slide_only_means_slides_only(self):
+        src = '::: {.slide-only}\nS\n:::\n'
+        self.assertIn('S', md.filter_divs(src, self.SLIDES))
+        self.assertNotIn('S', md.filter_divs(src, self.PRINT))
+
+    def test_a_fence_shown_as_code_is_left_alone(self):
+        src = '```\n::: {.slides-only}\nx\n:::\n```\n'
+        self.assertEqual(md.filter_divs(src, self.PRINT), src)
+
+    def test_lint_reports_blocks_pandoc_will_not_read(self):
+        src = ded("""
+            - 項目.
+              ::: {.handout-only}
+              - a
+              :::
+
+            ::: {.slids-only}
+            :::
+
+            [x]{.handouts-only} ::: {.no-slides}
+
+            ```
+            ::: {.whatever-only}
+            ```
+            """)
+        got = [(k, fix) for _, k, _, fix in lint.div_problems(src)]
+        self.assertIn(('literal', ''), got)
+        self.assertIn(('unknown', 'slides-only'), got)
+        self.assertIn(('unknown', 'handout-only'), got)
+        self.assertEqual(len(got), 4)          # コードの中は見ない
+
+    def test_no_lint_marks_and_phrases(self):
+        src = ded("""
+            成績: 中間40%, 期末[60%]{.no-lint}, 演習 30%.
+
+            ::: {.no-lint}
+            出席 10%
+            :::
+            """)
+        hits = [h for _, _, h, _ in lint.scan(src, {'中間40%'})]
+        self.assertEqual(hits, ['30%'])
+
+    def test_a_misspelt_setting_is_named(self):
+        self.notes.write_text('---\ntitle: x\nfirst-section-number: 0\nfont: y\n---\n# a\n',
+                              encoding='utf-8')
+        self.assertEqual(config.doc_setting_typos(self.notes),
+                         [('first-section-number', 'first_section')])
+
+    def test_figure_notes_find_their_figure_or_table(self):
+        lines = ded("""
+            ![T[^a]](x.png){#fig-a}
+
+            ::: {.figure-note}
+            src
+            :::
+
+            | a |
+            |---|
+            | 1 |
+
+            : Cap {#tbl-b}
+
+            ::: figure-note
+            n
+            :::
+
+            text
+
+            ::: {.figure-note}
+            stray
+            :::
+            """).split('\n')
+        found, stray = crossref.figure_notes(lines)
+        self.assertEqual([(a, k) for a, _, _, k in found], [(0, 'fig'), (6, 'tbl')])
+        self.assertEqual(len(stray), 1)
+        self.assertEqual(crossref.IMAGE.match(lines[0]).group('alt'), 'T[^a]')
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_figure_note_stays_with_its_figure(self):
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        self.notes.write_text(ded("""
+            ---
+            title: x
+            ---
+
+            # 回
+
+            ## 節
+
+            ### 図のスライド {.no-title}
+
+            ![推移[^t]](../assets/figures/trend.png){#fig-trend}
+
+            ::: {.figure-note}
+            出典：見本の注。[^s]
+            :::
+
+            [^t]: 題の脚注。
+            [^s]: 注の脚注。
+
+            ### 次
+
+            @fig-trend を見る。
+            """), encoding='utf-8')
+        (self.d / 'p' / 'assets' / 'figures').mkdir(parents=True, exist_ok=True)
+        subprocess.run(['typst', 'compile', '-', str(self.d / 'p' / 'assets' / 'figures' / 'trend.pdf')],
+                       input='#rect(width: 4cm, height: 2cm)', text=True, check=True,
+                       encoding='utf-8', capture_output=True)
+        doc = self.cfg.document('lec')
+        r = build.build_one(self.cfg, doc, 'typst', citations=False, offline=True, do_compile=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        typ = r.outputs[0].read_text(encoding='utf-8')
+        self.assertIn('#octavo-figure-group[', typ)
+        self.assertIn('../../assets/figures/trend.pdf', typ)     # 題の脚注で道筋が崩れない
+        part = self.cfg.parts(doc)[0]
+        r = build.build_one(self.cfg, part, 'typst-slides', citations=False, offline=True,
+                            do_compile=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        typ = r.outputs[0].read_text(encoding='utf-8')
+        self.assertIn('#octavo-figure-group(size: 0.62em, h => [', typ)
+        self.assertIn('#octavo-untitled-slide()', typ)
+        self.assertNotIn('図のスライド', typ)
+        self.assertNotIn('[^t]', typ)
+
+    def test_no_title_only_on_slides(self):
+        src = '## 節\n\n### 図だけ {.no-title}\n\n本文\n'
+        self.assertIn(md.UNTITLED_SLIDE, md.slide_marks(src, True))
+        self.assertNotIn('図だけ', md.slide_marks(src, True))
+        self.assertEqual(md.slide_marks(src, False), src)
+
+    def test_an_empty_session_gets_no_deck_and_old_decks_go(self):
+        self.notes.write_text(ded("""
+            ---
+            title: x
+            ---
+
+            ::: {.session #one}
+            :::
+
+            # 一
+
+            本文。
+
+            ::: {.session #two title="予告"}
+            :::
+            """), encoding='utf-8')
+        doc = self.cfg.document('lec')
+        out = self.cfg.out_dir('typst-slides', doc)
+        out.mkdir(parents=True, exist_ok=True)
+        for name in ('lec-01.typ', 'lec-01.pdf', 'lec-two.typ', 'other.pdf'):
+            (out / name).write_text('x', encoding='utf-8')
+        self.assertEqual(build.empty_sessions(doc), {'two'})
+        with unittest.mock.patch.object(build, 'build_one',
+                               side_effect=lambda cfg, d, tgt, **k: build.Result(doc=d.name,
+                                                                                 target=tgt)):
+            rs = build.run(self.cfg, ['lec'], targets=['typst-slides'])
+        self.assertEqual([r.doc for r in rs], ['lec-one', 'lec-two'])
+        self.assertIn('nothing in it', '\n'.join(rs[1].report))
+        self.assertEqual(sorted(p.name for p in out.iterdir()), ['other.pdf'])
+
+    def test_the_slide_level_is_the_whole_notes(self):
+        notes = '# A\n## a\n### s\n# B\n## b\n### t\n'
+        self.assertEqual(md.lecture_slide_level(notes), 3)
+        self.assertEqual(md.lecture_slide_level('# A\n## s\n# B\n## t\n'), 2)
+        self.assertEqual(md.lecture_slide_level('```\n####### x\n```\n# A\n## s\n'), 2)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_a_titled_marker_keeps_the_slides_at_the_third_level(self):
+        """区切りに題を付けても、回の `#` がスライドに残っても、1枚は `###` のまま。"""
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        self.notes.write_text(ded("""
+            ---
+            title: x
+            ---
+
+            ::: {.session #week1 title="第1回 ガイダンス"}
+            :::
+
+            # 授業の案内
+
+            ## 進め方
+
+            ### 教科書
+
+            本文。
+
+            # 公務員の種類
+
+            ## 種類
+
+            ### 国家公務員
+
+            本文。
+            """), encoding='utf-8')
+        part = self.cfg.document('lec-week1')
+        r = build.build_one(self.cfg, part, 'typst-slides', citations=False, offline=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        typ = r.outputs[0].read_text(encoding='utf-8')
+        self.assertIn('slide-level: 3,', typ)
+        self.assertIn('=== 教科書', typ)
+
+    def test_only_a_promoted_hash_heading_counts_as_a_section(self):
+        from octavo.backends.typst_slides import promote_sections_with_content
+        typ = '= 回\n\n== 節\n\n本文\n\n=== 1枚\n\n本文\n'
+        out = promote_sections_with_content(typ, 3)
+        self.assertIn('=== 節', out)
+        self.assertNotIn('<octavo-section-step>', out)      # 「##」で節番号は進まない
+        out = promote_sections_with_content('= 回\n\n本文\n', 3)
+        self.assertIn('<octavo-section-step>', out)
+        self.assertIn('=== 回', out)
+
+    def test_an_empty_last_session_does_not_take_the_previous_page(self):
+        """後ろに何もない区切りは改ページせず、目印が前の回の最後のページに乗る。"""
+        from octavo import extract
+        marks = {'octavo-session': [{'key': 'one', 'page': 3, 'shown': '1'},
+                                    {'key': 'two', 'page': 10, 'shown': '8'}],
+                 'octavo-body': [{'page': 3, 'shown': '1'}],
+                 'octavo-end': [{'page': 10, 'shown': '8'}]}
+        with unittest.mock.patch.object(extract, '_marks', lambda typ, root, label: marks[label]):
+            t = extract.page_table(Path('x.typ'), '.', skip={'two'})
+        self.assertEqual([(s['key'], s['first'], s['last']) for s in t['sessions']],
+                         [('one', 3, 10)])
+
+    def test_no_title_and_no_lint_are_not_conditions(self):
+        """`no-title` / `no-lint` は `no-slides` と同じ形だが、出し分けの印ではない。"""
+        src = '### A\n\ntext\n\n::: {.slide .no-title}\n:::\n\nmore [40%]{.no-lint}\n'
+        out = md.slide_marks(md.filter_divs(src, self.SLIDES), True)
+        self.assertIn(md.UNTITLED_SLIDE, out)
+        self.assertIn('[40%]{.no-lint}', out)
+        self.assertEqual([k for _, k, _, _ in lint.div_problems(src)], [])
+
+    def test_a_slide_figure_leaves_only_its_captions_height(self):
+        from octavo.backends.typst_slides import fitted_figure
+        out = fitted_figure('x.pdf', '推移', ' <fig-x>')
+        self.assertIn('measure(figure(box(width: 100%, height: 0pt), caption: [推移])', out)
+        self.assertIn('height: size.height - used', out)
+        self.assertNotIn('3em', out)
+
+    def test_a_qmd_says_it_runs_by_hand(self):
+        q = self.d / 'p' / 'analysis' / '00-fetch.qmd'
+        q.parent.mkdir(exist_ok=True)
+        q.write_text('---\ntitle: x\noctavo:\n  manual: true\n  deps:\n    - "data/raw/*"\n'
+                     'format: html\n---\n', encoding='utf-8')
+        (self.d / 'p' / 'data' / 'raw').mkdir(parents=True, exist_ok=True)
+        (self.d / 'p' / 'data' / 'raw' / 'a.csv').write_text('x', encoding='utf-8')
+        self.assertEqual(analysis.qmd_settings(q), {'manual': True, 'deps': ['data/raw/*']})
+        u = [u for u in analysis.units(self.cfg) if u.src.name == '00-fetch.qmd'][0]
+        self.assertTrue(u.manual)
+        # 同じ .qmd を個別にも書けば、そちらが優先で、1本として数える
+        self.cfg._v['analysis'] = list(self.cfg['analysis']) + [
+            {'src': 'analysis/00-fetch.qmd', 'manual': False}]
+        us = [u for u in analysis.units(self.cfg) if u.src.name == '00-fetch.qmd']
+        self.assertEqual(len(us), 1)
+        self.assertFalse(us[0].manual)
+
+    def test_aside_is_not_numbered(self):
+        envs = crossref.theorem_envs(self.cfg)
+        self.assertIsNone(envs['aside'].counter)
+        self.assertEqual(envs['case'].counter, envs['question'].counter)
 
 
 if __name__ == '__main__':

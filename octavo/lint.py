@@ -96,28 +96,63 @@ def _scrub(line: str) -> str:
     return line
 
 
+NUMBER_ONLY = re.compile(r'^[\d.,%％\s-]+$')
+NO_LINT_SPAN = re.compile(r'\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\{[^{}\n]*\.no-lint\b[^{}\n]*\}')
+
+
+def _drop_no_lint(body: str) -> str:
+    """`[40%]{.no-lint}` と `::: {.no-lint}` … `:::` の中を見ないようにする（行の数は保つ）。
+
+    結果でない数値だと一番よく知っているのは書いた人なので、原稿の側で印を付けられる。
+    """
+    body = NO_LINT_SPAN.sub(lambda m: ' ' * len(m.group(0)), body)
+    out, depth, skip_at = [], 0, None
+    for line in body.split('\n'):
+        bare = line.strip()
+        if mdlib.DIV_OPEN.match(bare) and not mdlib.DIV_CLOSE.match(bare):
+            m = mdlib.DIV_OPEN.match(bare)
+            depth += 1
+            if skip_at is None and 'no-lint' in mdlib._classes(m.group(2), m.group(3)):
+                skip_at = depth
+            out.append('' if skip_at else line)
+            continue
+        if mdlib.DIV_CLOSE.match(bare) and depth:
+            out.append('' if skip_at else line)
+            if skip_at == depth:
+                skip_at = None
+            depth -= 1
+            continue
+        out.append('' if skip_at else line)
+    return '\n'.join(out)
+
+
 def scan(text: str, accepted: set) -> list:
     """1本の原稿を見る。(行番号, 種類, 文字列, 行) の並びを返す。"""
     _, body = mdlib.split_front_matter(text)
     offset = len(text[:len(text) - len(body)].split('\n')) - 1
     masked, _ = valmod.mask_code(body)
+    shown = masked.split('\n')                      # 見せる行は印を消す前のもの
+    masked = _drop_no_lint(masked)
+    # 「中間レポート40%」のように前後ごと書いた lint_accepted は、その行にあれば見逃す
+    phrases = [a for a in accepted if not NUMBER_ONLY.match(a)]
 
     out = []
     for i, raw in enumerate(masked.split('\n'), start=1):
         if SKIP_LINE.match(raw) or '\x00octavo-code-' in raw:
             continue
         line = _scrub(raw)
+        here = [a for a in phrases if a in raw]
         seen: set = set()
         for kind, pat in RULES:
             for m in pat.finditer(line):
                 hit = m.group(0).strip()
-                if hit in accepted or hit in seen:
+                if hit in accepted or hit in seen or any(hit in a for a in here):
                     continue
                 # 小数だけの規則は、他の規則がすでに拾った箇所を重ねない
                 if kind == 'decimal' and any(hit in s for s in seen):
                     continue
                 seen.add(hit)
-                out.append((offset + i, kind, hit, ' '.join(raw.split())[:78]))
+                out.append((offset + i, kind, hit, ' '.join(shown[i - 1].split())[:78]))
     return out
 
 
@@ -178,6 +213,87 @@ def collect(cfg) -> list:
     return out
 
 
+# ---------------------------------------------------------------- 囲み（:::）の書き違い
+# どちらも警告は出ずに、黙って崩れるか消える:
+#   開きの `:::` の前に空行がないと、pandoc は囲みにせず `:::` を文字として本文に出す
+#   出し分けの名前の打ち間違い（`.slide-only` など）は、どの出力にも出ずに消える
+
+# 出し分けの印に使える名前（Ctx.keep_classes が入れるもの）
+def _known_conditions() -> set:
+    from . import config as configmod
+    from .backends.base import PROFILES
+    return ({'slides', 'slide', 'screen', 'print', 'doc', 'anonymous', 'lint'}
+            | set(configmod.BACKENDS) | set(PROFILES))
+
+
+@dataclass
+class DivIssue:
+    file: str
+    line: int           # 1 始まり
+    kind: str           # 'literal'（囲みとして読まれない）| 'unknown'（知らない出し分け）
+    excerpt: str
+    suggest: str = ''   # unknown のとき、近い名前
+
+
+def div_problems(text: str) -> list:
+    """[(行番号, 種類, 行, 近い名前)]。コードの中は見ない。"""
+    import difflib
+    _, body = mdlib.split_front_matter(text)
+    offset = text[:len(text) - len(body)].count('\n')
+    masked, _ = valmod.mask_code(body)
+    # コメントの中（書きかけの区切りを寝かせてあるなど）は見ない。行の数は保つ
+    masked = re.sub(r'<!--.*?-->', lambda m: '\n' * m.group(0).count('\n'), masked, flags=re.S)
+    known = _known_conditions()
+    out = []
+    prev = ''
+    for i, line in enumerate(masked.split('\n'), start=1):
+        bare = line.strip()
+        is_open = bool(mdlib.DIV_OPEN.match(bare)) and not mdlib.DIV_CLOSE.match(bare)
+        if is_open:
+            p = prev.strip()
+            # 直前が囲みの開き・閉じ・見出しなら空行がなくても読まれる
+            if p and not (mdlib.DIV_OPEN.match(p) or mdlib.DIV_CLOSE.match(p) or p.startswith('#')):
+                out.append((offset + i, 'literal', bare, ''))
+        elif ':::' in bare and not mdlib.DIV_CLOSE.match(bare) and '\x00octavo-code-' not in bare:
+            out.append((offset + i, 'literal', bare, ''))
+        conds = []
+        if is_open:
+            m = mdlib.DIV_OPEN.match(bare)
+            conds += mdlib._classes(m.group(2), m.group(3))
+        for m in mdlib.SPAN.finditer(line):
+            conds += [x[1:] for x in m.group(2).split() if x.startswith('.')]
+        for c in conds:
+            if not mdlib.is_condition(c):
+                continue
+            mo, mn = mdlib.ONLY.match(c), mdlib.NOT.match(c)
+            what = (mo.group(1) or mo.group(2)) if mo else (mn.group(1) if mn else None)
+            if what is None or what in known:
+                continue
+            near = difflib.get_close_matches(what, sorted(known), n=1, cutoff=0.6)
+            fix = ''
+            if near:
+                fix = c.replace(what, near[0])
+            out.append((offset + i, 'unknown', bare, fix))
+        prev = line
+    return out
+
+
+def div_issues(cfg) -> list:
+    out = []
+    for _name, src, _app in cfg.sources():
+        for line, kind, excerpt, fix in div_problems(mdlib.read(src)):
+            out.append(DivIssue(cfg.rel(src), line, kind, excerpt[:60], fix))
+    return out
+
+
+def div_issue_text(it: DivIssue) -> str:
+    if it.kind == 'literal':
+        return t('not read as a block — put a blank line before the opening :::')
+    if it.suggest:
+        return t('shown in no output — did you mean .{name}?', name=it.suggest)
+    return t('shown in no output — not a name octavo knows (slides, handout, print, …)')
+
+
 # ---------------------------------------------------------------- 表示
 
 def run(cfg, quiet: bool = False) -> int:
@@ -209,11 +325,23 @@ def run(cfg, quiet: bool = False) -> int:
             print(f'    {it.line:>4}: {it.excerpt}   [{why}]')
         print()
 
+    divs = div_issues(cfg)
+    if divs:
+        print(t('{n} ::: {n|block is|blocks are} written so that pandoc or octavo will not '
+                'read {n|it|them} as meant', n=len(divs)) + '\n')
+        last = None
+        for it in divs:
+            if it.file != last:
+                print(f'  {it.file}')
+                last = it.file
+            print(f'    {it.line:>4}: {it.excerpt}   [{div_issue_text(it)}]')
+        print()
+
     found = collect(cfg)
     if not found:
-        if not quiet and not left and not indents:
+        if not quiet and not left and not indents and not divs:
             print(t('found nothing that looks like a hand-typed result'))
-        return 1 if (left or indents) else 0
+        return 1 if (left or indents or divs) else 0
 
     print(t('{n} {n|looks like a hand-typed number|look like hand-typed numbers} '
             '(if {n|it is a result, move it|they are results, move them} to '

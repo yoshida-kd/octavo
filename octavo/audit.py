@@ -296,11 +296,19 @@ def collect(cfg, anonymous: bool = False) -> list:
         lines=[f'{lo.file}:{lo.line}  {lo.excerpt}' for lo in left],
         hint=t('replace them with your own content, comment mark and all')))
 
+    divs = lintmod.div_issues(cfg)
+    items.append(Item(
+        ok=not divs, fatal=False, label=t('::: blocks'),
+        detail=(t('{n} {n|is|are} not read as meant', n=len(divs)) if divs
+                else t('every ::: block is read as a block')),
+        lines=[f'{d.file}:{d.line}  {d.excerpt}  [{lintmod.div_issue_text(d)}]' for d in divs],
+        hint=t('octavo lint')))
+
     items.append(Item(
         ok=not found, fatal=False, label=t('hand-typed numbers'),
         detail=t('{n} found', n=len(found)) if found else t('none found'),
         lines=[f'{f.file}:{f.line}  {f.text}  [{f.label()}]' for f in found],
-        hint=t('octavo lint (what is not a result goes in lint_accepted)')))
+        hint=t('octavo lint (what is not a result: [40%]{.no-lint} in the text, or lint_accepted)')))
 
     # -- 分量（投稿規定）-----------------------------------------------------
     lengths = length_problems(cfg)

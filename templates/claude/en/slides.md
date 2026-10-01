@@ -60,8 +60,8 @@ Why is government at the centre of public policy?
 :::
 ```
 
-- Kinds: `case`, `question`, `aside` (one shared numbering: Case 1.1, Question 1.2),
-  `nb`, `memo` (unnumbered), and `theorem`, `definition`, … . Refer to one with
+- Kinds: `case`, `question` (one shared numbering: Case 1.1, Question 1.2),
+  `aside`, `nb`, `memo` (unnumbered), and `theorem`, `definition`, … . Refer to one with
   `@question-why` → "Question 1.2" (the label starts with the kind)
 - `::: {.restate #question-why}` + `:::` repeats it elsewhere with its number and a link
   back; `::: {.list-of .question}` + `:::` lists them all (`.titles` for titles only).

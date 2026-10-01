@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -74,10 +75,62 @@ def _expand(root: Path, pats) -> list:
     return out
 
 
+def qmd_settings(src: Path) -> dict:
+    """.qmd の冒頭の `octavo:` の下に書いた設定（manual / deps）。
+
+        ---
+        title: "原データを取る"
+        octavo:
+          manual: true
+          deps: ["data/raw/*"]
+        ---
+
+    Quarto の設定と混ざらないよう `octavo:` の下にまとめる。読むのはこの2つだけ。
+    """
+    try:
+        text = src.read_text(encoding='utf-8')
+    except (OSError, UnicodeDecodeError):
+        return {}
+    m = re.match(r'\A---[ \t]*\n(.*?)\n---[ \t]*(?:\n|\Z)', text.lstrip('\ufeff'), re.S)
+    if not m:
+        return {}
+    out: dict = {}
+    inside, key = False, None
+    for raw in m.group(1).split('\n'):
+        if not raw.strip() or raw.lstrip().startswith('#'):
+            continue
+        if not raw[:1].isspace():
+            inside = bool(re.match(r'octavo\s*:\s*$', raw))
+            key = None
+            continue
+        if not inside:
+            continue
+        item = re.match(r'\s*-\s+(.*)$', raw)
+        if item and key == 'deps':
+            out.setdefault('deps', []).append(item.group(1).strip().strip('"\''))
+            continue
+        kv = re.match(r'\s+(manual|deps)\s*:\s*(.*)$', raw)
+        if not kv:
+            continue
+        key, val = kv.group(1), kv.group(2).strip()
+        if key == 'manual':
+            out['manual'] = val.lower() in ('true', 'yes')
+        elif val.startswith('['):
+            out['deps'] = [x.strip().strip('"\'') for x in val.strip('[]').split(',') if x.strip()]
+        elif val:
+            out['deps'] = [val.strip('"\'')]
+    return out
+
+
 def units(cfg) -> list:
-    """config の `analysis` を Unit に開く。"""
+    """config の `analysis` を Unit に開く。
+
+    同じ .qmd を2つの項目が拾ったら（`analysis/*.qmd` と、その1本を個別に書いたもの）、
+    1本として扱い、グロブでない項目の設定を使う。グロブで拾った .qmd は、冒頭の
+    `octavo:` の設定（qmd_settings）で手動実行や見張る入力を足せる。
+    """
     common = _expand(cfg.root, cfg['analysis_deps'])
-    out: list = []
+    found: dict = {}            # パス -> (Unit, 個別に書いた項目か)
     for item in cfg['analysis'] or ():
         manual = False
         if isinstance(item, str):
@@ -90,10 +143,18 @@ def units(cfg) -> list:
             sys.exit(t("analysis takes either 'analysis.qmd' or "
                        "{{'src': '…', 'deps': ['data/*.csv'], 'manual': True}} (got {got})",
                        got=repr(item)))
+        explicit = not any(c in src_pat for c in '*?[')
         extra = _expand(cfg.root, deps)
         for p in _expand(cfg.root, [src_pat]):
-            out.append(Unit(src=p, deps=tuple(common + extra), manual=manual))
-    return out
+            if p in found and (found[p][1] or not explicit):
+                continue
+            m, d = manual, list(extra)
+            if not explicit:
+                own = qmd_settings(p)
+                m = own.get('manual', m)
+                d += _expand(cfg.root, own.get('deps', []))
+            found[p] = (Unit(src=p, deps=tuple(dict.fromkeys(common + d)), manual=m), explicit)
+    return [u for u, _ in found.values()]
 
 
 def key(cfg, u: Unit) -> str:

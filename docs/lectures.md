@@ -121,11 +121,17 @@ mid-section), put a **marker** at the head of each session. As soon as there is 
   heading, which moves to the title slide. The levels are as without markers (`##` a section,
   `###` a slide).
 - With `title="…"` on the marker, that becomes the title and the session's first heading
-  stays on the slides. Then `#` is a section and `##` a slide (of the headings left in a
-  session, the top two levels are the section and the slide).
+  stays on the slides as a section. A slide is still a `###`: which level is a slide is
+  decided from the whole of the notes, so adding markers or titles never changes it.
 - A session always starts on a new page of the A4 handout too (the per-session handouts are
   cut there).
 - What comes before the first marker goes into the A4 handout only (a guidance session, say).
+- Once there are markers, the decks follow them, not `#`: decks made before (`<name>-01`, …)
+  are removed at the next build, so only the current ones are left in `build/`.
+- A session with nothing after its marker yet (next week's, written as a reminder) gets no
+  deck.
+- The A4 handout does not print a marker's `title` or `date`: it shows the headings as
+  written. `first_section` numbers the `#` headings, not the sessions.
 
 ---
 
@@ -140,6 +146,7 @@ the A4 handout.
 | give the new slide a title | `::: {.slide title="…"}` and `:::` |
 | keep a heading on the same slide | `{.same-slide}` after the heading |
 | shorten a title on the slides only | `{slide-title="…"}` after the heading |
+| show no title on that slide (room for a figure) | `{.no-title}` after the heading |
 
 ```markdown
 ### A long heading for the handout {slide-title="Short title"}
@@ -158,7 +165,9 @@ A `::: {.slide}` with no title takes the previous slide's title plus " (cont.)".
 slide gets a heading at the slide level (normally `###`).
 
 **Notes for what you will say** go in `::: notes`. They appear on neither the slides nor the
-handout, only in the **speaker script** (pick Speaker script for the preview's right column):
+handout, only in the **speaker script** (pick Speaker script for the preview's right column).
+The script shows each slide as projected, shrunk, two to an A4 page, with the notes written on
+that slide underneath:
 
 ```markdown
 ::: notes
@@ -188,6 +197,28 @@ A big figure or one short question.
 | `.slides-only` | the slides and the speaker script only |
 | `.no-slides` | everything but the slides |
 
+(`.slide-only` is read as `.slides-only`.) Inside a list item, indent the fence to the item's
+text, and **leave a blank line before every opening `:::`** — without it pandoc does not see a
+block and prints the `:::`. For a few words, `[…]{.handout-only}` works inside a line:
+
+```markdown
+- Local government employs most officials.
+
+  ::: {.handout-only}
+  - Longer explanation for the handout.
+  :::
+
+  ::: {.slides-only}
+  - One line for the slide.
+  :::
+
+- Grading: [midterm and final]{.handout-only}[see the handout]{.slides-only}.
+```
+
+**Check before submitting** (or `octavo lint`) points out a `:::` that will not be read as a
+block, and a mark that matches no output (a misspelt `.handouts-only`, say), which would
+otherwise vanish from both without a word.
+
 ---
 
 ## Cases, questions and other numbered blocks
@@ -204,8 +235,8 @@ No label is needed if nothing refers to it.
 
 | Kind | Heading | Numbers |
 |---|---|---|
-| `case` / `question` / `aside` | Case / Question / Aside | one sequence for the three (Case 1.1, Question 1.2, …) |
-| `nb` / `memo` | Note / Addendum | none |
+| `case` / `question` | Case / Question | one sequence for the two (Case 1.1, Question 1.2, …) |
+| `aside` / `nb` / `memo` | Aside / Note / Addendum | none |
 | `definition` / `theorem` / `example` and others | Definition / Theorem / Example | a sequence of their own |
 
 - Neither a label (`#question-why`) nor a `title` is required. `::: case` alone is numbered.
@@ -248,6 +279,11 @@ As @fig-trend shows, spending rose. See @yamada2020.
 
 - Figures are placed with a path relative to the manuscript (`../`, since it sits in
   `lectures/`). On a slide they shrink to fit the space left.
+- A source or note under a figure or table goes in `::: {.figure-note}` + `:::` right after
+  it: small type, on the same page, footnotes allowed; on a slide the figure shrinks for it.
+  See the guide's [Figures](https://yoshida-kd.github.io/octavo/guide/#figures).
+- A photo you took goes in `figures/` and is placed from there
+  (`![…](../figures/photo.jpg)`).
 - A table you make by hand: **Add a table made by hand…** under Analysis in the sidebar opens
   it as a grid.
 - References go in `literature.bib` and are cited as `@key`. A session that cites something
@@ -285,6 +321,22 @@ The number of civil servants is small.[^count] A short note can go inline.^[Like
 
 ---
 
+## Headings without a number
+
+`{.unnumbered}` (or `{-}`) on a heading leaves it unnumbered in the A4 handout, and the next
+numbered one keeps counting as if it were not there. `.unlisted` also keeps it out of the
+contents. The slides look the same either way.
+
+```markdown
+# Guidance {.unnumbered}
+
+## Next week {-}
+
+## Not in the contents {.unnumbered .unlisted}
+```
+
+---
+
 ## Appendix
 
 `{.appendix}` on a heading makes everything after it an appendix (A, B, …; on a new page of
@@ -303,18 +355,20 @@ the A4 handout):
 
 Open the lecture notes in the sidebar and use **Settings for this document**. A value you
 pick is written as one line at the top of the manuscript (between the `---` lines) and
-applies to those notes only.
+applies to those notes only. You can also write the line yourself; the names are
+exactly those in the second column (a misspelt one, such as `first-section-number`, is
+reported when you build and has no effect).
 
-| Setting | Default | What it changes |
-|---|---|---|
-| Number of the first section | 1 | 0 numbers a guidance session "0" (its figures "Figure 0.1") |
-| New page at | each session | each `#`, or the session markers only |
-| Body font | BIZ UDGothic | the A4 handout's text |
-| Font size | 11pt | the A4 handout's text |
-| Date format | April 10, 2026 | the date on the cover |
-| Aspect ratio | 16:9 | the slides (or 4:3) |
-| Accent colour | navy | headings and other accents on the slides; none for black only |
-| Section name in the top-left corner | on | the slides' top-left corner |
+| Setting | Line at the top | Default | What it changes |
+|---|---|---|---|
+| Number of the first section | `first_section: 0` | 1 | 0 numbers a guidance session "0" (its figures "Figure 0.1") |
+| New page at | `handout_pagebreak: section` | each session | `section` each `#`, `none` never |
+| Body font | `handout_font: …` | BIZ UDGothic | the A4 handout's text |
+| Font size | `handout_fontsize: 10.5pt` | 11pt | the A4 handout's text |
+| Date format | `date_format: "%Y-%m-%d"` | April 10, 2026 | the date on the cover |
+| Aspect ratio | `typst_slides_aspect: 4-3` | 16:9 | the slides |
+| Accent colour | `typst_slides_accent: none` | navy | headings and other accents on the slides; `none` for black only |
+| Section name in the top-left corner | `typst_slides_running_header: false` | on | the slides' top-left corner |
 
 The A4 handout is set after the Japanese LaTeX class jsarticle (36 lines a page, paragraphs
 indented by one character).
@@ -345,13 +399,17 @@ indented by one character).
 | a fixed session name | `# Title {#id}` |
 | a new slide here | `::: {.slide}` + `:::` (titled with `title="…"`) |
 | a heading that stays on the slide | `### Title {.same-slide}` |
+| a slide without its title | `### Title {.no-title}` |
+| a heading without a number | `## Title {.unnumbered}` or `{-}` |
 | another title on the slides | `### Title {slide-title="Short"}` |
 | notes for what you say | `::: notes` … `:::` |
-| handout only / slides only | `::: {.handout-only}` / `::: {.slides-only}` |
+| handout only / slides only | `::: {.handout-only}` / `::: {.slides-only}`, in a line `[…]{.slides-only}` |
 | a question (numbered) | `::: {.question #question-x title="…"}` … `:::` |
 | point at a block | `@question-x` |
 | show again / list | `::: {.restate #question-x}` / `::: {.list-of .question}` |
 | a figure | `![Caption](../assets/figures/x.png){#fig-x}`, pointed at with `@fig-x` |
+| its source or note | `::: {.figure-note}` … `:::` right after it |
+| a number that is not a result | `[40%]{.no-lint}` |
 | a reference | `@key` |
 | a URL | `<https://…>`, or `[words](https://…)` on some words |
 | a footnote | `[^name]` and `[^name]: text` (in the same session), or `^[text]` in place |

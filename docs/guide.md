@@ -346,8 +346,8 @@ Unnumbered blocks need no label.
 :::
 ```
 
-- Kinds: `case`, `question`, `aside` (one numbering: Case 1.1, Question 1.2), `nb`, `memo`
-  (unnumbered), and `theorem`, `lemma`, `proposition`, `corollary`, `definition`, `example`
+- Kinds: `case`, `question` (one numbering: Case 1.1, Question 1.2), `aside`, `nb`,
+  `memo` (unnumbered), and `theorem`, `lemma`, `proposition`, `corollary`, `definition`, `example`
   (another numbering), `remark` (unnumbered). Numbered by section, like figures.
 - The label starts with the kind (`#question-why`); `@question-why` reads "Question 1.2".
 - **Write a block once.** `restate` repeats it elsewhere with its number, which links back
@@ -402,6 +402,32 @@ For each output Octavo picks the right file:
 
 `ov_figure()` and figures drawn in Typst write both. `figure_width` sets the default width;
 `{width=60%}` after a figure sets one.
+
+**A source or note under a figure or table** goes in `::: {.figure-note}` right after it
+(after a table's caption line). It is ordinary Markdown — links and footnotes work — set in
+small type with the figure, kept on the same page, and left out of the figure's title. On a
+slide the figure shrinks to leave room for it. A footnote can go in the title too:
+
+```markdown
+![Officials by level of government[^src]](../assets/figures/staff.png){#fig-staff}
+
+::: {.figure-note}
+Source: National Personnel Authority, *Annual Report 2025*.[^checked]
+:::
+
+[^src]: Full-time staff only.
+[^checked]: Retrieved 1 October 2026.
+```
+
+**Photos and other images you have** (a photo you took, a screenshot) go in `figures/`, next to
+the Typst figure sources, and are placed straight from there; `.jpg` and `.png` work in every
+output. Octavo does not shrink them, so resize a large photo first (about 2,000 pixels on the
+long side is plenty) or the PDF gets heavy. Where an image came from and whether you may use
+it is worth a line in `figures/README.md`, as `data/raw/README.md` does for data.
+
+```markdown
+![The council chamber](../figures/chamber.jpg){#fig-chamber width=70%}
+```
 
 **Drawing a figure in Typst (instead of TikZ).** `octavo new figure dag` writes
 `figures/dag.typ` with a small `diagram()` helper — boxes and arrows:
@@ -532,6 +558,22 @@ octavo values --diff         # which numbers in the text changed at the last run
 ],
 ```
 
+- A `.qmd` can say this itself, at the top under `octavo:`, so the config's
+  `analysis/*.qmd` can stay as it is: `manual: true` (only `octavo analysis run` runs it) and
+  `deps` (more files to watch). An entry for that file in the config wins over it.
+- **Fetching raw data from the web** (an API, a download, an R package that fetches) goes in
+  its own `.qmd`, run by hand: `analysis/00-fetch-<source>.qmd` with `manual: true`. Have it
+  stop rather than overwrite a file already in `data/raw/`, and write where it came from and
+  when into `data/raw/README.md` — that file is the only record once `data/raw/` is ignored.
+
+```yaml
+---
+title: "Fetch the raw data"
+octavo:
+  manual: true
+---
+```
+
 - In VS Code the sidebar's **Analysis** section shows each `.qmd` and runs it with one
   button. The preview never runs the analysis; it says when something is out of date.
 
@@ -611,8 +653,11 @@ octavo lint            # results typed into the text, and nested lists out of li
 ```
 
 `octavo check` looks at: missing figures and tables, unresolved `{{…}}`, placeholder values,
-out-of-date analysis, citation keys and the `.bib`, labels, template leftovers, submission
-limits, and the data fingerprints. Limits are set in the config or the manuscript
+out-of-date analysis, citation keys and the `.bib`, labels, template leftovers, `:::` blocks
+that will not be read as written, submission limits, and the data fingerprints. A number that
+is not a result (a grading split, a year) is kept out of the hand-typed check by
+`[40%]{.no-lint}` in the text, `::: {.no-lint}` … `:::` around a passage, or the text around
+it in `lint_accepted` (`'midterm 40%'`). Limits are set in the config or the manuscript
 (`word_limit: 8000`, `char_limit` for Japanese journals).
 
 ### Blind review
@@ -697,8 +742,13 @@ other outputs are not affected:
 - `{slide-title="…"}` replaces the heading's title on the slide only (for a session's `#`
   heading, it is the deck's title)
 
+- `{.no-title}` on a slide's heading: a new slide with no title, so a figure gets the room
+  (the section name stays in the top-left corner; the handout keeps the heading)
+
 `::: notes` holds speaker notes: they never appear on the projected deck, and
-`--to typst-notes` makes a **speaker script** (A4, one slide per page with its notes).
+`--to typst-notes` makes a **speaker script**: each page of the typeset deck, shrunk, with the
+notes written on it underneath (A4, two slides a page). It typesets the deck first, so the
+pictures are exactly what is projected.
 Slide decks show no bibliography unless you set `slides_bibliography: True` and end the
 manuscript with a heading and `::: {#refs}` + `:::`.
 
@@ -729,7 +779,8 @@ session begins; then the markers decide the sessions and headings are free:
 ```
 
 `title`, `subtitle` and `date` go on that session's title slide (without `title`, its first
-heading is used). Numbers in a deck are the handout's.
+heading is used). Numbers in a deck are the handout's. Which level is a slide is decided from
+the whole of the notes (normally `###`), so adding markers does not change it.
 
 **What goes where.** Conditional blocks choose the output:
 

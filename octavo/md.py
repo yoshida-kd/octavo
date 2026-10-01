@@ -368,13 +368,50 @@ SLIDE_MARK = re.compile(r'^:{3,}\s*\{(?P<attr>(?:[^}]*\s)?\.slide(?:\s[^}]*)?)\}
 ANY_HEADING = re.compile(r'^(?P<hash>#{1,6})[ 　]+(?P<title>.*?)[ 　]*(?:\{(?P<attr>[^}]*)\})?[ 　]*$')
 
 
-def slide_marks(md: str, slides: bool, lang: str = 'ja') -> str:
+def heading_levels(md: str) -> set:
+    """原稿に出てくる見出しの段（コードブロックの中は数えない）。"""
+    levels, fence = set(), None
+    for line in md.split('\n'):
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            continue
+        h = None if fence else ANY_HEADING.match(line)
+        if h:
+            levels.add(len(h.group('hash')))
+    return levels
+
+
+def lecture_slide_level(md: str) -> int:
+    """講義ノート全体から決める、スライド1枚の見出しの段（Markdown の `#` の数）。
+
+    いちばん浅い段（ふつう `#`）は回か大きな区切りなので除き、残りのいちばん浅い段と
+    その1つ下があれば下の段、なければ残りのいちばん浅い段。`#` 回・`##` 節・`###` 1枚
+    なら `###`、`#`・`##` だけなら `##`。回ごとのスライドはこれを使うので、回の区切り
+    （`::: {.session}`）を書いても、区切りに題を付けても、1枚の段は変わらない。
+    """
+    levels = heading_levels(md)
+    if not levels:
+        return 2
+    rest = levels - {min(levels)}
+    if not rest:
+        return min(levels)
+    top = min(rest)
+    return top + 1 if top + 1 in levels else top
+
+
+NO_TITLE = re.compile(r'(?:^|\s)\.no-title(?:\s|$)')
+UNTITLED_SLIDE = '```{=typst}\n#octavo-untitled-slide()\n```'
+
+
+def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = None) -> str:
     """スライドの区切りと題を原稿で決める書き方を、出力に合わせて直す。
 
         ::: {.slide title="題"}     ここから新しいスライド（title を省くと直前の題に「（続き）」）
         :::
         ## 見出し {.same-slide}      この見出しでは新しいスライドにしない（前のスライドに続ける）
         ## 長い見出し {slide-title="短い題"}   スライドでだけ題を差し替える
+        ### 図だけのスライド {.no-title}   スライドでは題を出さない（図に高さを回す）
 
     スライド（slides=True）では、区切りを1枚分の見出しに、`.same-slide` の見出しを
     太字の段落に、`slide-title` を見出しの題にする。それ以外の出力では、区切りを落とし、
@@ -384,18 +421,11 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja') -> str:
     lines = md.split('\n')
     # スライド1枚になる見出しの段（typst-slides の決め方と同じ）: いちばん浅い段と
     # その1つ下があれば下の段、なければいちばん浅い段。講義の回は `#` が題になって
-    # いるので、`##` 節・`###` スライドなら `###`、`##` だけなら `##`
-    levels, fence = set(), None
-    for line in lines:
-        f = FENCE_LINE.match(line)
-        if f:
-            fence = None if fence == f.group(1) else (fence or f.group(1))
-            continue
-        h = None if fence else ANY_HEADING.match(line)
-        if h:
-            levels.add(len(h.group('hash')))
+    # いるので、`##` 節・`###` スライドなら `###`、`##` だけなら `##`。
+    # 講義ノートの回ごとのスライドは、講義ノート全体から決めた段（level）を使う
+    levels = heading_levels(md)
     top = min(levels) if levels else 1
-    depth = top + 1 if (top + 1 in levels or not levels) else top
+    depth = level or (top + 1 if (top + 1 in levels or not levels) else top)
     cont = '（続き）' if lang == 'ja' else ' (cont.)'
     out, last_title, fence = [], '', None
     i = 0
@@ -418,7 +448,9 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja') -> str:
             while j < len(lines) and not lines[j].strip():
                 j += 1
             end = j if j < len(lines) and DIV_CLOSE.match(lines[j]) else i
-            if slides:
+            if slides and NO_TITLE.search(m.group('attr') or ''):
+                out += ['', UNTITLED_SLIDE, '']
+            elif slides:
                 title = xref.attr_value(m.group('attr'), 'title') or (last_title + cont).strip()
                 out += ['', '#' * depth + ' ' + title + ' {.unnumbered}', '']
             i = end + 1
@@ -428,6 +460,12 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja') -> str:
             attr = h.group('attr')
             if re.search(r'(?:^|\s)\.same-slide(?:\s|$)', attr):
                 out.append('**' + h.group('title') + '**')
+                i += 1
+                continue
+            if len(h.group('hash')) == depth and NO_TITLE.search(attr):
+                # 新しいスライドにするが題は出さない（左上の節名は残る）。（続き）の題は引き継ぐ
+                last_title = h.group('title')
+                out += ['', UNTITLED_SLIDE, '']
                 i += 1
                 continue
             short = xref.attr_value(attr, 'slide-title')
@@ -477,7 +515,7 @@ def tidy_headings(md: str) -> str:
 # ---------------------------------------------------------------- 表・図
 
 # 画像リンク: `![alt](path)` / `![alt](path "title")` / `![alt](<path>)`
-IMAGE_LINK = re.compile(r'(!\[[^\]]*\]\()\s*(<[^>]*>|[^)\s]+)((?:\s+"[^"]*")?\s*\))')
+IMAGE_LINK = re.compile(r'(!\[(?:[^\[\]]|\[[^\[\]]*\])*\]\()\s*(<[^>]*>|[^)\s]+)((?:\s+"[^"]*")?\s*\))')
 
 _SCHEME = re.compile(r'^[A-Za-z][A-Za-z0-9+.-]*://')
 _WINDRIVE = re.compile(r'^[A-Za-z]:[\\/]')
@@ -534,6 +572,13 @@ DIV_CLOSE = re.compile(r'^:{3,}\s*$')
 # 「この用途のときだけ出す」印。`.slides-only` でも `.only-slides` でもよい。
 ONLY = re.compile(r'^(?:only-(.+)|(.+)-only)$')
 NOT = re.compile(r'^(?:no|not)-(.+)$')
+# 形は `no-…` だが出し分けの印ではないもの（題のないスライド、手入力の数値の検査から外す）
+NOT_CONDITIONS = {'no-title', 'no-lint'}
+
+
+def is_condition(c: str) -> bool:
+    """出し分けの印か（`.slides-only` / `.no-slides` など）。"""
+    return c not in NOT_CONDITIONS and bool(ONLY.match(c) or NOT.match(c))
 
 
 def _classes(attr: str | None, bare: str | None) -> list:
@@ -550,15 +595,54 @@ def _classes(attr: str | None, bare: str | None) -> list:
     return out
 
 
+def _wanted(cond: list, keep: set) -> bool:
+    want = True
+    for c in cond:
+        mo = ONLY.match(c)
+        if mo:
+            want = want and ((mo.group(1) or mo.group(2)) in keep)
+        mn = NOT.match(c)
+        if mn:
+            want = want and (mn.group(1) not in keep)
+    return want
+
+
+# 行内の出し分け `[文面]{.handout-only}`。中に `[@key]` のような角括弧が1段あってもよい。
+# 画像（`![…]`）とリンク（`[…](…)`）は対象にならない（`{` が直後に来ない）
+SPAN = re.compile(r'(?<![!\]\\])\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\{([^{}\n]*)\}')
+
+
+def filter_spans(md: str, keep: set) -> str:
+    """行内の条件付きの文面を、残すなら中身だけに、残さないなら消す。
+
+    ほかの属性（`#id` や別のクラス）が付いていれば、条件の印だけ外して span のまま残す。
+    """
+    def one(m):
+        toks = m.group(2).split()
+        cls = [x[1:] for x in toks if x.startswith('.')]
+        cond = [c for c in cls if is_condition(c)]
+        if not cond:
+            return m.group(0)
+        if not _wanted(cond, keep):
+            return ''
+        rest = [x for x in toks if not (x.startswith('.') and x[1:] in cond)]
+        return f'[{m.group(1)}]{{{" ".join(rest)}}}' if rest else m.group(1)
+    return SPAN.sub(one, md)
+
+
 def filter_divs(md: str, keep: set, keep_notes: bool = False,
                 report: list | None = None,
-                notes_wrap: tuple | None = None) -> str:
+                notes_wrap: tuple | None = None, notes_mark: str | None = None) -> str:
     """用途に合わない条件付きブロックを落とす。
 
         ::: {.slides-only}   スライドのときだけ
         ::: {.handout-only}  A4 プリントのときだけ
         ::: {.no-slides}     スライド以外
         ::: notes            発表者ノート（残すのは beamer と typst-notes）
+
+    `notes_mark` を渡すと、落とす `::: notes` の場所に、その書式で目印を置く（`{i}` は
+    ノートの通し番号）。スライドの PDF の何ページ目にどのノートがあったかを、台本が
+    スライドの縮小画像の下にノートを並べるときに引く。
 
     `notes_wrap` を渡すと、`::: notes` の囲みをそのまま残さずに (開き, 閉じ)
     で囲み直す。beamer は pandoc に div のまま渡すと `\note{}` になるが、
@@ -570,55 +654,60 @@ def filter_divs(md: str, keep: set, keep_notes: bool = False,
     条件付き div は、残す場合も囲みを外して中身だけにする（LaTeX 側に
     未知の環境を渡さないため）。
     """
+    from . import values as valmod
+    md, kept = valmod.mask_code(md)       # コードの中の見本の `:::` は囲みではない
+    md = filter_spans(md, keep)
     out: list = []
-    stack: list = []          # [(kind, drop)] kind: 'plain' | 'cond'
+    stack: list = []          # [(kind, drop, indent)] kind: 'plain' | 'cond' | 'notes'
     dropped = 0
+    note_no = 0
 
     def dropping() -> bool:
-        return any(d for _, d in stack)
+        return any(d for _, d, _ in stack)
 
     for line in md.split('\n'):
-        opening = DIV_OPEN.match(line) and not DIV_CLOSE.match(line)
+        # 箇条書きの中の囲みは字下げされている（項目の本文の桁）。字下げを外して見る
+        bare = line.strip()
+        indent = line[:len(line) - len(line.lstrip())]
+        opening = DIV_OPEN.match(bare) and not DIV_CLOSE.match(bare)
         if opening:
-            m = DIV_OPEN.match(line)
+            m = DIV_OPEN.match(bare)
             cls = _classes(m.group(2), m.group(3))
             if dropping():
-                stack.append(('plain', False))
+                stack.append(('plain', False, indent))
                 continue
             if 'notes' in cls or 'speaker-notes' in cls:
                 if keep_notes and notes_wrap:
-                    stack.append(('notes', False))
-                    out.append(notes_wrap[0])
+                    stack.append(('notes', False, indent))
+                    out.append(indent + notes_wrap[0])
                 elif keep_notes:
-                    stack.append(('plain', False))
+                    stack.append(('plain', False, indent))
                     out.append(line)
                 else:
-                    stack.append(('cond', True))
-                    dropped += 1
+                    stack.append(('cond', True, indent))
+                    if notes_mark:
+                        mark = notes_mark.replace('{i}', str(note_no))
+                        out.append(indent + mark.replace('\n', '\n' + indent))
+                    else:
+                        dropped += 1
+                note_no += 1
                 continue
-            cond = [c for c in cls if ONLY.match(c) or NOT.match(c)]
+            cond = [c for c in cls if is_condition(c)]
             if cond:
-                want = True
-                for c in cond:
-                    mo = ONLY.match(c)
-                    if mo:
-                        want = want and ((mo.group(1) or mo.group(2)) in keep)
-                    mn = NOT.match(c)
-                    if mn:
-                        want = want and (mn.group(1) not in keep)
-                stack.append(('cond', not want))
+                want = _wanted(cond, keep)
+                stack.append(('cond', not want, indent))
                 dropped += (not want)
                 continue                                  # 囲みは常に外す
-            stack.append(('plain', False))
+            stack.append(('plain', False, indent))
             out.append(line)
             continue
 
-        if DIV_CLOSE.match(line) and stack:
-            kind, drop = stack.pop()
+        if DIV_CLOSE.match(bare) and stack:
+            kind, drop, ind = stack.pop()
             if drop or dropping() or kind == 'cond':
                 continue
             if kind == 'notes' and notes_wrap:
-                out.append(notes_wrap[1])
+                out.append(ind + notes_wrap[1])
                 continue
             out.append(line)
             continue
@@ -630,7 +719,7 @@ def filter_divs(md: str, keep: set, keep_notes: bool = False,
     if dropped and report is not None:
         report.append(f'{tag("conditional")} ' + t('dropped {n} {n|block that does|blocks that do} '
                                                     'not belong in this output', n=dropped))
-    return '\n'.join(out)
+    return valmod.unmask_code('\n'.join(out), kept)
 
 
 # ---------------------------------------------------------------- \poscite

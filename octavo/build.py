@@ -18,6 +18,7 @@ from pathlib import Path
 from . import backends as be
 from . import bib as bibmod
 from . import crossref as xref
+from . import config as confmod
 from . import csl as cslmod
 from . import md as mdlib
 from . import pandocrun
@@ -111,9 +112,10 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     body = mdlib.filter_divs(body, ctx.keep_classes,
                              keep_notes=backend.keeps_notes,
                              report=ctx.report,
-                             notes_wrap=backend.notes_wrap)
+                             notes_wrap=backend.notes_wrap,
+                             notes_mark=backend.notes_mark)
     # スライドの区切りと題（`::: {.slide}`、`{.same-slide}`、`{slide-title=…}`）
-    body = mdlib.slide_marks(body, backend.is_slides, ctx.lang)
+    body = mdlib.slide_marks(body, backend.is_slides, ctx.lang, level=ctx.slide_level)
     # 回の区切り（A4 プリントでは改ページと、octavo extract が読む目印）
     if mdlib.has_session_markers(body):
         ctx.has_sessions = True
@@ -206,12 +208,19 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
 
     lines = body.split('\n')
     external = {it.line: it for it in nums.items if it.external}
+    # 図・表の直後の出典・注（`::: {.figure-note}`）。図表と1つにまとめて組む
+    groups, stray = xref.figure_notes(lines)
+    for i in stray:
+        ctx.say(f'{tag("figure")} ' + t('line {n}: ::: {.figure-note} is not right after a figure '
+                                        'or table, so it is set as a plain paragraph', n=i + 1))
+    noted = {g[0] for g in groups if g[3] == 'fig'}
     appendix_started = ctx.appendix
     for i, line in xref._lines_outside_code(body):
         s = line.strip()
         m = xref.IMAGE.match(s)
         if m:
-            lines[i] = backend.fmt_figure(m, xref.label_in(m.group('attr'), 'fig'), ctx)
+            lines[i] = backend.fmt_figure(m, xref.label_in(m.group('attr'), 'fig'), ctx,
+                                          note=i in noted)
             continue
         it = external.get(i)
         if it:
@@ -223,6 +232,12 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
             # `# 論点・事例集 {.appendix}` — ここから付録（A, B, …）
             appendix_started = True
             lines[i] = backend.fmt_appendix_start(ctx) + '\n' + lines[i]
+    for start, open_, close, kind in groups:
+        lines[close] = backend.fmt_figure_note('close', kind, ctx)
+        lines[open_] = backend.fmt_figure_note('middle', kind, ctx)
+        head = backend.fmt_figure_note('open', kind, ctx)
+        if head:
+            lines[start] = head + '\n' + lines[start]
     # 事例・論点などのブロックと、再掲・一覧の写し
     lines = theorems.render(lines, {it.line: it for it in nums.items if it.kind in ctx.envs},
                             ctx.theorem_blocks, ctx.envs, backend, ctx)
@@ -359,11 +374,16 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
 
     ctx = Ctx(cfg=cfg, backend=backend, out_dir=out_dir, profile=doc.profile,
               doc_name=doc.name if not appendix else f'{doc.name}-appendix',
-              appendix=appendix, anonymous=anonymous)
+              appendix=appendix, anonymous=anonymous, document=doc,
+              build_opts={'offline': offline, 'citations': citations,
+                          'anonymous': anonymous})
     if cfg.doc_explicit:
         ctx.say(f'{tag("settings")} ' + t('from the manuscript: {settings}', settings=', '.join(
             f'{k}: {cfg[k]}' for k in sorted(cfg.doc_explicit) if k != 'targets')
             or 'targets'))
+    for wrote, key in confmod.doc_setting_typos(doc.src):
+        ctx.say(f'{tag("settings")} ' + t('{wrote} is not a setting and is ignored — did you mean {key}?',
+                                         wrote=wrote, key=key))
     if anonymous:
         ctx.say(f'{tag("anonymous")} ' + t('building with anything identifying hidden '
                                           '(::: {.no-anonymous} blocks and the '
@@ -387,6 +407,9 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         mdlib.read(Path(p)) for p in (doc.src, doc.appendix) if p and Path(p).exists()))
     sibling_crossrefs(cfg, doc, backend, ctx, appendix)
     if doc.part is not None and not appendix:
+        # 1枚の見出しの段は、回に分ける前の講義ノート全体で決める（回の区切りを
+        # 書いても変わらないように）
+        ctx.slide_level = mdlib.lecture_slide_level(valmod.mask_code(raw)[0])
         raw = mdlib.section_part(raw, doc.part)
         if raw is None:
             res.ok = False
@@ -444,6 +467,9 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                 + (ctx.csl.name if ctx.csl
                    else t("pandoc's default (chicago-author-date)"))
                 + (' ' + t('(no bibliography list)') if suppress else ''))
+
+    # 形式によっては、pandoc に渡す前に本文を組み替える（台本はノートだけにする）
+    body = backend.final_markdown(body, ctx)
 
     # ---- pandoc ----------------------------------------------------------
     fmt = pandocrun.input_format(cfg['east_asian_line_breaks'], backend.input_extras())
@@ -530,6 +556,10 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     # ---- 組版まで実行する ------------------------------------------------
     if do_compile:
         cmd = backend.compile(ctx, out_path)
+        if ctx.compile_error:
+            res.ok = False
+            res.report.append(f'{tag("typeset")} ' + t('failed:') + '\n' + ctx.compile_error)
+            return res
         if cmd and not ctx.standalone:
             main = backend.compile_main(ctx)
             if main:
@@ -562,6 +592,43 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
 
 # ---------------------------------------------------------------- まとめ
 
+def empty_sessions(doc) -> set:
+    """中身のない回（区切りの後に見出しも本文もない）の印。"""
+    try:
+        _, parts, _ = mdlib._sections(mdlib.read(doc.src))
+    except OSError:
+        return set()
+    return {key for key, _t, text, _a in parts if not mdlib.strip_comments(text).strip()}
+
+
+def clear_old_sessions(cfg, doc, tgt: str, built: list) -> list:
+    """回ごとのスライドの出力のうち、いまの講義ノートにない回のもの（`<文書>-<印>.typ/.pdf`）を消す。
+
+    区切りを足す・回の id を変えると、前の名前の PDF が残ってどれが新しいか分からなくなる。
+    build/ は全部作り直せるので消してよいが、ほかの文書の出力は消さない（名前が
+    `<文書>-` で始まる別の文書もありうる）。
+    """
+    out_dir = cfg.out_dir(tgt, doc)
+    if not out_dir.is_dir():
+        return []
+    others = set(cfg.documents) - {doc.name}
+    keep = set(built)
+    gone = []
+    for f in sorted(out_dir.iterdir()):
+        stem = f.name.split('.')[0]          # 台本のページの対応は <名前>.notes.json
+        if f.suffix not in ('.typ', '.pdf', '.tex', '.json') or not stem.startswith(doc.name + '-'):
+            continue
+        if stem in keep or stem in others or any(stem.startswith(o + '-') for o in others
+                                                 if len(o) > len(doc.name)):
+            continue
+        try:
+            f.unlink()
+            gone.append(f.name)
+        except OSError:
+            pass
+    return gone
+
+
 def run(cfg, doc_names=None, targets=None, appendix: bool = False,
         do_compile: bool = False, offline: bool = False,
         citations: bool = True, anonymous: bool = False) -> list:
@@ -587,10 +654,26 @@ def run(cfg, doc_names=None, targets=None, appendix: bool = False,
                         '{file} has no `#` headings, so the slides cannot be split '
                         'by session', file=doc.src.name))
                     results.append(r)
+                empty = empty_sessions(doc)
+                built = []
                 for part in parts:
+                    if part.part in empty:
+                        # 予告だけ置いた回など。表紙だけのスライドは作らない
+                        r = Result(doc=part.name, target=tgt, ok=True)
+                        r.report.append(f'{tag("split")} ' + t(
+                            'session {key} has nothing in it yet, so it gets no slides',
+                            key=part.part))
+                        results.append(r)
+                        continue
+                    built.append(part.name)
                     results.append(build_one(cfg, part, tgt, do_compile=do_compile,
                                              offline=offline, citations=citations,
                                              anonymous=anonymous))
+                gone = clear_old_sessions(cfg, doc, tgt, built)
+                if gone and results:
+                    results[-1].report.append(f'{tag("split")} ' + t(
+                        'removed {n} old session {n|file|files} that no longer match the '
+                        'notes: {files}', n=len(gone), files=', '.join(gone)))
                 continue
             results.append(build_one(cfg, doc, tgt, appendix=False,
                                      do_compile=do_compile and not defer,

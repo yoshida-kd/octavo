@@ -83,6 +83,22 @@
   }
 }
 
+// 図・表と、そのすぐ下の出典・注（`::: {.figure-note}`）を1つにまとめる。注は図表の
+// 中に入れないので、目次や一覧には出ず、ページはまたがない。fig が関数なら（スライドの図）
+// 残りの高さから注の高さを引いた高さを渡し、図をその中に収める
+#let octavo-figure-group(size: 0.8em, fig, note) = {
+  let n = block(width: 100%, above: 0.5em, text(size: size, fill: luma(60), note))
+  if type(fig) == function {
+    block(width: 100%, height: 1fr, layout(avail => {
+      let nh = measure(n, width: avail.width).height
+      fig(avail.height - nh - 0.5em)
+      n
+    }))
+  } else {
+    block(breakable: false, width: 100%, { fig; n })
+  }
+}
+
 #let octavo-appendix-state = state("octavo-appendix", false)
 // 節（最上位の見出し）を数える。見出しの番号を出さない文書（スライド）でも進む
 // （Typst の counter(heading) は番号のない見出しでは進まない）

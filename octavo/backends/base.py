@@ -65,6 +65,12 @@ class Ctx:
     # 事例・論点などのブロックの中身（再掲・一覧用）: ラベル -> (クラス, 題, 本文)
     theorem_blocks: dict = field(default_factory=dict)
     math_macros: list = field(default_factory=list)  # 数式のマクロの定義（本文と付録から）
+    # 講義ノートの回ごとのスライドで、1枚になる見出しの段（Markdown の `#` の数）。
+    # None ならその出力の見出しから決める
+    slide_level: int | None = None
+    document: object = None                         # 組んでいる文書（config.Document）
+    build_opts: dict = field(default_factory=dict)  # offline / citations / anonymous
+    compile_error: str = ''                         # compile() の下ごしらえで失敗したとき
 
     # -- 素性 ---------------------------------------------------------------
     @property
@@ -107,11 +113,12 @@ class Ctx:
         作るとき、profile は 'handout' のまま動かないので、profile では
         出し分けられないため。
 
-            beamer/typst-slides  slides, screen, <形式名>
+            beamer/typst-slides  slides (slide), screen, <形式名>
             latex/typst/docx     print, doc, <形式名>, <profile>
         """
         b = self.backend.name
-        keep = ({'slides', 'screen', b} if self.backend.is_slides
+        # `slide` は `slides` の打ち間違いが多いので、同じ意味に受ける（`.slide-only`）
+        keep = ({'slides', 'slide', 'screen', b} if self.backend.is_slides
                 else {'print', 'doc', b, self.profile})
         if self.anonymous:
             # `::: {.no-anonymous}` で囲んだ謝辞・自己紹介がこれで落ちる。
@@ -222,8 +229,15 @@ class Backend:
     def pandoc_args(self, ctx: Ctx) -> list:
         return ['-t', self.pandoc_to, '--wrap=preserve']
 
+    # スライドが落とす `::: notes` の場所に置く目印（md.filter_divs の notes_mark）
+    notes_mark: str | None = None
+
+    def final_markdown(self, body: str, ctx: Ctx) -> str:
+        """pandoc に渡す直前の本文。既定はそのまま。"""
+        return body
+
     # -- 差し替え（Markdown 段階）---------------------------------------
-    def fmt_figure(self, m: re.Match, label: str | None, ctx: Ctx) -> str:
+    def fmt_figure(self, m: re.Match, label: str | None, ctx: Ctx, note: bool = False) -> str:
         """段落に1つだけの画像（crossref.IMAGE）。既定は画像リンクのまま pandoc に
         図にさせる（ラベルもキャプションの書式もそのまま渡る）。拡張子を形式に
         合わせ、幅の指定がなければ figure_width を足す。"""
@@ -234,6 +248,12 @@ class Backend:
         path = ctx.figure_target(m.group('path'))
         ctx.say(f'{tag("figure")} {label or m.group("alt")[:30] or "-"} -> {path}')
         return f'![{m.group("alt")}]({path}{m.group("title") or ""}){{{attr}}}'
+
+    def fmt_figure_note(self, part: str, kind: str, ctx: Ctx) -> str:
+        """図・表の直後の `::: {.figure-note}` を図表と1つにまとめる。part は 'open'
+        （図表の前に置く）| 'middle'（注の開きの行）| 'close'（注の閉じの行）。
+        既定（Word）は小さい字の段落の書式（Figure Note）を当てるだけ。"""
+        return {'open': '', 'middle': '::: {custom-style="Figure Note"}', 'close': ':::'}[part]
 
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
         """分析が書いた表（か、手で作った tables/<名前>.csv から作った表）（tables/<名前>）を差し込む。既定は Markdown 版（.md）を

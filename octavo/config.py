@@ -150,8 +150,8 @@ DEFAULTS: dict = {
     'meta': {},
 
     # ---- 事例・論点などのブロック（`::: {.question #question-why title="…"}`）------
-    # 同梱の既定: case 事例 / question 論点 / aside 余談（この3つは番号を通しで振る）、
-    # nb 注意 / memo 付記（番号なし）、theorem 定理 / lemma / proposition / corollary /
+    # 同梱の既定: case 事例 / question 論点（この2つは番号を通しで振る）、
+    # aside 余談 / nb 注意 / memo 付記（番号なし）、theorem 定理 / lemma / proposition / corollary /
     # definition / example（番号を通しで振る）、remark（番号なし）。
     # 見出し語を変える・増やすときだけ書く:
     #   {'case': '事例',                                    # 見出し語だけ変える
@@ -224,6 +224,31 @@ INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_cha
                 'first_section')
 BOOL_DOC_KEYS = ('typst_slides_running_header', 'typst_slides_section_slides',
                  'citations_by_language')
+
+
+def doc_setting_typos(src: Path, text: str | None = None) -> list:
+    """原稿の冒頭の鍵のうち、文書ごとの設定の綴り違いらしいもの [(書いた鍵, 正しい鍵)]。
+
+    冒頭にはタイトルや pandoc の鍵も並ぶので、知らない鍵を全部咎めはしない。
+    DOC_KEYS のどれかに近いもの（`first-section-number` → `first_section`）だけ。
+    黙って無視されると、効かないことに気づけない。
+    """
+    import difflib
+    from . import md as mdlib
+    if text is None:
+        try:
+            text = Path(src).read_text(encoding='utf-8')
+        except OSError:
+            return []
+    meta, _ = mdlib.split_front_matter(text)
+    out = []
+    for k in meta:
+        if k in DOC_KEYS:
+            continue
+        near = difflib.get_close_matches(k.replace('-', '_').lower(), DOC_KEYS, n=1, cutoff=0.7)
+        if near:
+            out.append((k, near[0]))
+    return out
 
 
 def doc_settings(src: Path, text: str | None = None) -> dict:

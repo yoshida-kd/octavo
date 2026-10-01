@@ -70,13 +70,19 @@ class TypstBackend(Backend):
                     + ctx.template('handout/handout.typ').read_text(encoding='utf-8').rstrip()
                     + '\n\n' + crossref_rules(ctx) + '\n' + body
                     + '\n\n#context [#metadata(octavo-page-mark()) <octavo-end>]\n')
-        if not ctx.standalone and re.search(r'#octavo-(?:theorem|restate)\b', body):
+        if not ctx.standalone and re.search(r'#octavo-(?:theorem|restate|figure-group)\b', body):
             # body.typ / appendix.typ は main.typ から #include されるので、main.typ の
             # import は届かない。ブロックの関数だけ自分で読む
-            body = ('#import "crossref.typ": octavo-theorem, octavo-restate\n\n' + body)
+            body = ('#import "crossref.typ": octavo-theorem, octavo-restate, '
+                    'octavo-figure-group\n\n' + body)
         return body
 
     # -- 差し替え -----------------------------------------------------------
+    def fmt_figure_note(self, part: str, kind: str, ctx: Ctx) -> str:
+        # 生の Typst で `#octavo-figure-group[図表][注]` に包む。注は Markdown のまま
+        raw = {'open': '#octavo-figure-group[', 'middle': '][', 'close': ']'}[part]
+        return f'\n```{{=typst}}\n{raw}\n```\n'
+
     def fmt_external_table(self, name: str, caption: str, label: str, ctx: Ctx) -> str:
         """分析が書いた表の中身（tables/<名前>.typ）を、キャプションとラベルを付けて入れる。"""
         p = ctx.table_path(name)

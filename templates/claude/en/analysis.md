@@ -125,7 +125,12 @@ list the upstream output in the downstream `deps`. Prefixing file names with
 **Put slow steps such as data cleaning in their own `.qmd` marked `'manual': True`.**
 Neither `octavo build` nor the preview runs it; they only say it is stale. Run it with
 `octavo analysis run analysis/01-clean.qmd` (in VS Code, the button in the sidebar's
-Analysis section).
+Analysis section). The `.qmd` can say it itself instead, so the glob in the config stays:
+`octavo:` then `  manual: true` (and `  deps: [...]`) in its front matter.
+
+**Fetching raw data** (an API, a download) is such a step: `analysis/00-fetch-<source>.qmd`
+with `manual: true`. It stops rather than overwrite a file already in `data/raw/`, and the
+source and date go into `data/raw/README.md`.
 
 - If two `.qmd` files register the same name it warns and **the later one wins**;
   check the source column in `octavo values`.

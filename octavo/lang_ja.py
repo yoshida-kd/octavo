@@ -224,7 +224,30 @@ MESSAGES: dict = {
     'octavo build <name> could not tell them apart — pick another': 'octavo build <名前> で区別できなくなるので、別の名前にすること',
     'octavo checkbib (what you decide not to fix goes in bib_accepted)': 'octavo checkbib（直さないと決めたものは bib_accepted へ）',
     'octavo data hash to record / status to check': 'octavo data hash で記録する / status で確かめる',
-    'octavo lint (what is not a result goes in lint_accepted)': 'octavo lint（結果でないものは lint_accepted へ）',
+    'octavo lint (what is not a result: [40%]{.no-lint} in the text, or lint_accepted)':
+        'octavo lint（結果でないものは本文で [40%]{.no-lint} とするか、lint_accepted へ）',
+    '::: blocks': '::: の囲み',
+    '{key}: nothing in it yet, so no handout': '{key}: まだ中身がないので、配布資料は作らない',
+    '{n} {n|note|notes} under the slides of {deck}': '{deck} のスライドの下にノート {n} 個',
+    '{n} {n|slide|slides} from {deck}': '{deck} からスライド {n} 枚',
+    'the slides could not be typeset, so the script has no pictures:': 'スライドが組めないので、台本に貼る絵がない:',
+    'could not read where the notes are in the slides (typst eval needs Typst 0.15):':
+        'ノートがスライドのどこにあるか読めなかった（typst eval には Typst 0.15 が要る）:',
+    'octavo build {name} --to typst-notes --compile (it typesets the slides first and lays the notes under them)':
+        'octavo build {name} --to typst-notes --compile（先にスライドを組み、その下にノートを置く）',
+    'session {key} has nothing in it yet, so it gets no slides': '回 {key} にはまだ中身がないので、スライドは作らない',
+    'removed {n} old session {n|file|files} that no longer match the notes: {files}':
+        '講義ノートにもう無い回のファイル {n} 個を消した: {files}',
+    'line {n}: ::: {.figure-note} is not right after a figure or table, so it is set as a plain paragraph':
+        '{n} 行目: ::: {.figure-note} が図表のすぐ後にないので、ふつうの段落として組む',
+    'octavo lint': 'octavo lint',
+    '{n} {n|is|are} not read as meant': '{n} 個が思ったとおりに読まれない',
+    'every ::: block is read as a block': '::: の囲みはすべて囲みとして読まれる',
+    'not read as a block — put a blank line before the opening :::': '囲みとして読まれない — 開きの ::: の前に空行を入れる',
+    'shown in no output — did you mean .{name}?': 'どの出力にも出ない — .{name} のことか',
+    'shown in no output — not a name octavo knows (slides, handout, print, …)': 'どの出力にも出ない — octavo の知らない名前（slides・handout・print など）',
+    '{n} ::: {n|block is|blocks are} written so that pandoc or octavo will not read {n|it|them} as meant':
+        '::: の囲み {n} 個が、pandoc か octavo に思ったとおりに読まれない書き方になっている',
     'octavo — build LaTeX / Typst / Beamer / Word from a Markdown manuscript.': 'octavo — Markdown の原稿から LaTeX / Typst / Beamer / Word を作る。',
     'gathered {n} {n|file|files} into {path}': '{n} ファイルを {path} に集めた',
     'git': 'git',
@@ -358,7 +381,6 @@ MESSAGES: dict = {
     'not found (see octavo doctor)': '見つからない（octavo doctor 参照）',
     'not found: {unit}': '見つからない: {unit}',
     'not needed with CSL. Only if you go back to biblatex: sudo apt install biber': 'CSL 運用では要らない。biblatex に戻すときだけ sudo apt install biber',
-    'no `::: notes` — this is just the deck on paper': '`::: notes` が1つもない。スライドと同じ中身だけの紙になる',
     'not recorded': '記録にない',
     'note': '注意',
     'nothing fatal ({n} to look at)': '致命的な問題はない（注意 {n} 件）',
@@ -545,7 +567,6 @@ MESSAGES: dict = {
     '{n} — fix {n|it|them} in Zotero and export again': '{n} 件 — Zotero 側で直してエクスポートし直す',
     '{n} — listed in bib_accepted as not worth fixing': '{n} 件 — bib_accepted で直さないと決めたもの',
     '{path} has no CONFIG dictionary': '{path} に CONFIG 辞書がない',
-    '{slides} {slides|slide|slides} / {notes} {notes|note|notes}': 'スライド {slides} 枚 / ノート {notes} 個',
     '{stale} of {n} {stale|is|are} stale': '{n} 本中 {stale} 本が古い',
     '{values} {values|value|values} in {files} {files|file|files}': '値 {values} 個 / ファイル {files} 個',
     '{who}: {n}': '{who}: {n} 件',
@@ -717,6 +738,8 @@ MESSAGES: dict = {
     'There is no analysis in this project, so there is nothing to set up. Add one with: {cmd}': 'このプロジェクトには分析がないので、用意するものはない。足すなら: {cmd}',
     '{key} spans several lines in the manuscript — edit it by hand': '{key} は原稿の中で複数行にまたがっている。手で直す',
     'from the manuscript: {settings}': '原稿の冒頭から: {settings}',
+    '{wrote} is not a setting and is ignored — did you mean {key}?':
+        '{wrote} という設定は無いので効かない — {key} のことか',
     '{key} cannot be set per document for this kind of manuscript': '{key} はこの種類の原稿では文書ごとに変えられない',
     "this document's own settings (written at the top of its manuscript)": 'その文書だけの設定（原稿の冒頭に書く）',
     '[settings]': '[設定]',
