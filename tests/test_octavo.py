@@ -393,8 +393,8 @@ class TheoremBlocksBuilt(unittest.TestCase):
                             citations=False, offline=True, do_compile=True)
         self.assertTrue(r.ok, '\n'.join(r.report))
         if shutil.which('pdftotext'):
-            text = subprocess.run(['pdftotext', str(r.compiled), '-'], capture_output=True,
-                                  text=True).stdout
+            text = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(r.compiled), '-'], capture_output=True,
+                                  text=True, encoding='utf-8').stdout
             self.assertIn('論点 1.1', text)                    # 参照と、ブロックの頭
             self.assertIn('ガイダンス', text)
 
@@ -404,8 +404,8 @@ class TheoremBlocksBuilt(unittest.TestCase):
                             citations=False, offline=True, do_compile=True)
         self.assertTrue(r.ok, '\n'.join(r.report))
         if shutil.which('pdftotext'):
-            text = subprocess.run(['pdftotext', str(r.compiled), '-'], capture_output=True,
-                                  text=True).stdout
+            text = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(r.compiled), '-'], capture_output=True,
+                                  text=True, encoding='utf-8').stdout
             self.assertIn('論点 1.1', text)
             self.assertIn('2026 年 10 月 8 日', text)            # 区切りの date
 
@@ -420,8 +420,8 @@ class TheoremBlocksBuilt(unittest.TestCase):
         typ = deck().outputs[0].read_text(encoding='utf-8')
         self.assertIn('#show: octavo-appendix.with(heading-numbering: none)', typ)
         if shutil.which('pdftotext'):
-            text = subprocess.run(['pdftotext', str(deck().compiled), '-'],
-                                  capture_output=True, text=True).stdout
+            text = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(deck().compiled), '-'],
+                                  capture_output=True, text=True, encoding='utf-8').stdout
             self.assertIn('論点集', text)
             self.assertNotIn('0.1', text)
         self.cfg._v['typst_slides_numbering'] = '1.1'
