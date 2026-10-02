@@ -366,7 +366,7 @@ function runInWsl(inner: string, timeoutMs: number): Promise<RunResult> {
  *
  * Windows の VS Code から wsl.exe 越しに動かしていて、しかも出力が `/mnt/`
  * の外（WSL のホーム以下など）にあると、Windows 側から直接は開けない。
- * その場合だけ `base64` で持ってくる。ふだんは普通にファイルを読む。
+ * その場合だけ `base64` で取得する。ふだんは普通にファイルを読む。
  */
 export async function readToolFile(p: string): Promise<Uint8Array | undefined> {
     const uri = resolvePathFromTool(p);

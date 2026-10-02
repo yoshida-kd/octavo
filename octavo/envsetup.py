@@ -58,37 +58,51 @@ if (changed || !file.exists("renv.lock")) renv::snapshot(prompt = FALSE)
 '''
 
 
-# VS Code の R 拡張機能が補完などに使う languageserver。renv のプロジェクトでは R が
-# プロジェクト専用のライブラリしか見ないので、プロジェクトごとに「入れますか」と聞かれ続ける。
-# 利用者のライブラリ（R_LIBS_USER）に一度だけ入れ、R 拡張機能の r.libPaths でそこを足す。
-# ホームで実行する（renv の外。Linux なら Rprofile.site の Posit のビルド済みパッケージが使われる）。
+# プロジェクトの外で使う R のパッケージを、利用者のライブラリ（R_LIBS_USER）に依存ごと入れる。
+#   knitr・rmarkdown  Quarto が R の .qmd を組むのに要る（プロジェクトの renv の外で組むとき。
+#                     R を上げて古いライブラリを消すと、これがなくなって分析が止まる）
+#   languageserver    VS Code の R 拡張機能が補完などに使う。renv のプロジェクトでは R が
+#                     プロジェクト専用のライブラリしか見ないので、R 拡張機能の r.libPaths で
+#                     このライブラリを足す（そうしないとプロジェクトごとに「入れますか」と聞かれる）
+# ホームで実行する（renv の外。sudo は要らない）。
 R_EDITOR_SCRIPT = r'''
 lib <- path.expand(Sys.getenv("R_LIBS_USER"))
 dir.create(lib, recursive = TRUE, showWarnings = FALSE)
 repos <- getOption("repos")
 if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
   repos <- c(CRAN = "https://cloud.r-project.org")
+# Ubuntu などで Posit Package Manager を向いているなら、Linux 用のビルド済みを取る（renv が
+# プロジェクトの中でしているのと同じ）。ソースからだと開発用のライブラリ（libuv など）が要る
+os <- if (file.exists("/etc/os-release")) readLines("/etc/os-release", warn = FALSE) else ""
+code <- sub("^VERSION_CODENAME=", "", grep("^VERSION_CODENAME=", os, value = TRUE))
+if (length(code) == 1L && nzchar(code) && grepl("packagemanager.posit.co/cran/", repos[["CRAN"]], fixed = TRUE) &&
+    !grepl("__linux__", repos[["CRAN"]], fixed = TRUE)) {
+  repos[["CRAN"]] <- sub("/cran/", paste0("/cran/__linux__/", code, "/"), repos[["CRAN"]], fixed = TRUE)
+  options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
+    paste(getRversion(), R.version$platform, R.version$arch, R.version$os)))
+}
 # renv の中では R 本体のライブラリ（.Library）と足したライブラリしか見えない。サイトライブラリに
 # ある依存（callr など）も含めて、利用者のライブラリに全部そろえる
 ap <- available.packages(repos = repos)
-deps <- unique(c("languageserver", unlist(tools::package_dependencies(
-  "languageserver", db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
+want <- c("knitr", "rmarkdown", "languageserver")
+deps <- unique(c(want, unlist(tools::package_dependencies(
+  want, db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
 base <- rownames(installed.packages(lib.loc = .Library))
 need <- setdiff(deps, c(base, rownames(installed.packages(lib.loc = lib))))
 if (length(need)) {
   install.packages(need, lib = lib, repos = repos)
 } else {
-  cat("   installed: languageserver\n")
+  cat("   installed: knitr, rmarkdown, languageserver\n")
 }
 .libPaths(lib, include.site = FALSE)   # renv と同じ見え方（R 本体 + これだけ）で読めるか
-ok <- requireNamespace("languageserver", quietly = TRUE)
+ok <- all(vapply(want, requireNamespace, logical(1), quietly = TRUE))
 cat("library: ", normalizePath(lib, winslash = "/", mustWork = FALSE), "\n", sep = "")
 quit(save = "no", status = if (ok) 0 else 1)
 '''
 
 
 def r_editor() -> int:
-    """`octavo setup --r-editor`: languageserver を利用者のライブラリに入れる（sudo なし）。"""
+    """`octavo setup --r-editor`: knitr・rmarkdown・languageserver を利用者のライブラリに入れる（sudo なし）。"""
     rscript = shutil.which('Rscript')
     if not rscript:
         _say(t('R is not installed, so this was skipped. octavo setup installs it'))
@@ -98,12 +112,12 @@ def r_editor() -> int:
         with os.fdopen(fd, 'w', encoding='utf-8') as fh:
             fh.write(R_EDITOR_SCRIPT)
         ok = _call([rscript, path], Path.home(),
-                   shown='Rscript <install.packages("languageserver") into R_LIBS_USER>')
+                   shown='Rscript <install.packages(c("knitr", "rmarkdown", "languageserver")) into R_LIBS_USER>')
     finally:
         os.unlink(path)
-    _say(t('languageserver is in your own R library. In VS Code, add that library to the R '
-           'extension\'s r.libPaths so renv projects find it too.') if ok
-         else t('Could not install languageserver (see above).'))
+    _say(t('knitr, rmarkdown and languageserver are in your own R library. In VS Code, add that '
+           'library to the R extension\'s r.libPaths so renv projects find languageserver too.') if ok
+         else t('Could not install them (see above).'))
     return 0 if ok else 1
 
 
@@ -168,15 +182,23 @@ def r_env(root: Path) -> bool | None:
     try:
         with os.fdopen(fd, 'w', encoding='utf-8') as fh:
             fh.write(code)
-        return _call([rscript, path], root,
-                     shown='Rscript <renv::init() / restore(), then ' + ', '.join(R_NEEDS) + '>')
+        ok = _call([rscript, path], root,
+                   shown='Rscript <renv::init() / restore(), then ' + ', '.join(R_NEEDS) + '>')
+        if ok:
+            # renv::status() は「入っていて記録もあるが、コードでは使っていない」だけでも
+            # out-of-sync と言う（R に付いてくる MASS や boot、使わなくなったもの）。不安に
+            # させないように先に言っておく
+            _say('  ' + t('If renv::status() says "out-of-sync" only for packages the code does not use '
+                          '(MASS or boot, which come with R, or ones you stopped using), that is '
+                          'harmless: nothing is missing.'))
+        return ok
     finally:
         os.unlink(path)
 
 
 def pending(cfg) -> bool:
     """この分析の環境がまだ整っていないか（`.venv` か、R の分析なら renv がない）。
-    拡張機能が「初めての分析」のあとに `octavo env` を走らせるかどうかの判断に使う。"""
+    拡張機能が「初めての分析」のあとに `octavo env` を実行するかどうかの判断に使う。"""
     from . import analysis as anamod
     root = Path(cfg.root)
     if not anamod.units(cfg):

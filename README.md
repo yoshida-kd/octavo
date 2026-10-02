@@ -44,8 +44,10 @@ references are filled in when it is typeset.
   and a replication package.
 - **A VS Code extension** with a live PDF preview that follows the cursor, a
   sidebar for everything above, and one-click setup.
-- **Ready for your AI assistant**: every project carries its working rules in
-  `AGENTS.md`, which Claude Code, GitHub Copilot, Codex and Antigravity all read.
+- **Ready for your AI assistant**: every project keeps its working rules in
+  `AGENTS.md` — never type a result into the manuscript, `data/raw` is read-only, and
+  so on — and Claude Code, GitHub Copilot, Codex and Antigravity all read it, so the
+  assistant knows them from the start.
 - Linux, macOS and Windows; English and Japanese.
 
 ## Install
@@ -65,11 +67,22 @@ octavo doctor                                     # reports anything still missi
 
 ## Getting started
 
-Start with the example project — an analysis, a paper, slides and lecture notes:
+**With VS Code**:
+
+1. Open a folder and the Octavo icon in the activity bar. In a folder that is not a
+   project yet it offers **New project**: choose where, the language, the parts you
+   need (an analysis in R or Python, a paper, slides, lecture notes) and whether to
+   fill them with examples. An analysis gets its environment set up right after.
+2. Open a manuscript and press the **PDF** button at the top right of the editor: the
+   PDF appears beside it, is rebuilt on every save, and follows your cursor.
+3. Add more from the **+** at the top of the Octavo sidebar.
+
+**From a terminal**, start with the example project — an analysis, a paper, slides and lecture notes:
 
 ```bash
 octavo init demo --all --example
 cd demo
+octavo env                    # the project's analysis environment (.venv and renv)
 octavo build --compile        # runs the analysis, then typesets everything to PDF
 ```
 
@@ -88,6 +101,11 @@ In the analysis, register what the paper shows; in the manuscript, refer to it:
 ```r
 ov_value("n_obs", nrow(d))
 ov_figure(p, "trend")
+```
+
+```python
+ov_value("n_obs", len(d))
+ov_figure(fig, "trend")
 ```
 
 ```markdown

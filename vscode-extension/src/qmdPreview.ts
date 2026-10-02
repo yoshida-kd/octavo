@@ -8,12 +8,26 @@
 // 出すのは Octavo のプロジェクトの中の .qmd だけ（Quarto だけを使っている .qmd には出ない）。
 // HTML は `embed-resources: true`（新しい .qmd の既定）で1枚に収まっている前提。
 // 画面を自分で閉じたら、その .qmd を開き直すまで出さない。
+// Quarto 拡張機能のプレビュー（Preview ボタン）が動いているあいだは出さない。始まったら
+// こちらを閉じる（同じ HTML が2つ並ばないように）。検知は、Quarto が開くターミナル
+// 「Quarto Preview」と、その画面（webview の viewType quarto.previewView）で行う。
 import * as vscode from 'vscode';
 import { dirOf, findConfig } from './runner';
 import { samePath } from './preview';
 
 const isQmd = (p: string): boolean => /\.qmd$/i.test(p);
 const htmlOf = (qmd: string): string => qmd.replace(/\.qmd$/i, '.html');
+
+const QUARTO_TERMINAL = 'Quarto Preview';
+
+/** Quarto のプレビューが動いているか（ターミナルか画面のどちらかがある）。 */
+export function quartoPreviewRunning(): boolean {
+    if (vscode.window.terminals.some((t) => t.name === QUARTO_TERMINAL && t.exitStatus === undefined)) {
+        return true;
+    }
+    return vscode.window.tabGroups.all.some((g) => g.tabs.some((tab) =>
+        tab.input instanceof vscode.TabInputWebview && /quarto\.previewView$/.test(tab.input.viewType)));
+}
 
 export class QmdPreview implements vscode.Disposable {
     private panel?: vscode.WebviewPanel;
@@ -28,6 +42,9 @@ export class QmdPreview implements vscode.Disposable {
         this.subs.push(
             watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed),
             vscode.window.onDidChangeActiveTextEditor((e) => void this.onEditor(e)),
+            vscode.window.onDidOpenTerminal(() => this.onQuartoChange()),
+            vscode.window.onDidCloseTerminal(() => this.onQuartoChange()),
+            vscode.window.tabGroups.onDidChangeTabs(() => this.onQuartoChange()),
         );
         void this.onEditor(vscode.window.activeTextEditor);
     }
@@ -39,6 +56,25 @@ export class QmdPreview implements vscode.Disposable {
             s.dispose();
         }
         this.panel?.dispose();
+    }
+
+    private quarto = false;
+
+    /** Quarto のプレビューが始まったらこちらを閉じ、終わったら（.qmd を開いていれば）出し直す。 */
+    private onQuartoChange(): void {
+        const running = quartoPreviewRunning();
+        if (running === this.quarto) {
+            return;
+        }
+        this.quarto = running;
+        if (running && this.panel) {
+            this.closingForQuarto = true;    // 利用者が閉じたことにしない（onDidDispose が読む）
+            this.panel.dispose();
+            this.log('[qmd] Quarto Preview is running: closed the HTML view');
+        } else if (!running) {
+            this.closedByUser = undefined;
+            void this.onEditor(vscode.window.activeTextEditor);
+        }
     }
 
     private get enabled(): boolean {
@@ -58,7 +94,7 @@ export class QmdPreview implements vscode.Disposable {
 
     private async onEditor(editor: vscode.TextEditor | undefined): Promise<void> {
         // 画面（webview）にフォーカスが移ったときは editor が undefined になる。何もしない
-        if (!editor || !this.enabled) {
+        if (!editor || !this.enabled || quartoPreviewRunning()) {
             return;
         }
         const p = editor.document.uri.fsPath;
@@ -106,9 +142,10 @@ export class QmdPreview implements vscode.Disposable {
                 'octavo.qmdPreview', htmlOf(name), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
                 { enableScripts: true, retainContextWhenHidden: true });
             this.panel.onDidDispose(() => {
-                if (this.current && !this.disposing) {
+                if (this.current && !this.disposing && !this.closingForQuarto) {
                     this.closedByUser = this.current;
                 }
+                this.closingForQuarto = false;
                 this.panel = undefined;
             });
         }
@@ -123,6 +160,7 @@ export class QmdPreview implements vscode.Disposable {
     }
 
     private disposing = false;
+    private closingForQuarto = false;
 
     private notRendered(name: string): string {
         const msg = vscode.l10n.t('{0} has not been rendered yet. Run the analysis (the ▶ button in the title bar) and the result appears here.', name);

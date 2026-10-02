@@ -3,6 +3,35 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.1
+
+- **Fixed: text after a "References" heading was dropped.** Everything from the first
+  `References` / `参考文献` / `文献` heading to the end of the file was left out, so a reading
+  list (`### 参考文献`) inside one session of lecture notes made **every later session vanish**
+  from the handout and the decks, and an appendix written after a paper's `## References`
+  disappeared — without a word. Now only a placeholder is dropped: a paper's last
+  `## References` section as before, or such a section with nothing but a placeholder line or
+  a comment under it; a reading list stays as written.
+- **knitr and rmarkdown in your own R library.** Quarto needs them to run an R `.qmd` outside a
+  project, and they disappear when an old R's packages are removed. `octavo setup` (and
+  `octavo setup --r-editor` alone) installs them with `languageserver`, as ready-made binaries
+  on Ubuntu; `octavo doctor` checks them.
+- **No more `source …/.venv/bin/activate` in R terminals.** In a project with an R analysis and
+  a `.venv`, the extension turns off the Python extension's terminal activation for that
+  folder (once, with Undo; never over your own setting).
+- **The `.qmd` HTML view steps aside for Quarto's Preview**: it closes when the Quarto
+  extension's preview starts and stays closed while it runs.
+- `selftest` shows the citations and the bibliography as they read when typeset, instead of
+  fragments of LaTeX and Typst source. `octavo checkbib` reports a Japanese name written without
+  a comma (`山田 太郎` reads 太郎 as the family name; write `山田, 太郎`).
+- `octavo env` says that `renv::status()` reporting "out-of-sync" for unused packages is harmless.
+- `typst_slides_font` can be set at the top of a manuscript too, like the other slide settings.
+- pandoc's harmless "Invalid 'lang' value" warning (from the LaTeX babel workaround) is no
+  longer printed.
+- The guide, the lecture-notes page, the README and the web page: getting started in VS Code,
+  `octavo env` before building the example (a fresh machine has no knitr/rmarkdown outside a
+  project), consistent wording, and a few descriptions that did not match what Octavo does.
+
 ## 0.6.0
 
 - **The preview follows the cursor.** Moving the cursor in a manuscript scrolls the PDF

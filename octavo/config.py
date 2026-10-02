@@ -100,7 +100,7 @@ DEFAULTS: dict = {
     'replication_exclude': [],
 
     # ---- 書誌 -------------------------------------------------------------
-    'bib_file': 'literature.bib',  # Zotero からの書き出し（正本、1ファイル）
+    'bib_file': 'literature.bib',  # Zotero からエクスポートしたもの（正本、1ファイル）
     # 雑誌に合わせた書式。CSL スタイル ID（'apa', 'ieee',
     # 'modern-language-association' …）か .csl へのパス。
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。
@@ -216,7 +216,8 @@ PATH_KEYS = ('draft', 'appendix', 'slides', 'handout', 'table_dir', 'figure_dir'
 DOC_KEYS = ('csl', 'targets', 'word_limit', 'char_limit', 'abstract_word_limit',
             'abstract_char_limit', 'typst_slides_aspect', 'typst_slides_accent',
             'typst_slides_running_header', 'typst_slides_section_slides',
-            'typst_slides_numbering', 'first_section', 'date_format', 'handout_font',
+            'typst_slides_numbering', 'typst_slides_font', 'first_section', 'date_format',
+            'handout_font',
             'handout_fontsize', 'handout_pagebreak', 'citations_by_language',
             'japanese_citation_form')
 JA_FORMS = ('standard', 'fullwidth', 'period')

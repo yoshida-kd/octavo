@@ -1088,7 +1088,8 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--no-r', action='store_true', help=t('leave out R'))
     p.add_argument('--check', action='store_true', help=t('only show what would be installed'))
     p.add_argument('--r-editor', action='store_true',
-                   help=t('only install languageserver (for VS Code\'s R extension) into your own R library'))
+                   help=t('only install the R packages used outside a project (knitr and rmarkdown for '
+                          'Quarto, languageserver for VS Code\'s R extension) into your own R library'))
     p.set_defaults(func=cmd_setup)
 
     p = with_config(sub.add_parser(

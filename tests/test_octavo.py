@@ -853,6 +853,16 @@ class BibTeX(unittest.TestCase):
         self.assertIn(('noyear', 'no year (shows as [n.d.])'), kinds)
         self.assertIn(('yamada2020', 'no page range or DOI'), kinds)
 
+    def test_a_japanese_name_without_a_comma_is_reported(self):
+        """「山田 太郎」は BibTeX では太郎が姓。「山田, 太郎」と書くよう知らせる。"""
+        e = {'a': {'type': 'article', 'author': '山田 太郎 and 田中 花子', 'date': '2020',
+                   'pages': '1--2', 'journaltitle': 'J', 'langid': 'japanese'},
+             'b': {'type': 'article', 'author': '山田, 太郎 and {日本学会}', 'date': '2020',
+                   'pages': '1--2', 'journaltitle': 'J', 'langid': 'japanese'}}
+        bad, _ = bib.problems(e, {'a', 'b'})
+        hits = [(k, d) for k, w, d in bad if w.startswith('Japanese name without a comma')]
+        self.assertEqual(hits, [('a', '山田 太郎 -> 山田, 太郎')])
+
     def test_accepted_silences(self):
         acc = {('noyear', '年がない（[n.d.] と出る）'): '刊行年不明の資料'}
         bad, ok = bib.problems(self.e, set(self.e), acc)
@@ -6600,10 +6610,56 @@ class ExtensionProjectForm(unittest.TestCase):
         self.assertNotIn('onDidSaveTextDocument', q)
         self.assertNotIn('quarto render', q)
 
+    def test_the_qmd_view_steps_aside_for_quarto_preview(self):
+        q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
+        self.assertIn("'Quarto Preview'", q)          # Quarto が開くターミナルの名前
+        self.assertIn('quarto\\.previewView', q)     # その画面の viewType
+        self.assertIn('quartoPreviewRunning()', q)
+
+    def test_venv_activation_is_only_turned_off_for_r_projects_and_never_over_the_user(self):
+        v = (self.EXT / 'src/venvActivation.ts').read_text(encoding='utf-8')
+        for must in ("'.venv'", "'octavo.R'", 'ConfigurationTarget.WorkspaceFolder',
+                     'globalValue', 'workspaceFolderValue', "vscode.l10n.t('Undo')"):
+            self.assertIn(must, v)
+
     def test_adding_a_python_analysis_passes_the_engine_and_runs_the_env(self):
         ts = (self.EXT / 'src/scaffold.ts').read_text(encoding='utf-8')
         self.assertIn("flags.push('--engine', 'python')", ts)
         self.assertIn('report.env_needed', ts)
+
+
+class DropReferences(unittest.TestCase):
+    """参考文献節は「置き場所の印」だけを落とし、本文を消さない。"""
+
+    def test_the_last_section_of_a_paper_is_dropped(self):
+        src = '## Intro\n\nText.\n\n## References\n\n(dropped)\n'
+        self.assertEqual(md.drop_references(src), '## Intro\n\nText.\n\n')
+
+    def test_a_reading_list_inside_lecture_notes_keeps_the_rest(self):
+        src = ('# S1\n\n### Slide\n\nA.\n\n### 参考文献\n\n- 山田 (2020)\n\n'
+               '# S2\n\n### Slide B\n\nB.\n')
+        out = md.drop_references(src)
+        self.assertIn('# S2', out)
+        self.assertIn('山田 (2020)', out)             # 読書案内は本文
+        self.assertEqual([k for k, _ in md.section_keys(src)], ['01', '02'])
+
+    def test_a_reading_list_in_the_last_session_is_kept(self):
+        src = '# S1\n\n### Slide\n\nA.\n\n### 参考文献\n\n- 山田 (2020)\n'
+        self.assertIn('山田 (2020)', md.drop_references(src))
+
+    def test_a_placeholder_before_an_appendix_goes_but_the_appendix_stays(self):
+        src = ('## Intro\n\nText.\n\n## References\n\n'
+               '(This section is dropped at conversion time.)\n\n'
+               '# Extra {.appendix}\n\n## Part {#sec-part}\n\nMore.\n')
+        out = md.drop_references(src)
+        self.assertNotIn('References', out)
+        self.assertNotIn('dropped at conversion', out)
+        self.assertIn('## Part {#sec-part}', out)
+        self.assertEqual(out.count('\n'), src.count('\n'))   # 行の数は保つ
+
+    def test_a_heading_inside_a_code_fence_is_not_a_section(self):
+        src = '## Intro\n\n```\n## References\n```\n\nText after.\n'
+        self.assertEqual(md.drop_references(src), src)
 
 
 class AgentInstructions(unittest.TestCase):

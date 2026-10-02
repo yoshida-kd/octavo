@@ -31,8 +31,10 @@ OK, WARN, NG = '  ok  ', ' note ', ' none '
 # renv の外で（ホームで）R を起こして調べる。--json の r_editor が拡張機能に渡す。
 R_EDITOR: dict = {}
 # renv の中と同じに、R 本体のライブラリと利用者のライブラリだけで読めるかを見る
-R_EDITOR_CHECK = ('lib <- path.expand(Sys.getenv("R_LIBS_USER")); .libPaths(lib, include.site = FALSE); '
-                  'cat(normalizePath(lib, winslash = "/", mustWork = FALSE), '
+# knitr・rmarkdown（Quarto が R の .qmd を組むのに要る）は、ふだんの見え方で読めるか
+R_EDITOR_CHECK = ('k <- all(vapply(c("knitr", "rmarkdown"), requireNamespace, logical(1), quietly = TRUE)); '
+                  'lib <- path.expand(Sys.getenv("R_LIBS_USER")); .libPaths(lib, include.site = FALSE); '
+                  'cat(k, normalizePath(lib, winslash = "/", mustWork = FALSE), '
                   'requireNamespace("languageserver", quietly = TRUE), sep = "\\n")')
 
 
@@ -44,8 +46,9 @@ def r_editor_state() -> tuple:
     except (OSError, subprocess.TimeoutExpired):
         lines = []
     R_EDITOR.clear()
-    if len(lines) >= 2:
-        R_EDITOR.update(library=lines[-2], languageserver=lines[-1] == 'TRUE')
+    if len(lines) >= 3:
+        R_EDITOR.update(knitr=lines[-3] == 'TRUE', library=lines[-2],
+                        languageserver=lines[-1] == 'TRUE')
     has = R_EDITOR.get('languageserver', False)
     return (has, t('installed (for VS Code\'s R extension)') if has
             else t('not installed (VS Code\'s R extension asks for it): {cmd}',
@@ -196,6 +199,11 @@ def collect() -> dict:
         has = out.strip().endswith('TRUE')
         f['renv'] = (has, t('installed') if has else t('not installed'))
         f['languageserver'] = r_editor_state()
+        # プロジェクトの renv の外で Quarto が R を組むのに要る（renv の中は octavo env が入れる）
+        k = R_EDITOR.get('knitr', False)
+        f['r_quarto'] = (k, t('installed') if k else t(
+            'not installed (Quarto needs them to run an R .qmd outside a project): {cmd}',
+            cmd='octavo setup --r-editor'))
         stale = stale_r_libraries()
         LAST_R_STALE[:] = stale
         n = sum(r[1] for r in stale)
@@ -321,7 +329,7 @@ ANALYSIS_TOOLS = ('quarto', 'R', 'renv', 'uv')
 SETUP_CMD = 'octavo setup'
 
 # なくても組める（代わりが使われる）ので「不足」ではなく「注意」で出すもの
-SOFT_TOOLS = ('typst_default_fonts', 'languageserver')
+SOFT_TOOLS = ('typst_default_fonts', 'languageserver', 'r_quarto')
 
 HINTS = {
     'pandoc': 'sudo apt install pandoc (if it is old, take the .deb from GitHub)',
@@ -400,6 +408,7 @@ LABELS = {
     'R': '  └ R (Rscript)',
     'renv': '      └ renv',
     'languageserver': '      └ languageserver',
+    'r_quarto': '      └ knitr, rmarkdown',
     'r_packages': '      └ packages',
     'uv': '  └ uv (Python)',
     'pandoc': 'pandoc',
@@ -437,7 +446,7 @@ def report(verbose: bool = False) -> int:
 
     head = '\n== ' + t('Analysis (only when you use a .qmd)') + ' '
     print(head + '=' * max(4, 59 - len(head)))
-    for k in ('quarto', 'R', 'renv', 'languageserver', 'r_packages', 'uv'):
+    for k in ('quarto', 'R', 'renv', 'r_quarto', 'languageserver', 'r_packages', 'uv'):
         if k not in f:
             continue
         ok, detail = f[k]

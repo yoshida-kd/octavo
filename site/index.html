@@ -126,14 +126,52 @@
       </div>
       <div class="feature">
         <h3>Ready for your AI assistant</h3>
-        <p>Every project keeps its working rules in <code>AGENTS.md</code>, which Claude Code,
-        GitHub Copilot, Codex and Antigravity all read.</p>
+        <p>Every project keeps its working rules in <code>AGENTS.md</code> — never type a result
+        into the manuscript, and so on — which Claude Code, GitHub Copilot, Codex and Antigravity
+        all read, so the assistant knows them from the start.</p>
       </div>
     </div>
   </div>
 </section>
 
-<section>
+<section id="install">
+  <div class="wrap two">
+    <div>
+      <h2>Install</h2>
+      <p><strong>With VS Code</strong>, install the
+      <a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo extension</a>
+      and press <strong>Set up</strong> when it asks: it installs pandoc, Typst, Quarto, R,
+      the fonts and the <code>octavo</code> command.</p>
+      <p><strong>From a terminal</strong>:</p>
+<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install octavo-kit
+octavo setup     <span class="comment"># pandoc / Typst / Quarto / fonts / R</span>
+octavo doctor    <span class="comment"># reports anything still missing</span></code></pre>
+      <p>Step by step for <a href="guide/#linux">Linux</a>, <a href="guide/#macos">macOS</a> and <a href="guide/#windows">Windows</a> in the guide.</p>
+    </div>
+    <div>
+      <h2>Getting started</h2>
+      <p><strong>With VS Code</strong>: open a folder and the Octavo icon in the activity bar.
+      In a folder that is not a project yet it offers <strong>New project</strong> — choose the
+      parts you need (an analysis in R or Python, a paper, slides, lecture notes) and whether to
+      fill them with examples. Then open a manuscript and press the <strong>PDF</strong> button at
+      the top right of the editor: the PDF appears beside it and follows your cursor.</p>
+      <p><strong>From a terminal</strong>, try the example first — an analysis, a paper, slides and lecture notes:</p>
+<pre><code>octavo init demo --all --example
+cd demo
+octavo env       <span class="comment"># the analysis environment (.venv and renv)</span>
+octavo build --compile</code></pre>
+      <p>Then your own project, with just the parts you need:</p>
+<pre><code>octavo init study --with analysis,paper
+cd study
+octavo env       <span class="comment"># the analysis environment (.venv and renv)</span>
+octavo build paper --compile
+octavo check     <span class="comment"># before you submit</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
   <div class="wrap two">
     <div>
       <h2>Diagrams without TikZ</h2>
@@ -156,37 +194,6 @@
            alt="A causal diagram: background points to education and income, education to income, and an unobserved factor to income with a dashed arrow">
       <figcaption>What that code draws.</figcaption>
     </figure>
-  </div>
-</section>
-
-<section id="install" class="alt">
-  <div class="wrap two">
-    <div>
-      <h2>Install</h2>
-      <p><strong>With VS Code</strong>, install the
-      <a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo extension</a>
-      and press <strong>Set up</strong> when it asks: it installs pandoc, Typst, Quarto, R,
-      the fonts and the <code>octavo</code> command.</p>
-      <p><strong>From a terminal</strong>:</p>
-<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install octavo-kit
-octavo setup     <span class="comment"># pandoc / Typst / Quarto / fonts / R</span>
-octavo doctor    <span class="comment"># reports anything still missing</span></code></pre>
-      <p>Step by step for <a href="guide/#linux">Linux</a>, <a href="guide/#macos">macOS</a> and <a href="guide/#windows">Windows</a> in the guide.</p>
-    </div>
-    <div>
-      <h2>Getting started</h2>
-      <p>Try the example first — an analysis, a paper, slides and lecture notes:</p>
-<pre><code>octavo init demo --all --example
-cd demo
-octavo build --compile</code></pre>
-      <p>Then your own project, with just the parts you need:</p>
-<pre><code>octavo init study --with analysis,paper
-cd study
-octavo env       <span class="comment"># the analysis environment (.venv and renv)</span>
-octavo build paper --compile
-octavo check     <span class="comment"># before you submit</span></code></pre>
-    </div>
   </div>
 </section>
 

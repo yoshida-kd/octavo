@@ -9,12 +9,13 @@ PDF を隣に置いて、保存するたびに組み直す。この拡張は
 [Octavo](https://github.com/yoshida-kd/octavo) のエディタ側。Octavo は1つの
 Markdown から Typst（論文・配布資料・スライド）と Word、TeX があれば LaTeX と
 Beamer を作るコマンドラインのツールで、引用は .bib と CSL で揃え、数値・図・表は
-手で打たずに Quarto の分析から直接差し込む。
+手入力せずに Quarto の分析から直接差し込む。
 
 ![Octavo が見本のプロジェクトから組んだ論文の1ページとスライド](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/showcase-ja.png)
 
-- **PDF のライブプレビュー** — 左に原稿、右に PDF。講義ノートなら3列目に、
-  カーソルのある回のスライド（または話す台本）が出る。
+- **PDF のライブプレビュー** — 左に原稿、右に PDF。保存するたびに組み直し、原稿の
+  カーソルの位置に合わせてスクロールする。講義ノートなら3列目に、カーソルのある回の
+  スライド（または話す台本）が出る。
 - **アクティビティバーの Octavo** — 原稿（それぞれの設定つき）、分析、使う順に
   並んだツールを1つのサイドバーに。
 - **引用** — `.bib` から `@key` を補完・ホバーし、存在しないキーに波線を引く。
@@ -100,7 +101,7 @@ Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex
   追加・移動し、Enter で次の行、Alt+Enter でセルの中の改行、Excel でコピーした範囲も
   貼り付けられる。見出しのセルを空にすると、左のセルと結合する。`octavo build` が
   これを表にし、原稿の `: 表題 {#tbl-<名前>}` の行がそれを置く。「テキストで編集」で
-  CSV のまま開ける。手で打ち込むデータ（`data/**/*.csv`）も同じように開ける（こちらは
+  CSV のまま開ける。手入力するデータ（`data/**/*.csv`）も同じように開ける（こちらは
   1行目が列の名前で、結合はしない）。
 - **スニペット**: 表・図・所有格の引用・条件つきブロック（`ptable`・`pfigure`・
   `pposcite`・`phandout`・`pslides`・`pnotes` など）。
@@ -114,7 +115,7 @@ Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex
 
 Octavo は Linux と macOS で動く（拡張は `octavo` を呼び、セットアップが入れる先の
 `~/.local/bin` は VS Code の `PATH` になくても探す。ほかの場所に置いた `octavo` は
-`octavo.command` にフルパスで書く）。Windows はその次の扱い（動くが、手のかけ方は少ない）。Windows の VS Code からは:
+`octavo.command` にフルパスで書く）。開発と確認は Linux、macOS、Windows の順に重点を置いている。Windows でも動くが、WSL を使うことを勧める（手引きと同じ）。Windows の VS Code からは:
 
 1. **Remote-WSL でフォルダを開く**（おすすめ）。拡張が WSL の中で動き、
    すべて Linux と同じになる。

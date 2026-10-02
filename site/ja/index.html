@@ -76,7 +76,7 @@ document.addEventListener('click', function (e) {
     <h2>できること</h2>
     <div class="features">
       <div class="feature">
-        <h3>数値を手で書かない</h3>
+        <h3>数値を手入力しない</h3>
         <p>分析で登録し（<code>ov_value("n_obs", nrow(d))</code>）、原稿では名前で呼ぶ（<code>{{n_obs}}</code>）。分析を再実行すれば、すべての文書の数値がまとめて更新される。</p>
       </div>
       <div class="feature">
@@ -97,7 +97,7 @@ document.addEventListener('click', function (e) {
       </div>
       <div class="feature">
         <h3>投稿から採択後まで</h3>
-        <p>匿名審査用の出力、投稿用の zip、共著者が Word で入れた変更履歴の読み取り、投稿後に変わった数値の一覧、再現用パッケージ。</p>
+        <p>匿名審査用の出力、投稿用の zip、共著者が Word で入れた変更履歴の読み取り、投稿した版から変わった数値の一覧、再現用パッケージ。</p>
       </div>
       <div class="feature">
         <h3>VS Code 拡張</h3>
@@ -105,13 +105,44 @@ document.addEventListener('click', function (e) {
       </div>
       <div class="feature">
         <h3>AI アシスタントと使える</h3>
-        <p>プロジェクトごとの約束事を <code>AGENTS.md</code> に置く。Claude Code・GitHub Copilot・Codex・Antigravity のどれもが読む。</p>
+        <p>プロジェクトごとの約束事（結果を原稿に手入力しない、など）を <code>AGENTS.md</code> に置く。Claude Code・GitHub Copilot・Codex・Antigravity のどれもが読むので、AI アシスタントは最初からその約束を知っている。</p>
       </div>
     </div>
   </div>
 </section>
 
-<section>
+<section id="install">
+  <div class="wrap two">
+    <div>
+      <h2>インストール</h2>
+      <p><strong>VS Code なら</strong>、<a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo 拡張</a>
+      をインストールし、案内が出たら「<strong>セットアップ</strong>」を押す。pandoc・Typst・Quarto・R・フォントと <code>octavo</code> コマンドがまとめて入る。</p>
+      <p><strong>ターミナルなら</strong>:</p>
+<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
+uv tool install octavo-kit
+octavo setup     <span class="comment"># pandoc / Typst / Quarto / フォント / R</span>
+octavo doctor    <span class="comment"># 足りないものを報告する</span></code></pre>
+      <p><a href="guide/#linux">Linux</a>・<a href="guide/#macos">macOS</a>・<a href="guide/#windows">Windows</a> ごとの手順は手引きにある。</p>
+    </div>
+    <div>
+      <h2>始め方</h2>
+      <p><strong>VS Code なら</strong>: フォルダを開き、アクティビティバーの Octavo のアイコンを押す。まだプロジェクトでないフォルダなら「<strong>新しいプロジェクト</strong>」が出るので、最初に置くもの（R か Python の分析、論文、スライド、講義ノート）と、見本で埋めるかを選ぶ。原稿を開いてエディタ右上の <strong>PDF</strong> のボタンを押すと、横に PDF が出て、カーソルに合わせて動く。</p>
+      <p><strong>ターミナルなら</strong>、まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:</p>
+<pre><code>octavo init demo --all --example
+cd demo
+octavo env       <span class="comment"># 分析の環境（.venv と renv）</span>
+octavo build --compile</code></pre>
+      <p>自分のプロジェクトは、必要な部品だけで始める:</p>
+<pre><code>octavo init study --with analysis,paper
+cd study
+octavo env       <span class="comment"># 分析の環境（.venv と renv）</span>
+octavo build paper --compile
+octavo check     <span class="comment"># 投稿する前に</span></code></pre>
+    </div>
+  </div>
+</section>
+
+<section class="alt">
   <div class="wrap two">
     <div>
       <h2>TikZ なしで図を描く</h2>
@@ -131,35 +162,6 @@ document.addEventListener('click', function (e) {
            alt="因果の図: 家庭環境から教育年数と所得へ、教育年数から所得へ、観察されない要因から所得へ破線の矢印">
       <figcaption>このコードで描いた図（文字は日本語にしてある）。</figcaption>
     </figure>
-  </div>
-</section>
-
-<section id="install" class="alt">
-  <div class="wrap two">
-    <div>
-      <h2>インストール</h2>
-      <p><strong>VS Code なら</strong>、<a href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">Octavo 拡張</a>
-      をインストールし、案内が出たら「<strong>セットアップ</strong>」を押す。pandoc・Typst・Quarto・R・フォントと <code>octavo</code> コマンドがまとめて入る。</p>
-      <p><strong>ターミナルなら</strong>:</p>
-<pre><code>curl -LsSf https://astral.sh/uv/install.sh | sh
-uv tool install octavo-kit
-octavo setup     <span class="comment"># pandoc / Typst / Quarto / フォント / R</span>
-octavo doctor    <span class="comment"># 足りないものを報告する</span></code></pre>
-      <p><a href="guide/#linux">Linux</a>・<a href="guide/#macos">macOS</a>・<a href="guide/#windows">Windows</a> ごとの手順は手引きにある。</p>
-    </div>
-    <div>
-      <h2>始め方</h2>
-      <p>まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:</p>
-<pre><code>octavo init demo --all --example
-cd demo
-octavo build --compile</code></pre>
-      <p>自分のプロジェクトは、必要な部品だけで始める:</p>
-<pre><code>octavo init study --with analysis,paper
-cd study
-octavo env       <span class="comment"># 分析の環境（.venv と renv）</span>
-octavo build paper --compile
-octavo check     <span class="comment"># 投稿する前に</span></code></pre>
-    </div>
   </div>
 </section>
 

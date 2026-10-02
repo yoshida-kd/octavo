@@ -57,7 +57,8 @@ octavo doctor                                     # everything should read ok
 ```
 
 `octavo setup` adds CRAN's repository so that R is the latest release, and points R at
-Posit Package Manager so packages install as ready-made binaries instead of compiling.
+Posit Package Manager, from which a project's renv installs packages as ready-made binaries
+instead of compiling them.
 
 ### macOS
 
@@ -191,11 +192,18 @@ language a project is *written* in is `lang` in its `octavo.config.py`
 
 ## 2. Your first project
 
+> **In VS Code** you can do all of this without typing a command: the Octavo sidebar offers
+> **New project** in a folder that is not a project yet (where, the language, the parts, the
+> examples — an analysis also gets its environment set up), and its **+** adds manuscripts,
+> analyses, figures and tables later. The commands below are what those buttons run; see
+> [10. VS Code](#10-vs-code).
+
 ### Try the example first
 
 ```bash
 octavo init demo --all --example
 cd demo
+octavo env                    # the project's analysis environment (.venv and renv)
 octavo build --compile        # runs the analysis, then typesets everything to PDF
 ```
 
@@ -272,6 +280,13 @@ A project whose analyses are all in Python gets no renv. In VS Code you do not h
 Run it again after adding a package to `requirements.txt`; after `install.packages()` in R,
 run `renv::snapshot()`. Git keeps the records (`requirements.txt`, `renv.lock`), not the
 installed packages, so a coauthor gets the same environment from the same command.
+
+- `renv::status()` may say "out-of-sync" for packages that are recorded and installed but not
+  used in the code (MASS or boot, which come with R, or ones you stopped using). That is
+  harmless: nothing is missing.
+- Outside a project, Quarto needs knitr and rmarkdown to run an R `.qmd`. `octavo setup` puts
+  them (and `languageserver` for VS Code's R extension) in your own R library;
+  `octavo setup --r-editor` does just that, for instance after removing an old R's packages.
 
 ### Examples are marked as examples
 
@@ -484,6 +499,7 @@ targets: [typst, docx]
 | Key | For | What |
 |---|---|---|
 | `csl` | all | citation style |
+| `japanese_citation_form`, `citations_by_language` | all | Japanese works in the bibliography (§5) |
 | `targets` | all | output formats |
 | `word_limit`, `char_limit`, `abstract_word_limit`, `abstract_char_limit` | papers | submission limits (`octavo check`) |
 | `typst_slides_*` | slides, lecture notes | the look of the decks (§7) |
@@ -649,6 +665,11 @@ author–date articles in 年報政治学 print; neither journal's rules prescri
 follow a journal's own instructions where it has them. `citations_by_language: False` sets the
 whole bibliography in `csl_locale` instead.
 
+The bibliography goes at the end. A `## References` heading as a paper's last section only
+marks its place (whatever is under it is replaced); a heading of that name with a reading list
+under it inside lecture notes is kept as written. To put the bibliography somewhere else, write
+`::: {#refs}` and `:::` there.
+
 `\poscite{key}` writes a possessive citation ("Smith and Taylor's (2003)", 「山田・田中(2020)」);
 the joining of several authors is an approximation of the style's rules, so read it once.
 
@@ -793,7 +814,8 @@ octavo build example-lecture-03 --to typst-slides           # just one session
 Without markers, **each `#` heading is a session**; inside it, `##` is a section and `###` a
 slide (a session with only `##` headings makes each `##` a slide). Give a
 heading an id to fix its deck's name (`# Second session {#second}` →
-`example-lecture-second`); otherwise decks are numbered `-01`, `-02`, … in order.
+`octavo build example-lecture-second`, `example-lecture-slides-second.pdf`); otherwise decks
+are numbered `-01`, `-02`, … in order.
 
 **Marking sessions yourself.** When a session is not one `#` heading, put a marker where each
 session begins; then the markers decide the sessions and headings are free:
@@ -824,7 +846,7 @@ Figures and short prompts: slides only.
 | `.slides-only` | slides, speaker scripts |
 | `.handout-only` | the handout |
 | `.print-only` | anything printed (handout, paper, Word) |
-| `.no-slides` | everything but slides |
+| `.no-slides` | everything but slides and speaker scripts |
 
 **One PDF per session.** To hand out one session at a time:
 
@@ -962,9 +984,10 @@ puts all of this behind buttons:
   an appendix, lecture notes with session markers to make per-session handouts (also remade on
   every save).
 - The preview scrolls to where the cursor is in the manuscript (it can still be scrolled on its own; the ⇅ button in its toolbar, or the setting `octavo.previewFollowCursor`, turns that off).
-- Opening a `.qmd` shows the HTML it last rendered beside it, and reloads it when the analysis runs again. Nothing is rendered by opening or saving it (`octavo.qmdPreview` turns this off).
+- Opening a `.qmd` in an Octavo project shows the HTML it last rendered (`<name>.html` beside it) in the next column, and reloads it when the analysis runs again. Nothing is rendered by opening or saving it. While the Quarto extension's own **Preview** is running, this view closes and stays closed (`octavo.qmdPreview` turns it off altogether).
+- In a project with an R analysis and a `.venv`, the extension stops the Python extension from typing the `.venv` activate command into new terminals (in an R terminal it is an error: `unexpected symbol`). It says so once, with **Undo**; it leaves the setting alone if you have set it yourself.
 - Completion and checks for citations (`@`) and analysis values (`{{`).
-- `.csv` files in `tables/` and `data/` open as editable tables.
+- A `.csv` file in `tables/` or `data/` gets an **Edit as a Table** button in its title bar that opens it as a grid.
 
 It runs `octavo` wherever the folder is: locally, in WSL, or on a server over Remote-SSH.
 
@@ -973,7 +996,7 @@ It runs `octavo` wherever the folder is: locally, in WSL, or on a server over Re
 ## 11. What to check on your own machine
 
 The test suite typesets every format with pandoc and Typst on Linux, macOS and Windows, and
-runs the example analysis through Quarto and R. What it cannot see:
+runs the example analysis through Quarto, in R and in Python. What it cannot see:
 
 - **How citations look in your style** — run `octavo selftest` and read it.
 - **Fonts** — look at your first PDF; `octavo doctor` lists missing fonts.

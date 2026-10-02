@@ -136,12 +136,54 @@ def split_abstract(md: str) -> tuple[str, str]:
     return m.group(1).strip(), md[:m.start()] + md[m.end():]
 
 
+REFERENCES_LINE = re.compile(
+    r'^(#{1,3}) (?:%s)\s*$' % '|'.join(re.escape(h) for h in REFERENCES_HEADS))
+ANY_HEADING = re.compile(r'^(#{1,6})[ \t]')
+
+
+def _placeholder_only(lines: list) -> bool:
+    """参考文献節の中身が「置き場所の印」だけか（空行・HTML コメント・括弧書きの一文）。"""
+    text = re.sub(r'<!--.*?-->', '', '\n'.join(lines), flags=re.S)
+    rest = [ln.strip() for ln in text.split('\n') if ln.strip()]
+    return not rest or (len(rest) == 1 and rest[0][:1] in '(（' and rest[0][-1:] in ')）')
+
+
 def drop_references(md: str) -> str:
-    """原稿末尾の参考文献節を落とす（書誌は .bib から組む）。"""
-    pat = re.compile(r'^#{1,3} (?:%s)\s*$' % '|'.join(re.escape(h) for h in REFERENCES_HEADS),
-                     re.M)
-    m = pat.search(md)
-    return md[:m.start()] if m else md
+    """参考文献節を落とす（書誌は .bib から組み、pandoc が末尾に置く）。
+
+    落とすのは置き場所の印としての節だけ。**本文を消さない**ために:
+    - 文書の最後の節で、見出しの段が上のほう（いちばん浅い段か、その1つ下）なら、
+      そこから最後までを落とす（論文の末尾の `## References`）
+    - 後ろに続き（同じ段か上の段の見出し）があるなら、中身が空か印の一文・コメントだけの
+      ときに限って、その節だけを空行にする（行の数は保つ。回の行範囲がずれない）
+    - それ以外（講義ノートの各回の「### 参考文献」の読書案内など）は本文として残す
+    """
+    lines = md.split('\n')
+    heads = []                       # (行, 段, 参考文献の見出しか)
+    fence = False
+    for i, ln in enumerate(lines):
+        if FENCE_LINE.match(ln):
+            fence = not fence
+            continue
+        if fence:
+            continue
+        m = ANY_HEADING.match(ln)
+        if m:
+            heads.append((i, len(m.group(1)), bool(REFERENCES_LINE.match(ln))))
+    others = [lvl for _, lvl, ref in heads if not ref]
+    top = min(others) if others else 1
+    for k, (i, lvl, ref) in enumerate(heads):
+        if not ref:
+            continue
+        end = next((j for j, l2, _ in heads[k + 1:] if l2 <= lvl), None)
+        if end is None:
+            if lvl <= top + 1:
+                return '\n'.join(lines[:i]) + ('\n' if i else '')
+            continue
+        if _placeholder_only(lines[i + 1:end]):
+            for j in range(i, end):
+                lines[j] = ''
+    return '\n'.join(lines)
 
 
 # ---------------------------------------------------------------- 回ごとに分ける

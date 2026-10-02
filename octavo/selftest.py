@@ -39,7 +39,7 @@ BIB = '''\
 }
 
 @article{yamada2020,
-  author = {山田 太郎 and 田中 花子},
+  author = {山田, 太郎 and 田中, 花子},
   title = {日本語文献の組み方},
   journaltitle = {見本学会誌},
   volume = {12},
@@ -177,9 +177,9 @@ CHECKS = {
         ('the speaker notes are dropped', lambda t: '#octavo-note[' not in t),
     ],
     'typst-notes': [
-        ('the analysis values are filled in',
-         lambda t: '1,523' in t and '{{n_obs}}' not in t),
+        # 台本はスライドの絵（組んだデッキの各ページ）と、その下のノートだけを持つ
         ('the layout template is included', lambda t: '#let octavo = (' in t),
+        ('the slides are placed as pictures', lambda t: '#octavo-script(' in t),
         ('the speaker notes are kept', lambda t: '#octavo-note[' in t),
     ],
     'beamer': [
@@ -198,6 +198,38 @@ CHECKS = {
          lambda t: '図2.1' in t and '表2.1' in t and '(2.1)' in t),
     ],
 }
+
+
+REF_HEADS = ('参考文献', 'References', 'Bibliography', '文献')
+
+
+def readable_citations(cfg, doc, offline: bool) -> tuple:
+    """(本文で引用を含む段落, 文献一覧の項目)。Word の出力を pandoc で文章に戻して読む。"""
+    r = buildmod.build_one(cfg, doc, 'docx', offline=offline)
+    if not r.ok or not r.outputs:
+        raise RuntimeError('; '.join(r.report[-2:]) or 'docx')
+    plain = pandocrun.run('', ['-f', 'docx', '-t', 'plain', '--wrap=none', str(r.outputs[0])],
+                          quiet=True)
+    paras = [' '.join(p.split()) for p in re.split(r'\n\s*\n', plain) if p.strip()]
+    at = max((i for i, p in enumerate(paras) if p in REF_HEADS), default=len(paras))
+    keys = ('Smith', '山田', 'Example Organization')
+    text = [p for p in paras[:at] if any(k in p for k in keys)]
+    return text, paras[at + 1:]
+
+
+def show_citations(cfg, doc, csl: str, offline: bool) -> None:
+    import textwrap
+    print('== ' + t('How the citations read (CSL {csl}, as typeset)', csl=csl))
+    try:
+        text, refs = readable_citations(cfg, doc, offline)
+    except Exception as e:                       # 見せられなくても、検査の結果は出す
+        print('   ' + t('could not show them: {why}', why=e) + '\n')
+        return
+    for head, items in ((t('In the text'), text), (t('Bibliography'), refs)):
+        print(f'   {head}:')
+        for p in items:
+            print(textwrap.fill(p, width=96, initial_indent='     ', subsequent_indent='       '))
+    print()
 
 
 def run(targets=None, csl: str = 'chicago-author-date', keep: bool = False,
@@ -250,13 +282,11 @@ def run(targets=None, csl: str = 'chicago-author-date', keep: bool = False,
             ng += not ok
             print(f'   [{"ok" if ok else "NG"}] {t(label)}')
 
-        # 実物を見せる（ここが本題）
-        for pat, head in ((r'Smith[^\n<]{0,90}', t('citation in the text')),
-                          (r'山田[^\n<]{0,60}', t('Japanese citation')),
-                          (r'Example Organization[^\n<]{0,80}', t('organization as author'))):
-            for s in _sample(text, pat):
-                print(f'      {head}: {s}')
         print(f'   -> {out}  ({out.stat().st_size:,} bytes)\n')
+
+    # 本題: 引用と文献一覧が、組み上がりでどう読めるか。形式ごとのソースの断片ではなく、
+    # Word の出力（pandoc だけで作れる）を文章に戻して、そのまま見せる
+    show_citations(cfg, doc, csl, offline)
 
     if keep:
         print(t('kept: {path}', path=proj))

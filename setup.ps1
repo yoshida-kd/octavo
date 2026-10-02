@@ -195,7 +195,7 @@ if (requireNamespace("renv", quietly = TRUE)) {
         # VS Code の R 拡張機能が使う languageserver を、依存ごと利用者のライブラリに入れる
         # （renv のプロジェクトで毎回「入れますか」と聞かれないように。octavo/envsetup.py の
         # R_EDITOR_SCRIPT と同じ中身）。renv の外（ホーム）で実行する。
-        Say 'languageserver' 'languageserver (VS Code)'
+        Say 'R のパッケージ（knitr・rmarkdown・languageserver）' 'R packages (knitr, rmarkdown, languageserver)'
         $lsfile = Join-Path ([IO.Path]::GetTempPath()) 'octavo-r-editor.R'
         Set-Content -Path $lsfile -Encoding ASCII -Value @'
 lib <- path.expand(Sys.getenv("R_LIBS_USER"))
@@ -203,20 +203,31 @@ dir.create(lib, recursive = TRUE, showWarnings = FALSE)
 repos <- getOption("repos")
 if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
   repos <- c(CRAN = "https://cloud.r-project.org")
+# Ubuntu などで Posit Package Manager を向いているなら、Linux 用のビルド済みを取る（renv が
+# プロジェクトの中でしているのと同じ）。ソースからだと開発用のライブラリ（libuv など）が要る
+os <- if (file.exists("/etc/os-release")) readLines("/etc/os-release", warn = FALSE) else ""
+code <- sub("^VERSION_CODENAME=", "", grep("^VERSION_CODENAME=", os, value = TRUE))
+if (length(code) == 1L && nzchar(code) && grepl("packagemanager.posit.co/cran/", repos[["CRAN"]], fixed = TRUE) &&
+    !grepl("__linux__", repos[["CRAN"]], fixed = TRUE)) {
+  repos[["CRAN"]] <- sub("/cran/", paste0("/cran/__linux__/", code, "/"), repos[["CRAN"]], fixed = TRUE)
+  options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
+    paste(getRversion(), R.version$platform, R.version$arch, R.version$os)))
+}
 # renv の中では R 本体のライブラリ（.Library）と足したライブラリしか見えない。サイトライブラリに
 # ある依存（callr など）も含めて、利用者のライブラリに全部そろえる
 ap <- available.packages(repos = repos)
-deps <- unique(c("languageserver", unlist(tools::package_dependencies(
-  "languageserver", db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
+want <- c("knitr", "rmarkdown", "languageserver")
+deps <- unique(c(want, unlist(tools::package_dependencies(
+  want, db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
 base <- rownames(installed.packages(lib.loc = .Library))
 need <- setdiff(deps, c(base, rownames(installed.packages(lib.loc = lib))))
 if (length(need)) {
   install.packages(need, lib = lib, repos = repos)
 } else {
-  cat("   installed: languageserver\n")
+  cat("   installed: knitr, rmarkdown, languageserver\n")
 }
 .libPaths(lib, include.site = FALSE)   # renv と同じ見え方（R 本体 + これだけ）で読めるか
-ok <- requireNamespace("languageserver", quietly = TRUE)
+ok <- all(vapply(want, requireNamespace, logical(1), quietly = TRUE))
 cat("library: ", normalizePath(lib, winslash = "/", mustWork = FALSE), "\n", sep = "")
 quit(save = "no", status = if (ok) 0 else 1)
 '@

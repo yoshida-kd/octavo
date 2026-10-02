@@ -93,7 +93,8 @@ heading an id:
 # Session 2: Government {#government}
 ```
 
-The second deck is then `<name>-government`.
+The second deck is then `<name>-government` (`octavo build <name>-government`; its PDF is
+`<name>-slides-government.pdf`).
 
 ### With session markers
 
@@ -195,7 +196,7 @@ A big figure or one short question.
 |---|---|
 | `.handout-only` | the A4 handout only |
 | `.slides-only` | the slides and the speaker script only |
-| `.no-slides` | everything but the slides |
+| `.no-slides` | everything but the slides and the speaker script |
 
 (`.slide-only` is read as `.slides-only`.) Inside a list item, indent the fence to the item's
 text, and **leave a blank line before every opening `:::`** — without it pandoc does not see a
@@ -362,10 +363,10 @@ reported when you build and has no effect).
 | Setting | Line at the top | Default | What it changes |
 |---|---|---|---|
 | Number of the first section | `first_section: 0` | 1 | 0 numbers a guidance session "0" (its figures "Figure 0.1") |
-| New page at | `handout_pagebreak: section` | each session | `section` each `#`, `none` never |
+| New page at | `handout_pagebreak: section` | each session | `section` each `#`; `none` only at session markers |
 | Body font | `handout_font: …` | BIZ UDGothic | the A4 handout's text |
 | Font size | `handout_fontsize: 10.5pt` | 11pt | the A4 handout's text |
-| Date format | `date_format: "%Y-%m-%d"` | April 10, 2026 | the date on the cover |
+| Date format | `date_format: "%Y-%m-%d"` | April 10, 2026 | the date on the cover and the title slides |
 | Aspect ratio | `typst_slides_aspect: 4-3` | 16:9 | the slides |
 | Accent colour | `typst_slides_accent: none` | navy | headings and other accents on the slides; `none` for black only |
 | Section name in the top-left corner | `typst_slides_running_header: false` | on | the slides' top-left corner |

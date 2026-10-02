@@ -21,6 +21,7 @@ import { PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
 import { showProjectForm } from './projectForm';
 import { QmdPreview } from './qmdPreview';
+import { quietVenvActivation } from './venvActivation';
 import { AddKind, addToProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
 import {
@@ -78,6 +79,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const envFor = async (cwd: string): Promise<boolean> => {
         const ok = await setup.setupProjectEnvIfReady(cwd);
         tree.refreshAnalysis();
+        void quietVenvActivation(context, (line) => output.appendLine(line));
         return ok;
     };
 
@@ -528,6 +530,7 @@ export function activate(context: vscode.ExtensionContext): void {
             void cache.refresh(true);
             void valuesCache.refresh(true);
             syncHasConfig();
+            void quietVenvActivation(context, (line) => output.appendLine(line));
         }
     }));
 
@@ -540,6 +543,7 @@ export function activate(context: vscode.ExtensionContext): void {
         if (u) {
             void cache.refresh();
             void valuesCache.refresh();
+            void quietVenvActivation(context, (line) => output.appendLine(line));
         }
     });
 }

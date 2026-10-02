@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""BibTeX/BibLaTeX（Zotero の書き出し）を読む・検査する。
+"""BibTeX/BibLaTeX（Zotero からエクスポートしたもの）を読む・検査する。
 
 **このツールは .bib を書き換えない。**正本は書誌管理ソフト側。直したい項目は
-Zotero で直して書き出し直すのが原則。例外は `octavo bib clean`（別名で軽量版を
+Zotero で直してエクスポートし直すのが原則。例外は `octavo bib clean`（別名で軽量版を
 書き出すだけで、元のファイルには触らない）。
 """
 from __future__ import annotations
@@ -156,6 +156,16 @@ def problems(entries: dict, keys, accepted: dict | None = None) -> tuple:
             first = re.split(r'\s+and\s+', au)[0]
             if ',' in first and first.split(',')[0].strip().lower() in CORP_WORDS:
                 bad.append((k, 'organization name split into surname and given name', first))
+            # BibTeX は読点のない「山田 太郎」の最後の語を姓と読む（「太郎・花子 (2020)」になる）。
+            # 日本語の名前は「山田, 太郎」と書く（Zotero の2欄の名前はそう書き出される）
+            for name in re.split(r'\s+and\s+', au):
+                name = name.strip()
+                if CJK.search(name) and ',' not in name and not name.startswith('{') \
+                        and len(name.split()) == 2:
+                    fam, given = name.split()
+                    bad.append((k, 'Japanese name without a comma (the given name is read as the '
+                                   'family name)', f'{name} -> {fam}, {given}'))
+                    break
         if e['type'] in ('article', 'article-journal') and not e.get('pages') \
                 and not e.get('pubstate') and not e.get('doi'):
             bad.append((k, 'no page range or DOI', (e.get('journaltitle') or

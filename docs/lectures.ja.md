@@ -7,7 +7,7 @@
 | できるもの | 中身 | 置き場所 |
 |---|---|---|
 | A4 プリント | 全回を1冊に。表紙・目次つき | `build/typst/<名前>.pdf` |
-| 回ごとのスライド | 1回分ずつ。表紙はその回の題と日付 | `build/typst-slides/<名前>-slides-<回>.pdf` |
+| 回ごとのスライド | 1回分ずつ。タイトルスライドはその回の題と日付 | `build/typst-slides/<名前>-slides-<回>.pdf` |
 | 回ごとの配布資料 | A4 プリントを回ごとに切り出したもの。ページ番号は全体のまま | `build/handouts/<名前>-<回>.pdf` |
 | 台本（使うときだけ） | スライドを A4 に並べ、下に話すことのメモ | `build/typst-notes/<名前>-notes-<回>.pdf` |
 
@@ -89,7 +89,8 @@ Text for both the handout and the slides.
 # Session 2: Government {#government}
 ```
 
-これで2回目のスライドは `<名前>-government` になる。
+これで2回目のスライドは `<名前>-government` になる（`octavo build <名前>-government`。PDF は
+`<名前>-slides-government.pdf`）。
 
 ### 区切りを書いて分ける
 
@@ -112,9 +113,9 @@ Text for both the handout and the slides.
 ```
 
 - `#week3` が回の名前（スライドは `<名前>-week3`）。
-- `date`（と `subtitle`）はその回のスライドの表紙に出る。題は回の最初の見出しで、
-  スライドでは表紙に移る。見出しの段は区切りなしと同じ（`##` 節・`###` 1枚）。
-- 区切りに `title="…"` を書くと、それが表紙の題になり、回の最初の見出しも節としてスライドに
+- `date`（と `subtitle`）はその回のタイトルスライドに出る。題は回の最初の見出しで、
+  スライドではタイトルスライドに移る。見出しの段は区切りなしと同じ（`##` 節・`###` 1枚）。
+- 区切りに `title="…"` を書くと、それがタイトルスライドの題になり、回の最初の見出しも節としてスライドに
   残る。そのときも1枚は `###` のまま。どの段が1枚になるかは講義ノート全体で決まるので、区切りや
   題を足しても変わらない。
 - 回の頭は A4 プリントでも必ず新しいページから始まる（回ごとの配布資料はそこで切る）。
@@ -186,7 +187,7 @@ A big figure or one short question.
 |---|---|
 | `.handout-only` | A4 プリントだけ |
 | `.slides-only` | スライドと台本だけ |
-| `.no-slides` | スライド以外 |
+| `.no-slides` | スライドと台本以外 |
 
 （`.slide-only` は `.slides-only` と同じに読む。）箇条書きの中では囲みの行を項目の本文の桁に
 そろえ、**開きの `:::` の前には必ず空行を入れる**。空行がないと pandoc は囲みと読まず、`:::` が
@@ -344,10 +345,10 @@ The number of civil servants is small.[^count] A short note can go inline.^[Like
 | 設定 | 冒頭に書く行 | 既定 | 何が変わるか |
 |---|---|---|---|
 | 最初の節の番号 | `first_section: 0` | 1 | 0 にするとガイダンスが「0」（図は「図0.1」）になる |
-| 改ページする位置 | `handout_pagebreak: section` | 回ごと | `section` で `#` ごと、`none` でしない |
+| 改ページする位置 | `handout_pagebreak: section` | 回ごと | `section` で `#` ごと、`none` で回の区切りのところだけ |
 | 本文の書体 | `handout_font: …` | BIZ UDゴシック | A4 プリントの本文 |
 | 文字の大きさ | `handout_fontsize: 10.5pt` | 11pt | A4 プリントの本文 |
-| 日付の書式 | `date_format: "%Y-%m-%d"` | 2026年4月10日 | 表紙の日付 |
+| 日付の書式 | `date_format: "%Y-%m-%d"` | 2026年4月10日 | 表紙とタイトルスライドの日付 |
 | 縦横比 | `typst_slides_aspect: 4-3` | 16:9 | スライド |
 | アクセントカラー | `typst_slides_accent: none` | 紺 | スライドの見出しなどの色。`none` で黒一色 |
 | 左上の節名 | `typst_slides_running_header: false` | 出す | スライドの左上 |

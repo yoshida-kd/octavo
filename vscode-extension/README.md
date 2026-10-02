@@ -14,8 +14,8 @@ from your Quarto analysis instead of typed by hand.
 
 ![A paper page and a slide built by Octavo from its example project](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/showcase-en.png)
 
-- **Live PDF preview** — the manuscript on the left, the PDF on the right.
-  Lecture notes get a third column: the slide deck (or the speaker script)
+- **Live PDF preview** — the manuscript on the left, the PDF on the right,
+  rebuilt on every save and scrolled to where your cursor is. Lecture notes get a third column: the slide deck (or the speaker script)
   for the session the cursor is in.
 - **Octavo in the activity bar** — your manuscripts (each with its own
   settings), the analysis, and the tools in the order you use them.
@@ -138,8 +138,8 @@ underlines can never disagree with what the command says.
 Octavo runs on Linux and macOS (the extension calls `octavo`, and looks in
 `~/.local/bin` — where the setup puts it — even when that is not on VS Code's
 `PATH`; an `octavo` kept elsewhere can be named in full in `octavo.command`).
-Windows comes after them — it works, with less attention. With VS Code on
-Windows:
+Development and testing put Linux first, then macOS, then Windows. Octavo works on
+Windows too, and WSL is recommended there (as in the guide). With VS Code on Windows:
 
 1. **Open the folder through Remote-WSL** (recommended). The extension then
    runs inside WSL and everything is the Linux path.

@@ -228,5 +228,8 @@
   "Octavo: VS Code's R extension looks for the languageserver package inside each renv project, so it keeps asking to install it. Install it once in your own R library ({0}) and let the R extension use it?": "Octavo: VS Code の R 拡張機能は languageserver パッケージを renv のプロジェクトごとに探すため、何度も「入れますか」と聞いてきます。自分の R のライブラリ（{0}）に一度だけ入れて、R 拡張機能がそれを使うようにしますか？",
   "Octavo: installing languageserver for the R extension": "Octavo: R 拡張機能用の languageserver を入れています",
   "Octavo: could not install languageserver.": "Octavo: languageserver を入れられませんでした。",
-  "Octavo: done. Reopen an R file (or reload the window) and the R extension stops asking.": "Octavo: 済みました。R のファイルを開き直す（かウィンドウを再読み込みする）と、R 拡張機能はもう聞いてきません。"
+  "Octavo: done. Reopen an R file (or reload the window) and the R extension stops asking.": "Octavo: 済みました。R のファイルを開き直す（かウィンドウを再読み込みする）と、R 拡張機能はもう聞いてきません。",
+  "Undo": "元に戻す",
+  "OK": "OK",
+  "Octavo: in this project, terminals no longer run the .venv activate command (the Python extension typed it into R terminals too, where R reports an error). Octavo uses .venv by itself.": "Octavo: このプロジェクトでは、ターミナルで .venv の activate を実行しないようにしました（Python 拡張機能が R のターミナルにも打ち込み、R がエラーを出していたため）。Octavo は .venv を自分で使います。"
 }

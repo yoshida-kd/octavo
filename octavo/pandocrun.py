@@ -83,6 +83,17 @@ def input_format(east_asian: bool, extras: tuple = ()) -> str:
     return 'markdown+' + '+'.join(dict.fromkeys(ext))
 
 
+# 意図して出している警告。日本語の文書の LaTeX で babel の行が壊れないよう、テンプレートの
+# lang 変数だけを空にしている（-V lang=）ので、pandoc は毎回これを言う。害はない
+EXPECTED_WARNINGS = re.compile(r"\[WARNING\] Invalid 'lang' value ''\.\n\s*Use an IETF language tag[^\n]*\n?")
+
+
+def _show_warnings(stderr: str) -> None:
+    rest = EXPECTED_WARNINGS.sub('', stderr or '')
+    for line in rest.strip().split('\n') if rest.strip() else ():
+        print(f'  pandoc: {line}', file=sys.stderr)
+
+
 def run(md: str, args: list, cwd: Path | None = None,
         quiet: bool = False) -> str:
     """pandoc を実行して標準出力を返す。失敗したら PandocError。"""
@@ -92,9 +103,8 @@ def run(md: str, args: list, cwd: Path | None = None,
     if r.returncode != 0:
         raise PandocError(t('pandoc failed:') + '\n  ' + ' '.join(cmd)
                           + '\n' + r.stderr)
-    if r.stderr.strip() and not quiet:
-        for line in r.stderr.strip().split('\n'):
-            print(f'  pandoc: {line}', file=sys.stderr)
+    if not quiet:
+        _show_warnings(r.stderr)
     return r.stdout
 
 
@@ -108,9 +118,8 @@ def run_to_file(md: str, args: list, out: Path, cwd: Path | None = None,
     if r.returncode != 0:
         raise PandocError(t('pandoc failed:') + '\n  ' + ' '.join(cmd)
                           + '\n' + r.stderr)
-    if r.stderr.strip() and not quiet:
-        for line in r.stderr.strip().split('\n'):
-            print(f'  pandoc: {line}', file=sys.stderr)
+    if not quiet:
+        _show_warnings(r.stderr)
 
 
 def citeproc_args(bib: Path, csl: Path | None, locale: str | None,

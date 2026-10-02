@@ -357,7 +357,8 @@ if [ "$WITH_R" = 1 ]; then
   fi
   RPKGS=(r-base r-base-dev)
   for p in libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev \
-           libharfbuzz-dev libfribidi-dev libfreetype-dev libpng-dev libtiff-dev libjpeg-dev; do
+           libharfbuzz-dev libfribidi-dev libfreetype-dev libpng-dev libtiff-dev libjpeg-dev \
+           libuv1-dev; do
     apt-cache show "$p" >/dev/null 2>&1 && RPKGS+=("$p")
   done
   info "${RPKGS[*]}"
@@ -401,7 +402,8 @@ if [ "$WITH_R" = 1 ] && command -v Rscript >/dev/null; then
         install.packages("renv", lib = lib, repos = repos)
       }' || msg "renv を入れられなかった（後で octavo env が入れる）" "could not install renv (octavo env will try again)"
   fi
-  # VS Code の R 拡張機能が使う languageserver を、依存ごと利用者のライブラリに入れる。renv の
+  # プロジェクトの外で使う R のパッケージ（Quarto 用の knitr・rmarkdown、VS Code の R 拡張機能が
+  # 使う languageserver）を、依存ごと利用者のライブラリに入れる。renv の
   # プロジェクトではプロジェクト専用のライブラリしか見えず、プロジェクトごとに「入れますか」と
   # 聞かれ続けるため（拡張機能が r.libPaths にこのライブラリを足す）。octavo/envsetup.py の
   # R_EDITOR_SCRIPT と同じ中身。renv の外で実行する（ホームで）。
@@ -410,26 +412,37 @@ dir.create(lib, recursive = TRUE, showWarnings = FALSE)
 repos <- getOption("repos")
 if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
   repos <- c(CRAN = "https://cloud.r-project.org")
+# Ubuntu などで Posit Package Manager を向いているなら、Linux 用のビルド済みを取る（renv が
+# プロジェクトの中でしているのと同じ）。ソースからだと開発用のライブラリ（libuv など）が要る
+os <- if (file.exists("/etc/os-release")) readLines("/etc/os-release", warn = FALSE) else ""
+code <- sub("^VERSION_CODENAME=", "", grep("^VERSION_CODENAME=", os, value = TRUE))
+if (length(code) == 1L && nzchar(code) && grepl("packagemanager.posit.co/cran/", repos[["CRAN"]], fixed = TRUE) &&
+    !grepl("__linux__", repos[["CRAN"]], fixed = TRUE)) {
+  repos[["CRAN"]] <- sub("/cran/", paste0("/cran/__linux__/", code, "/"), repos[["CRAN"]], fixed = TRUE)
+  options(HTTPUserAgent = sprintf("R/%s R (%s)", getRversion(),
+    paste(getRversion(), R.version$platform, R.version$arch, R.version$os)))
+}
 # renv の中では R 本体のライブラリ（.Library）と足したライブラリしか見えない。サイトライブラリに
 # ある依存（callr など）も含めて、利用者のライブラリに全部そろえる
 ap <- available.packages(repos = repos)
-deps <- unique(c("languageserver", unlist(tools::package_dependencies(
-  "languageserver", db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
+want <- c("knitr", "rmarkdown", "languageserver")
+deps <- unique(c(want, unlist(tools::package_dependencies(
+  want, db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
 base <- rownames(installed.packages(lib.loc = .Library))
 need <- setdiff(deps, c(base, rownames(installed.packages(lib.loc = lib))))
 if (length(need)) {
   install.packages(need, lib = lib, repos = repos)
 } else {
-  cat("   installed: languageserver\n")
+  cat("   installed: knitr, rmarkdown, languageserver\n")
 }
 .libPaths(lib, include.site = FALSE)   # renv と同じ見え方（R 本体 + これだけ）で読めるか
-ok <- requireNamespace("languageserver", quietly = TRUE)
+ok <- all(vapply(want, requireNamespace, logical(1), quietly = TRUE))
 cat("library: ", normalizePath(lib, winslash = "/", mustWork = FALSE), "\n", sep = "")
 quit(save = "no", status = if (ok) 0 else 1)'
   if [ "$DRY" = 0 ]; then
-    say "languageserver" "languageserver (VS Code)"
+    say "R のパッケージ（knitr・rmarkdown・languageserver）" "R packages (knitr, rmarkdown, languageserver)"
     ( cd "$HOME" && Rscript -e "$R_EDITOR" ) \
-      || msg "languageserver を入れられなかった（後で octavo setup --r-editor）" "could not install languageserver (try octavo setup --r-editor later)"
+      || msg "R のパッケージを入れられなかった（後で octavo setup --r-editor）" "could not install the R packages (try octavo setup --r-editor later)"
   fi
   msg "R: $(Rscript --version 2>&1 | head -1)" "R: $(Rscript --version 2>&1 | head -1)"
 

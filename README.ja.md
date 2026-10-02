@@ -19,7 +19,7 @@
 見本のプロジェクト（`octavo init demo --all --example`）から組んだ論文の1ページと
 スライド。係数・表・図は分析から取り込まれ、式・表・図の番号と参考文献は組版のときに自動で付く。
 
-- **数値を手で書かない。** 分析で登録し（`ov_value("n_obs", nrow(d))`）、原稿では
+- **数値を手入力しない。** 分析で登録し（`ov_value("n_obs", nrow(d))`）、原稿では
   名前で呼ぶ（`{{n_obs}}`）。分析を再実行すれば、すべての文書の数値がまとめて更新される。
   本文に手入力された数値や、仮の値のままの数値は `octavo check` が知らせる。
 - **R でも Python でも。** 分析は Quarto の `.qmd` で、R でも Python でも書ける。どちらにも
@@ -33,11 +33,12 @@
 - **手で作る表も表の形で編集**: `octavo new table` で置いた CSV を VS Code 拡張が表の
   形で編集する（Excel でもよい）。分析の表と同じように使える。
 - **投稿から採択後まで**: 分量の上限、匿名審査、投稿用の zip、共著者が Word で入れた
-  変更履歴の読み取り、投稿後に変わった数値の一覧、再現用パッケージ。
+  変更履歴の読み取り、投稿した版から変わった数値の一覧、再現用パッケージ。
 - **VS Code 拡張**: カーソルに合わせて動く PDF のライブプレビュー、上の機能を操作できる
   サイドバー、ボタン1つのセットアップ。
-- **AI アシスタントと使える**: プロジェクトごとの約束事を `AGENTS.md` に置く。Claude Code・
-  GitHub Copilot・Codex・Antigravity のどれもが読む。
+- **AI アシスタントと使える**: プロジェクトごとの約束事（結果を原稿に手入力しない、`data/raw`
+  は書き換えない、など）を `AGENTS.md` に置く。Claude Code・GitHub Copilot・Codex・Antigravity
+  のどれもが読むので、AI アシスタントは最初からその約束を知っている。
 - Linux・macOS・Windows、英語と日本語。
 
 ## インストール
@@ -57,11 +58,22 @@ octavo doctor                                     # 足りないものを報告�
 
 ## 始め方
 
-まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:
+**VS Code なら**:
+
+1. フォルダを開き、アクティビティバーの Octavo のアイコンを押す。まだプロジェクトでない
+   フォルダなら「**新しいプロジェクト**」が出るので、場所・言語・最初に置くもの（R か Python
+   の分析、論文、スライド、講義ノート）と、見本で埋めるかを選ぶ。分析を選ぶと、続けてその
+   環境まで整う。
+2. 原稿を開き、エディタ右上の **PDF** のボタンを押す。横に PDF が出て、保存のたびに組み直され、
+   カーソルに合わせて動く。
+3. あとは Octavo のサイドバーの上の **+** から追加する。
+
+**ターミナルなら**、まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:
 
 ```bash
 octavo init demo --all --example
 cd demo
+octavo env                    # このプロジェクトの分析の環境（.venv と renv）
 octavo build --compile        # 分析を実行してから、全部を PDF まで組む
 ```
 
@@ -80,6 +92,11 @@ octavo check                  # 投稿する前に
 ```r
 ov_value("n_obs", nrow(d))
 ov_figure(p, "trend")
+```
+
+```python
+ov_value("n_obs", len(d))
+ov_figure(fig, "trend")
 ```
 
 ```markdown
@@ -106,6 +123,6 @@ The sample has {{n_obs}} cases (@fig-trend).
 
 ## 貢献とライセンス
 
-Issue や Pull Request を歓迎する。
-[CONTRIBUTING.md](https://github.com/yoshida-kd/octavo/blob/main/CONTRIBUTING.md) を見る。
+Issue や Pull Request を歓迎する。詳しくは
+[CONTRIBUTING.md](https://github.com/yoshida-kd/octavo/blob/main/CONTRIBUTING.md) を参照。
 MIT ライセンス。

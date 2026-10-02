@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Zotero から .bib を引いてくる。
 
-Zotero が動いている機械で HTTP を叩くだけ。手で「右クリック → 書き出し」を
+Zotero が動いている機械で HTTP を叩くだけ。手で「右クリック → エクスポート」を
 する代わりになる。使える口は2つあり、上から順に試す。
 
   1. Better BibTeX（BBT）の口   http://127.0.0.1:23119/better-bibtex/…
@@ -13,7 +13,7 @@ Zotero が動いている機械で HTTP を叩くだけ。手で「右クリッ�
 listen しないので、WSL2 からは（ミラーモードでなければ）届かない。その場合は
 WSL2 のネットワークモードを mirrored にするか（`.wslconfig` の
 `networkingMode=mirrored`、Windows 11 22H2+）、Zotero 側で「右クリック →
-ライブラリを書き出す」して `.bib` を手で `bib_file` の場所に置くこと。
+ライブラリをエクスポート」して `.bib` を手で `bib_file` の場所に置くこと。
 """
 from __future__ import annotations
 

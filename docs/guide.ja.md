@@ -14,7 +14,7 @@ Quarto の分析から入る。この手引きは使い方の全体で、短い�
 
 ## 1. インストール
 
-Octavo 本体のほかに、いくつかの道具を使う: **pandoc**（変換）、**Typst**（PDF に組む）、
+Octavo 本体のほかに、いくつかのツールを使う: **pandoc**（変換）、**Typst**（PDF に組む）、
 **Quarto** と **R**（分析）、**書体**、**uv**（`octavo` コマンドを入れる）。セットアップを
 1回すれば全部入る。使っている環境を選ぶ:
 
@@ -40,7 +40,7 @@ Octavo は Ubuntu 24.04 で確かめている。Debian やほかの版の Ubuntu
    （**Remote-SSH: Connect to Host…**）。以下はすべてサーバーの上で行われる。
 2. **Octavo** 拡張機能を入れる（拡張機能の画面で「Octavo」を検索。発行元は yoshida-kd）。
    Remote-SSH でつないでいるときは、**Install in SSH: …** を押してサーバー側に入れる。
-3. フォルダーを開く。拡張機能が道具の有無を確かめ、**セットアップ**を勧めてくるので押す。
+3. フォルダーを開く。拡張機能がツールの有無を確かめ、**セットアップ**を勧めてくるので押す。
    ターミナルが開き、パスワード（`sudo` 用）を1回聞いてから全部を入れる。初回は時間が
    かかる（大きいのは R と書体）。
 4. 終わると拡張機能がもう一度確かめる。何も言われなければ完了。
@@ -55,8 +55,9 @@ octavo setup                                      # pandoc・Typst・Quarto・�
 octavo doctor                                     # すべて ok になっていれば完了
 ```
 
-`octavo setup` は、R が最新版になるよう CRAN の配布元を登録し、R のパッケージが
-コンパイルなしの出来合い（Posit Package Manager）で入るように設定する。
+`octavo setup` は、R が最新版になるよう CRAN の配布元を登録し、R のパッケージの取得先を
+Posit Package Manager にする。プロジェクトの renv は、そこからコンパイルなしの出来合いで
+パッケージを入れる。
 
 ### macOS
 
@@ -126,7 +127,7 @@ Windows 11 と最近の Windows 10 に入っている（`winget` が見つから
 
 **VS Code で:** [VS Code](https://code.visualstudio.com/) と **Octavo** 拡張機能を入れ、
 フォルダーを開いて**セットアップ**を押す。WSL のない PC では、拡張機能は Windows の
-道具を使う。終わったら、新しいコマンドが見えるように VS Code を起動し直す。
+ツールを使う。終わったら、新しいコマンドが見えるように VS Code を起動し直す。
 
 **ターミナルで:** PowerShell を（管理者でなく）開き、次を実行する:
 
@@ -158,7 +159,7 @@ octavo doctor       # 何が入っているか。足りないものには入れ�
 octavo selftest     # 小さな見本を組み、引用が実際にどう組まれたかを表示する
 ```
 
-`octavo doctor` は道具ごとに ok・不足・注意（あるとよいもの）を出す。`octavo selftest` は、
+`octavo doctor` はツールごとに ok・不足・注意（あるとよいもの）を出す。`octavo selftest` は、
 英語と日本語の文献・表・図・相互参照を含む見本を一時フォルダーで組み、引用が実際にどう
 組まれたかを表示する。機械ごとに1回実行して、目で確かめる。
 
@@ -166,7 +167,7 @@ octavo selftest     # 小さな見本を組み、引用が実際にどう組ま�
 
 ```bash
 uv tool upgrade octavo-kit    # 最新の octavo
-octavo setup                  # それが使う道具（何度実行してもよい。入っているものは飛ばす）
+octavo setup                  # それが使うツール（何度実行してもよい。入っているものは飛ばす）
 ```
 
 VS Code では、拡張機能を更新し、Octavo のサイドバーの「**ツール**」→「**ツールを
@@ -190,11 +191,17 @@ VS Code の表示言語に従う。
 
 ## 2. 最初のプロジェクト
 
+> **VS Code なら**、ここに書いたことはコマンドを打たずにできる。まだプロジェクトでないフォルダ
+> では Octavo のサイドバーが「**新しいプロジェクト**」を出す（場所・言語・最初に置くもの・見本。
+> 分析を選ぶと環境まで整える）。原稿・分析・図・表は、あとからサイドバーの **+** で追加する。
+> 下のコマンドは、そのボタンが実行しているものである。[10. VS Code](#10-vs-code) も参照。
+
 ### まず見本を動かす
 
 ```bash
 octavo init demo --all --example
 cd demo
+octavo env                    # このプロジェクトの分析の環境（.venv と renv）
 octavo build --compile        # 分析を実行してから、全部を PDF まで組む
 ```
 
@@ -257,7 +264,7 @@ study/
 
 ### 分析の環境
 
-R や Quarto などの道具は機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
+R や Quarto などのツールは機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
 
 ```bash
 octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmarkdown を入れる
@@ -269,7 +276,13 @@ octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmark
 `renv::snapshot()` を実行する。git に入るのは記録（`requirements.txt`・`renv.lock`）だけで、
 共著者は同じコマンドで同じ環境を作れる。
 
-### 見本は見本と分かるようにしてある
+- `renv::status()` が「out-of-sync」と言っても、それがコードで使っていないパッケージ（R に付いて
+  くる MASS や boot、使わなくなったもの）だけなら無害。足りないものはない。
+- プロジェクトの外で Quarto が R の `.qmd` を組むには、knitr と rmarkdown が要る。`octavo setup`
+  がそれらを（VS Code の R 拡張機能用の `languageserver` も）自分の R のライブラリに入れる。
+  古い R のパッケージを消したあとなどは、`octavo setup --r-editor` でそれだけを入れ直せる。
+
+### 見本の見分け方
 
 `--example` が書くものには印がある。`octavo:example` のコメント、値の `_placeholder`、枠と ×
 だけの図。`octavo check` が残りを数える。中身を置き換えたら印も消す。**仮の値は
@@ -471,6 +484,7 @@ targets: [typst, docx]
 | キー | 対象 | 何か |
 |---|---|---|
 | `csl` | すべて | 引用の書式 |
+| `japanese_citation_form`・`citations_by_language` | すべて | 日本語の文献の組み方（§5） |
 | `targets` | すべて | 出力形式 |
 | `word_limit`・`char_limit`・`abstract_word_limit`・`abstract_char_limit` | 論文 | 投稿規定の上限（`octavo check`） |
 | `typst_slides_*` | スライド・講義ノート | スライドの体裁（§7） |
@@ -551,7 +565,7 @@ octavo values --diff         # 前回の実行で本文のどの数値が変わ�
 - 同じことを `.qmd` の冒頭の `octavo:` の下に書いてもよい。設定の `analysis/*.qmd` は
   そのままにできる: `manual: true`（`octavo analysis run` のときだけ実行）と `deps`（ほかに
   見張るファイル）。設定にその `.qmd` を個別に書いてあれば、そちらが優先。
-- **原データをネットから取ってくる処理**（API・ダウンロード・取ってくる R パッケージ）は、
+- **原データをネットから取得する処理**（API、ダウンロード、データを取得する R パッケージ）は、
   手で実行する別の `.qmd` にする: `analysis/00-fetch-<取得元>.qmd` に `manual: true`。
   `data/raw/` にもうあるファイルは上書きせずに止まるようにし、取得元と取得日を
   `data/raw/README.md` に書く（`data/raw/` を git に入れないなら、残る記録はそれだけ）。
@@ -598,12 +612,12 @@ Octavo はファイルを読むだけなので、Julia などの `.qmd` でも�
 ## 5. 文献
 
 文献管理ソフト（Zotero など）から BibTeX か BibLaTeX で `literature.bib` にエクスポート
-する。Zotero なら Better BibTeX の「Keep updated」で自動的に書き出すと、ファイルが最新に
+する。Zotero なら Better BibTeX の「Keep updated」で自動的にエクスポートすると、ファイルが最新に
 保たれ、キーも変わらない。**Octavo は `.bib` を書き換えない。**
 
 ```bash
 octavo checkbib           # 本文の引用キーが .bib にあるか、.bib に問題がないか
-octavo csl get apa        # 投稿先の書式を取ってくる
+octavo csl get apa        # 投稿先の書式を取得する
 ```
 
 書式は `octavo.config.py` の1行（`'csl': 'apa'`）で、全部の形式に効く。スタイルの ID は
@@ -632,6 +646,10 @@ Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." 
 著者・年方式の論文に見られる形にならった。どちらの雑誌も投稿規程で文献の書き方は決めて
 いないので、投稿先に指示があればそれに従う。`citations_by_language: False` にすると、書誌全体を
 `csl_locale` の言語で組む。
+
+文献の一覧は最後に置かれる。論文の最後の節の `## 参考文献` は、その置き場所の印にすぎない
+（下に書いたものは一覧に置き換わる）。講義ノートの中で読書案内を並べた同じ名前の見出しは、
+書いたとおりに残る。一覧を別の場所に置くには、そこに `::: {#refs}` と `:::` を書く。
 
 `\poscite{key}` は所有格の引用（「山田・田中(2020)」「Smith and Taylor's (2003)」）。
 著者が多いときのつなぎ方は書式の決まりの近似なので、1度出力を確かめる。
@@ -768,7 +786,7 @@ octavo build example-lecture-03 --to typst-slides           # 1回分だけ
 ```
 
 区切りを書いていなければ、**`#` 見出しが1回分**で、その中の `##` が節、`###` がスライド
-1枚（回の中が `##` だけなら `##` が1枚）。デッキの名前を固定したい回は見出しに id を付ける（`# 第2回 {#second}` → `example-lecture-second`）。
+1枚（回の中が `##` だけなら `##` が1枚）。デッキの名前を固定したい回は見出しに id を付ける（`# 第2回 {#second}` → `octavo build example-lecture-second`、`example-lecture-slides-second.pdf`）。
 付けなければ出てきた順に `-01`, `-02`, …。
 
 **回の区切りを自分で書く。**1回が `#` 1つに収まらないときは、各回の頭に区切りを書く。
@@ -800,7 +818,7 @@ Figures and short prompts: slides only.
 | `.slides-only` | スライド・台本 |
 | `.handout-only` | A4 プリント |
 | `.print-only` | 紙に出るもの（プリント・論文・Word） |
-| `.no-slides` | スライド以外 |
+| `.no-slides` | スライドと台本以外 |
 
 **回ごとの PDF。**1回分ずつ配るなら:
 
@@ -899,7 +917,7 @@ octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--e
 octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]
 octavo env                                     このプロジェクトの .venv と renv
-octavo setup [--with-tex] [--check] [--r-editor]            道具を入れる・更新する
+octavo setup [--with-tex] [--check] [--r-editor]            ツールを入れる・更新する
 octavo doctor                                  何が入っているか
 octavo selftest                                見本を最後まで組んでみる
 octavo reference-docx [out.docx]               直して使う Word のスタイルのファイル
@@ -925,7 +943,7 @@ octavo targets                                 出力形式の一覧
 [Octavo 拡張機能](https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo)を
 入れると、ここまでのことがボタンでできる:
 
-- **セットアップ**で道具を入れる（§1）。サイドバーの「**ツール**」から、分析環境の準備・
+- **セットアップ**でツールを入れる（§1）。サイドバーの「**ツール**」から、分析環境の準備・
   分析の実行・検査もできる。
 - **プレビュー**: 原稿の隣に PDF を出し、保存のたびに組み直す。講義ノートなら3列目に、
   カーソルのある回のスライド（か台本）が出る。文字を選べ、リンクをたどれ、☰ でしおりを開ける。
@@ -934,9 +952,10 @@ octavo targets                                 出力形式の一覧
 - サイドバーには原稿（とその設定）・分析・ツールが並ぶ。論文を開くと付録を足せ、
   回の区切りのある講義ノートを開くと回ごとの配布資料を作れる（保存のたびにも作り直される）。
 - プレビューは、原稿のカーソルの位置までスクロールする（プレビューだけを自分でスクロールすることもできる。ツールバーの ⇅ ボタンか、設定 `octavo.previewFollowCursor` で止められる）。
-- `.qmd` を開くと、最後に出力された HTML を横に出し、分析を実行し直すと読み直す。開く・保存するだけでは何も出力しない（設定 `octavo.qmdPreview` で止められる）。
+- Octavo のプロジェクトで `.qmd` を開くと、最後に出力された HTML（同じフォルダの `<名前>.html`）を隣の列に出し、分析を実行し直すと読み直す。開く・保存するだけでは何も出力しない。Quarto 拡張機能の **Preview** を動かしているあいだは、こちらは閉じて出さない（設定 `octavo.qmdPreview` で全部止められる）。
+- R の分析と `.venv` の両方があるプロジェクトでは、Python 拡張機能が新しいターミナルに `.venv` の activate を打ち込まないようにする（R のターミナルでは `unexpected symbol` のエラーになるため）。一度だけ知らせ、**元に戻す**こともできる。自分でその設定を書いていれば触らない。
 - 引用（`@`）と分析の値（`{{`）の補完と検査。
-- `tables/` と `data/` の `.csv` を表の形で編集できる。
+- `tables/` と `data/` の `.csv` は、タイトルバーの「**表として編集**」のボタンで表の形にして編集できる。
 
 フォルダーのある場所で `octavo` を実行する。手元でも、WSL でも、Remote-SSH でつないだ
 サーバーでも。
@@ -945,8 +964,8 @@ octavo targets                                 出力形式の一覧
 
 ## 11. 自分の機械で確かめること
 
-テストは Linux・macOS・Windows で全形式を pandoc と Typst で組み、見本の分析を Quarto と R で
-実行している。テストでは分からないこと:
+テストは Linux・macOS・Windows で全形式を pandoc と Typst で組み、見本の分析を Quarto で（R でも
+Python でも）実行している。テストでは分からないこと:
 
 - **自分の書式で引用がどう組まれるか** — `octavo selftest` を実行して読む。
 - **書体** — 最初の PDF を目で見る。足りない書体は `octavo doctor` に出る。
