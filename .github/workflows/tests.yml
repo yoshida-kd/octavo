@@ -293,7 +293,7 @@ jobs:
           octavo build --compile --no-analysis
           test -f build/typst/smoke/main.pdf
           test -f build/typst-slides/deck.pdf
-          test -f build/typst-slides/course-01.pdf
+          test -f build/typst-slides/course-slides-01.pdf
 
   # VS Code 拡張がコンパイルでき、.vsix にまとまるか。strict + noUnused* なので
   # 使われない変数1つでも落ちる。作った .vsix は artifact として落とせる。
