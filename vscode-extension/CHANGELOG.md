@@ -3,6 +3,61 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.0
+
+- **The preview follows the cursor.** Moving the cursor in a manuscript scrolls the PDF
+  preview (and a lecture's deck) to the same place, found by the text of the line — or, when
+  that is not in the PDF, the heading above it, or the line's position in the file. The
+  preview can still be scrolled on its own; the ⇅ button in its toolbar turns the following
+  on and off for the session, and `octavo.previewFollowCursor` sets it (on by default).
+  Typst has nothing like SyncTeX, so this is a text search: a line whose words differ in the
+  PDF (a value, a table cell) lands at the heading or the proportional position.
+- **Opening a `.qmd` shows the HTML it last rendered**, to the right of the editor
+  (`octavo.qmdPreview`, on by default; only in an Octavo project). Nothing is rendered by
+  this, and saving the `.qmd` renders nothing either: run the analysis, and the page reloads by
+  itself. It expects `embed-resources: true` (what a new `.qmd` has).
+- **`octavo migrate` (temporary — removed in the next release)** moves an older project's
+  `CLAUDE.md` into `AGENTS.md` (the text unchanged) and leaves `CLAUDE.md` pointing at it.
+  `--dry-run` only says what it would do.
+- **Python analyses.** `octavo new analysis <name> --engine python` (or **Analysis in Python**
+  in VS Code) writes a `.qmd` in Python that loads `analysis/octavo_helper.py`: the same
+  `ov_value` / `ov_figure` / `ov_table` / `ov_pval` / `ov_palette` / `ov_tint` as `octavo.R`,
+  writing the same files, so the manuscript is written as for R. It takes a matplotlib Figure
+  (or plotnine, or a function that draws) and a pandas DataFrame (or a dict, or a list of
+  lists), and needs only the standard library itself. `requirements.txt` gets what Quarto needs
+  to run Python (`ipykernel`, `nbformat`, `nbclient`, `pyyaml`). R and Python `.qmd` files can
+  share a project; `octavo env` makes no renv for a project with no R `.qmd`.
+- **The analysis environment is set up when the first analysis is added.** In VS Code, adding an
+  analysis (or starting a project with one) runs `octavo env` right after, with a progress
+  notification. On the command line, `--env` on `octavo init` / `octavo new analysis` does the
+  same; `octavo new --json` says `env_needed`.
+- **New project is one screen** (where, name, language, what to start with, examples), and a
+  folder that is not a project yet gets a **New project** button in the sidebar instead of four
+  empty sections. Adding an analysis asks R or Python.
+- **The R extension stops asking for `languageserver` in every renv project.** It looks only
+  inside the project's renv library, so it asked again in each one. `octavo setup` (and
+  `octavo setup --r-editor` on its own) now installs `languageserver` with its dependencies into
+  your own R library, and the extension offers once to add that library to the R extension's
+  `r.libPaths`. `octavo doctor` shows it as a note.
+- **When the octavo command is older than the extension**, adding something or making a project
+  now says so and offers Set up, instead of showing the command's raw error.
+- Adding the first analysis on a machine without uv offers Set up instead of failing.
+- **The extension installs the Quarto, R and Python extensions with it** (an extension pack:
+  `quarto.quarto`, `REditorSupport.r`, `ms-python.python`; each can be uninstalled on its own).
+- **`AGENTS.md` is the project's working rules**, read by Claude Code, GitHub Copilot, Codex and
+  Antigravity alike. `octavo init` writes it, and `CLAUDE.md` becomes one line (`@AGENTS.md`)
+  that points Claude Code at it. A project that has only a `CLAUDE.md` keeps getting its
+  sections appended there, as before.
+- **A lecture's slides, handouts and scripts no longer share a file name**: a session's
+  deck is `build/typst-slides/<name>-slides-<session>.pdf` and its script
+  `build/typst-notes/<name>-notes-<session>.pdf`; the per-session handout stays
+  `build/handouts/<name>-<session>.pdf`. A deck's script outside a lecture is
+  `<name>-notes.pdf` (the deck stays `<name>.pdf`). Files under the old names are deleted
+  when they are remade. The document names (`octavo build <name>-<session>`) do not change.
+- Fixed: on a slide deck, a section heading with text straight under it (so it becomes a
+  slide itself) was skipped by the grey running header, which showed the level above
+  (the session's title) on that slide and the ones after it.
+
 ## 0.5.1
 
 - **The speaker script shows the slides as projected**: each page of the typeset deck,

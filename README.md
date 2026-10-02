@@ -26,6 +26,9 @@ references are filled in when it is typeset.
   (`ov_value("n_obs", nrow(d))`) and the manuscript calls it by name (`{{n_obs}}`).
   Re-run the analysis and every document follows. `octavo check` points out
   numbers typed into the prose, and values that are only placeholders.
+- **R or Python.** The analysis is a Quarto `.qmd` in R or in Python; both come
+  with the same helpers (`ov_value`, `ov_figure`, `ov_table`), and the project's
+  `.venv` and renv are set up for you.
 - **One source, several documents.** A paper in your journal's layout, a talk,
   and lecture notes that become an A4 handout plus one slide deck per session —
   with speaker scripts, and Word for coauthors.
@@ -39,8 +42,10 @@ references are filled in when it is typeset.
 - **Submission and beyond**: word limits, blind review, a submission zip,
   reading a coauthor's tracked changes in Word, "what moved since I submitted",
   and a replication package.
-- **A VS Code extension** with a live PDF preview, a sidebar for everything
-  above, and one-click setup.
+- **A VS Code extension** with a live PDF preview that follows the cursor, a
+  sidebar for everything above, and one-click setup.
+- **Ready for your AI assistant**: every project carries its working rules in
+  `AGENTS.md`, which Claude Code, GitHub Copilot, Codex and Antigravity all read.
 - Linux, macOS and Windows; English and Japanese.
 
 ## Install

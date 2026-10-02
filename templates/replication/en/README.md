@@ -4,7 +4,7 @@ This package alone reproduces every number, figure and table in the paper.
 
 ## Contents
 
-    analysis/       the analysis (Quarto .qmd) and the helper octavo.R
+    analysis/       the analysis (Quarto .qmd) and the helper (octavo.R or octavo_helper.py)
     data/           data@@RAWNOTE@@
     data/HASHES.json  fingerprints (sha256) of the data that was used
     assets/values/  the numbers the analysis produced (the ones in the text) and a record of the software

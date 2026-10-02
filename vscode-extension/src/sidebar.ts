@@ -177,6 +177,10 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     async getChildren(node?: Node): Promise<Node[]> {
         if (!node) {
             await this.cwd();           // 見出しにどのプロジェクトかを出すため
+            // プロジェクトがなければ空にする（package.json の viewsWelcome が「新しいプロジェクト」を出す）
+            if (!this.configUri) {
+                return [];
+            }
             return [{ kind: 'group', id: 'docs' }, { kind: 'group', id: 'analysis' },
                     { kind: 'group', id: 'tools' }, { kind: 'group', id: 'settings' }];
         }

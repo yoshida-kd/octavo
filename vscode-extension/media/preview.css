@@ -89,3 +89,5 @@ body {
   background: var(--vscode-button-background);
 }
 #stale-run:hover { background: var(--vscode-button-hoverBackground); }
+
+#follow.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

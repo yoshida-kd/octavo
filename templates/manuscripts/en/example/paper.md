@@ -7,7 +7,7 @@ date: 2026-01-01
 <!-- octavo:example This manuscript is the template octavo new wrote. Blocks marked
      `octavo:example` are examples — delete each one, marker and all, once you've
      replaced it with your own text. octavo check reports the markers that are
-     still there. The working agreements are in CLAUDE.md. -->
+     still there. The working agreements are in AGENTS.md. -->
 
 ## Abstract
 

@@ -192,6 +192,38 @@ if (requireNamespace("renv", quietly = TRUE)) {
 '@
         & Rscript $rfile
         Remove-Item $rfile -ErrorAction SilentlyContinue
+        # VS Code の R 拡張機能が使う languageserver を、依存ごと利用者のライブラリに入れる
+        # （renv のプロジェクトで毎回「入れますか」と聞かれないように。octavo/envsetup.py の
+        # R_EDITOR_SCRIPT と同じ中身）。renv の外（ホーム）で実行する。
+        Say 'languageserver' 'languageserver (VS Code)'
+        $lsfile = Join-Path ([IO.Path]::GetTempPath()) 'octavo-r-editor.R'
+        Set-Content -Path $lsfile -Encoding ASCII -Value @'
+lib <- path.expand(Sys.getenv("R_LIBS_USER"))
+dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+repos <- getOption("repos")
+if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
+  repos <- c(CRAN = "https://cloud.r-project.org")
+# renv の中では R 本体のライブラリ（.Library）と足したライブラリしか見えない。サイトライブラリに
+# ある依存（callr など）も含めて、利用者のライブラリに全部そろえる
+ap <- available.packages(repos = repos)
+deps <- unique(c("languageserver", unlist(tools::package_dependencies(
+  "languageserver", db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
+base <- rownames(installed.packages(lib.loc = .Library))
+need <- setdiff(deps, c(base, rownames(installed.packages(lib.loc = lib))))
+if (length(need)) {
+  install.packages(need, lib = lib, repos = repos)
+} else {
+  cat("   installed: languageserver\n")
+}
+.libPaths(lib, include.site = FALSE)   # renv と同じ見え方（R 本体 + これだけ）で読めるか
+ok <- requireNamespace("languageserver", quietly = TRUE)
+cat("library: ", normalizePath(lib, winslash = "/", mustWork = FALSE), "\n", sep = "")
+quit(save = "no", status = if (ok) 0 else 1)
+'@
+        Push-Location $HOME
+        & Rscript $lsfile
+        Pop-Location
+        Remove-Item $lsfile -ErrorAction SilentlyContinue
     }
 }
 

@@ -1,0 +1,8 @@
+# what Quarto needs to run Python chunks
+ipykernel
+nbformat
+nbclient
+pyyaml
+# what the helper and the examples use
+pandas
+matplotlib

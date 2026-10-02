@@ -48,5 +48,9 @@
   "command.analysisRun.title": "Run the Analysis (analysis run)",
   "command.addAppendix.title": "Add an Appendix",
   "command.addTex.title": "Add main.tex (LaTeX)",
-  "command.extract.title": "Make a Handout per Session"
+  "command.extract.title": "Make a Handout per Session",
+  "view.project.welcome": "This folder is not an Octavo project yet.\n[New project](command:octavo.init)\nPick only what you need now (a paper, slides, lecture notes, an analysis); anything else can be added later.",
+  "view.project.welcomeNoFolder": "Open a folder first, then make an Octavo project in it.\n[Open Folder](command:vscode.openFolder)",
+  "config.qmdPreview.description": "When you open a .qmd in an Octavo project, show the HTML it last rendered beside it. Nothing is rendered by this: run the analysis to update it, and the page reloads by itself.",
+  "config.previewFollowCursor.description": "Scroll the PDF preview to where the cursor is in the manuscript. You can still scroll the preview by itself; the ⇅ button in the preview's toolbar turns this on and off for the session."
 }

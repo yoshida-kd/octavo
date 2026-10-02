@@ -41,6 +41,7 @@ class TypstSlidesBackend(TypstBackend):
     label = 'Typst slides'
     always_standalone = True
     is_slides = True
+    session_tag = 'slides'
     wants_abstract_file = False
 
     def pandoc_args(self, ctx: Ctx) -> list:
@@ -211,7 +212,12 @@ def promote_sections_with_content(typ: str, slide_level: int = 2) -> str:
             # 見出しは数えない（番号が節ごとなのは「#」だけ）
             step = ('' if 'numbering: none' in line or lv != 1
                     else '#[#metadata(none) <octavo-section-step>]\n')
-            lines[i] = step + promoted
+            # 走りヘッダには節として出す（1枚にしても、その下の1枚の左上は
+            # この見出しのまま。でないと1つ上の段の題が出てしまう）
+            m = re.match(r'=+ (.*?)(?:\s*<[^<>\s]+>)?\s*$', line)
+            mark = (f'#metadata([{m.group(1)}]) <octavo-header-section>\n'
+                    if m and m.group(1) else '')
+            lines[i] = step + mark + promoted
     return '\n'.join(lines)
 
 

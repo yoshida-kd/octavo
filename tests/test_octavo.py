@@ -409,6 +409,29 @@ class TheoremBlocksBuilt(unittest.TestCase):
             self.assertIn('論点 1.1', text)
             self.assertIn('2026 年 10 月 8 日', text)            # 区切りの date
 
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_session_outputs_name_what_they_are(self):
+        """回ごとのスライド・台本は <文書>-slides-<回> / <文書>-notes-<回>（配布資料は <文書>-<回>）。"""
+        out = self.cfg.out_dir('typst-slides', self.cfg.document('notes'))
+        out.mkdir(parents=True, exist_ok=True)
+        legacy = out / 'notes-first.pdf'                         # 前の版の名前
+        legacy.write_bytes(b'old')
+        r = build.build_one(self.cfg, self.cfg.document('notes-first'), 'typst-slides',
+                            citations=False, offline=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        self.assertEqual(r.outputs[0].name, 'notes-slides-first.typ')
+        self.assertFalse(legacy.exists())
+        self.assertEqual(be.get('typst-notes').file_stem('notes-first', 'first'),
+                         'notes-notes-first')
+        self.assertEqual(be.get('typst-notes').file_stem('deck'), 'deck-notes')
+        self.assertEqual(be.get('typst-slides').file_stem('deck'), 'deck')
+        stale = out / 'notes-slides-gone.pdf'
+        stale.write_bytes(b'old')
+        gone = build.clear_old_sessions(self.cfg, self.cfg.document('notes'), 'typst-slides',
+                                        ['notes-first'])
+        self.assertEqual(gone, ['notes-slides-gone.pdf'])
+        self.assertTrue((out / 'notes-slides-first.typ').exists())
+
     @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
     def test_the_appendix_heading_on_a_deck_has_no_number_unless_slides_are_numbered(self):
         """番号を振らないスライドで、付録の見出しが「0.1」になっていた。"""
@@ -440,6 +463,7 @@ class TheoremBlocksBuilt(unittest.TestCase):
         # 印字のページ番号は全体のまま（表紙・目次の後の本文が 1 から）
         self.assertEqual(s['shown_first'], str(s['first'] - table['body'] + 1))
         self.assertTrue(r['made'][0][1].is_file())
+        self.assertEqual(r['made'][0][1].name, 'notes-first.pdf')
         with self.assertRaises(extract.ExtractError):
             extract.run(self.cfg, 'notes', sessions=['nope'], offline=True)
 
@@ -1638,6 +1662,8 @@ class PreviewContract(unittest.TestCase):
         got = doctor.as_json()
         src = ROOT / 'vscode-extension' / 'src' / 'setup.ts'
         self.assertEqual(self.fields('DoctorReport', src) - set(got), set())
+        if got['r_editor'] is not None:          # R がない機械では null
+            self.assertEqual(self.fields('REditor', src) - set(got['r_editor']), set())
         self.assertEqual(got['version'], octavo.__version__)
         self.assertEqual(set(got['analysis']), set(doctor.ANALYSIS_TOOLS))
 
@@ -2127,7 +2153,7 @@ class ProjectScaffold(unittest.TestCase):
         d = self.d / 'p'
         scaffold.init(d, quiet=True)
         for rel in ('figures/.gitkeep', 'literature.bib',
-                    'octavo.config.py', 'CLAUDE.md', 'README.md', '.gitignore'):
+                    'octavo.config.py', 'AGENTS.md', 'CLAUDE.md', 'README.md', '.gitignore'):
             self.assertTrue((d / rel).exists(), rel)
         # 分析も原稿も、足すまではない
         for rel in ('draft.md', 'appendix.md', 'papers', 'slides', 'lectures', 'build',
@@ -2144,7 +2170,7 @@ class ProjectScaffold(unittest.TestCase):
                         'assets/tables/summary.typ', 'notes', 'refs'):
                 self.assertFalse((d / rel).exists(), rel)
             for f in d.rglob('*'):
-                if f.is_file() and f.name != 'CLAUDE.md':     # CLAUDE.md は印の説明を持つ
+                if f.is_file() and f.name != 'AGENTS.md':     # AGENTS.md は印の説明を持つ
                     text = f.read_text(encoding='utf-8', errors='replace')
                     self.assertNotIn('octavo:example', text, f)
                     self.assertNotIn('@article', text, f)
@@ -2215,7 +2241,7 @@ class ProjectScaffold(unittest.TestCase):
             self.assertEqual((a / rel).read_text(encoding='utf-8'),
                              (b / rel).read_text(encoding='utf-8'), rel)
         # CLAUDE.md は足したものの節だけが違う
-        common = lambda d: (d / 'CLAUDE.md').read_text(encoding='utf-8').split(
+        common = lambda d: (d / 'AGENTS.md').read_text(encoding='utf-8').split(
             '<!-- octavo:section analysis -->')[0]
         self.assertEqual(common(a), common(b))
 
@@ -2301,7 +2327,7 @@ class ProjectScaffold(unittest.TestCase):
         rules = [l.strip() for l in (d / '.gitignore').read_text(encoding='utf-8')
                  .splitlines() if l.strip() and not l.startswith('#')]
         self.assertNotIn('refs/', rules)
-        claude = (d / 'CLAUDE.md').read_text(encoding='utf-8')
+        claude = (d / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertIn('refs/', claude)
         self.assertIn('notes/', claude)
 
@@ -2332,7 +2358,7 @@ class ProjectScaffold(unittest.TestCase):
         for keep in ('requirements.txt', 'renv.lock'):
             self.assertNotIn(keep, rules)
         # 作業の約束は .venv と renv を必ず使うと書く。README は再現の手順だけ
-        text = (d / 'CLAUDE.md').read_text(encoding='utf-8')
+        text = (d / 'AGENTS.md').read_text(encoding='utf-8')
         self.assertIn('renv::snapshot()', text)
         self.assertIn('.venv', text)
         self.assertIn('octavo env', text)
@@ -2350,7 +2376,7 @@ class ProjectScaffold(unittest.TestCase):
     def test_claude_md_grows_with_what_is_added(self):
         d = self.d / 'proj'
         scaffold.init(d, quiet=True)
-        claude = d / 'CLAUDE.md'
+        claude = d / 'AGENTS.md'
         text = claude.read_text(encoding='utf-8')
         self.assertIn('「proj」', text)               # @@NAME@@ が埋まる
         for s in ('octavo new paper', 'octavo new slides', 'octavo new lecture',
@@ -2369,7 +2395,7 @@ class ProjectScaffold(unittest.TestCase):
         self.assertEqual(text.count('<!-- octavo:section slides -->'), 1)
         scaffold.new(cfg, 'paper', 'p', quiet=True)
         self.assertIn('投稿する', claude.read_text(encoding='utf-8'))
-        # 自分で消した CLAUDE.md は作り直さない
+        # 自分で消した AGENTS.md は作り直さない（1行の CLAUDE.md には書き足さない）
         claude.unlink()
         scaffold.new(cfg, 'paper', 'q', quiet=True)
         self.assertFalse(claude.exists())
@@ -2447,7 +2473,7 @@ class ProjectScaffold(unittest.TestCase):
 
     def test_english_project_docs(self):
         d = self.make(lang='en', docs=())
-        claude = (d / 'CLAUDE.md').read_text(encoding='utf-8')
+        claude = (d / 'AGENTS.md').read_text(encoding='utf-8')
         readme = (d / 'README.md').read_text(encoding='utf-8')
         self.assertIn('About this repository', claude)
         self.assertIn('octavo new lecture', claude)
@@ -3976,6 +4002,8 @@ class TypstNotes(unittest.TestCase):
         self.assertTrue(r.ok, '\n'.join(r.report))
         self.assertIsNotNone(r.compiled, '\n'.join(r.report))
         self.assertTrue(r.compiled.exists())
+        # 台本はスライド（deck.pdf）と別の名前
+        self.assertEqual(r.compiled.name, 'deck-notes.pdf')
         self.assertIn('#octavo-script(', r.outputs[0].read_text(encoding='utf-8'))
         # ノートは、スライドの PDF の中で書いてあったページに付く
         pages = json.loads((r.outputs[0].parent / 'deck.notes.json').read_text(encoding='utf-8'))
@@ -4633,7 +4661,7 @@ class MathMacros(unittest.TestCase):
         for part in parts:
             r = build.build_one(cfg, part, 'typst-slides', citations=False, offline=True)
             self.assertTrue(r.ok, '\n'.join(r.report))
-            deck = (cfg.out_dir('typst-slides', part) / f'{part.name}.typ').read_text(encoding='utf-8')
+            deck = (cfg.out_dir('typst-slides', part) / f'lec-slides-{part.part}.typ').read_text(encoding='utf-8')
             self.assertIn('bb(E)', deck, part.name)
 
 
@@ -5020,7 +5048,7 @@ class EndToEnd(unittest.TestCase):
             self.skipTest('pandoc 3.1 以上が要る')
         r = self.build('講義-02', 'typst-slides')
         self.assertTrue(r.ok, '\n'.join(r.report))
-        typ = (self.cfg.out_dir('typst-slides') / '講義-02.typ').read_text(encoding='utf-8')
+        typ = (self.cfg.out_dir('typst-slides') / '講義-slides-02.typ').read_text(encoding='utf-8')
         self.assertIn('title: [第2回 タイトル（見本）]', typ)
         self.assertIn('subtitle: [講義の見本]', typ)
         self.assertIn('具体例', typ)
@@ -5273,6 +5301,21 @@ class ToolSetup(unittest.TestCase):
         m = re.search(r"R_STALE='(.*?)'\n", text, re.S)
         self.assertIsNotNone(m)
         self.assertEqual(m.group(1).strip(), doctor.R_STALE.strip())
+
+    def test_the_setup_scripts_install_languageserver_the_same_way(self):
+        """VS Code の R 拡張機能用の languageserver は、setup.sh・setup.ps1・octavo setup --r-editor
+        が同じ R のコードで、依存ごと利用者のライブラリに入れる。"""
+        code = envsetup.R_EDITOR_SCRIPT.strip()
+        sh = (ROOT / 'setup.sh').read_text(encoding='utf-8')
+        m = re.search(r"R_EDITOR='(.*?)'\n", sh, re.S)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1).strip(), code)
+        ps = (ROOT / 'setup.ps1').read_text(encoding='utf-8-sig')
+        m = re.search(r"octavo-r-editor\.R'\n.*?@'\n(.*?)\n'@", ps, re.S)
+        self.assertIsNotNone(m)
+        self.assertEqual(m.group(1).strip(), code)
+        self.assertIn('include.site = FALSE', code)       # renv と同じ見え方で確かめる
+        self.assertIn('package_dependencies', code)       # 依存ごと（サイトライブラリは見えない）
 
     @unittest.skipIf(os.name == 'nt', 'bash が WSL の起動用のことがある')
     def test_setup_sh_names_the_rebuild_for_packages_of_an_older_r(self):
@@ -6142,6 +6185,10 @@ class LectureRequests(unittest.TestCase):
         out = promote_sections_with_content(typ, 3)
         self.assertIn('=== 節', out)
         self.assertNotIn('<octavo-section-step>', out)      # 「##」で節番号は進まない
+        # 1枚にしても走りヘッダには節として出る（でないと上の「#」の題が出る）
+        self.assertIn('#metadata([節]) <octavo-header-section>\n=== 節', out)
+        out = promote_sections_with_content('= 回\n\n== 節 <sec-x>\n\n本文\n', 3)
+        self.assertIn('#metadata([節]) <octavo-header-section>', out)
         out = promote_sections_with_content('= 回\n\n本文\n', 3)
         self.assertIn('<octavo-section-step>', out)
         self.assertIn('=== 回', out)
@@ -6194,6 +6241,437 @@ class LectureRequests(unittest.TestCase):
         envs = crossref.theorem_envs(self.cfg)
         self.assertIsNone(envs['aside'].counter)
         self.assertEqual(envs['case'].counter, envs['question'].counter)
+
+# =====================================================================
+HELPER_PY = paths.templates_dir() / 'analysis/python/analysis/octavo_helper.py'
+HAVE_UV = shutil.which('uv') is not None
+
+
+def run_helper(d: Path, code: str, qmd: str = 'a.qmd') -> subprocess.CompletedProcess:
+    """octavo_helper.py を、プロジェクトの根を OCTAVO_ROOT にして別プロセスで動かす。"""
+    (d / 'analysis').mkdir(exist_ok=True)
+    shutil.copy(HELPER_PY, d / 'analysis' / 'octavo_helper.py')
+    env = {**os.environ, 'OCTAVO_ROOT': str(d), 'QUARTO_DOCUMENT_FILE': qmd, 'PYTHONUTF8': '1'}
+    for k in ('OCTAVO_VALUES_DIR', 'OCTAVO_FIGURE_DIR', 'OCTAVO_TABLE_DIR', 'OCTAVO_VALUES_NAME'):
+        env.pop(k, None)
+    return subprocess.run([sys.executable, '-c',
+                           'import sys; sys.path.insert(0, "analysis")\n'
+                           'from octavo_helper import *\n' + code],
+                          cwd=str(d), env=env, capture_output=True, text=True, encoding='utf-8')
+
+
+class PythonHelper(unittest.TestCase):
+    """analysis/octavo_helper.py（octavo.R の Python 版）。標準ライブラリだけで動く部分。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def run_ok(self, code, **kw):
+        r = run_helper(self.d, code, **kw)
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return r
+
+    def test_values_keep_integer_and_float_apart(self):
+        self.run_ok('ov_value("n_obs", 1523, note="N")\n'
+                    'ov_value("whole", 2.0)\n'
+                    'ov_value("flag", True)\n'
+                    'ov_value("missing", None)\n'
+                    'ov_value("name", "日本語")\n'
+                    'ov_value("p", ov_pval(0.0004))\n'
+                    'ov_value("q", ov_pval(0.0421))\n')
+        raw = (self.d / 'assets/values/a.json').read_text(encoding='utf-8')
+        doc = json.loads(raw)
+        self.assertIsInstance(doc['n_obs']['value'], int)
+        self.assertIsInstance(doc['whole']['value'], float)       # 2.0 は小数のまま
+        self.assertIn('"value": 2.0', raw)
+        self.assertIs(doc['flag']['value'], True)
+        self.assertEqual(doc['missing']['value'], 'NA')
+        self.assertEqual(doc['name']['value'], '日本語')          # \uXXXX にしない
+        self.assertEqual(doc['p']['value'], '< .001')
+        self.assertEqual(doc['q']['value'], '.042')
+        self.assertEqual(doc['n_obs']['note'], 'N')
+        self.assertEqual(doc['_session']['engine'], 'Python')
+        self.assertFalse(raw.startswith('﻿'))                # BOM なし
+
+    def test_the_values_file_is_named_after_the_qmd(self):
+        self.run_ok('ov_value("x", 1)', qmd='02-model.qmd')
+        self.assertTrue((self.d / 'assets/values/02-model.json').is_file())
+
+    def test_the_values_file_is_read_by_octavo(self):
+        p = make_project(self.d / 'p', example=False)
+        cfg = config.load(p / 'octavo.config.py')
+        r = run_helper(p, 'ov_value("n_obs", 1523)\nov_value("coef_x", 0.34192)',
+                       qmd='analysis.qmd')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        vals, warn = values.load(cfg)
+        self.assertEqual(warn, [])
+        self.assertEqual(values.render(vals['n_obs'], '', cfg), '1,523')
+        self.assertEqual(values.render(vals['coef_x'], '', cfg), '0.342')
+
+    def test_a_bad_name_or_a_vector_is_refused(self):
+        r = run_helper(self.d, 'ov_value("1bad", 1)')
+        self.assertNotEqual(r.returncode, 0)
+        r = run_helper(self.d, 'ov_value("many", [1, 2])')
+        self.assertIn('値は1つだけ', r.stderr)
+
+    def test_tables_are_contents_only_in_three_formats(self):
+        self.run_ok('ov_table([["term", "est", "n"], ["x & y", 0.5, 10], ["z_1", 1.25, 20]],'
+                    ' "summary", notes="注: 5%")')
+        d = self.d / 'assets/tables'
+        tex = (d / 'summary.tex').read_text(encoding='utf-8')
+        typ = (d / 'summary.typ').read_text(encoding='utf-8')
+        md_ = (d / 'summary.md').read_text(encoding='utf-8')
+        self.assertIn(r'\toprule', tex)
+        self.assertIn(r'x \& y & 0.500 & 10', tex)                # 小数は3桁、整数はそのまま
+        self.assertNotIn(r'\caption', tex)                        # 表題は原稿が持つ
+        self.assertIn(r'z\_1', typ)
+        self.assertIn('align: (left, right, right)', typ)
+        self.assertIn('table.hline(stroke: 0.5pt)', typ)
+        self.assertIn('|:---|---:|---:|', md_)
+
+    def test_a_ready_made_table_is_written_as_it_is(self):
+        self.run_ok('ov_table({"tex": "\\\\begin{tabular}{l}x\\\\end{tabular}"}, "ready",'
+                    ' formats=("tex",))')
+        self.assertEqual((self.d / 'assets/tables/ready.tex').read_text(encoding='utf-8'),
+                         '\\begin{tabular}{l}x\\end{tabular}\n')
+
+    @unittest.skipUnless(HAVE_R, 'needs R')
+    def test_tables_match_the_r_helper(self):
+        """同じ表なら、R の ov_table() と Python の ov_table() は同じ中身を書く。"""
+        self.run_ok('ov_table([["term", "est", "n"], ["x & y", 0.5, 10], ["z_1", 1.25, 20]],'
+                    ' "t", notes="Note: 5%")')
+        r_dir = self.d / 'r'
+        r_dir.mkdir()
+        code = ('source("%s")\nSys.setenv(OCTAVO_TABLE_DIR = "%s")\n'
+                'tab <- data.frame(term = c("x & y", "z_1"), est = c(0.5, 1.25), n = c(10L, 20L))\n'
+                'ov_table(tab, "t", notes = "Note: 5%%")\n'
+                % ((paths.templates_dir() / 'analysis/common/analysis/octavo.R').as_posix(),
+                   r_dir.as_posix()))
+        r = subprocess.run(['Rscript', '-e', code], capture_output=True, text=True,
+                           encoding='utf-8', env={**os.environ, 'OCTAVO_ROOT': str(self.d)})
+        self.assertEqual(r.returncode, 0, r.stderr)
+        for ext in ('tex', 'typ', 'md'):
+            py = (self.d / 'assets/tables' / f't.{ext}').read_text(encoding='utf-8').split('\n', 1)[1]
+            rr = (r_dir / f't.{ext}').read_text(encoding='utf-8').split('\n', 1)[1]
+            self.assertEqual(py.strip(), rr.strip(), ext)
+
+    def test_palette_and_tint(self):
+        self.run_ok('assert ov_palette(3) == ["#0072B2", "#E69F00", "#009E73"]\n'
+                    'assert ov_palette(["grey"]) == ["#999999"]\n'
+                    'assert ov_tint("#000000", 1) == "#FFFFFF"\n'
+                    'assert ov_tint("#0072B2", 0) == "#0072B2"\n')
+        r = run_helper(self.d, 'ov_palette(9)')
+        self.assertNotEqual(r.returncode, 0)
+
+    def test_the_helper_has_no_third_party_import_at_the_top(self):
+        tree = ast.parse(HELPER_PY.read_text(encoding='utf-8'))
+        top = {n.module.split('.')[0] if isinstance(n, ast.ImportFrom) else a.name.split('.')[0]
+               for n in tree.body if isinstance(n, (ast.Import, ast.ImportFrom))
+               for a in (n.names if isinstance(n, ast.Import) else [n])}
+        self.assertLessEqual(top, set(sys.stdlib_module_names) | {'__future__'}
+                             if hasattr(sys, 'stdlib_module_names') else top)
+
+
+class PythonScaffold(unittest.TestCase):
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def test_a_python_analysis_brings_the_python_helper_not_the_r_one(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'model', quiet=True, engine='python')
+        self.assertTrue((p / 'analysis/octavo_helper.py').is_file())
+        self.assertFalse((p / 'analysis/octavo.R').exists())
+        qmd = (p / 'analysis/model.qmd').read_text(encoding='utf-8')
+        self.assertIn('```{python}', qmd)
+        self.assertNotIn('```{r}', qmd)
+        self.assertNotIn('@@', qmd)
+        req = (p / 'requirements.txt').read_text(encoding='utf-8')
+        for pkg in ('ipykernel', 'nbformat', 'nbclient', 'pyyaml'):
+            self.assertIn(pkg, req.split())
+        self.assertIn('<!-- octavo:section analysis-python -->',
+                      (p / 'AGENTS.md').read_text(encoding='utf-8'))
+        self.assertEqual(analysis.engine(p / 'analysis/model.qmd'), 'python')
+
+    def test_r_and_python_can_live_in_one_project(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='ja', quiet=True)
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'a', quiet=True)
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'b', quiet=True, engine='python')
+        self.assertTrue((p / 'analysis/octavo.R').is_file())
+        self.assertTrue((p / 'analysis/octavo_helper.py').is_file())
+        cfg = config.load(p / 'octavo.config.py')
+        self.assertEqual(analysis.engines(cfg), {'r', 'python'})
+
+    def test_requirements_are_added_once_and_names_already_there_are_kept(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        (p / 'requirements.txt').write_text('pandas==2.3.1\n', encoding='utf-8')
+        cfg = p / 'octavo.config.py'
+        scaffold.new(cfg, 'analysis', 'a', quiet=True, engine='python')
+        scaffold.new(cfg, 'analysis', 'b', quiet=True, engine='python')
+        lines = [ln for ln in (p / 'requirements.txt').read_text(encoding='utf-8').splitlines()
+                 if ln.strip() and not ln.startswith('#')]
+        self.assertEqual(sorted(lines), sorted(set(lines)))
+        self.assertIn('pandas==2.3.1', lines)
+        self.assertNotIn('pandas', lines)
+
+    def test_the_examples_resolve_in_both_languages(self):
+        for lang in ('ja', 'en'):
+            p = self.d / lang
+            scaffold.init(p, lang=lang, quiet=True, example=True,
+                          parts={'analysis': 'analysis', 'paper': 'p'}, engine='python')
+            qmd = (p / 'analysis/analysis.qmd').read_text(encoding='utf-8')
+            self.assertIn('octavo:example', qmd)
+            vals, _ = values.load(config.load(p / 'octavo.config.py'))
+            self.assertTrue({'n_obs', 'coef_x', 'p_x'} <= set(vals))
+
+    def test_an_unknown_engine_is_refused(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        with contextlib_redirect():
+            self.assertEqual(scaffold.new(p / 'octavo.config.py', 'analysis', 'a',
+                                          quiet=True, engine='julia'), 1)
+
+    def test_engine_is_read_from_the_chunks(self):
+        q = self.d / 'x.qmd'
+        for text, want in (('```{r}\n1\n```\n', 'r'), ('```{python}\n1\n```\n', 'python'),
+                           ('```{r}\n1\n```\n```{python}\n2\n```\n', 'r+python'),
+                           ('---\njupyter: python3\n---\ntext\n', 'python'), ('text\n', 'r')):
+            q.write_text(text, encoding='utf-8')
+            self.assertEqual(analysis.engine(q), want, text)
+
+    def test_env_is_pending_until_the_venv_exists_and_json_says_so(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'a', quiet=True, engine='python')
+        cfg = config.load(p / 'octavo.config.py')
+        self.assertTrue(envsetup.pending(cfg))
+        (p / '.venv').mkdir()
+        self.assertFalse(envsetup.pending(cfg))       # Python だけなら renv は要らない
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'b', quiet=True)   # R の .qmd
+        self.assertTrue(envsetup.pending(config.load(p / 'octavo.config.py')))
+
+    def test_new_json_tells_the_extension_to_set_up_the_environment(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(['new', 'analysis', 'a', '--engine', 'python', '--json',
+                      '-c', str(p / 'octavo.config.py')])
+        res = json.loads(out.getvalue().strip().splitlines()[-1])
+        self.assertTrue(res['ok'])
+        self.assertTrue(res['env_needed'])
+        self.assertTrue(res['open'].endswith('a.qmd'))
+
+    def test_a_python_only_project_does_not_ask_for_r(self):
+        p = self.d / 'p'
+        scaffold.init(p, lang='en', quiet=True)
+        scaffold.new(p / 'octavo.config.py', 'analysis', 'a', quiet=True, engine='python')
+        cfg = config.load(p / 'octavo.config.py')
+        with unittest.mock.patch.object(envsetup, 'python_env', return_value=True), \
+                unittest.mock.patch.object(envsetup, 'r_env', return_value=True) as r_env, \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(envsetup.run(cfg), 0)
+        r_env.assert_not_called()
+
+
+@unittest.skipUnless(HAVE_QUARTO and HAVE_UV, 'needs Quarto and uv')
+class PythonAnalysisEndToEnd(unittest.TestCase):
+    """**Python の .qmd を Quarto で実際に動かす**（`octavo env` で .venv を作るので、
+    ネットワークも要る。つながらなければ飛ばす）。"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.d = Path(tempfile.mkdtemp())
+        p = cls.d / 'p'
+        scaffold.init(p, lang='en', quiet=True, example=True,
+                      parts={'analysis': 'analysis'}, engine='python')
+        cls.cfg = config.load(p / 'octavo.config.py')
+        (Path(cls.cfg['values_dir']) / 'analysis.json').unlink()      # .qmd が書いたかを見る
+        for ext in ('.pdf', '.png'):
+            (Path(cls.cfg['figure_dir']) / f'trend{ext}').unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = envsetup.run(cls.cfg)
+        if rc != 0:
+            raise unittest.SkipTest('could not set up .venv (offline?)')
+        cls.report = []
+        cls.ran, cls.ok = analysis.run(cls.cfg, force=True, report=cls.report)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.d, ignore_errors=True)
+
+    def test_render_succeeded(self):
+        self.assertTrue(self.ok, '\n'.join(self.report))
+
+    def test_values_figure_and_table_were_written(self):
+        vals, warn = values.load(self.cfg)
+        self.assertEqual(warn, [])
+        self.assertEqual(values.render(vals['n_obs'], '', self.cfg), '1,523')
+        self.assertRegex(values.render(vals['coef_x'], '', self.cfg), r'^-?\d+\.\d{3}$')
+        self.assertEqual(next(iter(values.session_info(self.cfg).values()))['engine'], 'Python')
+        for ext in ('.pdf', '.png'):
+            self.assertGreater((Path(self.cfg['figure_dir']) / f'trend{ext}').stat().st_size, 500)
+        for ext in ('.tex', '.typ', '.md'):
+            self.assertTrue((Path(self.cfg['table_dir']) / f'summary{ext}').is_file())
+
+
+class ExtensionProjectForm(unittest.TestCase):
+    """新しいプロジェクトの画面・同梱する拡張機能・サイドバーの空の状態。"""
+    EXT = ROOT / 'vscode-extension'
+
+    def manifest(self) -> dict:
+        return json.loads((self.EXT / 'package.json').read_text(encoding='utf-8'))
+
+    def test_the_companion_extensions_are_bundled_as_a_pack(self):
+        pack = self.manifest()['extensionPack']
+        self.assertEqual(sorted(p.lower() for p in pack),
+                         ['ms-python.python', 'quarto.quarto', 'reditorsupport.r'])
+        # Typst の拡張（tinymist）は入れない（利用者の指示）
+        self.assertFalse([p for p in pack if 'tinymist' in p.lower() or 'typst' in p.lower()])
+        # 必須の依存にはしない（外したい人が外せる）
+        self.assertNotIn('extensionDependencies', self.manifest())
+
+    def test_an_empty_sidebar_offers_a_new_project(self):
+        welcome = self.manifest()['contributes']['viewsWelcome']
+        self.assertTrue(any('octavo.init' in json.dumps(w) or w['contents'].startswith('%')
+                            for w in welcome))
+        nls = json.loads((self.EXT / 'package.nls.json').read_text(encoding='utf-8'))
+        self.assertIn('command:octavo.init', nls['view.project.welcome'])
+        for w in welcome:
+            key = w['contents'].strip('%')
+            self.assertIn(key, nls)
+            self.assertIn(key, json.loads((self.EXT / 'package.nls.ja.json')
+                                          .read_text(encoding='utf-8')))
+        self.assertIn('return [];', (self.EXT / 'src/sidebar.ts').read_text(encoding='utf-8'))
+
+    def test_every_id_the_form_script_uses_is_in_the_page(self):
+        js = (self.EXT / 'media/project.js').read_text(encoding='utf-8')
+        ts = (self.EXT / 'src/projectForm.ts').read_text(encoding='utf-8')
+        for i in set(re.findall(r"\$\('([A-Za-z-]+)'\)", js)):
+            if i.endswith('-'):
+                continue
+            self.assertRegex(ts, r'id="%s"' % re.escape(i), i)
+        for p in ('analysis', 'paper', 'slides', 'lecture'):
+            for pre in ('use-', 'name-', 'part-'):
+                self.assertIn(f'id="{pre}${{id}}"', ts)
+            self.assertIn(f"part('{p}'", ts)
+
+    def test_the_form_builds_a_command_the_cli_accepts(self):
+        """画面が組む引数（init <名前> --lang … --with … --engine python --example）を CLI が受ける。"""
+        from octavo import cli
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        with contextlib.redirect_stdout(io.StringIO()):
+            rc = cli.main(['init', str(d / 'x'), '--lang', 'en', '--with',
+                           'analysis=model,paper,slides=talk', '--engine', 'python', '--example'])
+        self.assertEqual(rc, 0)
+        self.assertTrue((d / 'x/analysis/model.qmd').is_file())
+        self.assertTrue((d / 'x/analysis/octavo_helper.py').is_file())
+        self.assertTrue((d / 'x/slides/talk.md').is_file())
+        ts = (self.EXT / 'src/projectForm.ts').read_text(encoding='utf-8')
+        for flag in ("'--lang'", "'--with'", "'--engine'", "'--example'"):
+            self.assertIn(flag, ts)
+
+    def test_every_id_the_preview_script_uses_is_in_its_page(self):
+        js = (self.EXT / 'media/preview.js').read_text(encoding='utf-8')
+        ts = (self.EXT / 'src/preview.ts').read_text(encoding='utf-8')
+        for i in set(re.findall(r"getElementById\('([A-Za-z-]+)'\)", js)):
+            self.assertRegex(ts, r'id="%s"' % re.escape(i), i)
+
+    def test_following_the_cursor_and_the_qmd_preview_are_settings_that_can_be_turned_off(self):
+        props = self.manifest()['contributes']['configuration']['properties']
+        nls = json.loads((self.EXT / 'package.nls.json').read_text(encoding='utf-8'))
+        ja = json.loads((self.EXT / 'package.nls.ja.json').read_text(encoding='utf-8'))
+        for key in ('octavo.previewFollowCursor', 'octavo.qmdPreview'):
+            self.assertIs(props[key]['default'], True)
+            name = props[key]['description'].strip('%')
+            self.assertIn(name, nls)
+            self.assertIn(name, ja)
+        # プレビュー側だけを自分でスクロールできる（スクロールそのものは奪わない）
+        js = (self.EXT / 'media/preview.js').read_text(encoding='utf-8')
+        self.assertNotIn("addEventListener('scroll'", js)
+        # .qmd は保存しても組み直さない（見せるだけ）
+        q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
+        self.assertNotIn('onDidSaveTextDocument', q)
+        self.assertNotIn('quarto render', q)
+
+    def test_adding_a_python_analysis_passes_the_engine_and_runs_the_env(self):
+        ts = (self.EXT / 'src/scaffold.ts').read_text(encoding='utf-8')
+        self.assertIn("flags.push('--engine', 'python')", ts)
+        self.assertIn('report.env_needed', ts)
+
+
+class AgentInstructions(unittest.TestCase):
+    """プロジェクトの約束事は AGENTS.md（どの AI も読む）。CLAUDE.md はそれを指すだけ。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def test_agents_md_is_the_source_and_claude_md_points_at_it(self):
+        for lang in ('ja', 'en'):
+            p = self.d / lang
+            scaffold.init(p, lang=lang, quiet=True)
+            scaffold.new(p / 'octavo.config.py', 'paper', 'p', quiet=True)
+            self.assertIn('octavo:section common', (p / 'AGENTS.md').read_text(encoding='utf-8'))
+            self.assertIn('octavo:section paper', (p / 'AGENTS.md').read_text(encoding='utf-8'))
+            stub = (p / 'CLAUDE.md').read_text(encoding='utf-8')
+            self.assertEqual(stub.splitlines()[0], '@AGENTS.md')
+            self.assertNotIn('octavo:section', stub)            # 節は AGENTS.md だけに入る
+
+    def test_with_agents_md_deleted_nothing_is_appended_to_the_one_line_claude_md(self):
+        p = self.d / 'gone'
+        scaffold.init(p, lang='en', quiet=True)
+        stub = (p / 'CLAUDE.md').read_text(encoding='utf-8')
+        (p / 'AGENTS.md').unlink()
+        scaffold.new(p / 'octavo.config.py', 'paper', 'p', quiet=True)
+        self.assertEqual((p / 'CLAUDE.md').read_text(encoding='utf-8'), stub)
+        self.assertFalse((p / 'AGENTS.md').exists())
+        moved, _ = scaffold.migrate_instructions(p, 'en', dry_run=True)
+        self.assertFalse(moved)
+
+    def test_a_project_from_before_still_gets_its_sections_in_claude_md(self):
+        p = self.d / 'old'
+        scaffold.init(p, lang='en', quiet=True)
+        (p / 'AGENTS.md').unlink()
+        (p / 'CLAUDE.md').write_text('# My rules\n\n<!-- octavo:section common -->\nold\n',
+                                     encoding='utf-8')
+        scaffold.new(p / 'octavo.config.py', 'slides', 's', quiet=True)
+        self.assertFalse((p / 'AGENTS.md').exists())
+        self.assertIn('octavo:section slides', (p / 'CLAUDE.md').read_text(encoding='utf-8'))
+
+    def test_migrate_moves_the_rules_without_changing_them(self):
+        """一時的な移行（この test ごと次の版で消す）。"""
+        p = self.d / 'old'
+        scaffold.init(p, lang='en', quiet=True)
+        text = '# My rules\n\nmine, edited by hand\n'
+        (p / 'AGENTS.md').unlink()
+        (p / 'CLAUDE.md').write_text(text, encoding='utf-8')
+        from octavo import cli
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main(['migrate', '--dry-run', '-c', str(p / 'octavo.config.py')])
+        self.assertFalse((p / 'AGENTS.md').exists())                 # 試しただけ
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main(['migrate', '-c', str(p / 'octavo.config.py')])
+        self.assertEqual((p / 'AGENTS.md').read_text(encoding='utf-8'), text)
+        self.assertEqual((p / 'CLAUDE.md').read_text(encoding='utf-8').splitlines()[0], '@AGENTS.md')
+        # 2回目は何もしない（AGENTS.md を上書きしない）
+        (p / 'AGENTS.md').write_text('edited again\n', encoding='utf-8')
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main(['migrate', '-c', str(p / 'octavo.config.py')])
+        self.assertEqual((p / 'AGENTS.md').read_text(encoding='utf-8'), 'edited again\n')
+
+    def test_the_sections_are_not_named_after_one_assistant(self):
+        for lang in ('ja', 'en'):
+            for f in (paths.templates_dir() / 'claude' / lang).glob('*.md'):
+                if f.name == 'stub.md':
+                    continue
+                self.assertNotIn('Claude', f.read_text(encoding='utf-8'), f)
 
 
 if __name__ == '__main__':

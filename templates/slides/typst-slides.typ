@@ -54,11 +54,15 @@
   header: context {
     let n = counter(page).get().first()
     if n > 1 and octavo.running-header {
+      // 本文が続くので1枚に格上げした節の見出しは、<octavo-header-section> の
+      // 目印で節として数える
       let secs = if octavo.slide-level > 1 {
-        query(selector(heading).before(here()))
-          .filter(h => h.level < octavo.slide-level)
+        query(selector(heading).or(<octavo-header-section>).before(here()))
+          .filter(h => h.func() == metadata or h.level < octavo.slide-level)
       } else { () }
-      let label = if secs.len() > 0 { secs.last().body } else { octavo.title }
+      let label = if secs.len() == 0 { octavo.title }
+        else if secs.last().func() == metadata { secs.last().value }
+        else { secs.last().body }
       if label != none {
         text(size: 12pt, fill: luma(120), label)
       }

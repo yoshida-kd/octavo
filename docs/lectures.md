@@ -7,9 +7,9 @@ From **one Markdown file**, lecture notes give you:
 | What | Contents | Where |
 |---|---|---|
 | A4 handout | every session in one booklet, with a cover and contents | `build/typst/<name>.pdf` |
-| A deck per session | one session each; the title slide has its title and date | `build/typst-slides/<name>-<session>.pdf` |
+| A deck per session | one session each; the title slide has its title and date | `build/typst-slides/<name>-slides-<session>.pdf` |
 | A handout per session | the A4 handout cut by session, keeping the page numbers of the whole | `build/handouts/<name>-<session>.pdf` |
-| Speaker script (if you want one) | the slides on A4 with your notes underneath | `build/typst-notes/<name>-<session>.pdf` |
+| Speaker script (if you want one) | the slides on A4 with your notes underneath | `build/typst-notes/<name>-notes-<session>.pdf` |
 
 Everything can be done in VS Code. This page assumes VS Code; the commands are
 [at the end](#from-the-command-line). For installing, and for anything beyond lecture notes

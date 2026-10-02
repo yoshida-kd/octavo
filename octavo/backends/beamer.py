@@ -54,6 +54,7 @@ class BeamerBackend(Backend):
     min_pandoc = (2, 8)
     always_standalone = True
     is_slides = True
+    session_tag = 'slides'
     keeps_notes = True
 
     def input_extras(self) -> tuple:

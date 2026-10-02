@@ -1,0 +1,109 @@
+---
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- 論文に出す数値・図・表は、原稿ではなくここで作る。
+     octavo build が `.qmd` の更新を見て、必要なら quarto render を実行する。 -->
+
+<!-- octavo:example この .qmd は octavo が置いたひな型で、いまは**仮のデータ**を
+     その場で作っている。実データに差し替えたら `octavo:example` の印ごと消す。
+     印が残っているあいだは octavo check が「ひな型の残り」として知らせる。 -->
+
+```{python}
+#| label: setup
+#| include: false
+# 同じ analysis/ にある octavo_helper.py を読む。octavo build から呼ばれたときは
+# OCTAVO_ROOT が入っているので、どこから実行しても当たる。
+import os, sys
+root = os.environ.get("OCTAVO_ROOT")
+sys.path.insert(0, os.path.join(root, "analysis") if root else ".")
+from octavo_helper import *
+ov_style()   # 図の文字を PDF に文字のまま埋め込み、和文の書体があれば使う
+```
+
+## データ
+
+```{python}
+#| label: data
+# 実際のデータを読むとき（原データは data/raw/、整形後は data/derived/）:
+#   import pandas as pd
+#   d = pd.read_csv(ov_root() / "data" / "derived" / "analysis.csv")
+# 整形も .qmd で行い、結果を data/derived/ に書く。data/raw/ は書き換えない。
+#   raw = pd.read_csv(ov_root() / "data" / "raw" / "survey2021.csv")
+#   d = raw.dropna(subset=["x"])
+#   d.to_csv(ov_root() / "data" / "derived" / "analysis.csv", index=False)
+
+# octavo:example ここから ─ 仮のデータ。実データを読む処理に差し替えて消す
+import numpy as np
+import pandas as pd
+rng = np.random.default_rng(20260101)
+d = pd.DataFrame({"x": rng.normal(12, 3, 1523), "y": rng.normal(50, 10, 1523)})
+d["y"] = d["y"] + 0.34 * d["x"]
+# octavo:example ここまで
+
+ov_value("n_obs", len(d), note="分析に使った観測数")
+```
+
+## 推定
+
+```{python}
+#| label: model
+# 係数・標準誤差・p 値。本格的な分析では statsmodels などを使う（requirements.txt に足す）
+import math
+x, y = d["x"].to_numpy(), d["y"].to_numpy()
+b = np.cov(x, y, ddof=1)[0, 1] / x.var(ddof=1)
+resid = y - (y.mean() + b * (x - x.mean()))
+se = math.sqrt(resid.var(ddof=2) / ((x - x.mean()) ** 2).sum())
+p = math.erfc(abs(b / se) / math.sqrt(2))       # 大標本なので正規近似
+
+ov_value("coef_x", b)
+ov_value("se_x", se)
+ov_value("p_x", ov_pval(p))
+```
+
+本文では `{{n_obs}}` `{{coef_x}}` `{{p_x}}` と書けば、この値が入る。
+
+## 図
+
+```{python}
+#| label: fig-trend
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.scatter(d["x"], d["y"], s=8, color=ov_tint(ov_palette(["blue"])[0], 0.4))
+xs = np.array([x.min(), x.max()])
+ax.plot(xs, y.mean() + b * (xs - x.mean()), color="black", linewidth=2)
+ax.set_xlabel("x"); ax.set_ylabel("y")
+fig.tight_layout()
+ov_figure(fig, "trend")      # assets/figures/trend.pdf と .png
+```
+
+原稿には `![推移](../../assets/figures/trend.png){#fig-trend}` と書き、`@fig-trend` で
+参照する（番号は組むときに振られる: 図2.1）。
+
+## 表
+
+```{python}
+#| label: tbl-summary
+tab = pd.DataFrame({
+    "変数": ["x", "y"],
+    "平均": [x.mean(), y.mean()],
+    "標準偏差": [x.std(ddof=1), y.std(ddof=1)],
+})
+ov_table(tab, "summary", notes=f"注: N = {len(d):,}。")
+```
+
+表の中身（assets/tables/summary.typ / .tex / .md）が書かれる。原稿に
+`: 記述統計 {#tbl-summary}` の1行を書けばそこに表題つきで入り、`@tbl-summary` で
+参照できる。

@@ -369,6 +369,34 @@ def orphan_results(cfg) -> list:
     return [p for p in valmod.files(cfg) if p.stem not in stems]
 
 
+CHUNK = re.compile(r'^\s*```+\s*\{\s*([A-Za-z]+)', re.M)
+
+
+def engine(src: Path) -> str:
+    """.qmd が使うのは R か Python か。コードのチャンクの言語で見る（`{r}` / `{python}`、
+    前書きの `engine: jupyter` / `jupyter:` も Python）。どちらも書いていなければ R
+    （Octavo の最初のひな型がそうだった）。両方あれば 'r+python'。"""
+    try:
+        text = src.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return 'r'
+    langs = {m.group(1).lower() for m in CHUNK.finditer(text)}
+    fm = re.match(r'---[ \t]*\n(.*?)\n---', text, re.S)
+    head = fm.group(1) if fm else ''
+    py = 'python' in langs or bool(re.search(r'^(engine:\s*jupyter|jupyter:)', head, re.M))
+    r = 'r' in langs
+    return 'r+python' if py and r else 'python' if py else 'r'
+
+
+def engines(cfg) -> set:
+    """登録されている .qmd が使う言語の集まり（{'r'}、{'python'}、両方）。"""
+    out: set = set()
+    for u in units(cfg):
+        if u.src.is_file():
+            out |= set(engine(u.src).split('+'))
+    return out
+
+
 def status(cfg) -> list:
     """[(Unit, ある?, 古い?)] を返す（octavo analysis の表示用）。"""
     stamp = read_stamp(cfg)
@@ -387,6 +415,7 @@ def status_json(cfg) -> dict:
         rec = stamp.get(key(cfg, u))
         rows.append({'key': key(cfg, u), 'src': str(u.src), 'exists': exists,
                      'stale': stale, 'manual': u.manual, 'deps': len(u.deps),
+                     'engine': engine(u.src) if exists else None,
                      'rendered_at': rec.get('rendered_at') if isinstance(rec, dict) else None})
     return {'quarto': quarto_version() or None, 'units': rows,
             'stale': sum(1 for r in rows if r['stale'])}

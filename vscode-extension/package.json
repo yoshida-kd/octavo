@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -22,6 +22,11 @@
     "Visualization",
     "Education",
     "Snippets"
+  ],
+  "extensionPack": [
+    "quarto.quarto",
+    "REditorSupport.r",
+    "ms-python.python"
   ],
   "keywords": [
     "typst",
@@ -51,6 +56,10 @@
         { "id": "octavo.project", "name": "%view.project.name%" }
       ]
     },
+    "viewsWelcome": [
+      { "view": "octavo.project", "contents": "%view.project.welcome%", "when": "workbenchState != empty && !octavo.hasConfig" },
+      { "view": "octavo.project", "contents": "%view.project.welcomeNoFolder%", "when": "workbenchState == empty" }
+    ],
     "commands": [
       {
         "command": "octavo.sidebarRefresh",
@@ -176,12 +185,14 @@
       {
         "command": "octavo.init",
         "title": "%command.init.title%",
-        "category": "Octavo"
+        "category": "Octavo",
+        "icon": "$(new-folder)"
       },
       {
         "command": "octavo.new",
         "title": "%command.new.title%",
-        "category": "Octavo"
+        "category": "Octavo",
+        "icon": "$(add)"
       },
       {
         "command": "octavo.extract",
@@ -230,6 +241,7 @@
     ],
     "menus": {
       "view/title": [
+        { "command": "octavo.new", "when": "view == octavo.project && octavo.hasConfig", "group": "navigation@0" },
         { "command": "octavo.sidebarRefresh", "when": "view == octavo.project", "group": "navigation" },
         { "command": "octavo.openConfig", "when": "view == octavo.project", "group": "navigation" }
       ],
@@ -442,6 +454,16 @@
           ],
           "default": "slides",
           "description": "%config.previewLectureColumn.description%"
+        },
+        "octavo.qmdPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.qmdPreview.description%"
+        },
+        "octavo.previewFollowCursor": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.previewFollowCursor.description%"
         },
         "octavo.updateHandoutsOnSave": {
           "type": "boolean",

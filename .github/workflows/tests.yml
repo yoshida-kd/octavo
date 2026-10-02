@@ -325,8 +325,8 @@ jobs:
           name: octavo-vsix
           path: vscode-extension/octavo.vsix
 
-  # 分析の側（Quarto + R + templates/analysis/common/analysis/octavo.R）を実際に実行する。
-  # ここが通らないかぎり octavo.R は「書いただけ」の状態なので、
+  # 分析の側（Quarto + R + templates/analysis/common/analysis/octavo.R、Python 版は
+  # octavo_helper.py）を実際に実行する。ここが通らないかぎり補助は「書いただけ」の状態なので、
   # 1つの job を丸ごとこれに充てている。
   analysis:
     if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
@@ -350,6 +350,9 @@ jobs:
         with:
           use-public-rspm: true
 
+      # Python の分析（PythonAnalysisEndToEnd）が .venv を作るのに要る
+      - uses: astral-sh/setup-uv@v5
+
       # Quarto の knitr エンジンに要る。octavo.R 自体は素の R だけで動く。
       - name: Install R packages for the knitr engine
         run: install.packages(c("knitr", "rmarkdown"))
@@ -367,6 +370,6 @@ jobs:
           set -o pipefail
           python3 tests/test_octavo.py 2>&1 | tee /tmp/out.txt
           if grep -q 'AnalysisEndToEnd.*skipped' /tmp/out.txt; then
-            echo '分析の検証が飛ばされている。Quarto か R が入っていない'
+            echo '分析の検証が飛ばされている。Quarto か R か uv が入っていない'
             exit 1
           fi

@@ -1,0 +1,42 @@
+---
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- 論文に出す数値・図・表は、原稿ではなくここで作る。
+     octavo build が `.qmd` の更新を見て、必要なら quarto render を実行する。 -->
+
+```{python}
+#| label: setup
+#| include: false
+# 同じ analysis/ にある octavo_helper.py を読む。octavo build から呼ばれたときは
+# OCTAVO_ROOT が入っているので、どこから実行しても当たる。
+import os, sys
+root = os.environ.get("OCTAVO_ROOT")
+sys.path.insert(0, os.path.join(root, "analysis") if root else ".")
+from octavo_helper import *
+ov_style()   # 図の文字を PDF に文字のまま埋め込み、和文の書体があれば使う
+```
+
+```{python}
+#| label: data
+# 原データは data/raw/（書き換えない）、整形したものは data/derived/ に書く。
+#   import pandas as pd
+#   d = pd.read_csv(ov_root() / "data" / "raw" / "<ファイル>.csv")
+#
+# 本文に出すものは登録して、原稿からは名前で呼ぶ:
+#   ov_value("n_obs", len(d))         # 本文では {{n_obs}}
+#   ov_figure(fig, "trend")           # assets/figures/trend.pdf と .png
+#   ov_table(tab, "summary")          # assets/tables/summary.typ / .tex / .md
+```

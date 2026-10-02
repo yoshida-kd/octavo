@@ -48,5 +48,9 @@
   "command.analysisRun.title": "分析を実行する (analysis run)",
   "command.addAppendix.title": "付録を追加",
   "command.addTex.title": "LaTeX 用の main.tex を追加",
-  "command.extract.title": "回ごとの配布資料を作る"
+  "command.extract.title": "回ごとの配布資料を作る",
+  "view.project.welcome": "このフォルダはまだ Octavo のプロジェクトではありません。\n[新しいプロジェクト](command:octavo.init)\n論文・スライド・講義ノート・分析のうち、いま要るものだけを選んで作れます。あとからいくらでも足せます。",
+  "view.project.welcomeNoFolder": "先にフォルダを開いて、その中に Octavo のプロジェクトを作ります。\n[フォルダを開く](command:vscode.openFolder)",
+  "config.qmdPreview.description": "Octavo のプロジェクトで .qmd を開いたとき、その分析が最後に出力した HTML を横に表示します。これで組み直すことはありません。分析を実行すると、画面は自動で読み直されます。",
+  "config.previewFollowCursor.description": "原稿のカーソルの位置に合わせて、PDF プレビューをスクロールします。プレビューだけを自分でスクロールすることもできます。プレビューのツールバーの ⇅ ボタンで、その回だけ切り替えられます。"
 }

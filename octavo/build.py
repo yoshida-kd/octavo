@@ -480,6 +480,12 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
              os.pathsep.join(str(p) for p in (out_dir, cfg.root, cfg['figure_dir']))]
 
     out_path = out_dir / backend.out_name(ctx)
+    if ctx.standalone and out_path.stem != ctx.doc_name:
+        # 印の付かない前の版の名前（<文書>-<回>.pdf など）の出力は消す。残すと紛らわしい
+        for ext in (backend.ext, '.pdf'):
+            legacy = out_dir / f'{ctx.doc_name}{ext}'
+            if legacy.is_file():
+                legacy.unlink()
     try:
         if backend.binary:
             pandocrun.run_to_file(body, args, out_path, cwd=out_dir)
@@ -612,13 +618,16 @@ def clear_old_sessions(cfg, doc, tgt: str, built: list) -> list:
     if not out_dir.is_dir():
         return []
     others = set(cfg.documents) - {doc.name}
-    keep = set(built)
+    backend = be.get(tgt)
+    # 出力は <文書>-slides-<回>.pdf など。台本のページの対応は <文書>-<回>.notes.json
+    keep = {backend.file_stem(b, b[len(doc.name) + 1:]) for b in built}
+    keep_json = set(built)
     gone = []
     for f in sorted(out_dir.iterdir()):
         stem = f.name.split('.')[0]          # 台本のページの対応は <名前>.notes.json
         if f.suffix not in ('.typ', '.pdf', '.tex', '.json') or not stem.startswith(doc.name + '-'):
             continue
-        if stem in keep or stem in others or any(stem.startswith(o + '-') for o in others
+        if stem in (keep_json if f.suffix == '.json' else keep) or stem in others or any(stem.startswith(o + '-') for o in others
                                                  if len(o) > len(doc.name)):
             continue
         try:

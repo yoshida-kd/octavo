@@ -7,7 +7,7 @@ date: 2026-01-01
 <!-- octavo:example この原稿は octavo new が置いたひな型。`octavo:example` の印が
      付いた塊は**例**なので、自分の内容に置き換えたら印のコメントごと消す。
      印が残っているあいだは octavo check が「ひな型の残り」として知らせる。
-     書き方の約束は CLAUDE.md にある。 -->
+     書き方の約束は AGENTS.md にある。 -->
 
 ## Abstract
 

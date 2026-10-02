@@ -4,7 +4,7 @@
 
 ## 中身
 
-    analysis/       分析（Quarto の .qmd）とヘルパー octavo.R
+    analysis/       分析（Quarto の .qmd）とヘルパー（octavo.R か octavo_helper.py）
     data/           データ@@RAWNOTE@@
     data/HASHES.json  使ったデータのハッシュ値（sha256）
     assets/values/  分析が出した数値（本文に入るもの）と実行環境の記録

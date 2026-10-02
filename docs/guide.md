@@ -215,6 +215,7 @@ octavo env                                # the project's analysis environment (
 
 ```bash
 octavo new analysis model           # analysis/model.qmd (the first also brings octavo.R and data/)
+octavo new analysis model --engine python   # the same, written in Python (brings octavo_helper.py)
 octavo new paper example-paper      # papers/example-paper/: paper.md and the layout main.typ
 octavo new paper example-paper --appendix   # add appendix.md (to an existing paper too)
 octavo new paper example-paper --tex        # add main.tex for LaTeX (to an existing paper too)
@@ -225,8 +226,9 @@ octavo new table compare            # tables/compare.csv, a table you make by ha
 ```
 
 `init --with` takes the same parts (`--with lecture`, `--with analysis,slides=talk`; `--all`
-for every kind), and `--example` fills the parts with worked examples instead of bare
-headings. A document is referred to by its name — the folder for a paper, the file name for
+for every kind; `--engine python` makes the analysis one in Python), and `--example` fills the
+parts with worked examples instead of bare headings. Add `--env` to `init` or `new analysis`
+to set up the analysis environment in the same step. A document is referred to by its name — the folder for a paper, the file name for
 slides and lecture notes: `octavo build example-paper`.
 
 ### What is in a project
@@ -235,12 +237,13 @@ slides and lecture notes: `octavo build example-paper`.
 study/
   octavo.config.py   the project's settings
   literature.bib     the bibliography, exported from your reference manager
-  CLAUDE.md          the project's working rules (also read by Claude Code)
+  AGENTS.md          the project's working rules for AI assistants (Claude Code, GitHub Copilot, Codex, Antigravity read it)
+  CLAUDE.md          one line that points Claude Code at AGENTS.md
   README.md          a few lines for you to finish
   papers/<name>/     paper.md, and main.typ (the journal layout)
   slides/<name>.md   talks
   lectures/<name>.md lecture notes
-  analysis/          the .qmd files and octavo.R
+  analysis/          the .qmd files and the helper (octavo.R, or octavo_helper.py for Python)
   data/raw/          the data as you got it (not in git; describe it in data/raw/README.md)
   data/derived/      data the analysis made (not in git)
   figures/           figures you make: drawn in Typst (<name>.typ), photos
@@ -263,6 +266,8 @@ belong to the project**:
 ```bash
 octavo env    # .venv (uv) with requirements.txt, renv with knitr and rmarkdown
 ```
+
+A project whose analyses are all in Python gets no renv. In VS Code you do not have to run it: **adding the first analysis** (or starting a project with one) sets the environment up right after, with the progress in a notification.
 
 Run it again after adding a package to `requirements.txt`; after `install.packages()` in R,
 run `renv::snapshot()`. Git keeps the records (`requirements.txt`, `renv.lock`), not the
@@ -504,7 +509,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      {{…}} in the text
 
 ### Handing over numbers, figures and tables
 
-A new `.qmd` already loads the helper `octavo.R`. Register what the paper shows:
+A new `.qmd` already loads its helper: `octavo.R` for R, `octavo_helper.py` for Python (see below). Register what the paper shows:
 
 | What | In the analysis | In the manuscript |
 |---|---|---|
@@ -577,9 +582,29 @@ octavo:
 - In VS Code the sidebar's **Analysis** section shows each `.qmd` and runs it with one
   button. The preview never runs the analysis; it says when something is out of date.
 
-### Other languages than R
+### Python
 
-Octavo only reads files, so a Python or Julia `.qmd` works if it writes
+Add `--engine python` (or pick **Analysis in Python** in VS Code) and the `.qmd` is written in
+Python. It loads `analysis/octavo_helper.py`, which has the same functions under the same names
+and writes the same files, so the manuscript is written exactly as for R:
+
+```python
+ov_value("n_obs", len(d))              # {{n_obs}}
+ov_value("coef_x", model.params["x"])
+ov_figure(fig, "trend")                # a matplotlib Figure (or a plotnine ggplot, or a function that draws)
+ov_table(tab, "summary")               # a pandas DataFrame (or a dict, or a list of lists)
+```
+
+- An `int` (also a NumPy integer) is shown as `1,523`, a `float` as `0.342`, as in R.
+- `ov_palette()`, `ov_tint()` and `ov_pval()` are there too. The helper needs only the standard
+  library; matplotlib and pandas are used only when you hand it a figure or a DataFrame.
+- `requirements.txt` gets what Quarto needs to run Python (`ipykernel`, `nbformat`, `nbclient`,
+  `pyyaml`), and `octavo env` installs it into `.venv`, which `octavo analysis run` uses by
+  itself. R and Python `.qmd` files can live in one project.
+
+### Other languages
+
+Octavo only reads files, so a Julia or other `.qmd` works if it writes
 `{"name": value}` into `assets/values/<anything>.json`, figures as `.pdf` and `.png` into
 `assets/figures/`, and tables into `assets/tables/`.
 
@@ -896,11 +921,11 @@ octavo release <document> <label>              tag, and the PDF to a GitHub Rele
 octavo data hash|status                        fingerprints of data/
 octavo checkbib [--list] [--unused]            citation keys against the .bib
 octavo csl get|list|which [ID]                 citation styles
-octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--example]
-octavo new paper|slides|lecture|analysis|figure|table <name> [--example]
+octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
+octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]
 octavo env                                     the project's .venv and renv
-octavo setup [--with-tex] [--check]            install or update the tools
+octavo setup [--with-tex] [--check] [--r-editor]            install or update the tools
 octavo doctor                                  what is installed
 octavo selftest                                a sample typeset end to end
 octavo reference-docx [out.docx]               a Word style file to edit
@@ -931,9 +956,13 @@ puts all of this behind buttons:
 - **Preview**: the PDF beside the manuscript, rebuilt on every save; lecture notes get a third
   column with the deck (or the speaker script) for the session the cursor is in. Text can be
   selected, links followed, and ☰ lists the bookmarks.
+- **New project** is one screen: where, the name, the language, what to start with (an analysis in R or Python, a paper, slides, lecture notes) and whether to fill them with examples. With an analysis chosen, the environment is set up right after. In a folder that is not a project yet, the sidebar offers it first.
+- The extension also installs **Quarto**, **R** and **Python** extensions with it (an extension pack; you can uninstall any of them). The R extension uses the R package `languageserver` for completion and the like, and in a renv project it asks to install it, project after project. Octavo offers once to install it in your own R library and add that library to the R extension's `r.libPaths` (in a terminal: `octavo setup --r-editor`; `octavo setup` installs it too).
 - The sidebar lists manuscripts (with their settings), analyses and tools; open a paper to add
   an appendix, lecture notes with session markers to make per-session handouts (also remade on
   every save).
+- The preview scrolls to where the cursor is in the manuscript (it can still be scrolled on its own; the ⇅ button in its toolbar, or the setting `octavo.previewFollowCursor`, turns that off).
+- Opening a `.qmd` shows the HTML it last rendered beside it, and reloads it when the analysis runs again. Nothing is rendered by opening or saving it (`octavo.qmdPreview` turns this off).
 - Completion and checks for citations (`@`) and analysis values (`{{`).
 - `.csv` files in `tables/` and `data/` open as editable tables.
 

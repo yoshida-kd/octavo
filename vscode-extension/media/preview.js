@@ -38,6 +38,10 @@ let doc = null;
 let bytes = null;         // 最後に受け取った PDF（倍率を変えるとき描き直す）
 let rendering = false;
 let pending = null;       // 描いている最中に次の PDF が来たとき
+let follow = true;        // 原稿のカーソルにスクロールを合わせるか（拡張機能が決める）
+let pendingSync = null;   // 描いている最中に来た「ここへ」（描き終えてから合わせる）
+const followBtn = document.getElementById('follow');
+followBtn.onclick = () => vscode.postMessage({ type: 'toggleFollow' });
 
 function b64(data) {
   const bin = atob(data);
@@ -204,6 +208,7 @@ async function render(data) {
     viewports = vps;
     pagesLabel.textContent = doc.numPages + 'p';
     restore(keep);
+    textIndex = null;
     message.classList.remove('on');
     addLayers(layers, doc);
     buildOutline();
@@ -212,8 +217,99 @@ async function render(data) {
   } finally {
     rendering = false;
     if (pending) { const b = pending; pending = null; render(b); }
+    else if (pendingSync) { const m = pendingSync; pendingSync = null; applySync(m); }
   }
 }
+
+// ---- 原稿のカーソルに合わせてスクロールする（forward sync）
+// SyncTeX のような「原稿の行 → PDF の位置」の対応表は Typst にないので、文字で探す:
+// 原稿のその行の頭の十数文字（と、見つからなければ直前の見出し）を PDF の文字の中から
+// 探し、同じ文が何か所かあるときは、原稿の位置の割合に近いものを取る。
+// どれも見つからなければ、割合だけで合わせる（見出しも文もない行、まだ保存していない行）。
+let textIndex = null;
+
+function normalize(s) {
+  return s.normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+}
+
+// ページごとに、文字を1本につないだもの（空白なし）と、各断片の始まりと縦位置
+async function indexText(d) {
+  if (textIndex && textIndex.doc === d) return textIndex;
+  const pages = [];
+  for (let n = 1; n <= d.numPages; n++) {
+    const page = await d.getPage(n);
+    const h = page.getViewport({ scale: 1 }).height;
+    let content;
+    try { content = await page.getTextContent(); } catch (e) { content = { items: [] }; }
+    let text = '';
+    const spans = [];
+    for (const it of content.items) {
+      const t = normalize(it.str || '');
+      if (!t) continue;
+      spans.push({ start: text.length, y: it.transform[5] });
+      text += t;
+    }
+    pages.push({ text, spans, h });
+  }
+  textIndex = { doc: d, pages };
+  return textIndex;
+}
+
+function spanAt(spans, at) {
+  let lo = 0, hi = spans.length - 1, found = spans[0];
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (spans[mid].start <= at) { found = spans[mid]; lo = mid + 1; } else hi = mid - 1;
+  }
+  return found;
+}
+
+function findText(idx, needle, ratio) {
+  let best = null;
+  idx.pages.forEach((p, pi) => {
+    let at = -1;
+    while ((at = p.text.indexOf(needle, at + 1)) >= 0 && p.spans.length) {
+      const span = spanAt(p.spans, at);
+      const frac = (pi + (1 - span.y / p.h)) / idx.pages.length;
+      const d = Math.abs(frac - ratio);
+      if (!best || d < best.d) best = { page: pi, y: span.y, d };
+    }
+  });
+  return best;
+}
+
+async function applySync(m) {
+  if (!follow || !doc) return;
+  const d0 = doc;
+  const idx = await indexText(d0);
+  if (doc !== d0) return;
+  const ratio = Math.min(1, Math.max(0, m.ratio || 0));
+  let hit = null;
+  for (const raw of m.needles || []) {
+    const needle = normalize(raw);
+    if (needle.length < 3) continue;
+    hit = findText(idx, needle, ratio);
+    if (hit) break;
+  }
+  let top;
+  if (hit && viewports[hit.page] && pageBoxes[hit.page]) {
+    top = pageBoxes[hit.page].offsetTop + viewports[hit.page].convertToViewportPoint(0, hit.y)[1];
+  } else {
+    // 割合だけで合わせる
+    top = ratio * (view.scrollHeight - view.clientHeight) + view.clientHeight * 0.3;
+  }
+  // すでに見える位置（上から 12%〜80%）なら動かさない。1行打つたびに画面が揺れないように
+  const rel = top - view.scrollTop;
+  if (rel < view.clientHeight * 0.12 || rel > view.clientHeight * 0.8) {
+    view.scrollTop = Math.max(0, top - view.clientHeight * 0.3);
+  }
+}
+
+function setFollow(on) {
+  follow = !!on;
+  followBtn.classList.toggle('on', follow);
+}
+setFollow(true);
 
 function show_error(text) {
   message.textContent = text;
@@ -246,6 +342,10 @@ window.addEventListener('message', (ev) => {
     show_error(m.message || '');
   } else if (m.type === 'busy') {
     bar.classList.toggle('busy', !!m.on);
+  } else if (m.type === 'follow') {
+    setFollow(m.on);
+  } else if (m.type === 'sync') {
+    if (rendering || !doc) pendingSync = m; else applySync(m);
   } else if (m.type === 'stale') {
     staleText.textContent = m.text || '';
     staleRun.textContent = m.button || '';

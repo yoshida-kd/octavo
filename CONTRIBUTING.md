@@ -67,7 +67,7 @@ octavo/
   templates/                every template, each replaceable (§7; templates/README.md)
     project/                the frame octavo init writes (ja/ or en/)
     claude/                 the project CLAUDE.md, one section per kind of part
-    analysis/               what the first analysis brings (common/analysis/octavo.R — the helper —, data/raw/README.md, requirements.txt)
+    analysis/               what the first analysis brings (common/analysis/octavo.R and python/analysis/octavo_helper.py — the helpers —, data/raw/README.md, requirements.txt)
     example/                what an example uses (placeholder values and tables, two made-up references)
     manuscripts/            what octavo new writes (paper / appendix / slides / lecture / analysis.qmd; example/ for --example)
 

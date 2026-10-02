@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """`octavo init` — プロジェクトの枠を作る。`octavo new` — 原稿や分析を足す。
 
-    octavo init 2026-research             枠だけ（設定・書誌・CLAUDE.md・README・figures/）
+    octavo init 2026-research             枠だけ（設定・書誌・AGENTS.md・README・figures/）
     octavo init study --with analysis,paper   分析と論文から始める（--all なら4つとも）
     octavo init demo --example            見本つき（仮のデータの分析と、見本の論文1本）
     octavo new analysis model             analysis/model.qmd（1本目は octavo.R・data/ なども）
@@ -11,7 +11,7 @@
     octavo new lecture example-lecture    lectures/example-lecture.md（プリント1本 + 回ごとのスライド）
 
 既定で置くのは、後で消さずに使い続けるものだけ。見本（仮のデータ・仮の値・仮の図表・
-見本の書誌・原稿の中の例）は --example のときだけ置く。CLAUDE.md は共通の節から
+見本の書誌・原稿の中の例）は --example のときだけ置く。AGENTS.md（と、それを読むだけの CLAUDE.md）は共通の節から
 始まり、部品の種類を初めて足したときにその節（templates/claude/<言語>/）が足される。
 
 論文・スライド・講義の違いは**原稿のテンプレート**（templates/manuscripts/<言語>/*.md）と、
@@ -227,7 +227,7 @@ EXAMPLE_PAPER = 'example-paper'
 # （paper なら papers/paper/）。分析を先に置くのは、原稿の見本がその値を使うから。
 PARTS = ('analysis', 'paper', 'slides', 'lecture')
 
-# CLAUDE.md の節（templates/claude/<言語>/<節>.md）。スライドと講義ノートは同じ節。
+# AGENTS.md の節（templates/claude/<言語>/<節>.md。置き場の名前は昔のまま）。スライドと講義ノートは同じ節。
 # 部品を足したとき、その節がまだなければ末尾に書き足す（印で見分ける）。
 CLAUDE_SECTION = {'analysis': 'analysis', 'paper': 'paper',
                   'slides': 'slides', 'lecture': 'slides'}
@@ -254,21 +254,68 @@ def _lang(value) -> str:
     return 'ja' if value == 'ja' else 'en'
 
 
+# プロジェクトの約束事（AI に読ませるもの）の正本は AGENTS.md。Claude Code・GitHub Copilot・
+# OpenAI の Codex・Antigravity など、どれもこれを読む。CLAUDE.md は「AGENTS.md を読む」
+# だけの1行（Claude 専用の約束があれば、利用者がそこへ足す）。
+INSTRUCTIONS = 'AGENTS.md'
+
+
+def _points_at_agents(text: str) -> bool:
+    """AGENTS.md を読むだけの CLAUDE.md か（1行目が `@AGENTS.md`。下に説明のコメントがあってもよい）。"""
+    first = next((ln.strip() for ln in text.splitlines() if ln.strip()), '')
+    return first == '@AGENTS.md'
+
+
+def instruction_file(root: Path) -> Path | None:
+    """節を書き足す先。AGENTS.md があればそれ。なければ、CLAUDE.md に中身があれば
+    それ（AGENTS.md ができる前のプロジェクト）。どちらもなければ（消してあれば）None。"""
+    agents = root / INSTRUCTIONS
+    if agents.is_file():
+        return agents
+    claude = root / 'CLAUDE.md'
+    if claude.is_file() and not _points_at_agents(claude.read_text(encoding='utf-8')):
+        return claude
+    return None
+
+
+def migrate_instructions(root: Path, lang: str, dry_run: bool = False) -> tuple:
+    """一時的な移行（次の版で消す）: AGENTS.md ができる前のプロジェクトの CLAUDE.md を
+    AGENTS.md に移し、CLAUDE.md は AGENTS.md を読むだけの1行にする。
+
+    中身は1文字も変えずに移す（利用者が足した約束もそのまま）。戻り値は
+    (動いたか, 表示用の1行)。すでに移してあるときと、CLAUDE.md がないときは何もしない。
+    """
+    claude, agents = root / 'CLAUDE.md', root / INSTRUCTIONS
+    if agents.is_file():
+        return False, t('AGENTS.md is already there, so there is nothing to move.')
+    if not claude.is_file():
+        return False, t('There is no CLAUDE.md, so there is nothing to move.')
+    text = claude.read_text(encoding='utf-8')
+    if _points_at_agents(text):
+        return False, t('CLAUDE.md already only points at AGENTS.md.')
+    if not dry_run:
+        agents.write_text(text, encoding='utf-8')
+        claude.write_text(render_template(f'claude/{_lang(lang)}/stub.md', {'NAME': root.name}, root),
+                          encoding='utf-8')
+    return True, t('Moved the rules from CLAUDE.md to AGENTS.md; CLAUDE.md now points at it.')
+
+
 def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
-    """CLAUDE.md に節がなければ末尾に書き足す。CLAUDE.md を消してあれば何もしない。"""
-    p = root / 'CLAUDE.md'
-    if not p.is_file():
+    """約束事のファイルに節がなければ末尾に書き足す。ファイルを消してあれば何もしない。"""
+    p = instruction_file(root)
+    if p is None:
         return
     text = p.read_text(encoding='utf-8')
     if SECTION_MARK.format(section) in text:
         return
     frag = render_template(f'claude/{lang}/{section}.md', {'NAME': root.name}, root)
     p.write_text(text.rstrip('\n') + '\n\n' + frag, encoding='utf-8')
-    made.append('  ' + t('appended') + '  CLAUDE.md ' + t('({section} section)', section=section))
+    made.append('  ' + t('appended') + f'  {p.name} ' + t('({section} section)', section=section))
 
 
 def init(dest: Path, lang: str = 'ja', force: bool = False,
-         quiet: bool = False, example: bool = False, parts: dict | None = None) -> int:
+         quiet: bool = False, example: bool = False, parts: dict | None = None,
+         engine: str = 'r') -> int:
     """プロジェクトの共通部分を作る。原稿も分析も置かない（`octavo new` で足す）。
 
     parts（{部品: 名前}）があれば、その部品を `octavo new` と同じに足す。
@@ -286,7 +333,9 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     for rel, src in tmpl.tree(['project/common', f'project/{suffix}']).items():
         text = render(src.read_text(encoding='utf-8'), subs, rel.endswith('.md'))
         _write(dest / project_target(rel), text, force, made, dest)
-    _write(dest / 'CLAUDE.md', render_template(f'claude/{suffix}/common.md', {'NAME': name}),
+    _write(dest / INSTRUCTIONS, render_template(f'claude/{suffix}/common.md', {'NAME': name}),
+           force, made, dest)
+    _write(dest / 'CLAUDE.md', render_template(f'claude/{suffix}/stub.md', {'NAME': name}),
            force, made, dest)
     (dest / 'figures').mkdir(parents=True, exist_ok=True)
     (dest / 'figures' / '.gitkeep').touch()
@@ -297,7 +346,8 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     for kind in PARTS:
         if kind in parts:
             rc = new(dest / 'octavo.config.py', kind, parts[kind], force=force, quiet=True,
-                     example=example, appendix=example and kind == 'paper', made=made)
+                     example=example, appendix=example and kind == 'paper', made=made,
+                     engine=engine)
             if rc:
                 return rc
 
@@ -322,7 +372,7 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
           + '# ' + t('add a manuscript (as many as you like)'))
     print(('  octavo new analysis <' + t('name') + '>').ljust(38)
           + '# ' + t('add an analysis (.qmd)'))
-    print('\n  ' + t('The working rules are in CLAUDE.md; the manual is Octavo\'s guide.'))
+    print('\n  ' + t('The working rules are in AGENTS.md; the manual is Octavo\'s guide.'))
     return 0
 
 
@@ -357,21 +407,48 @@ def qmd_header(cfg, name: str, lang: str) -> dict:
             'DATE': datetime.date.today().isoformat(), 'LANG': lang}
 
 
+ENGINES = ('r', 'python')
+
+
+def add_requirements(root: Path, made: list) -> None:
+    """Python の分析に要るもの（Quarto が Python を動かすもの・補助が使うもの）を
+    requirements.txt に足す。すでに書いてある名前は足さない。"""
+    lines = tmpl.read('analysis/python-requirements.txt', root).splitlines()
+    p = root / 'requirements.txt'
+    text = p.read_text(encoding='utf-8') if p.is_file() else ''
+
+    def pkg(line: str) -> str:
+        return re.split(r'[<>=!~\[ ;#]', line.strip(), maxsplit=1)[0].lower().replace('_', '-')
+    have = {pkg(ln) for ln in text.splitlines() if ln.strip() and not ln.lstrip().startswith('#')}
+    add = [ln for ln in lines if ln.strip().startswith('#') or pkg(ln) not in have]
+    if not any(not ln.strip().startswith('#') for ln in add):
+        return
+    p.write_text(text.rstrip('\n') + ('\n\n' if text.strip() else '') + '\n'.join(add) + '\n',
+                 encoding='utf-8')
+    made.append('  ' + t('appended') + '  requirements.txt ' + t('(for Python analyses)'))
+
+
 def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
-                  made: list) -> Path:
-    """analysis/<name>.qmd を置く。分析の部分（octavo.R・data/・assets/tables/・
-    requirements.txt）は、まだないものだけ置く（2本目からは何も言わない）。"""
+                  made: list, engine: str = 'r') -> Path:
+    """analysis/<name>.qmd を置く。分析の部分（octavo.R か octavo_helper.py・data/・
+    assets/tables/・requirements.txt）は、まだないものだけ置く（2本目からは何も言わない）。
+    engine は R か Python か。両方使うプロジェクトでは、それぞれの補助が1つずつ置かれる。"""
     root = cfg.root
-    for rel, src in tmpl.tree(['analysis/common', f'analysis/{lang}'], root).items():
+    python = engine == 'python'
+    folders = [f'analysis/{lang}'] + (['analysis/python'] if python else ['analysis/common'])
+    for rel, src in tmpl.tree(folders, root).items():
         if force or not (root / rel).exists():
             _write(root / rel, render(src.read_text(encoding='utf-8'), {'NAME': root.name},
                                       rel.endswith('.md')), True, made, root)
+    if python:
+        add_requirements(root, made)
     for d in (root / 'data/derived', Path(cfg['table_dir'])):
         d.mkdir(parents=True, exist_ok=True)
         (d / '.gitkeep').touch()
     folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
     qmd = root / 'analysis' / f'{name}.qmd'
-    _write(qmd, render_template(f'{folder}/analysis.qmd', qmd_header(cfg, name, lang), root),
+    _write(qmd, render_template(f'{folder}/analysis{"-python" if python else ""}.qmd',
+                                qmd_header(cfg, name, lang), root),
            force, made, root)
     if example:
         # 見本の値・表・図。分析を実行する前でも見本の原稿が組めるように置く
@@ -390,6 +467,8 @@ def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
             made.append('  ' + t('made') + '  ' + t('{path} (and .pdf — placeholders)',
                                                   path=cfg.rel(fig / 'trend.png')))
     add_claude_section(root, lang, 'analysis', made)
+    if python:
+        add_claude_section(root, lang, 'analysis-python', made)
     return qmd
 
 
@@ -473,7 +552,7 @@ def _new_table(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) 
 
 def new(config: Path, kind: str, name: str, force: bool = False,
         quiet: bool = False, example: bool = False, appendix: bool = False,
-        tex: bool = False, made: list | None = None) -> int:
+        tex: bool = False, made: list | None = None, engine: str = 'r') -> int:
     """原稿・分析・図・表を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
 
     既にある原稿の名前なら、ないファイルだけを足す（`--appendix` / `--tex` を後から）。
@@ -491,6 +570,10 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         print(t('that name will not do: {name} (no spaces, no / or \\, and it '
                 'cannot start with a dot)', name=repr(name)), file=sys.stderr)
         return 1
+    if engine not in ENGINES:
+        print(t('unknown engine: {engine} (one of {allowed})',
+                engine=engine, allowed=' / '.join(ENGINES)), file=sys.stderr)
+        return 1
     if (appendix or tex) and kind != 'paper':
         print(t('--appendix and --tex are for papers only'), file=sys.stderr)
         return 1
@@ -501,7 +584,7 @@ def new(config: Path, kind: str, name: str, force: bool = False,
     made = made if made is not None else []
 
     if kind == 'analysis':
-        qmd = _new_analysis(cfg, name, lang, force, example, made)
+        qmd = _new_analysis(cfg, name, lang, force, example, made, engine)
         if quiet or quiet_made:
             return 0
         for m in made:

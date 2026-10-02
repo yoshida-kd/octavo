@@ -214,6 +214,7 @@ octavo env                                # このプロジェクトの分析環
 
 ```bash
 octavo new analysis model           # analysis/model.qmd（初回は octavo.R と data/ も）
+octavo new analysis model --engine python   # 同じものを Python で書く（octavo_helper.py を置く）
 octavo new paper example-paper      # papers/example-paper/: paper.md と体裁の main.typ
 octavo new paper example-paper --appendix   # 付録 appendix.md を足す（既にある論文にも）
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
@@ -224,7 +225,7 @@ octavo new table compare            # tables/compare.csv（手で作る表）
 ```
 
 `init --with` にも同じ部品を書ける（`--with lecture`、`--with analysis,slides=talk`。`--all`
-で全種類）。`--example` を付けると、見出しだけの骨組みの代わりに書き方の見本が入る。文書は
+で全種類。`--engine python` で分析を Python にする）。`--example` を付けると、見出しだけの骨組みの代わりに書き方の見本が入る。`init` や `new analysis` に `--env` を付けると、分析の環境も同じ手順で整える。文書は
 名前で指す。論文はフォルダー名、スライドと講義ノートはファイル名: `octavo build example-paper`。
 
 ### プロジェクトの中身
@@ -233,12 +234,13 @@ octavo new table compare            # tables/compare.csv（手で作る表）
 study/
   octavo.config.py   このプロジェクトの設定
   literature.bib     書誌（文献管理ソフトからエクスポートする）
-  CLAUDE.md          このプロジェクトの約束（Claude Code も読む）
+  AGENTS.md          このプロジェクトの約束（AI アシスタント向け。Claude Code・GitHub Copilot・Codex・Antigravity が読む）
+  CLAUDE.md          Claude Code に AGENTS.md を読ませるだけの1行
   README.md          自分で書き足す数行
   papers/<name>/     paper.md と、main.typ（投稿先の体裁）
   slides/<name>.md   発表スライド
   lectures/<name>.md 講義ノート
-  analysis/          .qmd と octavo.R
+  analysis/          .qmd と補助（R なら octavo.R、Python なら octavo_helper.py）
   data/raw/          入手したままのデータ（git に入らない。data/raw/README.md に出所を書く）
   data/derived/      分析が作ったデータ（git に入らない）
   figures/           自分で作る図: Typst で描く <name>.typ、写真など
@@ -260,6 +262,8 @@ R や Quarto などの道具は機械に1回入れる。**分析で使うパッ�
 ```bash
 octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmarkdown を入れる
 ```
+
+分析がすべて Python のプロジェクトには renv は作らない。VS Code では自分で実行しなくてよい。**最初の分析を追加したとき**（分析を入れてプロジェクトを作ったとき）に、続けて環境を整え、進み具合は通知に出る。
 
 `requirements.txt` にパッケージを足したらもう一度実行する。R で `install.packages()` したら
 `renv::snapshot()` を実行する。git に入るのは記録（`requirements.txt`・`renv.lock`）だけで、
@@ -491,7 +495,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 
 ### 数値・図・表を渡す
 
-新しい `.qmd` は、最初から補助の `octavo.R` を読み込んでいる。論文に出すものを登録する:
+新しい `.qmd` は、最初から補助（R なら `octavo.R`、Python なら `octavo_helper.py`。下を参照）を読み込んでいる。論文に出すものを登録する:
 
 | 何を | 分析で | 原稿で |
 |---|---|---|
@@ -563,9 +567,29 @@ octavo:
 - VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
   プレビューは分析を実行せず、古いものがあれば知らせる。
 
-### R 以外で書く
+### Python で書く
 
-Octavo はファイルを読むだけなので、Python や Julia の `.qmd` でも、`{"name": value}` を
+`--engine python` を付ける（VS Code では「**Python の分析**」を選ぶ）と、`.qmd` が Python で
+書かれる。`analysis/octavo_helper.py` を読み込み、これが同じ名前の関数で同じファイルを書くので、
+原稿の書き方は R のときと変わらない:
+
+```python
+ov_value("n_obs", len(d))              # {{n_obs}}
+ov_value("coef_x", model.params["x"])
+ov_figure(fig, "trend")                # matplotlib の Figure（plotnine の ggplot、描く関数でもよい）
+ov_table(tab, "summary")               # pandas の DataFrame（辞書、リストのリストでもよい）
+```
+
+- `int`（NumPy の整数も）は `1,523`、`float` は `0.342` と出る。R と同じ。
+- `ov_palette()`・`ov_tint()`・`ov_pval()` もある。補助は標準ライブラリだけで動き、matplotlib と
+  pandas は、図や DataFrame を渡したときだけ使う。
+- `requirements.txt` に Quarto が Python を動かすのに要るもの（`ipykernel`・`nbformat`・
+  `nbclient`・`pyyaml`）が入り、`octavo env` が `.venv` に入れる。`octavo analysis run` はその
+  `.venv` を自分で使う。R と Python の `.qmd` は1つのプロジェクトに同居できる。
+
+### 他の言語
+
+Octavo はファイルを読むだけなので、Julia などの `.qmd` でも、`{"name": value}` を
 `assets/values/<好きな名前>.json` に、図を `.pdf` と `.png` で `assets/figures/` に、表を
 `assets/tables/` に書けば同じように使える。
 
@@ -871,11 +895,11 @@ octavo release <document> <label>              タグを打ち、PDF を GitHub 
 octavo data hash|status                        data/ のハッシュ値
 octavo checkbib [--list] [--unused]            引用キーと .bib を突き合わせる
 octavo csl get|list|which [ID]                 引用の書式
-octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--example]
-octavo new paper|slides|lecture|analysis|figure|table <name> [--example]
+octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
+octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]
 octavo env                                     このプロジェクトの .venv と renv
-octavo setup [--with-tex] [--check]            道具を入れる・更新する
+octavo setup [--with-tex] [--check] [--r-editor]            道具を入れる・更新する
 octavo doctor                                  何が入っているか
 octavo selftest                                見本を最後まで組んでみる
 octavo reference-docx [out.docx]               直して使う Word のスタイルのファイル
@@ -905,8 +929,12 @@ octavo targets                                 出力形式の一覧
   分析の実行・検査もできる。
 - **プレビュー**: 原稿の隣に PDF を出し、保存のたびに組み直す。講義ノートなら3列目に、
   カーソルのある回のスライド（か台本）が出る。文字を選べ、リンクをたどれ、☰ でしおりを開ける。
+- **新しいプロジェクト**は1つの画面で決める: 場所・名前・言語・最初に置くもの（R か Python の分析、論文、スライド、講義ノート）・見本で埋めるか。分析を選ぶと、続けて環境まで整える。まだプロジェクトでないフォルダでは、サイドバーが最初にこれを勧める。
+- 拡張機能は **Quarto**・**R**・**Python** の拡張機能も一緒に入れる（拡張機能パック。どれも個別に外せる）。R 拡張機能は補完などに R の `languageserver` パッケージを使うが、renv のプロジェクトではプロジェクトごとに「入れますか」と聞いてくる。Octavo は一度だけ、自分の R のライブラリに入れて R 拡張機能の設定 `r.libPaths` に足すことを勧める（ターミナルなら `octavo setup --r-editor`。`octavo setup` も入れる）。
 - サイドバーには原稿（とその設定）・分析・ツールが並ぶ。論文を開くと付録を足せ、
   回の区切りのある講義ノートを開くと回ごとの配布資料を作れる（保存のたびにも作り直される）。
+- プレビューは、原稿のカーソルの位置までスクロールする（プレビューだけを自分でスクロールすることもできる。ツールバーの ⇅ ボタンか、設定 `octavo.previewFollowCursor` で止められる）。
+- `.qmd` を開くと、最後に出力された HTML を横に出し、分析を実行し直すと読み直す。開く・保存するだけでは何も出力しない（設定 `octavo.qmdPreview` で止められる）。
 - 引用（`@`）と分析の値（`{{`）の補完と検査。
 - `tables/` と `data/` の `.csv` を表の形で編集できる。
 

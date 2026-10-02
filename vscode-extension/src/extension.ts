@@ -19,7 +19,9 @@ import { DiagnosticsManager } from './diagnostics';
 import { HandoutManager } from './handouts';
 import { PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
-import { AddKind, addToProject, initProject } from './scaffold';
+import { showProjectForm } from './projectForm';
+import { QmdPreview } from './qmdPreview';
+import { AddKind, addToProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
 import {
     describeMode, dirOf, extraPathDirs, findConfig, refreshWindowsPath, resolvePathFromTool,
@@ -55,9 +57,10 @@ export function activate(context: vscode.ExtensionContext): void {
     const valuesCache = new ValuesCache();
     const valueDiagnostics = new ValueDiagnostics(valuesCache);
     const preview = new PreviewManager(context, (line) => output.appendLine(line));
+    const qmdPreview = new QmdPreview((line) => output.appendLine(line));
     const handouts = new HandoutManager(preview, (line) => output.appendLine(line));
     const tree = new OctavoTree((line) => output.appendLine(line));
-    context.subscriptions.push(valuesCache, valueDiagnostics, preview, handouts, tree,
+    context.subscriptions.push(valuesCache, valueDiagnostics, preview, qmdPreview, handouts, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree),
         TableEditorProvider.register(context));
     // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
@@ -71,6 +74,12 @@ export function activate(context: vscode.ExtensionContext): void {
         void cache.refresh(true);
         void valuesCache.refresh(true);
     });
+    // 初めての分析を足したとき・新しいプロジェクトに分析を入れたときに、環境も整える
+    const envFor = async (cwd: string): Promise<boolean> => {
+        const ok = await setup.setupProjectEnvIfReady(cwd);
+        tree.refreshAnalysis();
+        return ok;
+    };
 
     // 準備が octavo と uv を入れる ~/.local/bin を、VS Code のターミナルにも足す
     // （ログインし直すまでは PATH に入っていないことが多い）。
@@ -404,13 +413,15 @@ export function activate(context: vscode.ExtensionContext): void {
             runInTerminal('selftest', cwd, ['selftest']);
         }),
 
-        vscode.commands.registerCommand('octavo.init', () => initProject()),
+        vscode.commands.registerCommand('octavo.init', () => showProjectForm(context, {
+            log: (line) => output.appendLine(line), envSetup: envFor, afterCreate: afterAdding,
+        })),
 
         // 原稿・分析・図を足す。サイドバーからは種類を決めて呼ばれる（'analysis' など）
         vscode.commands.registerCommand('octavo.new', async (kind?: unknown) => {
             // サイドバーの「原稿を足す」は 'manuscript'、「分析を足す」は 'analysis'
             const preset = typeof kind === 'string' ? { kind: kind as AddKind } : {};
-            if (await addToProject((line) => output.appendLine(line), preset)) {
+            if (await addToProject((line) => output.appendLine(line), preset, envFor)) {
                 afterAdding();
             }
         }),
@@ -522,7 +533,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
     // 道具がそろっていなければ「セットアップ」を出す（そろっていれば黙っている）。
     // Windows では先に PATH を読み直す（winget で入れた直後でも見つかるように）。
-    void refreshWindowsPath().then(() => setup.checkOnStartup());
+    void refreshWindowsPath().then(() => setup.checkOnStartup()).then(() => setup.checkREditor());
 
     // 起動時に一度だけ静かに温めておく（補完・ホバーをすぐ使えるように）。
     void findConfig().then((u) => {

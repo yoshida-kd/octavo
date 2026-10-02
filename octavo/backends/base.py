@@ -357,9 +357,21 @@ class Backend:
         """
         return text, []
 
+    # 出力名に入れる印。講義ノートの回ごとの出力は <文書>-<印>-<回>（slides / notes）、
+    # 1本の文書は <文書><name_suffix>（台本だけ `-notes`）。同じ講義ノートから出る
+    # A4 の配布資料（<文書>-<回>.pdf）・スライド・台本が同じ名前にならないように
+    session_tag = ''
+    name_suffix = ''
+
+    def file_stem(self, name: str, part: str | None = None) -> str:
+        """出力ファイルの名前（拡張子なし）。`part` は講義ノートの回の印。"""
+        if part and self.session_tag and name.endswith('-' + part):
+            return f'{name[:-len(part) - 1]}-{self.session_tag}-{part}'
+        return name + self.name_suffix
+
     def out_name(self, ctx: Ctx) -> str:
         if ctx.standalone:
-            return ctx.doc_name + self.ext
+            return self.file_stem(ctx.doc_name, getattr(ctx.document, 'part', None)) + self.ext
         return ('appendix' if ctx.appendix else 'body') + self.ext
 
     def compile(self, ctx: Ctx, path: Path) -> list | None:

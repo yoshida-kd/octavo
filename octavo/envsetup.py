@@ -7,7 +7,8 @@
 プロジェクトでは記録（requirements.txt / renv.lock）から環境を戻すことになる。
 
   Python  uv で `.venv` を作り、requirements.txt に書いたものを入れる
-  R       renv を入れ（なければ利用者のライブラリへ）、`renv::init()` か
+          （Python の .qmd は Quarto が ipykernel などで動かすので、それも入る）
+  R       （R の .qmd があるときだけ）renv を入れ（なければ利用者のライブラリへ）、`renv::init()` か
           `renv::restore()`、Quarto の knitr エンジンに要る knitr / rmarkdown を
           足して `renv::snapshot()`
 
@@ -55,6 +56,55 @@ if (length(miss)) {
 }
 if (changed || !file.exists("renv.lock")) renv::snapshot(prompt = FALSE)
 '''
+
+
+# VS Code の R 拡張機能が補完などに使う languageserver。renv のプロジェクトでは R が
+# プロジェクト専用のライブラリしか見ないので、プロジェクトごとに「入れますか」と聞かれ続ける。
+# 利用者のライブラリ（R_LIBS_USER）に一度だけ入れ、R 拡張機能の r.libPaths でそこを足す。
+# ホームで実行する（renv の外。Linux なら Rprofile.site の Posit のビルド済みパッケージが使われる）。
+R_EDITOR_SCRIPT = r'''
+lib <- path.expand(Sys.getenv("R_LIBS_USER"))
+dir.create(lib, recursive = TRUE, showWarnings = FALSE)
+repos <- getOption("repos")
+if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
+  repos <- c(CRAN = "https://cloud.r-project.org")
+# renv の中では R 本体のライブラリ（.Library）と足したライブラリしか見えない。サイトライブラリに
+# ある依存（callr など）も含めて、利用者のライブラリに全部そろえる
+ap <- available.packages(repos = repos)
+deps <- unique(c("languageserver", unlist(tools::package_dependencies(
+  "languageserver", db = ap, recursive = TRUE, which = c("Depends", "Imports", "LinkingTo")))))
+base <- rownames(installed.packages(lib.loc = .Library))
+need <- setdiff(deps, c(base, rownames(installed.packages(lib.loc = lib))))
+if (length(need)) {
+  install.packages(need, lib = lib, repos = repos)
+} else {
+  cat("   installed: languageserver\n")
+}
+.libPaths(lib, include.site = FALSE)   # renv と同じ見え方（R 本体 + これだけ）で読めるか
+ok <- requireNamespace("languageserver", quietly = TRUE)
+cat("library: ", normalizePath(lib, winslash = "/", mustWork = FALSE), "\n", sep = "")
+quit(save = "no", status = if (ok) 0 else 1)
+'''
+
+
+def r_editor() -> int:
+    """`octavo setup --r-editor`: languageserver を利用者のライブラリに入れる（sudo なし）。"""
+    rscript = shutil.which('Rscript')
+    if not rscript:
+        _say(t('R is not installed, so this was skipped. octavo setup installs it'))
+        return 1
+    fd, path = tempfile.mkstemp(prefix='octavo-r-editor-', suffix='.R')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+            fh.write(R_EDITOR_SCRIPT)
+        ok = _call([rscript, path], Path.home(),
+                   shown='Rscript <install.packages("languageserver") into R_LIBS_USER>')
+    finally:
+        os.unlink(path)
+    _say(t('languageserver is in your own R library. In VS Code, add that library to the R '
+           'extension\'s r.libPaths so renv projects find it too.') if ok
+         else t('Could not install languageserver (see above).'))
+    return 0 if ok else 1
 
 
 def has_requirements(path: Path) -> bool:
@@ -124,6 +174,18 @@ def r_env(root: Path) -> bool | None:
         os.unlink(path)
 
 
+def pending(cfg) -> bool:
+    """この分析の環境がまだ整っていないか（`.venv` か、R の分析なら renv がない）。
+    拡張機能が「初めての分析」のあとに `octavo env` を走らせるかどうかの判断に使う。"""
+    from . import analysis as anamod
+    root = Path(cfg.root)
+    if not anamod.units(cfg):
+        return False
+    if not (root / 'renv' / 'activate.R').exists() and 'r' in anamod.engines(cfg):
+        return True
+    return not (root / '.venv').exists()
+
+
 def run(cfg) -> int:
     root = Path(cfg.root)
     # 分析のないプロジェクト（スライドだけ、など）には環境を作らない
@@ -132,12 +194,18 @@ def run(cfg) -> int:
         _say(t('There is no analysis in this project, so there is nothing to set up. '
                'Add one with: {cmd}', cmd='octavo new analysis <name>'))
         return 0
-    results = [python_env(root), r_env(root)]
+    # R の .qmd がなければ renv は要らない（Python だけの分析に R を入れさせない）
+    results = [python_env(root)]
+    if 'r' in anamod.engines(cfg):
+        results.append(r_env(root))
     if any(r is False for r in results):
         _say('\n' + t('Something failed (see above). Fix it and run octavo env again.'))
         return 1
     if all(r is None for r in results):
-        _say('\n' + t('Neither uv nor R is installed. Run octavo setup first.'))
+        _say('\n' + t('Neither uv nor R is installed. Run octavo setup first.')
+             if len(results) > 1 else '\n' + t('uv is not installed. Run octavo setup first.'))
         return 1
-    _say('\n' + t('The analysis environment is ready. Commit requirements.txt and renv.lock.'))
+    _say('\n' + (t('The analysis environment is ready. Commit requirements.txt and renv.lock.')
+                 if len(results) > 1 else
+                 t('The analysis environment is ready. Commit requirements.txt.')))
     return 0

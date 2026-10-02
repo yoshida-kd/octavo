@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+from pathlib import Path
 
 from . import __version__
 from . import csl as cslmod
@@ -24,6 +25,31 @@ from . import pandocrun
 from .i18n import language, t
 
 OK, WARN, NG = '  ok  ', ' note ', ' none '
+
+
+# VS Code の R 拡張機能のための languageserver（利用者のライブラリにあるか、その場所）。
+# renv の外で（ホームで）R を起こして調べる。--json の r_editor が拡張機能に渡す。
+R_EDITOR: dict = {}
+# renv の中と同じに、R 本体のライブラリと利用者のライブラリだけで読めるかを見る
+R_EDITOR_CHECK = ('lib <- path.expand(Sys.getenv("R_LIBS_USER")); .libPaths(lib, include.site = FALSE); '
+                  'cat(normalizePath(lib, winslash = "/", mustWork = FALSE), '
+                  'requireNamespace("languageserver", quietly = TRUE), sep = "\\n")')
+
+
+def r_editor_state() -> tuple:
+    try:
+        r = subprocess.run(['Rscript', '-e', R_EDITOR_CHECK], capture_output=True, text=True,
+                           timeout=30, encoding='utf-8', errors='replace', cwd=str(Path.home()))
+        lines = [ln.strip() for ln in (r.stdout or '').splitlines() if ln.strip()]
+    except (OSError, subprocess.TimeoutExpired):
+        lines = []
+    R_EDITOR.clear()
+    if len(lines) >= 2:
+        R_EDITOR.update(library=lines[-2], languageserver=lines[-1] == 'TRUE')
+    has = R_EDITOR.get('languageserver', False)
+    return (has, t('installed (for VS Code\'s R extension)') if has
+            else t('not installed (VS Code\'s R extension asks for it): {cmd}',
+                   cmd='octavo setup --r-editor'))
 
 
 def _run(cmd, timeout=20) -> tuple:
@@ -169,6 +195,7 @@ def collect() -> dict:
                        'cat(requireNamespace("renv", quietly = TRUE))'])
         has = out.strip().endswith('TRUE')
         f['renv'] = (has, t('installed') if has else t('not installed'))
+        f['languageserver'] = r_editor_state()
         stale = stale_r_libraries()
         LAST_R_STALE[:] = stale
         n = sum(r[1] for r in stale)
@@ -179,6 +206,7 @@ def collect() -> dict:
     else:
         f['R'] = (False, t('not found (only needed if the .qmd is R)'))
         f['renv'] = (False, t('not installed'))
+        R_EDITOR.clear()
     # uv はプロジェクトの .venv を作る（octavo env）
     exe = shutil.which('uv')
     if exe:
@@ -293,7 +321,7 @@ ANALYSIS_TOOLS = ('quarto', 'R', 'renv', 'uv')
 SETUP_CMD = 'octavo setup'
 
 # なくても組める（代わりが使われる）ので「不足」ではなく「注意」で出すもの
-SOFT_TOOLS = ('typst_default_fonts',)
+SOFT_TOOLS = ('typst_default_fonts', 'languageserver')
 
 HINTS = {
     'pandoc': 'sudo apt install pandoc (if it is old, take the .deb from GitHub)',
@@ -371,6 +399,7 @@ LABELS = {
     'quarto': 'Quarto',
     'R': '  └ R (Rscript)',
     'renv': '      └ renv',
+    'languageserver': '      └ languageserver',
     'r_packages': '      └ packages',
     'uv': '  └ uv (Python)',
     'pandoc': 'pandoc',
@@ -408,7 +437,7 @@ def report(verbose: bool = False) -> int:
 
     head = '\n== ' + t('Analysis (only when you use a .qmd)') + ' '
     print(head + '=' * max(4, 59 - len(head)))
-    for k in ('quarto', 'R', 'renv', 'r_packages', 'uv'):
+    for k in ('quarto', 'R', 'renv', 'languageserver', 'r_packages', 'uv'):
         if k not in f:
             continue
         ok, detail = f[k]
@@ -499,6 +528,9 @@ def as_json() -> dict:
         'ready': not missing,
         'missing': [t(NEED_LABELS.get(n, n)) for n in missing],
         'analysis': {k: bool(f.get(k, (False, ''))[0]) for k in ANALYSIS_TOOLS},
+        # VS Code の R 拡張機能用（R がなければ null）。セットアップの判断には使わない
+        'r_editor': ({'languageserver': bool(R_EDITOR.get('languageserver')),
+                      'library': R_EDITOR.get('library')} if R_EDITOR else None),
         'formats': formats,
         'tools': {k: {'ok': bool(ok), 'detail': str(d)} for k, (ok, d) in f.items()},
     }

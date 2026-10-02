@@ -17,6 +17,40 @@ export interface DoctorReport {
     ready: boolean;
     missing: string[];
     analysis: Record<string, boolean>;
+    /** VS Code の R 拡張機能用（R がなければ null、古い CLI にはない）。 */
+    r_editor?: REditor | null;
+}
+
+/** `octavo doctor --json` の r_editor。 */
+export interface REditor {
+    languageserver: boolean;
+    /** 利用者の R のライブラリ（R_LIBS_USER）。R 拡張機能の r.libPaths に足す。 */
+    library: string | null;
+}
+
+/**
+ * CLI が古くて、渡した引数やコマンドを知らないとき（argparse のエラー）の説明。
+ * 拡張機能が先に新しくなると起きる。生のエラーを見せても何が起きたか分からないので言い換える。
+ */
+export function oldCliMessage(text: string): string | undefined {
+    return /unrecognized arguments|invalid choice/.test(text)
+        ? vscode.l10n.t('Octavo: the octavo command is older than this extension and does not know this yet. Update it (Tools → Install or Update the Tools), then try again.')
+        : undefined;
+}
+
+/** 古い CLI なら説明とセットアップのボタンを出して true を返す。 */
+export function showIfOldCli(text: string): boolean {
+    const msg = oldCliMessage(text);
+    if (!msg) {
+        return false;
+    }
+    const act = vscode.l10n.t('Set up');
+    void vscode.window.showWarningMessage(msg, act).then((p) => {
+        if (p === act) {
+            void vscode.commands.executeCommand('octavo.setup');
+        }
+    });
+    return true;
 }
 
 export type ToolState =
@@ -192,6 +226,93 @@ export class SetupManager {
         }
     }
 
+    /**
+     * 分析を足したときの環境づくり。道具（uv、なければ octavo そのもの）がなければ、
+     * 失敗させる代わりにセットアップを勧める（分析を足すたびに失敗の通知が出ないように）。
+     */
+    async setupProjectEnvIfReady(cwd: string): Promise<boolean> {
+        const state = await this.check();
+        const noUv = (state.kind === 'ok' || state.kind === 'incomplete') && !state.report.analysis.uv;
+        if (state.kind === 'no-cli' || noUv) {
+            const act = vscode.l10n.t('Set up');
+            const p = await vscode.window.showWarningMessage(vscode.l10n.t(
+                'Octavo: the analysis environment needs uv (and R for an R analysis), which is not installed yet. Install the tools first; then set it up from Tools → Set Up This Project\'s Analysis Environment.'),
+                act);
+            if (p === act) {
+                this.runSetup();
+            }
+            return false;
+        }
+        return this.setupProjectEnv(cwd);
+    }
+
+    /**
+     * VS Code の R 拡張機能は、補完などに languageserver を使う。renv のプロジェクトでは R が
+     * プロジェクト専用のライブラリしか見ないので、プロジェクトごとに「入れますか」と聞かれ続ける。
+     * 利用者のライブラリに依存ごと一度だけ入れ（octavo setup --r-editor）、R 拡張機能の
+     * r.libPaths にそのライブラリを足すことを、一度だけ勧める。
+     */
+    async checkREditor(): Promise<void> {
+        if (!vscode.extensions.getExtension('REditorSupport.r')) {
+            return;
+        }
+        const dismissed = this.context.globalState.get<string[]>('octavo.rEditorDismissed', []);
+        if (dismissed.includes(this.hostKey)) {
+            return;
+        }
+        const state = await this.check();
+        if (state.kind !== 'ok' && state.kind !== 'incomplete') {
+            return;
+        }
+        const re = state.report.r_editor;
+        if (!re || !re.library || !state.report.analysis.R) {
+            return;
+        }
+        const conf = vscode.workspace.getConfiguration('r');
+        const libs = conf.get<string[]>('libPaths', []) ?? [];
+        if (re.languageserver && libs.includes(re.library)) {
+            return;
+        }
+        const act = vscode.l10n.t('Do it');
+        const later = vscode.l10n.t('Not now');
+        const never = vscode.l10n.t('Don\'t ask again');
+        const picked = await vscode.window.showInformationMessage(vscode.l10n.t(
+            'Octavo: VS Code\'s R extension looks for the languageserver package inside each renv project, so it keeps asking to install it. Install it once in your own R library ({0}) and let the R extension use it?',
+            re.library), act, later, never);
+        if (picked === never) {
+            await this.remember('octavo.rEditorDismissed');
+            return;
+        }
+        if (picked !== act) {
+            return;
+        }
+        if (!re.languageserver) {
+            const title = vscode.l10n.t('Octavo: installing languageserver for the R extension');
+            this.output.appendLine(`\n== ${title}`);
+            const code = await vscode.window.withProgress(
+                { location: vscode.ProgressLocation.Notification, title, cancellable: true },
+                (progress, token) => runStreaming(os.homedir(), ['setup', '--r-editor'], (text) => {
+                    this.output.append(text);
+                    const last = text.trim().split('\n').pop()?.trim();
+                    if (last) {
+                        progress.report({ message: last.slice(0, 120) });
+                    }
+                }, token));
+            if (code !== 0) {
+                const show = vscode.l10n.t('Show the output');
+                void vscode.window.showErrorMessage(
+                    vscode.l10n.t('Octavo: could not install languageserver.'), show)
+                    .then((p) => { if (p === show) { this.output.show(); } });
+                return;
+            }
+        }
+        if (!libs.includes(re.library)) {
+            await conf.update('libPaths', [...libs, re.library], vscode.ConfigurationTarget.Global);
+        }
+        void vscode.window.showInformationMessage(vscode.l10n.t(
+            'Octavo: done. Reopen an R file (or reload the window) and the R extension stops asking.'));
+    }
+
     /** `octavo env`: プロジェクトの .venv と renv を用意する。出力は出力パネルへ。 */
     async setupProjectEnv(cwd: string): Promise<boolean> {
         const title = vscode.l10n.t('Octavo: setting up this project\'s analysis environment');
@@ -207,7 +328,7 @@ export class SetupManager {
             }, token));
         if (code === 0) {
             void vscode.window.showInformationMessage(vscode.l10n.t(
-                'Octavo: the analysis environment is ready (.venv and renv). Commit requirements.txt and renv.lock.'));
+                'Octavo: the analysis environment is ready. Commit the records: requirements.txt, and renv.lock if you use R.'));
             return true;
         }
         const show = vscode.l10n.t('Show the output');

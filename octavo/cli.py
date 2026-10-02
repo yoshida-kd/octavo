@@ -690,6 +690,8 @@ def cmd_doctor(args) -> int:
 
 
 def cmd_setup(args) -> int:
+    if args.r_editor:
+        return envsetup.r_editor()
     script = paths.setup_script()
     if paths.on_windows():
         # Windows は setup.ps1（winget）。TeX はそこでは入れない
@@ -721,6 +723,14 @@ def cmd_env(args) -> int:
     return envsetup.run(configmod.load(args.config))
 
 
+def cmd_migrate(args) -> int:
+    """一時的な移行コマンド（次の版で消す）。"""
+    cfg = configmod.load(args.config)
+    moved, line = scaffold.migrate_instructions(Path(cfg.root), cfg['lang'], args.dry_run)
+    print(('(' + t('dry run') + ') ' if args.dry_run and moved else '') + line)
+    return 0
+
+
 def cmd_init(args) -> int:
     try:
         parts = scaffold.parse_parts(args.with_parts or '')
@@ -729,14 +739,28 @@ def cmd_init(args) -> int:
         return 2
     if args.all:
         parts = {**{k: k for k in scaffold.PARTS}, **parts}
-    return scaffold.init(Path(args.dir), lang=args.lang, force=args.force,
-                         example=args.example, parts=parts)
+    rc = scaffold.init(Path(args.dir), lang=args.lang, force=args.force,
+                       example=args.example, parts=parts, engine=args.engine)
+    if rc == 0 and args.env and 'analysis' in parts:
+        return _env_after(Path(args.dir) / 'octavo.config.py')
+    return rc
+
+
+def _env_after(config: Path) -> int:
+    """`--env`: 作った分析の環境（.venv と、R なら renv）をそのまま整える。"""
+    from . import envsetup
+    print()
+    return envsetup.run(configmod.load(config))
 
 
 def cmd_new(args) -> int:
-    kw = dict(force=args.force, example=args.example, appendix=args.appendix, tex=args.tex)
+    kw = dict(force=args.force, example=args.example, appendix=args.appendix, tex=args.tex,
+              engine=args.engine)
     if not args.json:
-        return scaffold.new(Path(args.config), args.kind, args.name, **kw)
+        rc = scaffold.new(Path(args.config), args.kind, args.name, **kw)
+        if rc == 0 and args.env and args.kind == 'analysis':
+            return _env_after(Path(args.config))
+        return rc
     # 拡張機能用: 作ったもの・開くファイル・止まった理由を JSON で。パスは CLI が決める
     import contextlib
     import io
@@ -762,8 +786,12 @@ def cmd_new(args) -> int:
             src = Path(doc.src)
             opened = str(src.parent / 'main.tex' if args.tex
                          else doc.appendix if args.appendix and doc.appendix else src)
+    from . import envsetup
+    env_needed = bool(rc == 0 and args.kind == 'analysis'
+                      and envsetup.pending(configmod.load(args.config)))
     print(_json.dumps({'ok': rc == 0, 'error': err.getvalue().strip() or None,
-                       'open': opened, 'made': [m.strip() for m in made]},
+                       'open': opened, 'made': [m.strip() for m in made],
+                       'env_needed': env_needed},
                       ensure_ascii=False))
     return rc
 
@@ -1059,7 +1087,14 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--no-quarto', action='store_true', help=t('leave out quarto'))
     p.add_argument('--no-r', action='store_true', help=t('leave out R'))
     p.add_argument('--check', action='store_true', help=t('only show what would be installed'))
+    p.add_argument('--r-editor', action='store_true',
+                   help=t('only install languageserver (for VS Code\'s R extension) into your own R library'))
     p.set_defaults(func=cmd_setup)
+
+    p = with_config(sub.add_parser(
+        'migrate', help=t('move an older project\'s CLAUDE.md rules into AGENTS.md (temporary: removed in the next release)')))
+    p.add_argument('--dry-run', action='store_true', help=t('say what would change, and change nothing'))
+    p.set_defaults(func=cmd_migrate)
 
     p = with_config(sub.add_parser('env', help=t("set up this project's .venv and renv")))
     p.set_defaults(func=cmd_env)
@@ -1075,6 +1110,10 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--example', action='store_true',
                    help=t('make them examples (alone: an analysis of made-up data and an '
                           'example paper)'))
+    p.add_argument('--engine', choices=scaffold.ENGINES, default='r',
+                   help=t('the analysis part: the language of the .qmd — r (default) or python (brings octavo_helper.py and what Quarto needs to run Python)'))
+    p.add_argument('--env', action='store_true',
+                   help=t('with an analysis: set up its environment (octavo env) right after'))
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_init)
 
@@ -1088,6 +1127,10 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('paper: add appendix.md as well (also to an existing paper)'))
     p.add_argument('--tex', action='store_true',
                    help=t('paper: add main.tex as well, for LaTeX (also to an existing paper)'))
+    p.add_argument('--engine', choices=scaffold.ENGINES, default='r',
+                   help=t('analysis: the language of the .qmd — r (default) or python (brings octavo_helper.py and what Quarto needs to run Python)'))
+    p.add_argument('--env', action='store_true',
+                   help=t('analysis: set up the analysis environment (octavo env) right after'))
     p.add_argument('--json', action='store_true', help=t('print one line of machine-readable JSON (for the VS Code extension and friends)'))
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.set_defaults(func=cmd_new)

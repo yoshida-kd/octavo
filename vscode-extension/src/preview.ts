@@ -89,7 +89,7 @@ class PdfPanel {
     private queued: unknown[] = [];
 
     constructor(private readonly media: vscode.Uri, column: vscode.ViewColumn,
-                title: string, onDispose: () => void) {
+                title: string, onDispose: () => void, onToggleFollow: () => void) {
         this.panel = vscode.window.createWebviewPanel(
             'octavo.preview', title, { viewColumn: column, preserveFocus: true },
             { enableScripts: true, retainContextWhenHidden: true,
@@ -100,6 +100,10 @@ class PdfPanel {
                     && /^(https?|mailto):/i.test(m.url)) {
                 // PDF の中の URL は、ふつうのブラウザ（メールなら既定のアプリ）で開く
                 void vscode.env.openExternal(vscode.Uri.parse(m.url));
+                return;
+            }
+            if (m?.type === 'toggleFollow') {
+                onToggleFollow();
                 return;
             }
             if (m?.type === 'runAnalysis') {
@@ -123,6 +127,17 @@ class PdfPanel {
         } else {
             this.queued.push(msg);
         }
+    }
+
+    /** 原稿のカーソルに合わせてスクロールするか（ツールバーのボタンの見た目も合わせる）。 */
+    follow(on: boolean): void {
+        this.post({ type: 'follow', on });
+    }
+
+    /** 原稿のカーソルの位置へ。needles は PDF の文字から探す文字列（先に出てくるものから）、
+     *  ratio は文書の中の割合（探して見つからないときの代わり）。 */
+    sync(needles: string[], ratio: number): void {
+        this.post({ type: 'sync', needles, ratio });
     }
 
     setTitle(title: string): void {
@@ -178,6 +193,7 @@ class PdfPanel {
 <div id="bar">
   <span id="label"></span>
   <span id="spacer"></span>
+  <button id="follow" title="${vscode.l10n.t('Scroll along with the cursor in the manuscript')}">⇅</button>
   <button id="out" title="${vscode.l10n.t('Zoom out')}">−</button>
   <button id="fit" title="${vscode.l10n.t('Fit to width')}">⤢</button>
   <button id="in" title="${vscode.l10n.t('Zoom in')}">＋</button>
@@ -204,6 +220,9 @@ export class PreviewManager implements vscode.Disposable {
     private part?: Part;
     private building = false;
     private again = false;
+    private followOverride?: boolean;       // ツールバーで切り替えたら、その回だけ設定より優先
+    private syncTimer?: NodeJS.Timeout;
+    private lastSyncLine = -1;
     private readonly subs: vscode.Disposable[] = [];
     private readonly media: vscode.Uri;
     private readonly busyEmitter = new vscode.EventEmitter<boolean>();
@@ -217,10 +236,17 @@ export class PreviewManager implements vscode.Disposable {
         this.subs.push(
             vscode.workspace.onDidSaveTextDocument((d) => this.onSave(d)),
             vscode.window.onDidChangeTextEditorSelection((e) => this.onCursor(e)),
+            vscode.workspace.onDidChangeConfiguration((e) => {
+                if (e.affectsConfiguration('octavo.previewFollowCursor')) {
+                    this.followOverride = undefined;
+                    this.pushFollow();
+                }
+            }),
         );
     }
 
     dispose(): void {
+        clearTimeout(this.syncTimer);
         for (const s of this.subs) {
             s.dispose();
         }
@@ -235,6 +261,26 @@ export class PreviewManager implements vscode.Disposable {
 
     private get live(): boolean {
         return this.main !== undefined || this.side !== undefined;
+    }
+
+    /** カーソルに合わせてスクロールするか。ツールバーで切り替えていればそれ、なければ設定の値。 */
+    private get following(): boolean {
+        return this.followOverride ?? vscode.workspace.getConfiguration('octavo')
+            .get<boolean>('previewFollowCursor', true);
+    }
+
+    private pushFollow(): void {
+        this.main?.follow(this.following);
+        this.side?.follow(this.following);
+    }
+
+    private toggleFollow(): void {
+        this.followOverride = !this.following;
+        this.pushFollow();
+        if (this.following) {
+            this.lastSyncLine = -1;
+            this.scheduleSync(0);          // 入れ直したら、いまのカーソルの位置へ
+        }
     }
 
     /** このセッションで選び直していればそれ、なければ設定の値。 */
@@ -284,6 +330,8 @@ export class PreviewManager implements vscode.Disposable {
         this.part = this.partAt(editor.selection.active.line + 1);
         this.ensurePanels();
         await this.build();
+        this.lastSyncLine = -1;
+        this.scheduleSync(0);
     }
 
     /** 3列目を「スライド / 台本 / 出さない」から選ぶ（2分割と3分割の切り替え）。 */
@@ -390,11 +438,15 @@ export class PreviewManager implements vscode.Disposable {
         const main = this.mainTarget();
         if (main && !this.main) {
             this.main = new PdfPanel(this.media, vscode.ViewColumn.Two, 'Octavo',
-                                     () => { this.main = undefined; this.syncContext(); });
+                                     () => { this.main = undefined; this.syncContext(); },
+                                     () => this.toggleFollow());
+            this.main.follow(this.following);
         }
         if (this.sideTarget() && !this.side) {
             this.side = new PdfPanel(this.media, vscode.ViewColumn.Three, 'Octavo',
-                                     () => { this.side = undefined; this.syncContext(); });
+                                     () => { this.side = undefined; this.syncContext(); },
+                                     () => this.toggleFollow());
+            this.side.follow(this.following);
         }
         this.syncContext();
     }
@@ -504,17 +556,96 @@ export class PreviewManager implements vscode.Disposable {
     }
 
     private onCursor(e: vscode.TextEditorSelectionChangeEvent): void {
-        if (!this.live || !this.doc?.split_slides || !this.side) {
+        if (!this.live || !this.doc) {
             return;
         }
         if (!samePath(editorPath(this.doc.src), e.textEditor.document.uri.fsPath)) {
             return;
         }
-        const part = this.partAt(e.selections[0].active.line + 1);
-        if (!part || part.name === this.part?.name) {
+        const line = e.selections[0].active.line;
+        const part = this.partAt(line + 1);
+        if (this.doc.split_slides && this.side && part && part.name !== this.part?.name) {
+            // 別の回に移った: 3列目をその回のスライドに差し替え、組めたらその位置へ
+            this.part = part;
+            void this.build({ sideOnly: true }).then(() => {
+                this.lastSyncLine = -1;
+                this.scheduleSync(0);
+            });
             return;
         }
-        this.part = part;
-        void this.build({ sideOnly: true });
+        this.scheduleSync(150);
     }
+
+    // -- カーソルに合わせてスクロール ------------------------------------
+    /** 少し待ってから合わせる（矢印キーを押しっぱなしにしたときに追いかけ続けないように）。 */
+    private scheduleSync(wait: number): void {
+        clearTimeout(this.syncTimer);
+        this.syncTimer = setTimeout(() => this.syncNow(), wait);
+    }
+
+    private syncNow(): void {
+        const editor = vscode.window.activeTextEditor;
+        if (!this.live || !this.doc || !this.following || !editor
+                || !samePath(editorPath(this.doc.src), editor.document.uri.fsPath)) {
+            return;
+        }
+        const line = editor.selection.active.line;
+        if (line === this.lastSyncLine) {
+            return;                         // 同じ行の中で動いただけなら、画面は動かさない
+        }
+        this.lastSyncLine = line;
+        const needles = syncNeedles(editor.document, line);
+        const last = Math.max(1, editor.document.lineCount - 1);
+        this.main?.sync(needles, line / last);
+        if (this.side) {
+            // 3列目は「その回」の中での位置の割合
+            const p = this.partAt(line + 1);
+            const span = p ? Math.max(1, p.end_line - p.start_line) : last;
+            const within = p ? (line + 1 - p.start_line) / span : line / last;
+            this.side.sync(needles, within);
+        }
+    }
+}
+
+const TEXT_HOLE = '\u0000';
+
+/** Markdown の1行から、PDF の中で探す文字列を作る（記号・リンク・属性・{{値}} を除く）。 */
+export function plainText(line: string): string {
+    const s = line
+        .replace(/<!--.*?-->/g, ' ')
+        .replace(/\{\{[^}]*\}\}/g, TEXT_HOLE)                 // 値は組むと変わる。そこで切る
+        .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/\{[#.=][^}]*\}/g, ' ')
+        .replace(/^[\s>#*+:\-]+/, '')
+        .replace(/^\d+[.)]\s+/, '')
+        .replace(/[*_`~$\\]/g, '');
+    // いちばん長い断片の頭だけを使う（折り返しで行が分かれても頭は同じ行にある）
+    const longest = s.split(TEXT_HOLE).map((x) => x.trim()).sort((a, b) => b.length - a.length)[0] ?? '';
+    return longest.slice(0, 14);
+}
+
+/** カーソルの行 → 探す文字列の候補（その行の頭、なければ直前の見出し）。 */
+export function syncNeedles(doc: vscode.TextDocument, line: number): string[] {
+    const out: string[] = [];
+    const here = plainText(doc.lineAt(line).text);
+    if (here.length >= 3) {
+        out.push(here);
+    }
+    let fence = false;
+    for (let i = line; i >= 0; i--) {
+        const t = doc.lineAt(i).text;
+        if (/^\s*(```|~~~)/.test(t)) {
+            fence = !fence;
+            continue;
+        }
+        if (!fence && /^#{1,6}\s+\S/.test(t)) {
+            const h = plainText(t);
+            if (h.length >= 3 && !out.includes(h)) {
+                out.push(h);
+            }
+            break;
+        }
+    }
+    return out;
 }

@@ -46,13 +46,16 @@ picture, including installing from a terminal.
 
 ## Getting started
 
-1. Command palette → **Octavo: New Project (init)**, and open the folder it
-   makes. Pick what to start with — an analysis, a paper, slides, lecture
-   notes, any of them or none — and whether they are **examples** to look at
-   first or **empty**, holding only what you keep using.
+1. In a folder that is not a project yet the sidebar offers **New project**
+   (also: command palette → **Octavo: New Project (init)**). One screen asks
+   where, the name, the language, and what to start with — an analysis (in R
+   or Python), a paper, slides, lecture notes, any of them or none — and
+   whether they are **examples** to look at first or **empty**, holding only
+   what you keep using. With an analysis chosen, its environment (`.venv`, and
+   renv for R) is set up right after.
 2. Add more from the Octavo sidebar: **Add a manuscript…** (a paper, a slide
    deck or lecture notes, opened as soon as it is made) and **Add an analysis
-   (.qmd)…**, and on a paper **Add an appendix** / right-click **Add main.tex
+   (.qmd)…** (R or Python; the first one sets the environment up too), and on a paper **Add an appendix** / right-click **Add main.tex
    (LaTeX)**. With an analysis, **Tools → Set Up This Project's Analysis
    Environment** makes its `.venv` (uv) and renv.
 3. Open the manuscript and click the PDF icon in the editor title bar
@@ -100,9 +103,12 @@ the one the file you are editing belongs to.
   in the editor's title bar. The preview never runs the analysis itself: a bar
   above the PDF says when something is stale, and its button runs it and
   rebuilds. Progress shows in a notification and Quarto's output in the Output
-  panel, so no terminal is needed. For writing the `.qmd` itself (R chunk
-  highlighting, running chunks one by one), add the official Quarto extension
-  (`quarto.quarto`) alongside.
+  panel, so no terminal is needed. For writing the `.qmd` itself (chunk
+  highlighting, running chunks one by one), the official Quarto, R and Python
+  extensions are installed with Octavo (an extension pack — each can be
+  uninstalled on its own).
+- **Follows the cursor.** Moving the cursor in a manuscript scrolls the PDF preview to the same place; the preview can still be scrolled on its own, and the ⇅ button (or `octavo.previewFollowCursor`) turns the following off.
+- **A `.qmd` shows its HTML.** Opening one in an Octavo project shows the HTML it last rendered beside it, and reloads when the analysis runs again (`octavo.qmdPreview` turns it off). Nothing is rendered by opening or saving.
 - **Citations.** Completion on `@` (with author and year), hover for the
   full entry (also on `\poscite{key}`), `Ctrl+Alt+@` to search and insert,
   squiggles on missing keys, and `.bib`-side problems (missing year, an

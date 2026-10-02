@@ -41,6 +41,8 @@ class TypstNotesBackend(TypstSlidesBackend):
     label = 'Typst speaker script'
     keeps_notes = True
     notes_mark = None
+    session_tag = 'notes'       # 講義ノートの回は <文書>-notes-<回>.pdf
+    name_suffix = '-notes'      # 1本のスライドの台本は <名前>-notes.pdf（スライドと別の名前）
     # pandoc に渡る前に `::: notes` をこれで囲み直す。中身は Markdown のまま。
     notes_wrap = ('```{=typst}\n' + NOTE_OPEN + '\n```',
                   '```{=typst}\n' + NOTE_CLOSE + '\n```')
@@ -55,7 +57,9 @@ class TypstNotesBackend(TypstSlidesBackend):
         return f'{ctx.doc_name}.notes.json'
 
     def deck_pdf(self, ctx: Ctx):
-        return ctx.cfg.out_dir('typst-slides', ctx.document) / f'{ctx.doc_name}.pdf'
+        from . import get
+        stem = get('typst-slides').file_stem(ctx.doc_name, getattr(ctx.document, 'part', None))
+        return ctx.cfg.out_dir('typst-slides', ctx.document) / f'{stem}.pdf'
 
     # -- 本文: ノートだけを取り出して、台本の関数に渡す ----------------------
     def final_markdown(self, body: str, ctx: Ctx) -> str:

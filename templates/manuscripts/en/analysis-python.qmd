@@ -1,0 +1,42 @@
+---
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- The numbers, figures and tables in the paper are made here, not in the
+     manuscript. octavo build watches the .qmd and runs quarto render when needed. -->
+
+```{python}
+#| label: setup
+#| include: false
+# Load octavo_helper.py from this same analysis/ folder. When octavo build runs this,
+# OCTAVO_ROOT is set, so it is found wherever it runs from.
+import os, sys
+root = os.environ.get("OCTAVO_ROOT")
+sys.path.insert(0, os.path.join(root, "analysis") if root else ".")
+from octavo_helper import *
+ov_style()   # embed figure text in the PDF as text, and use a Japanese font if there is one
+```
+
+```{python}
+#| label: data
+# Raw data goes in data/raw/ (never modified), cleaned data in data/derived/.
+#   import pandas as pd
+#   d = pd.read_csv(ov_root() / "data" / "raw" / "<file>.csv")
+#
+# Register what the manuscript shows, and call it by name there:
+#   ov_value("n_obs", len(d))         # {{n_obs}} in the manuscript
+#   ov_figure(fig, "trend")           # assets/figures/trend.pdf and .png
+#   ov_table(tab, "summary")          # assets/tables/summary.typ / .tex / .md
+```

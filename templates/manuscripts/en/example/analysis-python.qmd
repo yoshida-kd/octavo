@@ -1,0 +1,111 @@
+---
+title: "@@TITLE@@"
+@@AUTHOR@@date: "@@DATE@@"
+date-modified: today
+lang: @@LANG@@
+format:
+  html:
+    toc: true
+    number-sections: true
+    embed-resources: true
+execute:
+  echo: true
+  warning: false
+  message: false
+---
+
+<!-- The numbers, figures and tables in the paper are made here, not in the
+     manuscript. octavo build watches the .qmd and runs quarto render when needed. -->
+
+<!-- octavo:example This .qmd is the template octavo wrote, and right now
+     it makes up **fake data** on the spot. Once it reads your real data, delete
+     the `octavo:example` marks with it. While any mark is left, octavo check
+     reports it as a template leftover. -->
+
+```{python}
+#| label: setup
+#| include: false
+# Load octavo_helper.py from this same analysis/ folder. When octavo build runs this,
+# OCTAVO_ROOT is set, so it is found wherever it runs from.
+import os, sys
+root = os.environ.get("OCTAVO_ROOT")
+sys.path.insert(0, os.path.join(root, "analysis") if root else ".")
+from octavo_helper import *
+ov_style()   # embed figure text in the PDF as text, and use a Japanese font if there is one
+```
+
+## Data
+
+```{python}
+#| label: data
+# Reading real data (raw data in data/raw/, cleaned data in data/derived/):
+#   import pandas as pd
+#   d = pd.read_csv(ov_root() / "data" / "derived" / "analysis.csv")
+# Clean it in a .qmd too, writing the result to data/derived/. Never modify data/raw/.
+#   raw = pd.read_csv(ov_root() / "data" / "raw" / "survey2024.csv")
+#   d = raw.dropna(subset=["x"])
+#   d.to_csv(ov_root() / "data" / "derived" / "analysis.csv", index=False)
+
+# octavo:example start — fake data. Replace with code that reads yours, then delete
+import numpy as np
+import pandas as pd
+rng = np.random.default_rng(20260101)
+d = pd.DataFrame({"x": rng.normal(12, 3, 1523), "y": rng.normal(50, 10, 1523)})
+d["y"] = d["y"] + 0.34 * d["x"]
+# octavo:example end
+
+ov_value("n_obs", len(d), note="observations used in the analysis")
+```
+
+## Estimation
+
+```{python}
+#| label: model
+# Coefficient, standard error, p-value. For real work use statsmodels or similar
+# (add it to requirements.txt)
+import math
+x, y = d["x"].to_numpy(), d["y"].to_numpy()
+b = np.cov(x, y, ddof=1)[0, 1] / x.var(ddof=1)
+resid = y - (y.mean() + b * (x - x.mean()))
+se = math.sqrt(resid.var(ddof=2) / ((x - x.mean()) ** 2).sum())
+p = math.erfc(abs(b / se) / math.sqrt(2))       # a large sample, so the normal approximation
+
+ov_value("coef_x", b)
+ov_value("se_x", se)
+ov_value("p_x", ov_pval(p))
+```
+
+Write `{{n_obs}}` `{{coef_x}}` `{{p_x}}` in the manuscript and these values go in.
+
+## Figure
+
+```{python}
+#| label: fig-trend
+import matplotlib.pyplot as plt
+fig, ax = plt.subplots(figsize=(6, 4))
+ax.scatter(d["x"], d["y"], s=8, color=ov_tint(ov_palette(["blue"])[0], 0.4))
+xs = np.array([x.min(), x.max()])
+ax.plot(xs, y.mean() + b * (xs - x.mean()), color="black", linewidth=2)
+ax.set_xlabel("x"); ax.set_ylabel("y")
+fig.tight_layout()
+ov_figure(fig, "trend")      # assets/figures/trend.pdf and .png
+```
+
+In the manuscript, write `![Trend](../../assets/figures/trend.png){#fig-trend}` and
+refer to it as `@fig-trend` (it is numbered when typeset: Figure 2.1).
+
+## Table
+
+```{python}
+#| label: tbl-summary
+tab = pd.DataFrame({
+    "Variable": ["x", "y"],
+    "Mean": [x.mean(), y.mean()],
+    "SD": [x.std(ddof=1), y.std(ddof=1)],
+})
+ov_table(tab, "summary", notes=f"Note: N = {len(d):,}.")
+```
+
+This writes the table's contents (assets/tables/summary.typ / .tex / .md). In the
+manuscript, the one line `: Descriptive statistics {#tbl-summary}` puts it
+there with its caption, and `@tbl-summary` refers to it.
