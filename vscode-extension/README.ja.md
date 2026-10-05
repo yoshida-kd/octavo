@@ -154,7 +154,7 @@ Octavo は Linux と macOS で動く（拡張は `octavo` を呼び、セット�
 {
   "label": "octavo build",
   "type": "shell",
-  "command": "octavo build --to typst,docx",
+  "command": "octavo build --to pdf,word",
   "problemMatcher": ["$octavo"]
 }
 ```

@@ -17,7 +17,7 @@ export interface NewReport {
     env_needed?: boolean;
 }
 
-type Kind = 'analysis' | 'paper' | 'slides' | 'lecture' | 'figure' | 'table';
+type Kind = 'analysis' | 'paper' | 'slides' | 'lecture' | 'poster' | 'figure' | 'table';
 
 const NAME_OK = /^[^\s/\\.][^\s/\\]*$/;
 
@@ -26,11 +26,13 @@ type Engine = 'r' | 'python';
 function kindItems(): (vscode.QuickPickItem & { part: Kind; engine?: Engine })[] {
     return [
         { part: 'paper', label: '$(book) ' + vscode.l10n.t('Paper'),
-          description: 'papers/<name>/paper.md' },
+          description: vscode.l10n.t('docs/<name>/<name>.md — with main.typ, the journal layout') },
         { part: 'slides', label: '$(vm) ' + vscode.l10n.t('Talk slides'),
-          description: 'slides/<name>.md' },
+          description: 'docs/<name>/<name>.md' },
         { part: 'lecture', label: '$(mortar-board) ' + vscode.l10n.t('Lecture notes'),
-          description: vscode.l10n.t('lectures/<name>.md — an A4 handout + a deck per session') },
+          description: vscode.l10n.t('docs/<name>/<name>.md — an A4 handout + a deck per session') },
+        { part: 'poster', label: '$(layout) ' + vscode.l10n.t('Poster'),
+          description: vscode.l10n.t('docs/<name>/<name>.md — A0, the top-level headings make the cells') },
         { part: 'analysis', engine: 'r', label: '$(graph) ' + vscode.l10n.t('Analysis in R (.qmd)'),
           description: vscode.l10n.t('analysis/<name>.qmd — the first one also sets up the environment') },
         { part: 'analysis', engine: 'python', label: '$(symbol-method) ' + vscode.l10n.t('Analysis in Python (.qmd)'),

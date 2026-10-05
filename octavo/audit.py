@@ -105,6 +105,9 @@ def table_problems(cfg) -> list:
     return missing
 
 
+LIMIT_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit')
+
+
 def length_problems(cfg) -> list:
     """投稿規定の分量を超えていないか。(名前, いま, 上限, 単位) を返す。
 
@@ -117,13 +120,17 @@ def length_problems(cfg) -> list:
     for name, src, is_appendix in cfg.sources():
         if is_appendix:
             continue                      # 付録に規定があることは稀
-        if cfg.documents[name].profile != 'paper':
-            continue                      # 規定は投稿する論文のもの。スライド・講義は見ない
-        # 上限は投稿先ごと。原稿の冒頭に書いてあればそれ、なければプロジェクトの設定
-        lim = cfg.for_document(cfg.documents[name])
+        doc = cfg.documents[name]
+        # 上限は投稿先ごと。原稿の冒頭に書いてあればそれ、なければプロジェクトの設定。
+        # プロジェクトの設定の上限は論文（自分の体裁で組む文書）にだけ当てる。講義ノートや
+        # スライドまで投稿先の上限で咎めないため。原稿の冒頭に書いた上限はどの文書にも効く
+        lim = cfg.for_document(doc)
+        if doc.profile != 'paper' and not lim.doc_explicit & set(LIMIT_KEYS):
+            continue
         raw = mdlib.drop_math_macros(valmod.substitute(mdlib.read(src), vals, cfg))
         abstract, body = mdlib.split_abstract(mdlib.drop_references(raw))
-        body = mdlib.strip_title_block(body)
+        if not doc.derived:
+            body = mdlib.strip_title_block(body)
         pairs = (
             (t('body word count'), mdlib.word_count(body)[0], lim['word_limit'],
              t(' words')),
@@ -134,8 +141,9 @@ def length_problems(cfg) -> list:
             (t('abstract character count'), mdlib.char_count(abstract) if abstract else 0,
              lim['abstract_char_limit'], t(' characters')),
         )
-        for label, got, limit, unit in pairs:
-            if limit:
+        own = lim.doc_explicit if doc.profile != 'paper' else set(LIMIT_KEYS)
+        for (label, got, limit, unit), key in zip(pairs, LIMIT_KEYS):
+            if limit and key in own:
                 out.append((t('{doc}: {what}', doc=name, what=label), got, int(limit), unit))
     return out
 
@@ -154,6 +162,16 @@ def collect(cfg, anonymous: bool = False) -> list:
         hint=t('add one with octavo new paper|slides|lecture <name>, or check '
                'documents in octavo.config.py')))
 
+    # 前からの置き場所（papers/・slides/・lectures/）の原稿。そのままでも組めるので
+    # 問題にはしないが、docs/ へ移せることと、その命令を知らせる
+    older = [d for d in cfg.documents.values() if not d.derived and d.exists()]
+    if older:
+        items.append(Item(
+            ok=True, fatal=False, label=t('where manuscripts live'),
+            detail=t('{n} {n|manuscript is|manuscripts are} in the older places ({files}); '
+                     'octavo migrate --docs moves them into docs/<name>/',
+                     n=len(older), files=', '.join(cfg.rel(d.src) for d in older[:3])
+                     + (', …' if len(older) > 3 else ''))))
     # -- 分析 ---------------------------------------------------------------
     # 分析のないプロジェクト（スライドだけ、など）には分析の行を出さない
     rows = anamod.status(cfg) if cfg['analysis'] else []

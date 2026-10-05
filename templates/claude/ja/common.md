@@ -29,11 +29,11 @@ build/            生成物。**手で書くものは1つもない。丸ごと�
 書誌・図表は全部の原稿で共有する。
 
 ```bash
-octavo new paper example-paper         # papers/example-paper/paper.md と main.typ
+octavo new paper example-paper         # docs/example-paper/example-paper.md と main.typ
 octavo new paper example-paper --appendix   # 付録 appendix.md を足す（既にある論文にも）
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
-octavo new slides example-talk           # slides/example-talk.md
-octavo new lecture example-lecture         # lectures/example-lecture.md
+octavo new slides example-talk           # docs/example-talk/example-talk.md
+octavo new lecture example-lecture         # docs/example-lecture/example-lecture.md
 octavo new analysis model                  # analysis/model.qmd（初回は data/ なども）
 octavo new figure dag                      # figures/dag.typ（Typst で描く図。TikZ の代わり）
 octavo new table compare                   # tables/compare.csv（手で作る表）
@@ -42,20 +42,26 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 `octavo new` が置く原稿は見出しの骨組みだけ。書き方の見本を見たいときは
 `--example` を付ける（見本の原稿と、それが使う見本の分析・書誌が入る）。
 
-- **文書の名前はフォルダ名（論文）かファイル名（スライド・講義）。**`octavo build <name>`
-  などはこの名前で指す。種類が違っても名前はぶつけない
+- **1つの文書は `docs/<name>/<name>.md`。**付録（`appendix.md`）や論文の体裁（`main.typ`）も
+  同じフォルダに置く。`octavo build <name>` などはこの名前で指す
+- **何を作るかは原稿の冒頭の `outputs:`**（`pdf` / `word` / `tex` / `slides` / `beamer` /
+  `script`。書かなければ `pdf`）。PDF の体裁は、原稿の横に `main.typ` があればそれ、
+  なければ Octavo の組み込みのもの。**何回分かの授業でできている原稿は `sessions: true`**
+  （スライドが回ごとに分かれる）
+- 題は冒頭の `title:` に書く。本文に `# 題` は書かない
 - `octavo.config.py` の `documents` と `analysis` はフォルダを丸ごと拾うので
   **書き換えなくてよい**。置き場所を変えると拾われなくなる
-- 原稿を消すときは、ファイル（論文ならフォルダ）を消せば登録からも消える
-- 投稿先・発表ごとに変わる設定（`csl`・`targets`・`word_limit` などの上限・
-  `typst_slides_*`）は、その**原稿の冒頭**に書く。書いていないものは `octavo.config.py`
+- 原稿を消すときは、そのフォルダを消せば登録からも消える
+- 投稿先・発表ごとに変わる設定（`csl`・`outputs`・`word_limit` などの上限・
+  `slides_*`）は、その**原稿の冒頭**に書く。書いていないものは `octavo.config.py`
   に従う（`octavo config --doc <name>` で一覧・変更）
+- 改ページは1行の `\newpage`、スライドの区切りは1行の `\newslide`（`\newslide{題}`）
 
 # 守ること
 
 ## build/ の生成物は編集しない
 
-`octavo build` が作るもの（`build/typst/`・`build/typst-slides/`・`build/word/` などの
+`octavo build` が作るもの（`build/pdf/`・`build/slides/`・`build/word/` などの
 中身）は、**編集しても次の build で消える。**直したいのは原稿（か `.qmd`）のほう。
 `build/` に手で書くファイルは1つもないので、丸ごと消してよい（git にも入らない）。
 
@@ -64,7 +70,7 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 `literature.bib` は文献管理ソフト（Zotero など）からエクスポートしたもので、次にエクスポートすると
 **丸ごと上書きされる**ので、手で直しても消える。書誌の誤りは文献管理ソフトの側で直す。
 
-- `octavo checkbib` — 本文が引いているキーが `.bib` にあるか、書誌が壊れていないか
+- `octavo check cites` — 本文が引いているキーが `.bib` にあるか、書誌が壊れていないか
 - 直さないと決めた指摘は `octavo.config.py` の `bib_accepted` に理由付きで書く
 
 ## 図・表・式・節は、番号ではなくラベルで指す
@@ -74,7 +80,7 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 
 | | 書き方 | 本文での参照 |
 |---|---|---|
-| 節 | `## 分析 {#sec-analysis}` | `@sec-analysis` → 第2節 |
+| 節 | `# 分析 {#sec-analysis}` | `@sec-analysis` → 第2節 |
 | 図 | `![推移](../../assets/figures/trend.png){#fig-trend}` | `@fig-trend` → 図2.1 |
 | 表（原稿に書く） | Markdown の表 + すぐ下に `: 記述統計 {#tbl-desc}` | `@tbl-desc` → 表2.1 |
 | 表（分析が作る） | `: 記述統計 {#tbl-summary}` の1行だけ（`assets/tables/summary.*` が入る） | `@tbl-summary` |
@@ -101,8 +107,7 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 `ov_figure()` と `figures/*.typ` は `.pdf` と `.png` の両方を書くので、どちらも揃っている。
 原稿に `.pdf` を直接書いても組版には使われるが、エディタのプレビューには出ない。
 
-パスは原稿から見た相対パスで書く（論文なら `../../assets/figures/`、スライド・講義なら
-`../assets/figures/`）。図は全部の原稿で共有する。論文の図をスライドに貼るときも、
+パスは原稿から見た相対パスで書く（`docs/<name>/` の原稿からは `../../assets/figures/`）。図は全部の原稿で共有する。論文の図をスライドに貼るときも、
 同じ `assets/figures/` のファイルを指せばよい（複製しない）。
 
 ### 図を作るときの約束（色覚の多様性に配慮する）
@@ -126,17 +131,17 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 
 図表の**出典・注**は、下にふつうの段落で書かず、そのすぐ後（表なら表題の行の後）の
 `::: {.figure-note}` + `:::` に書く。図表と離れず、小さい字で組まれ、スライドでは図と一緒に縮む。
-**写真・画面の写し**は `figures/` に置いてそこから貼る（`../figures/photo.jpg`）。大きな写真は
+**写真・画面の写し**は `figures/` に置いてそこから貼る（`../../figures/photo.jpg`）。大きな写真は
 先に縮め、どこから来たか・使ってよいかを `figures/README.md` に書く。
 
 ## 箇条書きの字下げ
 
 入れ子の箇条書きは、**子の項目を親の本文の桁に揃える**（`- ` の下なら 2 字、`1. ` の
-下なら 3 字）。幅は決めていないが、1つの原稿の中では揃える。`octavo lint` が、揃って
+下なら 3 字）。幅は決めていないが、1つの原稿の中では揃える。`octavo check lint` が、揃って
 いない入れ子と、番号付きの項目の下で字下げが足りずに入れ子にならない行を知らせる。
 
 **開きの `:::` の前には必ず空行を入れる**（箇条書きの中でも。項目の本文の桁にそろえる）。
-空行がないと pandoc が `:::` を文字のまま出す。`octavo lint` がこれと、どの出力にも当たらない
+空行がないと pandoc が `:::` を文字のまま出す。`octavo check lint` がこれと、どの出力にも当たらない
 `.xxx-only` の印を知らせる。本文の結果でない数値（成績の配分など）は `[40%]{.no-lint}` と
 印を付けると、手入力の数値の検査が見ない。
 
@@ -155,7 +160,7 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 
 **仮の値（`_placeholder`）は特に危ない。**分析を1度も実行していなくても
 `{{…}}` が全部解決してしまい、**仮の数字の入った PDF が組める**。そうならないよう
-`octavo check` は仮の値を**「致命的」**として止め、`octavo build` と `octavo values` も
+`octavo check` は仮の値を**「致命的」**として止め、`octavo build` と `octavo check values` も
 毎回そう言う。
 
 印が残っているあいだは `octavo check` が「ひな型の残り」として数える。**仕上げる
@@ -168,7 +173,7 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 ```bash
 octavo build                   # 全部の原稿を変換（分析が古ければ先に実行される）
 octavo build <name>            # 1本だけ
-octavo checkbib                # 引用キーが .bib にあるか
+octavo check cites                # 引用キーが .bib にあるか
 octavo outline                 # 見出し構成を見る
 ```
 
@@ -178,7 +183,7 @@ octavo outline                 # 見出し構成を見る
 
 ```bash
 octavo check          # 検査を1回にまとめる（致命的があれば終了コードが 0 以外になる）
-octavo lint           # 手入力された数値だけを詳しく
+octavo check lint           # 手入力された数値だけを詳しく
 ```
 
 **「致命的」が出ているうちは投稿・配布しない。**「注意」は読んで判断する。
@@ -187,7 +192,7 @@ octavo lint           # 手入力された数値だけを詳しく
 
 - **`build/` の生成物を手で書き換えない。**直したいのは常に原稿のほう
 - **`literature.bib` を手で編集しない**（文献管理ソフトの側で直す）
-- `octavo lint` が出した指摘を、確かめずに `lint_accepted` へ流し込まない。
+- `octavo check lint` が出した指摘を、確かめずに `lint_accepted` へ流し込まない。
   そこは「結果ではない」と判断したものだけを書く場所
 - **原稿を `octavo new` の置き場所の外に置かない**（`octavo.config.py` が拾わなくなる）
 - **ひな型の印（`octavo:example`）を、中身を書き換えずに消さない。**印は

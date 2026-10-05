@@ -297,6 +297,7 @@ NEEDS = {
     'typst':    ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
     'typst-slides': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
     'typst-notes': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
+    'typst-poster': ['pandoc_typst', 'pandoc_citeproc', 'typst', 'typst_0_14', 'typst_cjk'],
     'docx':     ['pandoc', 'pandoc_citeproc'],
     'latex':    ['pandoc', 'pandoc_citeproc', 'lualatex', 'tex:ltjsarticle.cls'],
     'beamer':   ['pandoc', 'pandoc_citeproc', 'lualatex', 'tex:beamer.cls'],

@@ -451,6 +451,59 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
     return out
 
 
+AUTO_LABEL = 'octavo'          # 内部用のラベルの印（fig-octavo-1a2b3c4d）
+
+
+def autolabel(md: str, envs: dict | None = None) -> str:
+    """番号が付くのにラベルのないもの（キャプションのある図、表題のある表、番号の付く
+    事例などのブロック）に、内部用のラベルを付ける。
+
+    講義の回のデッキの番号を、プリントでの番号に合わせる（fixed_numbers）ために、
+    プリントとデッキの両方で同じものを同じ名前で指せるようにする。名前は行の中身から
+    作るので、どちらで組んでも同じになる（同じ行が2つあれば出てきた順の番号を足す）。
+    行の数は変えない。
+    """
+    import hashlib
+    envs = THEOREM_DEFAULT if envs is None else envs
+    lines = md.split('\n')
+    seen: dict = {}
+
+    def name(kind: str, line: str) -> str:
+        h = hashlib.sha1(line.strip().encode('utf-8')).hexdigest()[:8]
+        seen[(kind, h)] = seen.get((kind, h), 0) + 1
+        n = seen[(kind, h)]
+        return f'{kind}-{AUTO_LABEL}-{h}' + (f'-{n}' if n > 1 else '')
+
+    def with_label(line: str, attr, label: str, end: int | None = None) -> str:
+        if attr is None:
+            return line.rstrip() + '{#' + label + '}'
+        return line.replace('{' + attr + '}', '{#' + label + (' ' + attr if attr.strip() else '') + '}', 1)
+
+    for i, line in _lines_outside_code(md):
+        s = line.strip()
+        m = DIV_OPEN.match(s)
+        if m:
+            attr = div_attr(m)
+            env = theorem_env(attr, envs)
+            if env is not None and env.counter and not label_in(attr, env.name):
+                lab = name(env.name, line)
+                if m.group('attr') is None:
+                    lines[i] = line.replace(m.group('bare'), '{.' + m.group('bare') + ' #' + lab + '}', 1)
+                else:
+                    lines[i] = with_label(line, m.group('attr'), lab)
+            continue
+        m = IMAGE.match(s)
+        if m:
+            if m.group('alt').strip() and not label_in(m.group('attr'), 'fig'):
+                lines[i] = with_label(line, m.group('attr'), name('fig', line))
+            continue
+        m = TABLE_CAPTION.match(s)
+        if m and (s.startswith(':') or s.startswith('Table:')) and not label_in(m.group('attr'), 'tbl'):
+            if _is_table_neighbour(lines, i, -1) or _is_table_neighbour(lines, i, 1):
+                lines[i] = with_label(line, m.group('attr'), name('tbl', line))
+    return '\n'.join(lines)
+
+
 def references(md: str, kinds=None) -> list:
     """本文の参照 [(ラベル, 番号だけか, 行番号)]。コードの中は見ない。
 

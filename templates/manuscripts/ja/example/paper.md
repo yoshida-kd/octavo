@@ -9,15 +9,15 @@ date: 2026-01-01
      印が残っているあいだは octavo check が「ひな型の残り」として知らせる。
      書き方の約束は AGENTS.md にある。 -->
 
-## Abstract
+# Abstract
 
 <!-- octavo:example ここから -->
-ここに要旨を書く。`## Abstract` か `## 要旨` の節は本文から切り離され、
+ここに要旨を書く。`# Abstract` か `# 要旨` の節は本文から切り離され、
 Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節になる。
 
 <!-- octavo:example ここまで -->
 
-## はじめに {#sec-intro}
+# はじめに {#sec-intro}
 
 <!-- octavo:example ここから ─ 引用の書き方の見本。`@キー` で地の文に、
      `[@キー; @キー2]` で括弧に入る。「山田(2020)の」のように著者名を地の文に
@@ -28,7 +28,7 @@ Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節�
 
 <!-- octavo:example ここまで -->
 
-## 分析 {#sec-analysis}
+# 分析 {#sec-analysis}
 
 <!-- octavo:example ここから ─ 数値と相互参照の見本。数値は原稿に書かず、
      `.qmd` の `ov_value()` に登録して `{{名前}}` で呼ぶ（桁は `{{coef_x:.2f}}`）。
@@ -56,8 +56,8 @@ $$ {#eq-model}
 
 <!-- octavo:example ここまで -->
 
-## おわりに {#sec-conclusion}
+# おわりに {#sec-conclusion}
 
-## 参考文献
+# 参考文献
 
 （この節は変換時に落とされる。書誌は literature.bib から組む）

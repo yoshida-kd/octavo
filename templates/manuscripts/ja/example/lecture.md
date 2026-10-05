@@ -8,8 +8,8 @@ date: 2026-04-10
      印が付いた塊は例なので、自分の内容にしたら印ごと消す。
 
      この1本から
-       octavo build @@NAME@@ --to typst          A4 プリント（全回を1冊に）
-       octavo build @@NAME@@ --to typst-slides   スライド（`#` の回ごとに1本）
+       octavo build @@NAME@@ --to pdf      A4 プリント（全回を1冊に）
+       octavo build @@NAME@@ --to slides   スライド（`#` の回ごとに1本）
      を作る。スライドの名前は @@NAME@@-01, @@NAME@@-02, …（出てきた順）。
      回を途中に挿し込んでも名前を変えたくないなら、見出しに {#id} を付ける
      （`# 第2回 タイトル（見本） {#second}` なら @@NAME@@-second）。

@@ -1,7 +1,7 @@
 // =====================================================================
 //  Octavo の Typst 台本（発表者ノート）の体裁 — 素の Typst、パッケージなし
 //
-//  octavo build --to typst-notes が、このファイルの**前に** `#let octavo = (…)`
+//  octavo build --to script が、このファイルの**前に** `#let octavo = (…)`
 //  を、**後ろに**本文を書いて1つの完結した .typ にする。使える値は
 //  slides/typst-slides.typ とまったく同じ（同じ meta_block を通る）。
 //

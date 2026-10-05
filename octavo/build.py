@@ -106,9 +106,12 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     abstract = ''
     if ctx.profile_opt('abstract'):
         abstract, body = mdlib.split_abstract(body)
-    if doc.profile == 'paper':
+    if doc.profile == 'paper' and not doc.derived:
+        # 旧来の論文だけ: 最初の見出しより前と、1つだけの `# 題` を捨てる。
+        # docs/<名前>/ の文書は題を冒頭の title: にだけ書く約束なので、見出しはすべて本文
         body = mdlib.strip_title_block(body)
 
+    body = select_marked(cfg, doc, backend, ctx, body)
     body = mdlib.filter_divs(body, ctx.keep_classes,
                              keep_notes=backend.keeps_notes,
                              report=ctx.report,
@@ -116,6 +119,8 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
                              notes_mark=backend.notes_mark)
     # スライドの区切りと題（`::: {.slide}`、`{.same-slide}`、`{slide-title=…}`）
     body = mdlib.slide_marks(body, backend.is_slides, ctx.lang, level=ctx.slide_level)
+    # 改ページ（`\newpage`）。スライドでは何もしない（区切りは `\newslide`）
+    body = mdlib.page_breaks(body, backend.fmt_pagebreak(ctx))
     # 回の区切り（A4 プリントでは改ページと、octavo extract が読む目印）
     if mdlib.has_session_markers(body):
         ctx.has_sessions = True
@@ -135,8 +140,9 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     ctx.shift_headings = 0 if re.search(r'^# \S', body, re.M) else -1
 
     # 要旨を本文に戻す形式（main.tex を持たないもの）
+    # （印の所だけで組むなら戻さない。載せたい要旨は `# Abstract {.on-poster}` と印を付ける）
     if abstract and not backend.wants_abstract_file and ctx.standalone \
-            and doc.profile == 'paper':
+            and not marked_only(cfg, backend):
         head = '要旨' if ctx.lang == 'ja' else 'Abstract'
         lead = '#' if ctx.shift_headings == 0 else '##'
         body = f'{lead} {head} {{.unnumbered}}\n\n{abstract}\n\n{body}'
@@ -148,6 +154,52 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     if ctx.standalone:
         body = mdlib.to_yaml_block(_pandoc_meta(cfg, ctx)) + body
     return body, abstract
+
+
+PRINTED = ('typst', 'docx', 'latex')
+
+
+def fixes_numbers(doc, backend) -> bool:
+    """このデッキの番号をプリントの番号に合わせるか。プリントも作る文書の Typst のスライドと
+    台本だけ（スライドしか作らない発表には、合わせる相手がない）。"""
+    return backend.fixed_numbering and any(b in doc.targets for b in PRINTED)
+
+
+def handout_numbers(cfg, doc, ctx: Ctx) -> dict:
+    """プリントでの番号（ラベル -> crossref.Item）。原稿全体を、プリントと同じ出し分けで数える。"""
+    _, body = mdlib.split_front_matter(mdlib.read(Path(doc.src)))
+    body = mdlib.drop_math_macros(mdlib.drop_references(body))
+    body = xref.autolabel(body, ctx.envs)
+    keep = {'print', 'doc', 'typst', 'pdf', doc.profile} | ({'anonymous'} if ctx.anonymous else set())
+    body = mdlib.filter_divs(body, keep)
+    return xref.number(body, ctx.numbering_mode(), start=ctx.first_section,
+                       envs=ctx.envs).labels()
+
+
+def marked_only(cfg, backend) -> tuple | None:
+    """この出力が「印の所だけ」で組むなら (印のクラス, 一緒に残す囲み)。"""
+    sel = backend.select_mark
+    return (sel[1], sel[2]) if sel and cfg[sel[0]] == 'marked' else None
+
+
+def select_marked(cfg, doc, backend, ctx: Ctx, body: str) -> str:
+    """`slides_select: marked` などのとき、印の所だけを残す（md.select_marked）。
+
+    拾わなかった図・表・節を指す参照は、文書全体での番号を文字で書く（スライドに
+    ないラベルを Typst が探して止まらないように）。そのため全体の番号を先に数えておく。
+    講義の回のデッキは sibling_crossrefs が講義ノート全体から数えてある。
+    """
+    sel = marked_only(cfg, backend)
+    if not sel:
+        return body
+    if doc.part is None:
+        whole = mdlib.filter_divs(body, ctx.keep_classes, keep_notes=backend.keeps_notes)
+        ctx.crossrefs = {**xref.number(whole, ctx.numbering_mode(), start=ctx.first_section,
+                                       envs=ctx.envs).labels(), **ctx.crossrefs}
+    picked = mdlib.select_marked(body, *sel)
+    ctx.say(f'{tag("select")} ' + t('only the parts marked .{mark} ({key}: marked)',
+                                    mark=sel[0], key=backend.select_mark[0]))
+    return picked
 
 
 def display_date(value, fmt: str | None, lang: str) -> str:
@@ -278,8 +330,9 @@ def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
     def prepared(path: Path, is_appendix: bool) -> str:
         _, body = mdlib.split_front_matter(mdlib.read(path))
         body = mdlib.drop_math_macros(mdlib.drop_references(body))
-        if doc.profile == 'paper' and not is_appendix:
+        if ctx.profile_opt('abstract') and not is_appendix:
             _, body = mdlib.split_abstract(body)
+        if doc.profile == 'paper' and not doc.derived and not is_appendix:
             body = mdlib.strip_title_block(body)
         # 再掲に写す本文にも、数値と図のパスの直しが要る（行の数は変わらない）
         body = mdlib.rebase_links(body, Path(path).parent, ctx.out_dir)
@@ -378,9 +431,10 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
               build_opts={'offline': offline, 'citations': citations,
                           'anonymous': anonymous})
     if cfg.doc_explicit:
+        shown = {k: (', '.join(doc.outputs) if k in ('outputs', 'targets') else cfg[k])
+                 for k in sorted(cfg.doc_explicit)}
         ctx.say(f'{tag("settings")} ' + t('from the manuscript: {settings}', settings=', '.join(
-            f'{k}: {cfg[k]}' for k in sorted(cfg.doc_explicit) if k != 'targets')
-            or 'targets'))
+            f'{k}: {v}' for k, v in shown.items())))
     for wrote, key in confmod.doc_setting_typos(doc.src):
         ctx.say(f'{tag("settings")} ' + t('{wrote} is not a setting and is ignored — did you mean {key}?',
                                          wrote=wrote, key=key))
@@ -400,12 +454,19 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             'the text are fake (octavo analysis run makes them real)', file=f))
 
     sync_layout(cfg, doc, ctx)
+    backend.prepare(ctx)
 
     raw = mdlib.read(Path(src))
     # 数式のマクロは本文と付録で共有する（回ごとに分ける前の、ファイル全体から集める）
     ctx.math_macros = mdlib.math_macros(*(
         mdlib.read(Path(p)) for p in (doc.src, doc.appendix) if p and Path(p).exists()))
     sibling_crossrefs(cfg, doc, backend, ctx, appendix)
+    if fixes_numbers(doc, backend) and not appendix:
+        # スライドの図・表・式・ブロックの番号を、プリントでの番号に合わせる
+        raw = xref.autolabel(raw, ctx.envs)
+        handout = handout_numbers(cfg, doc, ctx)
+        ctx.fixed_numbers = {lab: it.number for lab, it in handout.items()}
+        ctx.crossrefs = {**ctx.crossrefs, **handout}
     if doc.part is not None and not appendix:
         # 1枚の見出しの段は、回に分ける前の講義ノート全体で決める（回の区切りを
         # 書いても変わらないように）
@@ -415,7 +476,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             res.ok = False
             res.report.append(f'{tag("stopped")} ' + t(
                 '{file} has no session {part} (the `#` heading is gone, or its '
-                '{{#id}} changed)', file=Path(src).name, part=doc.part))
+                '{#id} changed)', file=Path(src).name, part=doc.part))
             return res
         ctx.say(f'{tag("split")} ' + t('building only session {part} of {file}',
                                        part=doc.part, file=Path(src).name))
@@ -444,13 +505,17 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         # スライドは既定で書誌一覧を出さない（枠に入りきらないため）。
         # 出したいときは slides.md の末尾に見出しと `::: {#refs}` を置き、
         # config の slides_bibliography を True にする。
-        suppress = (doc.profile == 'slides' and not cfg['slides_bibliography'])
+        # 回でできていない文書のスライド（発表のデッキ）が対象。講義の回のデッキには出す
+        suppress = ((doc.profile == 'slides'
+                     or (doc.derived and backend.is_slides and not doc.sessions))
+                    and not cfg['slides_bibliography'])
         ref_title = cfg['reference_section_title'] or None
         # 何も引いていなければ書誌の見出しを書き足さない（講義の回のスライドに、空の
         # 「参考文献」の1枚が付いていた）
         cites = (bool(mdlib.cited_keys(body, xref.kinds_of(ctx.envs)))
                  or bool(re.search(r'^nocite:', body, re.M)))
-        if ref_title and not suppress and ctx.shift_headings < 0 and cites \
+        if ref_title and not suppress and (ctx.shift_headings < 0 or backend.places_bibliography) \
+                and cites \
                 and not re.search(r'\{#refs\}', body):
             # 見出しを `##` で書く原稿は段を1つ上げて変換する。pandoc が差し込む書誌の
             # 見出しにもそれが効いて0段目（ただの段落）になるので、1段深い見出しと
@@ -593,6 +658,13 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                     res.compiled = pdf if pdf.exists() else None
                     res.report.append(f'{tag("typeset")} '
                                       + t('made {path}', path=res.compiled or out_dir))
+                    backend.after_compile(ctx, out_path)       # res.report は ctx.report と同じもの
+                    if res.compiled and not ctx.standalone:
+                        # 論文は main.pdf（体裁ファイルの名前）。探しやすいように、文書の名前の
+                        # 写しを1つ上に置く（build/pdf/<名前>.pdf）
+                        named = out_dir.parent / f'{doc.name}.pdf'
+                        shutil.copyfile(res.compiled, named)
+                        res.outputs.append(named)
     return res
 
 
@@ -605,6 +677,16 @@ def empty_sessions(doc) -> set:
     except OSError:
         return set()
     return {key for key, _t, text, _a in parts if not mdlib.strip_comments(text).strip()}
+
+
+def unmarked_sessions(doc, mark: str) -> set:
+    """印の所だけで組むとき、印が1つもない回（スライドにするものがない）の印。"""
+    try:
+        _, parts, _ = mdlib._sections(mdlib.read(doc.src))
+    except OSError:
+        return set()
+    rx = re.compile(r'\.' + re.escape(mark) + r'(?![\w-])')
+    return {key for key, _t, text, _a in parts if not rx.search(text)}
 
 
 def clear_old_sessions(cfg, doc, tgt: str, built: list) -> list:
@@ -651,7 +733,7 @@ def run(cfg, doc_names=None, targets=None, appendix: bool = False,
     for doc in docs:
         tgts = targets or list(doc.targets)
         # 講義ノート: プリントは1本のまま、スライドは `#` の回ごとに別々に組む
-        parts = cfg.parts(doc) if doc.split_slides else None
+        parts = cfg.parts(doc) if doc.sessions and doc.part is None else None
         # main.* 方式は本文と付録を1つの PDF に組むので、付録を書いてから組む
         with_appendix = bool(appendix and doc.appendix)
         defer = with_appendix and doc.profile == 'paper'
@@ -664,8 +746,17 @@ def run(cfg, doc_names=None, targets=None, appendix: bool = False,
                         'by session', file=doc.src.name))
                     results.append(r)
                 empty = empty_sessions(doc)
+                sel = marked_only(cfg.for_document(doc), be.get(tgt))
+                unmarked = unmarked_sessions(doc, sel[0]) if sel else set()
                 built = []
                 for part in parts:
+                    if part.part in unmarked and part.part not in empty:
+                        r = Result(doc=part.name, target=tgt, ok=True)
+                        r.report.append(f'{tag("split")} ' + t(
+                            'session {key} has nothing marked .{mark}, so it gets no slides',
+                            key=part.part, mark=sel[0]))
+                        results.append(r)
+                        continue
                     if part.part in empty:
                         # 予告だけ置いた回など。表紙だけのスライドは作らない
                         r = Result(doc=part.name, target=tgt, ok=True)

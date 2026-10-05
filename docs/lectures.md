@@ -6,10 +6,10 @@ From **one Markdown file**, lecture notes give you:
 
 | What | Contents | Where |
 |---|---|---|
-| A4 handout | every session in one booklet, with a cover and contents | `build/typst/<name>.pdf` |
-| A deck per session | one session each; the title slide has its title and date | `build/typst-slides/<name>-slides-<session>.pdf` |
+| A4 handout | every session in one booklet, with a cover and contents | `build/pdf/<name>.pdf` |
+| A deck per session | one session each; the title slide has its title and date | `build/slides/<name>-slides-<session>.pdf` |
 | A handout per session | the A4 handout cut by session, keeping the page numbers of the whole | `build/handouts/<name>-<session>.pdf` |
-| Speaker script (if you want one) | the slides on A4 with your notes underneath | `build/typst-notes/<name>-notes-<session>.pdf` |
+| Speaker script (if you want one) | the slides on A4 with your notes underneath | `build/script/<name>-notes-<session>.pdf` |
 
 Everything can be done in VS Code. This page assumes VS Code; the commands are
 [at the end](#from-the-command-line). For installing, and for anything beyond lecture notes
@@ -22,7 +22,9 @@ Everything can be done in VS Code. This page assumes VS Code; the commands are
 1. Open the sidebar with the Octavo icon on the far left. If there is no project yet,
    **New project** makes one (for lecture notes alone, lecture notes are the only part you need).
 2. Under Manuscripts, **Add a manuscript…** → **Lecture notes** → a name (e.g.
-   `public-policy`). `lectures/public-policy.md` is made and opened.
+   `public-policy`). `docs/public-policy/public-policy.md` is made and opened. At its top,
+   `outputs: [pdf, slides]` means "make the A4 handout and the slides", and `sessions: true`
+   "made of several sessions (one deck each)".
 3. Press the **PDF button** at the top right of the editor (Open Preview). The window splits
    in three:
 
@@ -45,6 +47,8 @@ title: Public Policy
 subtitle: Lecture notes
 author: Author Name
 date: today
+outputs: [pdf, slides]
+sessions: true
 ---
 
 Text here goes to the handout only (e.g. how the course runs).
@@ -103,8 +107,7 @@ mid-section), put a **marker** at the head of each session. As soon as there is 
 `#` becomes an ordinary heading with nothing to do with sessions:
 
 ```markdown
-::: {.session #week3 date="2026-10-14"}
-:::
+\session{} {#week3 date="2026-10-14"}
 
 # Session 3: Policy and government
 
@@ -117,11 +120,13 @@ mid-section), put a **marker** at the head of each session. As soon as there is 
 ### Staff
 ```
 
-- `#week3` names the session (its deck is `<name>-week3`).
+- A marker is one line, `\session{Title} {#id date="…" subtitle="…"}`; `#week3` names the
+  session (its deck is `<name>-week3`). All of it is optional. The older
+  `::: {.session #week3 …}` + `:::` means the same.
 - `date` (and `subtitle`) go on the session's title slide. The title is the session's first
   heading, which moves to the title slide. The levels are as without markers (`##` a section,
   `###` a slide).
-- With `title="…"` on the marker, that becomes the title and the session's first heading
+- With a title in the marker (`\session{Title}`), that becomes the title and the session's first heading
   stays on the slides as a section. A slide is still a `###`: which level is a slide is
   decided from the whole of the notes, so adding markers or titles never changes it.
 - A session always starts on a new page of the A4 handout too (the per-session handouts are
@@ -143,26 +148,27 @@ the A4 handout.
 
 | To | Write |
 |---|---|
-| start a new slide here | the two lines `::: {.slide}` and `:::` |
-| give the new slide a title | `::: {.slide title="…"}` and `:::` |
+| start a new slide here | `\newslide` on a line of its own |
+| give the new slide a title | `\newslide{Title}` |
 | keep a heading on the same slide | `{.same-slide}` after the heading |
 | shorten a title on the slides only | `{slide-title="…"}` after the heading |
-| show no title on that slide (room for a figure) | `{.no-title}` after the heading |
+| show no title on that slide (room for a figure) | `\newslide{}`, or `{.no-title}` after a heading |
+| a new page in the A4 handout | `\newpage` on a line of its own (the slides ignore it) |
 
 ```markdown
 ### A long heading for the handout {slide-title="Short title"}
 
 First half of the text.
 
-::: {.slide}
-:::
+\newslide
 
 Second half — on a new slide titled "Short title (cont.)".
 
 ### A heading that stays on this slide {.same-slide}
 ```
 
-A `::: {.slide}` with no title takes the previous slide's title plus " (cont.)". The new
+A `\newslide` with no title takes the previous slide's title plus " (cont.)". The older
+`::: {.slide title="…"}` + `:::` means the same. The new
 slide gets a heading at the slide level (normally `###`).
 
 **Notes for what you will say** go in `::: notes`. They appear on neither the slides nor the
@@ -183,7 +189,7 @@ Ask the room first; give the answer after two minutes.
 Fence a part to show it in one of them only:
 
 ```markdown
-::: {.handout-only}
+::: {.pdf-only}
 Space for students to write in, longer explanations, footnotes.
 :::
 
@@ -194,18 +200,18 @@ A big figure or one short question.
 
 | Mark | Shown in |
 |---|---|
-| `.handout-only` | the A4 handout only |
+| `.pdf-only` | the A4 handout only (the older `.handout-only` too) |
 | `.slides-only` | the slides and the speaker script only |
 | `.no-slides` | everything but the slides and the speaker script |
 
 (`.slide-only` is read as `.slides-only`.) Inside a list item, indent the fence to the item's
 text, and **leave a blank line before every opening `:::`** — without it pandoc does not see a
-block and prints the `:::`. For a few words, `[…]{.handout-only}` works inside a line:
+block and prints the `:::`. For a few words, `[…]{.pdf-only}` works inside a line:
 
 ```markdown
 - Local government employs most officials.
 
-  ::: {.handout-only}
+  ::: {.pdf-only}
   - Longer explanation for the handout.
   :::
 
@@ -213,12 +219,44 @@ block and prints the `:::`. For a few words, `[…]{.handout-only}` works inside
   - One line for the slide.
   :::
 
-- Grading: [midterm and final]{.handout-only}[see the handout]{.slides-only}.
+- Grading: [midterm and final]{.pdf-only}[see the handout]{.slides-only}.
 ```
 
-**Check before submitting** (or `octavo lint`) points out a `:::` that will not be read as a
+**Check before submitting** (or `octavo check lint`) points out a `:::` that will not be read as a
 block, and a mark that matches no output (a misspelt `.handouts-only`, say), which would
 otherwise vanish from both without a word.
+
+### Putting only part of the notes on the slides
+
+When most of the notes are for the handout and only some of it should be on the slides, write
+`slides_select: marked` at the top and mark what goes on the slides too with `.on-slides`.
+Anything unmarked goes into the handout only:
+
+```markdown
+---
+slides_select: marked
+---
+
+### Government and the market
+
+The long explanation stays in the handout only.
+
+::: {.on-slides}
+- The point for the slide
+:::
+
+### Comparing institutions {.on-slides}
+
+This whole section goes on the slides too.
+```
+
+- A `::: {.on-slides}` block, a section whose heading has `{.on-slides}`, and `[…]{.on-slides}`
+  in a line go on the slides as well. `.slides-only` blocks and `::: notes` are kept as usual.
+- The headings above what is picked stay, so the slides' titles and order follow the notes.
+- Figures, tables, equations and blocks keep their handout numbers (leaving one out never
+  shifts the others). A reference to a figure (or anything else) that was not picked is written
+  as its number in the handout. A session with nothing marked gets no deck.
+- **Settings for this document** in the sidebar has it too (*What goes on the slides*).
 
 ---
 
@@ -273,18 +311,18 @@ Written as in a paper; see the guide's [Writing manuscripts](https://yoshida-kd.
 and [Citations](https://yoshida-kd.github.io/octavo/guide/#5-citations).
 
 ```markdown
-![Spending over time](../assets/figures/trend.png){#fig-trend}
+![Spending over time](../../assets/figures/trend.png){#fig-trend}
 
 As @fig-trend shows, spending rose. See @yamada2020.
 ```
 
-- Figures are placed with a path relative to the manuscript (`../`, since it sits in
-  `lectures/`). On a slide they shrink to fit the space left.
+- Figures are placed with a path relative to the manuscript (`../../`, since it sits in
+  `docs/<name>/`). On a slide they shrink to fit the space left.
 - A source or note under a figure or table goes in `::: {.figure-note}` + `:::` right after
   it: small type, on the same page, footnotes allowed; on a slide the figure shrinks for it.
-  See the guide's [Figures](https://yoshida-kd.github.io/octavo/guide/#figures).
+  See the guide's [Figures](https://yoshida-kd.github.io/octavo/guide/#34-figures).
 - A photo you took goes in `figures/` and is placed from there
-  (`![…](../figures/photo.jpg)`).
+  (`![…](../../figures/photo.jpg)`).
 - A table you make by hand: **Add a table made by hand…** under Analysis in the sidebar opens
   it as a grid.
 - References go in `literature.bib` and are cited as `@key`. A session that cites something
@@ -363,13 +401,14 @@ reported when you build and has no effect).
 | Setting | Line at the top | Default | What it changes |
 |---|---|---|---|
 | Number of the first section | `first_section: 0` | 1 | 0 numbers a guidance session "0" (its figures "Figure 0.1") |
-| New page at | `handout_pagebreak: section` | each session | `section` each `#`; `none` only at session markers |
-| Body font | `handout_font: …` | BIZ UDGothic | the A4 handout's text |
-| Font size | `handout_fontsize: 10.5pt` | 11pt | the A4 handout's text |
+| New page at | `pagebreak: section` | each session | `section` each `#`; `none` only at session markers |
+| Body font | `font: …` | BIZ UDGothic | the A4 handout's text |
+| Font size | `fontsize: 10.5pt` | 11pt | the A4 handout's text |
+| Contents | `toc: false` | on | the A4 handout's table of contents |
 | Date format | `date_format: "%Y-%m-%d"` | April 10, 2026 | the date on the cover and the title slides |
-| Aspect ratio | `typst_slides_aspect: 4-3` | 16:9 | the slides |
-| Accent colour | `typst_slides_accent: none` | navy | headings and other accents on the slides; `none` for black only |
-| Section name in the top-left corner | `typst_slides_running_header: false` | on | the slides' top-left corner |
+| Aspect ratio | `slides_aspect: 4-3` | 16:9 | the slides |
+| Accent colour | `slides_accent: none` | navy | headings and other accents on the slides; `none` for black only |
+| Section name in the top-left corner | `slides_running_header: false` | on | the slides' top-left corner |
 
 The A4 handout is set after the Japanese LaTeX class jsarticle (36 lines a page, paragraphs
 indented by one character).
@@ -393,22 +432,23 @@ indented by one character).
 
 | To write | Write |
 |---|---|
-| a session | `# Title` (with markers: `::: {.session #id title="…" date="…"}` + `:::`) |
+| a session | `# Title` (with markers: `\session{Title} {#id date="…"}`) |
 | a section | `## Title` |
 | a slide | `### Title` |
 | a small heading on a slide | `#### Title` |
 | a fixed session name | `# Title {#id}` |
-| a new slide here | `::: {.slide}` + `:::` (titled with `title="…"`) |
+| a new slide here | `\newslide` (titled: `\newslide{Title}`) |
+| a new page (A4 handout) | `\newpage` |
 | a heading that stays on the slide | `### Title {.same-slide}` |
-| a slide without its title | `### Title {.no-title}` |
+| a slide without its title | `\newslide{}` or `### Title {.no-title}` |
 | a heading without a number | `## Title {.unnumbered}` or `{-}` |
 | another title on the slides | `### Title {slide-title="Short"}` |
 | notes for what you say | `::: notes` … `:::` |
-| handout only / slides only | `::: {.handout-only}` / `::: {.slides-only}`, in a line `[…]{.slides-only}` |
+| handout only / slides only | `::: {.pdf-only}` / `::: {.slides-only}`, in a line `[…]{.slides-only}` |
 | a question (numbered) | `::: {.question #question-x title="…"}` … `:::` |
 | point at a block | `@question-x` |
 | show again / list | `::: {.restate #question-x}` / `::: {.list-of .question}` |
-| a figure | `![Caption](../assets/figures/x.png){#fig-x}`, pointed at with `@fig-x` |
+| a figure | `![Caption](../../assets/figures/x.png){#fig-x}`, pointed at with `@fig-x` |
 | its source or note | `::: {.figure-note}` … `:::` right after it |
 | a number that is not a result | `[40%]{.no-lint}` |
 | a reference | `@key` |
@@ -423,15 +463,14 @@ indented by one character).
 Whatever VS Code does can also be done with commands:
 
 ```bash
-octavo new lecture public-policy                          # lectures/public-policy.md
-octavo build public-policy --to typst --compile           # A4 handout
-octavo build public-policy --to typst-slides --compile    # one deck per session
-octavo build public-policy-week3 --to typst-slides        # one session only
-octavo build public-policy-week3 --to typst-notes         # its speaker script
-octavo extract public-policy                              # build/handouts/, one PDF per session
+octavo new lecture public-policy                          # docs/public-policy/public-policy.md
+octavo build public-policy --to pdf --compile             # A4 handout
+octavo build public-policy --to slides --compile          # one deck per session
+octavo build public-policy-week3 --to slides              # one session only
+octavo build public-policy-week3 --to script              # its speaker script
+octavo build public-policy --sessions                     # build/handouts/, one PDF per session
 octavo extract public-policy --session week3 --cover      # one session, with the cover and contents
 octavo check                                              # before handing out
 ```
 
-`octavo build` on the command line does not make the per-session handouts; run
-`octavo extract` again after editing.
+On the command line, the per-session handouts are remade only with `--sessions`.

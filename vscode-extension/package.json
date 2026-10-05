@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -459,6 +459,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.qmdPreview.description%"
+        },
+        "octavo.previewCloseWithManuscript": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.previewCloseWithManuscript.description%"
         },
         "octavo.previewFollowCursor": {
           "type": "boolean",

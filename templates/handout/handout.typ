@@ -1,7 +1,7 @@
 // =====================================================================
 //  Octavo の A4 プリント（講義ノート）の体裁
 //
-//  octavo build --to typst は、このファイルの**前に** `#let octavo = (…)` を、
+//  octavo build --to pdf は、このファイルの**前に** `#let octavo = (…)` を、
 //  **後ろに**番号と参照の決まり（typst/crossref.typ）と本文を書いて、1つの完結した
 //  .typ にする。体裁を変えたいときは、このファイルをコピーして直す（同じ名前で
 //  置けば同梱のものより優先される）:
@@ -11,10 +11,10 @@
 //  使える値:
 //    octavo.title / subtitle / author / institute / date   表紙（なければ none）
 //    octavo.lang          "ja" | "en"
-//    octavo.font          本文フォントの候補（handout_font）
+//    octavo.font          本文フォントの候補（font）
 //    octavo.head-font     見出しのフォントの候補（ゴシック）
 //    octavo.bold-font     太字のフォントの候補（和文はゴシック）
-//    octavo.fontsize      本文の文字の大きさ（handout_fontsize、既定 11pt）
+//    octavo.fontsize      本文の文字の大きさ（fontsize、既定 11pt）
 //    octavo.toc           目次を出すか / octavo.toc-depth 目次の深さ
 //    octavo.numbering     見出しに番号を振るか
 //    octavo.first-section 最初の節の番号（first_section。ガイダンスを 0 にするなら 0）

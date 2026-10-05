@@ -24,6 +24,7 @@ import re
 import sys
 from pathlib import Path
 
+from . import md as mdlib
 from . import tmpl
 from .i18n import t
 
@@ -40,6 +41,7 @@ KINDS = {
         'appendix': 'papers/{}/appendix.md',
         'profile': 'paper',
         'targets': ['typst'],
+        'front': ['outputs: [pdf]'],
         'comment': {'ja': ['論文。付録・体裁（main.typ / main.tex）は同じフォルダに置く',
                            "Word も出すなら targets に 'docx' を足す"],
                     'en': ['Papers. The appendix and the layout (main.typ / main.tex) sit in the same folder',
@@ -50,6 +52,7 @@ KINDS = {
         'src': 'slides/{}.md',
         'profile': 'slides',
         'targets': ['typst-slides'],
+        'front': ['outputs: [slides]'],
         'comment': {'ja': ['発表スライド'], 'en': ['Talk slides']},
     },
     'lecture': {
@@ -58,25 +61,75 @@ KINDS = {
         'profile': 'handout',
         'targets': ['typst', 'typst-slides'],
         'split_slides': True,
+        'front': ['outputs: [pdf, slides]', 'sessions: true'],
         'comment': {'ja': ['講義ノート。A4 プリントは1本、スライドは `#` の回ごとに <名前>-01, -02, …'],
                     'en': ['Lecture notes. One A4 handout, and a deck per `#` session: <name>-01, -02, …']},
+    },
+    # ポスターは docs/ の形にだけある（前からの置き場所はない。設定にも書かない）
+    'poster': {
+        'group': 'docs',
+        'src': 'docs/{0}/{0}.md',
+        'profile': 'poster',
+        'targets': ['typst-poster'],
+        'front': ['outputs: [poster]'],
+        'docs_only': True,
+        'comment': {'ja': [], 'en': []},
     },
 }
 
 
+# 新しい原稿の置き場所: docs/<名前>/<名前>.md（付録・体裁ファイルも同じフォルダ）
+DOCS_SRC = 'docs/*/'
+
 DOCUMENTS_HEAD = {
     'ja': ["    # octavo new paper|slides|lecture <名前> で原稿を足す。ここは書き換えなくてよい",
-           "    # （グロブに当たった原稿がそれぞれ1つの文書になり、名前は `*` の部分）"],
+           "    # docs/<名前>/<名前>.md が1つの文書。何を作るかは原稿の冒頭の outputs: で決める",
+           "    # （pdf / word / tex / slides / beamer / script）。その下の3つは前からの置き場所"],
     'en': ["    # Add manuscripts with octavo new paper|slides|lecture <name>; no need to edit this",
-           "    # (each file a glob matches is one document, named after what `*` matched)"],
+           "    # docs/<name>/<name>.md is one document; what it makes is outputs: in its front",
+           "    # matter (pdf / word / tex / slides / beamer / script). The three below are the older places"],
 }
+
+
+def uses_docs(cfg) -> bool:
+    """このプロジェクトの設定が docs/<名前>/ を登録しているか（新しい原稿をそこへ置くか）。"""
+    return any(isinstance(d, dict) and str(d.get('src', '')).rstrip('/') == DOCS_SRC.rstrip('/')
+               for d in cfg.doc_spec.values())
+
+
+def doc_path(cfg, kind: str, name: str) -> Path:
+    """`octavo new <kind> <name>` が原稿を置く場所。"""
+    if uses_docs(cfg):
+        return cfg.root / 'docs' / name / f'{name}.md'
+    return cfg.root / KINDS[kind]['src'].format(name)
+
+
+def appendix_path(cfg, kind: str, name: str) -> Path:
+    if uses_docs(cfg):
+        return cfg.root / 'docs' / name / 'appendix.md'
+    return cfg.root / KINDS[kind]['appendix'].format(name)
+
+
+def with_front(text: str, lines: list) -> str:
+    """原稿の冒頭（front matter）の終わりに行を足す。もう書いてある鍵は足さない。"""
+    m = re.match(r'---\n(.*?\n)---\n', text, re.S)
+    if not m:
+        return '---\n' + ''.join(f'{x}\n' for x in lines) + '---\n\n' + text
+    have = {ln.split(':', 1)[0].strip() for ln in m.group(1).split('\n') if ':' in ln}
+    add = ''.join(f'{x}\n' for x in lines if x.split(':', 1)[0].strip() not in have)
+    return f'---\n{m.group(1)}{add}---\n' + text[m.end():]
 
 
 def documents_block(lang: str = 'ja') -> str:
     """設定の `documents` の部分。KINDS から作る（`@@DOCUMENTS@@` に入る）。"""
     lang = 'ja' if lang == 'ja' else 'en'
-    lines = DOCUMENTS_HEAD[lang] + ["    'documents': {"]
+    lines = DOCUMENTS_HEAD[lang] + ["    'documents': {",
+                                    "        'docs': {",
+                                    f"            'src': '{DOCS_SRC}',",
+                                    '        },']
     for kind, k in KINDS.items():
+        if k.get('docs_only'):
+            continue
         lines += [f"        # {c}" for c in k['comment'][lang]]
         body = [f"'src': '{k['src'].format('*')}'"]
         if k.get('appendix'):
@@ -225,12 +278,12 @@ EXAMPLE_PAPER = 'example-paper'
 
 # `init --with` / `--all` で選べる部品。名前を書かなければ部品の名前になる
 # （paper なら papers/paper/）。分析を先に置くのは、原稿の見本がその値を使うから。
-PARTS = ('analysis', 'paper', 'slides', 'lecture')
+PARTS = ('analysis', 'paper', 'slides', 'lecture', 'poster')
 
 # AGENTS.md の節（templates/claude/<言語>/<節>.md。置き場の名前は昔のまま）。スライドと講義ノートは同じ節。
 # 部品を足したとき、その節がまだなければ末尾に書き足す（印で見分ける）。
 CLAUDE_SECTION = {'analysis': 'analysis', 'paper': 'paper',
-                  'slides': 'slides', 'lecture': 'slides'}
+                  'slides': 'slides', 'lecture': 'slides', 'poster': 'poster'}
 SECTION_MARK = '<!-- octavo:section {} -->'
 
 
@@ -604,7 +657,13 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         return _new_table(cfg, name, lang, force, quiet or quiet_made, made)
 
     k = KINDS[kind]
-    src = root / k['src'].format(name)
+    in_docs = uses_docs(cfg)
+    if k.get('docs_only') and not in_docs:
+        print(t('a {kind} needs the docs/ layout: run octavo migrate --docs first, or add '
+                "'docs': {'src': 'docs/*/'} to documents in octavo.config.py", kind=kind),
+              file=sys.stderr)
+        return 1
+    src = doc_path(cfg, kind, name)
     if name in cfg.documents and cfg.documents[name].src != src.resolve():
         print(t('a document called {name} already exists ({path})',
                 name=name, path=cfg.rel(cfg.documents[name].src)) + '\n  '
@@ -619,11 +678,18 @@ def new(config: Path, kind: str, name: str, force: bool = False,
     if example:
         _example_support(cfg, lang, force, made)
     folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
-    _write(src, render_template(f'{folder}/{kind}.md', subs, root), force, made, root)
+    text = render_template(f'{folder}/{kind}.md', subs, root)
+    if in_docs:
+        # 何を作るか（outputs）と回でできているか（sessions）を原稿の冒頭に書く。
+        # ひな型の図のパスは前からの置き場所から見た相対なので、新しい場所から見た相対に
+        text = with_front(text, k['front'])
+        text = mdlib.rebase_links(text, (root / k['src'].format(name)).parent, src.parent)
+    _write(src, text, force, made, root)
     if appendix:
-        _write(root / k['appendix'].format(name),
-               render_template(f'{folder}/appendix.md', subs, root),
-               force, made, root)
+        ap = render_template(f'{folder}/appendix.md', subs, root)
+        if in_docs:
+            ap = mdlib.rebase_links(ap, (root / k['appendix'].format(name)).parent, src.parent)
+        _write(appendix_path(cfg, kind, name), ap, force, made, root)
     add_claude_section(root, lang, CLAUDE_SECTION[kind], made)
 
     # 足した原稿を設定が本当に拾うかを、読み直して確かめる
@@ -632,7 +698,7 @@ def new(config: Path, kind: str, name: str, force: bool = False,
     if doc is None:
         made.append('  ' + t('note') + '  ' + t(
             'documents in octavo.config.py is not picking up {glob} — check it',
-            glob=k['src'].format('*')))
+            glob=DOCS_SRC if in_docs else k['src'].format('*')))
     elif k['profile'] == 'paper':
         # 論文の体裁（投稿先ごとに手で書く）。**原稿と同じフォルダ**に置く。
         # 組版のたびに build/ へ写されるので、build/ は丸ごと消してよい。
@@ -649,16 +715,17 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         print(m)
     print('\n' + t('Next:'))
     steps = {
-        'lecture': [(f'octavo build {name} --to typst --compile',
+        'lecture': [(f'octavo build {name} --to pdf --compile',
                      t('the A4 handout, through to PDF')),
-                    (f'octavo build {name} --to typst-slides --compile',
+                    (f'octavo build {name} --to slides --compile',
                      t('the slides, one PDF per session')),
-                    (f'octavo build {name}-01 --to typst-slides',
+                    (f'octavo build {name}-01 --to slides',
                      t('just one session'))],
         'slides': [(f'octavo build {name} --compile', t('the slides, through to PDF'))],
+        'poster': [(f'octavo build {name} --compile', t('the poster, through to PDF'))],
         'paper': [(f'octavo build {name} --compile',
                    t('typeset main.typ through to PDF')),
-                  (f'octavo build {name} --to docx',
+                  (f'octavo build {name} --to word',
                    t('a Word file for your coauthors'))]
                  + ([] if appendix else [(f'octavo new paper {name} --appendix',
                                           t('add an appendix later'))])

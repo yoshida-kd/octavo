@@ -2,14 +2,13 @@
 # Slides and lecture notes
 
 ```
-slides/<name>.md   a talk (**this is what you write**)
-lectures/<name>.md lecture notes: an A4 handout plus one slide deck per session (**this is what you write**)
+docs/<name>/<name>.md   a talk (outputs: [slides]) or lecture notes (outputs: [pdf, slides], sessions: true)
 ```
 
 ## Talks
 
 ```bash
-octavo build example-talk --compile        # slides/example-talk.md, straight to PDF
+octavo build example-talk --compile        # docs/example-talk/example-talk.md, straight to PDF
 ```
 
 ## Lecture notes
@@ -19,9 +18,9 @@ octavo build example-talk --compile        # slides/example-talk.md, straight to
 `###` a slide (a session with only `##` headings makes each `##` a slide).
 
 ```bash
-octavo build example-lecture --to typst --compile           # A4 handout, straight to PDF
-octavo build example-lecture --to typst-slides --compile    # one PDF deck per session
-octavo build example-lecture-03 --to typst-slides           # just the third session
+octavo build example-lecture --to pdf --compile      # A4 handout, straight to PDF
+octavo build example-lecture --to slides --compile   # one PDF deck per session
+octavo build example-lecture-03 --to slides          # just the third session
 ```
 
 - Decks are named `<notes name>-01`, `-02`, … in order of the `#` headings.
@@ -38,17 +37,21 @@ write a **session marker**. Once a manuscript has one, the markers decide the se
 and the `#` / `##` headings are free to be sections and subsections:
 
 ```markdown
-::: {.session #third title="Session 3: policy and government" date="2026-10-14"}
-:::
+\session{Session 3: policy and government} {#third date="2026-10-14"}
 ```
 
 - A session runs from its marker to just before the next one; `#third` names the deck
-  (`example-lecture-third`). `title` / `subtitle` / `date` go on the deck's title slide;
-  without `title`, the session's first heading is used
-- Slides break at headings; `::: {.slide}` + `:::` adds a break, `{.same-slide}` on a
+  (`example-lecture-third`). the title in `\session{…}` and `subtitle` / `date` go on the deck's title slide;
+  without a title (`\session{}`), the session's first heading is used. The older
+  `::: {.session …}` + `:::` means the same
+- Normally everything goes on the slides (handout-only material is `.pdf-only`). With
+  `slides_select: marked` at the top, the slides get only what is marked `.on-slides` (blocks,
+  sections whose heading has it, `[…]{.on-slides}`) and the headings above it — in such a
+  document, mark what should be on the slides
+- Slides break at headings; `\newslide` (`\newslide{Title}`) on a line of its own adds a break, `{.same-slide}` on a
   heading removes one, and `{slide-title="…"}` gives a heading a different title on the slide
 - The handout always starts a session on a new page, so
-  `octavo extract example-lecture` can cut **one PDF per session** out of the whole handout
+  `octavo build example-lecture --sessions` can cut **one PDF per session** out of the whole handout
   (`build/handouts/example-lecture-third.pdf`), keeping the page numbers of the whole
   (`--session third`, `--pages 12-19`, `--cover` for the cover and contents)
 
@@ -92,7 +95,7 @@ slides only (figures, short prompts)
 Each `##` is a slide (a `#` is a section in a talk, and a session break in
 lecture notes). Figures are fitted into the slide. `::: notes` (speaker notes)
 never appear on the projected deck; they go in the speaker script
-(`--to typst-notes`).
+(`--to script`).
 
 With an analysis, course material and slides can use `{{...}}` values too — they
 read the same `assets/values/`. **As in a paper, never type a number by hand.**

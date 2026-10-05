@@ -43,27 +43,27 @@ from . import zotero as zoteromod
 
 USAGE_LINES = (
     ('octavo build', 'build everything the config says'),
-    ('octavo build example-paper --to docx', 'build document example-paper as Word'),
+    ('octavo build example-paper --to word', 'build document example-paper as Word'),
     ('octavo build --to all --compile', 'build every format, typeset them too'),
     ('octavo watch --to beamer', 'rebuild whenever a manuscript is saved'),
-    ('octavo extract lecture-name', 'cut the lecture handout into one PDF per session'),
+    ('octavo build lecture-name --sessions', 'cut the lecture handout into one PDF per session'),
     ('octavo documents', 'list the registered manuscripts'),
     ('octavo config [set KEY VALUE]', 'show or change the common settings'),
     ('octavo analysis', 'is the analysis (.qmd) up to date?'),
     ('octavo analysis run', 'run the stale .qmd through quarto'),
-    ('octavo values', 'cross-check {{…}} against assets/values/'),
-    ('octavo values --diff [ref]', 'what moved since last time (or a git version)'),
-    ('octavo lint', 'find results typed into the manuscript'),
+    ('octavo check values', 'cross-check {{…}} against assets/values/'),
+    ('octavo check values --diff [ref]', 'what moved since last time (or a git version)'),
+    ('octavo check lint', 'find results typed into the manuscript'),
     ('octavo check', 'check everything before submitting'),
     ('octavo bundle [paper name]', 'repackage it for a submission system'),
     ('octavo review returned.docx', "list a coauthor's tracked changes"),
     ('octavo data hash|status', 'record / check the data fingerprints'),
-    ('octavo checkbib', 'cross-check citation keys against the .bib'),
+    ('octavo check cites', 'cross-check citation keys against the .bib'),
     ('octavo bib pull --collection X', 'fetch the .bib from Zotero'),
     ('octavo csl get apa', "fetch a journal's style (CSL)"),
     ('octavo doctor', 'diagnose the environment'),
     ('octavo setup', 'install the tools (pandoc, Typst, quarto, R, uv, fonts)'),
-    ('octavo env', "set up this project's .venv and renv"),
+    ('octavo env', "set up this project's R and Python packages for the analysis (.venv and renv)"),
     ('octavo init 2026-study', 'write a project skeleton'),
     ('octavo new paper|slides|lecture|analysis|figure|table name', 'add a manuscript, an analysis, a figure or a table'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
@@ -188,9 +188,35 @@ def cmd_build(args) -> int:
                            appendix=args.appendix, do_compile=args.compile,
                            offline=args.offline, citations=not args.no_citations,
                            anonymous=args.anonymous)
-    if quiet:
-        return print_results_json(results)
-    return print_results(results)
+    rc = print_results_json(results) if quiet else print_results(results)
+    if getattr(args, 'sessions', False) and all(r.ok for r in results):
+        rc = max(rc, build_sessions(cfg, docs, args.offline, quiet))
+    return rc
+
+
+def build_sessions(cfg, names, offline: bool, quiet: bool) -> int:
+    """`octavo build --sessions`: 回の区切りのある講義ノートを、回ごとの PDF に切り出す
+    （octavo extract と同じ。全体を組んでからページを切るので、番号は全体のまま）。"""
+    from . import extract as extractmod
+    rc = 0
+    for name in names or list(cfg.documents):
+        doc = cfg.document(name)
+        if doc.profile != 'handout' or not doc.exists() \
+                or not mdlib.has_session_markers(mdlib.read(doc.src)):
+            continue
+        try:
+            r = extractmod.run(cfg, doc.name, offline=offline)
+        except extractmod.ExtractError as e:
+            if not quiet:
+                print(str(e), file=sys.stderr)
+            rc = 1
+            continue
+        if not quiet:
+            head = f'== {doc.name} -> ' + t('handouts per session') + ' '
+            print(head + '=' * max(4, 62 - len(head)))
+            for line in r['report']:
+                print('  ' + line)
+    return rc
 
 
 def cmd_extract(args) -> int:
@@ -258,6 +284,10 @@ def cmd_documents(args) -> int:
             'appendix': str(d.appendix) if d.appendix else None,
             'profile': d.profile,
             'targets': list(d.targets),
+            'outputs': list(d.outputs),
+            'sessions': bool(d.sessions),
+            # 紙の出力の体裁: 原稿の横の main.* か（own）、組み込みのものか（builtin）
+            'layout': 'own' if d.profile == 'paper' else 'builtin',
             'split_slides': bool(d.split_slides),
             'exists': d.exists(),
             'parts': [],
@@ -288,8 +318,7 @@ def cmd_documents(args) -> int:
         return 0
     for r in rows:
         mark = '' if r['exists'] else ' ' + t('(no manuscript)')
-        print(f"  {r['name']:<20} {r['profile']:<8} "
-              f"{', '.join(r['targets']):<22} {r['rel']}{mark}")
+        print(f"  {r['name']:<20} {', '.join(r['outputs']):<22} {r['rel']}{mark}")
         if r['appendix']:
             print(f"  {'':<20} " + t('appendix') + f": {cfg.rel(Path(r['appendix']))}")
         for part in r['parts']:
@@ -572,6 +601,14 @@ def cmd_lint(args) -> int:
 
 
 def cmd_check(args) -> int:
+    # 1つの検査だけ: octavo check values|cites|lint（前からの octavo values / checkbib / lint と同じ）
+    part = getattr(args, 'part', None)
+    if part == 'values':
+        return cmd_values(args)
+    if part == 'cites':
+        return cmd_checkbib(args)
+    if part == 'lint':
+        return cmd_lint(args)
     cfg = configmod.load(args.config)
     return auditmod.run(cfg, strict=args.strict, verbose=args.verbose,
                         anonymous=args.anonymous)
@@ -724,8 +761,12 @@ def cmd_env(args) -> int:
 
 
 def cmd_migrate(args) -> int:
-    """一時的な移行コマンド（次の版で消す）。"""
+    """前からのプロジェクトを今の形に: 引数なしは CLAUDE.md -> AGENTS.md、
+    --docs は原稿を docs/<名前>/ へ。"""
     cfg = configmod.load(args.config)
+    if args.docs:
+        from . import relocate
+        return relocate.run(cfg, dry_run=args.dry_run)
     moved, line = scaffold.migrate_instructions(Path(cfg.root), cfg['lang'], args.dry_run)
     print(('(' + t('dry run') + ') ' if args.dry_run and moved else '') + line)
     return 0
@@ -851,6 +892,10 @@ def cmd_template(args) -> int:
         print(t('not a template name: {name}', name=args.name), file=sys.stderr)
         return 2
     bundled = tmpl.bundled_names()
+    # Word の見た目の元（reference.docx）は同梱のファイルではなく pandoc の既定から作る。
+    # `octavo template copy word` でプロジェクト（か --user）の templates/word/ に書く
+    if name in ('word', WORD_TEMPLATE) and args.action == 'copy':
+        return copy_word_template(args, root)
 
     if args.action == 'list':
         rows = []
@@ -860,6 +905,9 @@ def cmd_template(args) -> int:
         for rel, layer, path in tmpl.overrides(root):
             if rel not in bundled:
                 rows.append({'name': rel, 'from': layer, 'path': str(path)})
+        if not any(r['name'] == WORD_TEMPLATE for r in rows):
+            # まだ作っていなくても一覧に出す（作り方は octavo template copy word）
+            rows.append({'name': WORD_TEMPLATE, 'from': tmpl.BUNDLED, 'path': ''})
         dirs = {n: str(d) for n, d in tmpl.layers(root)}
         if args.json:
             import json as _json
@@ -921,10 +969,37 @@ def cmd_template(args) -> int:
     return 0
 
 
+WORD_TEMPLATE = 'word/reference.docx'
+
+
+def copy_word_template(args, root) -> int:
+    """Word の見た目の元（pandoc の既定の reference.docx）を templates/word/ に書く。
+    以後の Word の出力はこれのスタイルで組まれる（設定の docx_reference があればそちら）。"""
+    from . import tmpl
+    from .backends.docx import make_reference_docx
+    if args.user:
+        dest = tmpl.user_dir() / WORD_TEMPLATE
+    elif root is not None:
+        dest = tmpl.project_dir(root) / WORD_TEMPLATE
+    else:
+        print(t('not inside a project (no octavo.config.py here) — '
+                'add --user to copy it for all your projects'), file=sys.stderr)
+        return 1
+    if dest.exists() and not args.force:
+        print(t('{path} is already there (--force overwrites it)', path=dest), file=sys.stderr)
+        return 1
+    make_reference_docx(dest)
+    print(t('wrote {path} — open it in Word and set up the styles (Heading 1, Body Text, '
+            'Table Caption and so on); Word output uses it from now on', path=dest))
+    return 0
+
+
 def cmd_targets(args) -> int:
-    for name, b in be.REGISTRY.items():
-        print(f'  {name:<10} {b.label:<26} pandoc {".".join(map(str, b.min_pandoc))}+')
-    print('\n' + t('profiles:') + ' ' + ', '.join(be.PROFILES))
+    """作れるもの（出力）の一覧。原稿の冒頭の outputs: と --to に書く名前。"""
+    for name, backend in be.OUTPUTS.items():
+        b = be.REGISTRY[backend]
+        print(f'  {name:<8} {t(b.label):<28} pandoc {".".join(map(str, b.min_pandoc))}+')
+    print('\n' + t('write them in the front matter (outputs: [pdf, slides]) or after --to'))
     return 0
 
 
@@ -959,6 +1034,9 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('run the .qmd again even if it is not stale'))
     p.add_argument('--anonymous', action='store_true',
                    help=t('build for blind review (hide anything identifying)'))
+    p.add_argument('--sessions', action='store_true',
+                   help=t('also cut lecture notes into one PDF per session (build/handouts/; '
+                          'what octavo extract does)'))
     p.add_argument('--json', action='store_true',
                    help=t('print the results as machine-readable JSON (including where the PDF landed)'))
     p.set_defaults(func=cmd_build)
@@ -1023,6 +1101,15 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_lint)
 
     p = with_config(sub.add_parser('check', help=t('check everything before submitting')))
+    p.add_argument('part', nargs='?', choices=['values', 'cites', 'lint'],
+                   help=t('just one of the checks: values ({{…}} against the analysis), cites '
+                          '(citation keys against the .bib) or lint (results typed into the text)'))
+    p.add_argument('--unused', action='store_true',
+                   help=t('values / cites: also list what the text does not use'))
+    p.add_argument('--diff', nargs='?', const='', metavar='REF',
+                   help=t('values: what changed since the analysis last ran, or since a git version'))
+    p.add_argument('--list', action='store_true', help=t('cites: list the references you cite'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.add_argument('--strict', action='store_true',
                    help=t('treat warnings as failures too (for CI)'))
     p.add_argument('--verbose', '-v', action='store_true',
@@ -1093,11 +1180,16 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_setup)
 
     p = with_config(sub.add_parser(
-        'migrate', help=t('move an older project\'s CLAUDE.md rules into AGENTS.md (temporary: removed in the next release)')))
+        'migrate', help=t('bring an older project up to date: its CLAUDE.md rules into '
+                          'AGENTS.md, or with --docs its manuscripts into docs/')))
+    p.add_argument('--docs', action='store_true',
+                   help=t('move the manuscripts from papers/, slides/ and lectures/ into '
+                          'docs/<name>/<name>.md'))
     p.add_argument('--dry-run', action='store_true', help=t('say what would change, and change nothing'))
     p.set_defaults(func=cmd_migrate)
 
-    p = with_config(sub.add_parser('env', help=t("set up this project's .venv and renv")))
+    p = with_config(sub.add_parser('env', help=t("set up this project's R and Python packages "
+                                                  "for the analysis (.venv and renv)")))
     p.set_defaults(func=cmd_env)
 
     p = sub.add_parser('init', help=t('write a project skeleton (add manuscripts with octavo new)'))

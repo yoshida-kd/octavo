@@ -61,6 +61,7 @@ octavo/
     envsetup.py            octavo env (the project's .venv and renv)
     selftest.py            octavo selftest
     scaffold.py            octavo init (the research project tree; --example adds the examples) and octavo new (add a manuscript)
+    relocate.py            octavo migrate --docs (move manuscripts from papers/, slides/, lectures/ into docs/<name>/)
     backends/
       base.py              the Backend base class and shared cross-reference logic
       latex.py  typst.py  typst_slides.py  typst_notes.py  beamer.py  docx.py

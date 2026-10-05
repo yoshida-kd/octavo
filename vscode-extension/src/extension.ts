@@ -38,15 +38,16 @@ import { ValueCompletionProvider, ValueDiagnostics, ValueHoverProvider } from '.
 const LATEX_WORKSHOP_PDF_VIEWTYPE = 'latex-workshop-pdf-hook';
 const LATEX_WORKSHOP_EXTENSION_ID = 'james-yu.latex-workshop';
 
-// octavo/config.py::BACKENDS と手で合わせる（自動生成ではない）。
+// octavo/config.py::OUTPUTS（出力の名前）と手で合わせる（自動生成ではない）。
 // 翻訳を引くので定数ではなく関数にしてある。
 function targetItems(): (vscode.QuickPickItem & { id: string })[] {
     return [
-        { id: 'typst', label: '$(file-text) typst', description: vscode.l10n.t('Typst (needs pandoc 3.1+)') },
-        { id: 'typst-slides', label: '$(device-camera) typst-slides', description: vscode.l10n.t('Talk and lecture slides (needs Typst 0.12+; a standalone .typ)') },
-        { id: 'typst-notes', label: '$(note) typst-notes', description: vscode.l10n.t('The speaker script for a deck (A4, with ::: notes)') },
-        { id: 'docx', label: '$(file-word) docx', description: 'Word' },
-        { id: 'latex', label: '$(file-text) latex', description: vscode.l10n.t('LuaLaTeX (needs TeX; body.tex, or a standalone .tex for handouts)') },
+        { id: 'pdf', label: '$(file-pdf) pdf', description: vscode.l10n.t('The PDF (your main.typ beside the manuscript, or the built-in layout)') },
+        { id: 'slides', label: '$(device-camera) slides', description: vscode.l10n.t('Slides (one deck per session for lecture notes)') },
+        { id: 'poster', label: '$(layout) poster', description: vscode.l10n.t('A poster (A0 by default; the top-level headings make the cells)') },
+        { id: 'script', label: '$(note) script', description: vscode.l10n.t('The speaker script for a deck (A4, with ::: notes)') },
+        { id: 'word', label: '$(file-word) word', description: 'Word' },
+        { id: 'tex', label: '$(file-text) tex', description: vscode.l10n.t('LuaLaTeX (needs TeX; body.tex, or a standalone .tex for handouts)') },
         { id: 'beamer', label: '$(device-camera) beamer', description: vscode.l10n.t('Talk and lecture slides (needs TeX; a standalone .tex)') },
     ];
 }

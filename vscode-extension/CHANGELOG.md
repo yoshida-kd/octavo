@@ -3,6 +3,71 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.2
+
+- **One kind of document: what it makes is chosen at its top.** A manuscript lives in
+  `docs/<name>/<name>.md` and says what to make with `outputs:` — `pdf`, `word`, `tex`,
+  `slides`, `beamer`, `script` (`pdf` when not written). The PDF's layout is the `main.typ`
+  beside the manuscript if there is one (a paper), otherwise Octavo's built-in one (the A4
+  handout). `sessions: true` marks a manuscript made of class sessions (one deck each; a
+  manuscript with `::: {.session}` markers is one without saying so). `octavo new paper|slides|lecture`
+  are templates that write these lines. `--to` takes the output names too.
+- **Older projects keep working unchanged** (`papers/`, `slides/`, `lectures/`, `targets:`,
+  `profile`, `split_slides`). `octavo migrate --docs` moves their manuscripts into `docs/`
+  (figure paths, front matter and the config included; `--dry-run` to look first), and
+  `octavo check` says when there is something to move.
+- **`\newpage`** on a line of its own is a page break in the PDF, Word and LaTeX;
+  **`\newslide`**, `\newslide{Title}` and `\newslide{}` break slides (the older
+  `::: {.slide}` still works).
+- **Settings renamed after the outputs**: `typst_slides_*` → `slides_*`,
+  `handout_font` / `handout_fontsize` / `handout_pagebreak` → `font` / `fontsize` /
+  `pagebreak`. The old names are still read, in the config and at the top of a manuscript; the
+  sidebar rewrites such a line under the new name when you change it.
+- `toc` (table of contents) can be set per document; in the built-in layout it is on for a
+  manuscript made of sessions and off otherwise. A document without sessions in the built-in
+  layout sets its abstract at the top of the text.
+- `.pdf-only`, `.word-only` and the other output names work in conditional blocks
+  (`.handout-only` and `.paper-only` still do).
+- In a `docs/` manuscript every `#` heading is a section — the title goes in the front matter
+  (`title:`). The paper templates now start their sections at `#`, like lecture notes; papers
+  written from `##` build the same.
+- **`build/` is arranged by output**: `build/pdf/`, `build/slides/`, `build/script/`,
+  `build/word/`, `build/tex/`, `build/beamer/` (and `build/handouts/` as before) instead of
+  `typst/`, `typst-slides/`, `typst-notes/`, `latex/`, `slides/` (which held Beamer). A paper's
+  PDF is also copied to `build/pdf/<name>.pdf` beside its `main.pdf`. Delete `build/` once to drop
+  the old folders; `out_dirs` in the config takes either kind of name.
+- **Posters** (`outputs: [poster]`, `octavo new poster <name>`): A0 portrait by default
+  (`poster_size` a0/a1/a2/b0/b1 or any size, `poster_orientation`), and each top-level heading is
+  a cell in a 2×3 grid (`poster_grid`, `poster_rows`); `{span=2}`, `{rows=2}` and `{cell="2,3"}`
+  join and place cells. The title band carries the title, authors, affiliation, event and date,
+  logos (`logo:`) and a QR code made from a URL (`qr:`). Figures fit their cell, the bibliography
+  is the last cell, and a cell whose content does not fit is reported after the build (and
+  marked in red on the PDF).
+- **Only the marked parts on the slides or the poster**: with `slides_select: marked` (or
+  `poster_select: marked`) at the top of a manuscript, the slides get only what is marked
+  `.on-slides` — a `::: {.on-slides}` block, a section whose heading has `{.on-slides}`, or
+  `[…]{.on-slides}` in a line — plus the headings above it; the rest stays in the handout. A
+  reference to something left out is written as its handout number, and a session with nothing
+  marked gets no deck. `.on-poster` does the same for a poster made from a paper.
+- **A lecture deck keeps the handout's numbers.** Figures, tables, equations and numbered blocks
+  on the slides (and in the speaker script) carry the number they have in the handout, even when
+  some figures are in the handout only (`.pdf-only`) or were not picked for the slides — before,
+  the deck counted only what it had, so its numbers could drift from the handout's.
+- **The preview closes with its manuscript**: closing the last tab of the manuscript (and of its
+  appendix) closes the PDF preview beside it. The setting `octavo.previewCloseWithManuscript` turns
+  this off.
+- **Commands tidied** (the old ones all still work): `octavo check values|cites|lint` runs one
+  of the checks (`octavo values`, `checkbib`, `lint`); `octavo build <notes> --sessions` also
+  cuts the per-session handouts (`octavo extract` stays for picking sessions or pages);
+  `octavo template copy word` writes `templates/word/reference.docx`, which Word output then
+  uses (`octavo reference-docx` still works); `octavo env` says what it sets up (the project's
+  R and Python packages).
+- **A session marker on one line**: `\session{Title} {#id date="…" subtitle="…" author="…"
+  institute="…"}`, everything optional — the same as `::: {.session …}` + `:::`, which still works.
+- `octavo extract`'s and a missing session's messages showed `{{…}}` with doubled braces.
+- The sidebar's settings for a document offer *What to make*, *Made of sessions* and *Table of
+  contents*.
+
 ## 0.6.1
 
 - **Fixed: text after a "References" heading was dropped.** Everything from the first

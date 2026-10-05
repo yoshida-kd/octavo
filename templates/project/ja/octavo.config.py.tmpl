@@ -37,11 +37,12 @@ CONFIG = {
     # 'crossref_numbering': 'section',
 
     # ---- Word ----------------------------------------------------------
-    # octavo reference-docx reference.docx でスタイル定義用の docx を作り、Word で整えてから指定
+    # octavo template copy word で templates/word/reference.docx を作り、Word でスタイルを整える
+    # （以後の Word の出力はこれを使う。別の .docx を使うなら下に書く）
     # 'docx_reference': 'reference.docx',
 
     # ---- スライド ------------------------------------------------------
-    'typst_slides_aspect': '16-9',     # '4-3' も可
+    'slides_aspect': '16-9',     # '4-3' も可
     # 体裁を丸ごと変えるなら、同梱のテンプレートをこのプロジェクトにコピーして直す:
     #   octavo template copy slides/typst-slides.typ   # -> templates/slides/typst-slides.typ
 }

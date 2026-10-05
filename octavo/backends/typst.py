@@ -115,11 +115,14 @@ class TypstBackend(Backend):
         tt = f', title: {typst_string(title)}' if title else ''
         return f'\n```{{=typst}}\n#octavo-session({typst_string(attrs["id"])}{tt})\n```\n'
 
+    def fmt_pagebreak(self, ctx: Ctx) -> str:
+        return '' if self.is_slides else '```{=typst}\n#pagebreak()\n```'
+
     def fmt_appendix_start(self, ctx: Ctx) -> str:
         # A4 プリントでは付録を新しいページから始める
         brk = '#pagebreak(weak: true)\n' if ctx.is_handout else ''
         # 見出しに番号を振らないスライドでは、付録でも振らない（振ると「0.1」が出る）
-        bare = ctx.backend.is_slides and not ctx.cfg['typst_slides_numbering']
+        bare = ctx.backend.is_slides and not ctx.cfg['slides_numbering']
         show = 'octavo-appendix.with(heading-numbering: none)' if bare else 'octavo-appendix'
         return '\n```{=typst}\n' + brk + f'#show: {show}\n```\n'
 
@@ -280,7 +283,7 @@ OPTIONAL_FONTS = ('Yu Mincho',)
 def font_expr(lang: str, kind: str, override=None) -> str:
     """Typst の `font:` に渡す並び（Typst の式の文字列）。
 
-    `override` は設定の handout_font / typst_slides_font。文字列かリストで、
+    `override` は設定の font / slides_font。文字列かリストで、
     書いてあればそれをそのまま使う（covers は付けない）。
     """
     if override:
@@ -320,7 +323,9 @@ def crossref_args(ctx: Ctx, section: str = 'auto') -> str:
     return (f'lang: "{ctx.lang}", within: {within}, section: {section}, '
             f'count-unnumbered: {slides}, offset: {ctx.first_section - 1}, '
             f'preset: {ctx.crossref_preset}, '
-            'theorem-kinds: (' + ''.join(f'"{k}", ' for k in kinds) + ')')
+            'theorem-kinds: (' + ''.join(f'"{k}", ' for k in kinds) + '), '
+            'fixed: (' + (''.join(f'"{k}": "{v}", ' for k, v in sorted(ctx.fixed_numbers.items()))
+                          or ':') + ')')
 
 
 def handout_meta(ctx: Ctx) -> str:
@@ -335,18 +340,18 @@ def handout_meta(ctx: Ctx) -> str:
         else:
             fields.append(f'  {k}: ' + ('none' if v in (None, '') else
                                          f'[{_content_escape(str(v))}]'))
-    brk = cfg['handout_pagebreak']
+    brk = cfg['pagebreak']
     if brk == 'session':
         # 区切りがあれば区切り（いつも改ページする）、なければ `#` が回
         brk = None if ctx.has_sessions else 'section'
-    main = cfg['handout_font']
+    main = cfg['font']
     fields += [f'  lang: "{ctx.lang}"',
                # 講義ノートの本文はゴシック（BIZ UDゴシック + Inter）。線の太さが均一で、
                # 読みに困難のある読み手にも、画面で読む人にも明朝より読みやすい
                '  font: ' + font_expr(ctx.lang, 'sans', main),
                '  head-font: ' + font_expr(ctx.lang, 'sans'),
                '  bold-font: ' + font_expr(ctx.lang, 'sans'),
-               f'  fontsize: {cfg["handout_fontsize"]}',
+               f'  fontsize: {cfg["fontsize"]}',
                '  toc: ' + ('true' if ctx.profile_opt('toc') else 'false'),
                f'  toc-depth: {int(cfg["toc_depth"])}',
                '  numbering: ' + ('true' if _numbers_sections(ctx) else 'false'),

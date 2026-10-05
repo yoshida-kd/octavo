@@ -1,1 +1,1 @@
-## Additional Analyses {#sec-extra}
+# Additional Analyses {#sec-extra}

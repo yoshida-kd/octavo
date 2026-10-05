@@ -42,7 +42,7 @@ document.addEventListener('click', function (e) {
   <div class="wrap">
     <h1>Octavo</h1>
     <p class="tagline">計量社会科学スターターパック</p>
-    <p class="lead">論文・スライド・講義ノートは Markdown で書き、分析は Quarto で行う。分析が出した数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に仕上げる（TeX があれば LaTeX にも）。文献は1つの <code>.bib</code> から、好きな CSL スタイルで整形される。</p>
+    <p class="lead">論文・スライド・講義ノート・ポスターは Markdown で書き、分析は Quarto で行う。分析が出した数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に仕上げる（TeX があれば LaTeX にも）。何を作るかは、原稿の冒頭で選ぶ。文献は1つの <code>.bib</code> から、好きな CSL スタイルで整形される。</p>
     <div class="actions">
       <a class="button primary" href="https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo">VS Code 拡張をインストール</a>
       <a class="button secondary" href="guide/">手引きを読む</a>
@@ -54,8 +54,8 @@ document.addEventListener('click', function (e) {
   <div class="wrap">
     <h2>仕組み</h2>
     <figure class="figure">
-      <img src="../images/flow-ja.svg" width="1095" height="380"
-           alt="分析と手で作ったファイルから数値・図・表ができ、原稿はそれを名前で呼び、octavo build が PDF と Word を作る">
+      <img src="../images/flow-ja.svg" width="1095" height="440"
+           alt="分析と手で作ったファイルから数値・図・表ができ、原稿はそれを名前で呼んで作るものを選び、octavo build が PDF・スライド・ポスター・Word・LaTeX を作る">
     </figure>
   </div>
 </section>
@@ -84,8 +84,8 @@ document.addEventListener('click', function (e) {
         <p>分析は Quarto の <code>.qmd</code> で、R でも Python でも書ける。どちらにも同じ補助関数があり、プロジェクトの <code>.venv</code> と renv も用意される。</p>
       </div>
       <div class="feature">
-        <h3>1つの原稿から、いくつもの文書</h3>
-        <p>投稿先の書式に合わせた論文、発表スライド、A4 のプリントと回ごとのスライドを兼ねる講義ノート。発表者用の台本も、共著者に回す Word も出せる。</p>
+        <h3>1つの原稿から、選んだ出力を</h3>
+        <p>冒頭に <code>outputs: [pdf, slides]</code> と書く。投稿先の書式に合わせた論文、A4 のプリント、回ごとのスライド（番号はプリントのまま。印を付けた所だけにもできる）、発表者用の台本、A0 のポスター、共著者に回す Word。</p>
       </div>
       <div class="feature">
         <h3>ラベルで参照する</h3>
@@ -122,12 +122,12 @@ document.addEventListener('click', function (e) {
 uv tool install octavo-kit
 octavo setup     <span class="comment"># pandoc / Typst / Quarto / フォント / R</span>
 octavo doctor    <span class="comment"># 足りないものを報告する</span></code></pre>
-      <p><a href="guide/#linux">Linux</a>・<a href="guide/#macos">macOS</a>・<a href="guide/#windows">Windows</a> ごとの手順は手引きにある。</p>
+      <p><a href="guide/#11-linux">Linux</a>・<a href="guide/#12-macos">macOS</a>・<a href="guide/#13-windows">Windows</a> ごとの手順は手引きにある。</p>
     </div>
     <div>
       <h2>始め方</h2>
-      <p><strong>VS Code なら</strong>: フォルダを開き、アクティビティバーの Octavo のアイコンを押す。まだプロジェクトでないフォルダなら「<strong>新しいプロジェクト</strong>」が出るので、最初に置くもの（R か Python の分析、論文、スライド、講義ノート）と、見本で埋めるかを選ぶ。原稿を開いてエディタ右上の <strong>PDF</strong> のボタンを押すと、横に PDF が出て、カーソルに合わせて動く。</p>
-      <p><strong>ターミナルなら</strong>、まずは見本で動作を確かめる（分析・論文・スライド・講義ノート）:</p>
+      <p><strong>VS Code なら</strong>: フォルダを開き、アクティビティバーの Octavo のアイコンを押す。まだプロジェクトでないフォルダなら「<strong>新しいプロジェクト</strong>」が出るので、最初に置くもの（R か Python の分析、論文、スライド、講義ノート、ポスター）と、見本で埋めるかを選ぶ。原稿を開いてエディタ右上の <strong>PDF</strong> のボタンを押すと、横に PDF が出て、カーソルに合わせて動く。</p>
+      <p><strong>ターミナルなら</strong>、まずは見本で動作を確かめる（分析・論文・スライド・講義ノート・ポスター）:</p>
 <pre><code>octavo init demo --all --example
 cd demo
 octavo env       <span class="comment"># 分析の環境（.venv と renv）</span>
@@ -155,7 +155,7 @@ octavo check     <span class="comment"># 投稿する前に</span></code></pre>
   (("z", "x"), ("z", "y"), ("x", "y"),
    ("u", "y", (dash: "dashed"))),
 )</code></pre>
-      <p><a href="guide/#図">手引きで詳しく</a></p>
+      <p><a href="guide/#34-図">手引きで詳しく</a></p>
     </div>
     <figure class="figure">
       <img src="../images/diagram-ja.png" width="579" height="324" loading="lazy"
@@ -166,6 +166,39 @@ octavo check     <span class="comment"># 投稿する前に</span></code></pre>
 </section>
 
 <section>
+  <div class="wrap two">
+    <div>
+      <h2>ポスター</h2>
+      <p>同じプロジェクトから学会のポスターも作れる。<code>octavo new poster</code> が置く原稿は、一番上の見出し1つが1マスで、既定は A0 に2列×3行。<code>{span=2}</code>・<code>{rows=2}</code> でマスをつなぎ、判型と格子は冒頭で変え、題の帯にはロゴと QR コードを置ける。マスに入りきらない文は、組むと知らせる。論文の原稿から、印を付けた所だけでポスターを作ることもできる。</p>
+<pre><code>---
+title: Counting how policy is made
+author: [Author One, Author Two]
+event: Example Conference 2026
+qr: https://example.org/paper
+outputs: [poster]
+poster_rows: [1, 2, 1]
+---
+
+# Question
+
+# Data and methods
+
+# Results {span=2}
+
+# Conclusion
+
+# References</code></pre>
+      <p><a href="guide/#73-ポスター">手引きで詳しく</a></p>
+    </div>
+    <figure class="figure">
+      <img src="../images/poster-ja.png" width="620" height="877" loading="lazy"
+           alt="A0 のポスター: QR コードのある題の帯と、問い・表のあるデータと方法・図のある大きな結果・まとめ・参考文献のマス">
+      <figcaption>見本のポスター（<code>octavo init demo --with analysis,poster --example</code>）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="alt">
   <div class="wrap">
     <h2>手引き</h2>
     <p>使い方はすべて<a href="guide/">手引き</a>にある。講義ノートは<a href="lectures/">講義ノートの作り方</a>に1ページでまとめてある（VS Code で作る手順と、記法の早見表）。</p>
@@ -176,7 +209,7 @@ octavo check     <span class="comment"># 投稿する前に</span></code></pre>
       <li><a href="guide/#4-分析">分析</a> <span>— Quarto から数値・図・表を</span></li>
       <li><a href="guide/#5-文献">文献</a></li>
       <li><a href="guide/#6-論文-下書きから投稿まで">論文</a> <span>— 点検、匿名審査、投稿、改訂</span></li>
-      <li><a href="guide/#7-スライドと講義ノート">スライドと講義ノート</a> <span>— 回の区切り、回ごとの配布資料</span></li>
+      <li><a href="guide/#7-スライド講義ノートポスター">スライド・講義ノート・ポスター</a> <span>— 回の区切り、回ごとの配布資料、ポスター</span></li>
       <li><a href="guide/#8-自分用にする">自分用にする</a> <span>— テンプレート、Word のスタイル、書体</span></li>
       <li><a href="guide/#9-コマンド一覧">コマンド一覧</a></li>
       <li><a href="guide/#10-vs-code">VS Code</a></li>

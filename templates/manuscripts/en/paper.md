@@ -3,12 +3,12 @@ title: Title of the Paper
 author: @@AUTHOR@@
 ---
 
-## Abstract
+# Abstract
 
-## Introduction {#sec-intro}
+# Introduction {#sec-intro}
 
-## Analysis {#sec-analysis}
+# Analysis {#sec-analysis}
 
-## Conclusion {#sec-conclusion}
+# Conclusion {#sec-conclusion}
 
-## References
+# References

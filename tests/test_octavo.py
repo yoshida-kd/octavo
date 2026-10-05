@@ -45,16 +45,26 @@ def ded(s: str) -> str:
 
 
 def make_project(dest: Path, docs=(('paper', 'paper'),), lang: str = 'ja',
-                 example: bool = True, analysis: bool = True, **kw) -> Path:
+                 example: bool = True, analysis: bool = True, legacy: bool = True,
+                 **kw) -> Path:
     """octavo init のあと octavo new で分析と原稿を足す（テストで使うプロジェクト）。
 
     既定では見本（分析・仮の値・仮の図表・書誌・原稿の例・論文の付録）で作る。
     `init --example` と同じ中身だが、見本の論文（example-paper）は足さない
     （文書の数や名前を見るテストがあるため）。example=False なら骨組みだけ、
     analysis=False なら分析も足さない（init の既定と同じ）。
+
+    legacy=True（既定）は前からの置き場所（papers/<名前>/paper.md・slides/・lectures/）の
+    プロジェクト: 設定から docs/*/ の行を抜いてから足す。多くのテストがこの形で書いて
+    あり、前からのプロジェクトが同じに動くことの確かめにもなっている。
+    legacy=False は今の init のまま（docs/<名前>/<名前>.md）。
     """
     scaffold.init(dest, lang=lang, quiet=True, **kw)
     cfg = dest / 'octavo.config.py'
+    if legacy:
+        text = cfg.read_text(encoding='utf-8')
+        text = re.sub(r"        'docs': \{\n            'src': 'docs/\*/',\n        \},\n", '', text)
+        cfg.write_text(text, encoding='utf-8')
     if analysis:
         scaffold.new(cfg, 'analysis', 'analysis', quiet=True, example=example)
     for kind, name in docs:
@@ -447,7 +457,7 @@ class TheoremBlocksBuilt(unittest.TestCase):
                                   capture_output=True, text=True, encoding='utf-8').stdout
             self.assertIn('論点集', text)
             self.assertNotIn('0.1', text)
-        self.cfg._v['typst_slides_numbering'] = '1.1'
+        self.cfg._v['slides_numbering'] = '1.1'
         typ = deck().outputs[0].read_text(encoding='utf-8')
         self.assertIn('#show: octavo-appendix\n', typ)
 
@@ -1105,7 +1115,7 @@ class Registry(unittest.TestCase):
     def test_all_backends_present(self):
         self.assertEqual(set(be.ALL),
                          {'latex', 'typst', 'beamer', 'typst-slides',
-                          'typst-notes', 'docx'})
+                          'typst-notes', 'typst-poster', 'docx'})
 
     def test_resolve_targets(self):
         self.assertEqual(be.resolve_targets('latex,docx', 'paper'), ['latex', 'docx'])
@@ -1145,7 +1155,8 @@ class Registry(unittest.TestCase):
         """拡張の「変換する…」の一覧は手で合わせる決まり（自動生成ではない）。"""
         src = (ROOT / 'vscode-extension' / 'src' / 'extension.ts').read_text(encoding='utf-8')
         listed = set(re.findall(r"\{ id: '([\w-]+)'", src))
-        self.assertEqual(listed, set(be.ALL))
+        self.assertEqual(listed, set(be.OUTPUTS))
+        self.assertEqual(set(be.OUTPUTS.values()), set(be.ALL))      # どの形式も出力の名前を持つ
 
     def test_figure_ext_defaults(self):
         cfg = {'figure_ext': {}}
@@ -1246,13 +1257,13 @@ class DocSettings(unittest.TestCase):
 
     def test_the_front_matter_is_read_with_types(self):
         text = ('---\ntitle: T\ncsl: apa\nword_limit: 8,000\ntargets: [typst, docx]\n'
-                'typst_slides_section_slides: true\ntypst_slides_accent: none\n---\n\nbody\n')
+                'slides_section_slides: true\ntypst_slides_accent: none\n---\n\nbody\n')
         got = config.doc_settings(self.paper, text=text)
         self.assertEqual(got, {'csl': 'apa', 'word_limit': 8000, 'targets': ('typst', 'docx'),
-                               'typst_slides_section_slides': True,
-                               'typst_slides_accent': None})
+                               'slides_section_slides': True,
+                               'slides_accent': None})
         self.assertNotIn('title', got)                    # タイトル部分のものは設定ではない
-        for bad in ('word_limit: many', 'targets: [html]', 'typst_slides_section_slides: maybe'):
+        for bad in ('word_limit: many', 'targets: [html]', 'slides_section_slides: maybe'):
             with self.assertRaises(SystemExit):
                 config.doc_settings(self.paper, text=f'---\n{bad}\n---\n')
 
@@ -1264,7 +1275,7 @@ class DocSettings(unittest.TestCase):
         cfg = self.cfg()
         mine = cfg.for_document(cfg.document('mine'))
         self.assertEqual((mine['word_limit'], mine['csl']), (8000, 'apa'))
-        self.assertEqual(mine.doc_explicit, {'word_limit', 'csl', 'targets'})
+        self.assertEqual(mine.doc_explicit, {'word_limit', 'csl', 'outputs'})
         self.assertEqual(cfg['word_limit'], 10000)                     # プロジェクトはそのまま
         self.assertEqual(cfg.for_document(cfg.document('deck'))['csl'], cfg['csl'])
         self.assertEqual(cfg.document('mine').targets, ('typst', 'docx'))
@@ -1272,7 +1283,7 @@ class DocSettings(unittest.TestCase):
         # 冒頭の他の行はそのまま、上限は論文ごとに見る
         head = self.paper.read_text(encoding='utf-8').split('---')[1]
         self.assertIn('title:', head)
-        self.assertIn('targets: [typst, docx]', head)
+        self.assertIn('outputs: [pdf, word]', head)
         limits = {lab: lim for lab, _, lim, _ in audit.length_problems(cfg)}
         self.assertIn(8000, limits.values())
         # 消せばプロジェクトの値に戻る
@@ -1285,14 +1296,14 @@ class DocSettings(unittest.TestCase):
         paper = {r['key'] for r in self.ce.show(cfg, cfg.document('mine'))}
         deck = {r['key'] for r in self.ce.show(cfg, cfg.document('deck'))}
         self.assertIn('word_limit', paper)
-        self.assertNotIn('typst_slides_aspect', paper)
-        self.assertIn('typst_slides_aspect', deck)
+        self.assertNotIn('slides_aspect', paper)
+        self.assertIn('slides_aspect', deck)
         self.assertNotIn('word_limit', deck)
-        self.assertTrue({'csl', 'targets'} <= paper & deck)
+        self.assertTrue({'csl', 'outputs'} <= paper & deck)
         with self.assertRaises(self.ce.EditError):
             self.ce.set_doc_value(cfg, cfg.document('deck'), 'word_limit', '5')
         with self.assertRaises(self.ce.EditError):
-            self.ce.set_doc_value(cfg, cfg.document('deck'), 'typst_slides_aspect', '5-4')
+            self.ce.set_doc_value(cfg, cfg.document('deck'), 'slides_aspect', '5-4')
         with self.assertRaises(self.ce.EditError):
             self.ce.set_value(self.cfgp, 'targets', 'typst')             # 文書ごとだけ
         # CSL はよく使うものを選べ、ほかの名前も書ける
@@ -1303,9 +1314,9 @@ class DocSettings(unittest.TestCase):
     def test_a_manuscript_without_front_matter_gets_one(self):
         self.deck.write_text('## Only a slide\n', encoding='utf-8')
         cfg = self.cfg()
-        self.ce.set_doc_value(cfg, cfg.document('deck'), 'typst_slides_aspect', '4-3')
+        self.ce.set_doc_value(cfg, cfg.document('deck'), 'slides_aspect', '4-3')
         self.assertEqual(self.deck.read_text(encoding='utf-8'),
-                         '---\ntypst_slides_aspect: 4-3\n---\n\n## Only a slide\n')
+                         '---\nslides_aspect: 4-3\n---\n\n## Only a slide\n')
         # 次の行へ続く値は触らずに断る
         self.deck.write_text('---\ntargets:\n  - typst-slides\n---\n', encoding='utf-8')
         with self.assertRaises(self.ce.EditError):
@@ -1316,14 +1327,14 @@ class DocSettings(unittest.TestCase):
         if not pandocrun.at_least(3, 1):
             self.skipTest('pandoc 3.1 以上が要る')
         cfg = self.cfg()
-        self.ce.set_doc_value(cfg, cfg.document('deck'), 'typst_slides_aspect', '4-3')
+        self.ce.set_doc_value(cfg, cfg.document('deck'), 'slides_aspect', '4-3')
         cfg = self.cfg()
         r = build.build_one(cfg, cfg.document('deck'), 'typst-slides',
                             citations=False, offline=True)
         self.assertTrue(r.ok, '\n'.join(r.report))
         typ = (cfg.out_dir('typst-slides') / 'deck.typ').read_text(encoding='utf-8')
         self.assertIn('aspect: "4-3"', typ)
-        self.assertTrue(any('typst_slides_aspect: 4-3' in line for line in r.report), r.report)
+        self.assertTrue(any('slides_aspect: 4-3' in line for line in r.report), r.report)
 
 
 class ConfEdit(unittest.TestCase):
@@ -1346,31 +1357,31 @@ class ConfEdit(unittest.TestCase):
 
     def test_set_then_unset_restores_the_file_exactly(self):
         self.ce.set_value(self.path, 'word_limit', '8000')
-        self.ce.set_value(self.path, 'typst_slides_numbering', '1.1')
+        self.ce.set_value(self.path, 'slides_numbering', '1.1')
         self.assertIn("    'word_limit': 8000,\n", self.path.read_text(encoding='utf-8'))
         self.assertEqual(config.load(self.path)['word_limit'], 8000)
         self.ce.set_value(self.path, 'word_limit', None)
-        self.ce.set_value(self.path, 'typst_slides_numbering', None)
+        self.ce.set_value(self.path, 'slides_numbering', None)
         self.assertEqual(self.path.read_text(encoding='utf-8'), self.orig)
 
     def test_an_existing_line_keeps_its_comment(self):
-        self.assertIn("'typst_slides_aspect': '16-9',", self.orig)
-        self.ce.set_value(self.path, 'typst_slides_aspect', '4-3')
+        self.assertIn("'slides_aspect': '16-9',", self.orig)
+        self.ce.set_value(self.path, 'slides_aspect', '4-3')
         text = self.path.read_text(encoding='utf-8')
-        line = next(l for l in text.split('\n') if "'typst_slides_aspect'" in l
+        line = next(l for l in text.split('\n') if "'slides_aspect'" in l
                     and not l.lstrip().startswith('#'))
-        old = next(l for l in self.orig.split('\n') if "'typst_slides_aspect'" in l
+        old = next(l for l in self.orig.split('\n') if "'slides_aspect'" in l
                    and not l.lstrip().startswith('#'))
         self.assertIn("'4-3'", line)
         self.assertEqual(line.split('#', 1)[1:], old.split('#', 1)[1:])
 
     def test_16_9_is_not_arithmetic(self):
-        k = self.ce.knob('typst_slides_aspect')
+        k = self.ce.knob('slides_aspect')
         self.assertEqual(self.ce.parse_value(k, '16-9'), '16-9')
 
     def test_a_bad_value_leaves_the_file_alone(self):
-        for key, raw in (('typst_slides_accent', 'blue'),        # Config が弾く
-                         ('typst_slides_aspect', '5-4'),         # 選択肢にない
+        for key, raw in (('slides_accent', 'blue'),        # Config が弾く
+                         ('slides_aspect', '5-4'),         # 選択肢にない
                          ('word_limit', 'many'),
                          ('lang', 'fr')):
             with self.assertRaises(self.ce.EditError, msg=key):
@@ -1392,7 +1403,7 @@ class ConfEdit(unittest.TestCase):
         rows = {r['key']: r for r in self.ce.show(config.load(self.path))}
         self.assertTrue(rows['lang']['explicit'])
         self.assertFalse(rows['word_limit']['explicit'])
-        self.assertEqual(rows['typst_slides_running_header']['value'], True)
+        self.assertEqual(rows['slides_running_header']['value'], True)
         self.assertEqual([r['key'] for r in self.ce.show(config.load(self.path))],
                          [k.key for k in self.ce.KNOBS if k.project])
 
@@ -2196,7 +2207,7 @@ class ProjectScaffold(unittest.TestCase):
             self.assertNotIn('octavo:example', text, rel)
             self.assertNotIn('{{', text, rel)
             self.assertNotIn('<!--', text, rel)
-            self.assertIn('\n## ', text, rel)
+            self.assertRegex(text, r'\n#{1,2} ', rel)
         cfg = config.load(d / 'octavo.config.py')
         self.assertEqual([k for k, _ in md.section_keys(
             (d / 'lectures/講義.md').read_text(encoding='utf-8'))], ['01'])
@@ -2226,8 +2237,8 @@ class ProjectScaffold(unittest.TestCase):
         d = self.d / 'demo'
         scaffold.init(d, quiet=True, example=True)
         for rel in ('assets/values/analysis.json', 'assets/figures/trend.png', 'assets/figures/trend.pdf',
-                    'assets/tables/summary.typ', 'papers/example-paper/paper.md',
-                    'papers/example-paper/appendix.md', 'papers/example-paper/main.typ'):
+                    'assets/tables/summary.typ', 'docs/example-paper/example-paper.md',
+                    'docs/example-paper/appendix.md', 'docs/example-paper/main.typ'):
             self.assertTrue((d / rel).exists(), rel)
         self.assertIn('set.seed', (d / 'analysis/analysis.qmd').read_text(encoding='utf-8'))
         self.assertIn('@article', (d / 'literature.bib').read_text(encoding='utf-8'))
@@ -2414,11 +2425,11 @@ class ProjectScaffold(unittest.TestCase):
         self.assertEqual(scaffold.parse_parts('analysis, paper=mine'),
                          {'analysis': 'analysis', 'paper': 'mine'})
         with self.assertRaises(ValueError):
-            scaffold.parse_parts('paper,poster')
+            scaffold.parse_parts('paper,flyer')
         d = self.d / 'study'
         scaffold.init(d, quiet=True, parts={'analysis': 'model', 'paper': 'p'})
         for rel in ('analysis/model.qmd', 'analysis/octavo.R', 'data/raw/README.md',
-                    'requirements.txt', 'papers/p/paper.md', 'papers/p/main.typ'):
+                    'requirements.txt', 'docs/p/p.md', 'docs/p/main.typ'):
             self.assertTrue((d / rel).exists(), rel)
         self.assertFalse((d / 'slides').exists())
         self.assertFalse((d / 'lectures').exists())
@@ -2427,9 +2438,9 @@ class ProjectScaffold(unittest.TestCase):
         from octavo import cli
         with contextlib_redirect(), contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(cli.main(['init', str(self.d / 'all'), '--all']), 0)
-            self.assertEqual(cli.main(['init', str(self.d / 'bad'), '--with', 'poster']), 2)
-        for rel in ('analysis/analysis.qmd', 'papers/paper/paper.md', 'slides/slides.md',
-                    'lectures/lecture.md'):
+            self.assertEqual(cli.main(['init', str(self.d / 'bad'), '--with', 'flyer']), 2)
+        for rel in ('analysis/analysis.qmd', 'docs/paper/paper.md', 'docs/slides/slides.md',
+                    'docs/lecture/lecture.md', 'docs/poster/poster.md'):
             self.assertTrue((self.d / 'all' / rel).exists(), rel)
         self.assertFalse((self.d / 'bad').exists())
 
@@ -2441,7 +2452,7 @@ class ProjectScaffold(unittest.TestCase):
         scaffold.new(d / 'octavo.config.py', 'slides', 'deck', quiet=True, example=True)
         cfg = config.load(d / 'octavo.config.py')
         vals, _ = values.load(cfg)
-        used = values.referenced((d / 'slides/deck.md').read_text(encoding='utf-8'))
+        used = values.referenced((d / 'docs/deck/deck.md').read_text(encoding='utf-8'))
         self.assertEqual(used - set(vals), set())
         self.assertTrue((d / 'assets/figures/trend.png').exists())
         bib = (d / 'literature.bib').read_text(encoding='utf-8')
@@ -3332,15 +3343,15 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('running-header: true', typ)
 
     def test_accent_can_still_be_turned_off_for_the_old_plain_look(self):
-        self.cfg._v.update(typst_slides_accent=None)
+        self.cfg._v.update(slides_accent=None)
         typ = self.backend.meta_block(self.ctx(meta={}), 2)
         self.assertIn('accent: none', typ)
 
     def test_slide_options_reach_the_template(self):
-        self.cfg._v.update(typst_slides_numbering='1.1',
-                           typst_slides_section_slides=True,
-                           typst_slides_accent='#0e2f92',
-                           typst_slides_running_header=True)
+        self.cfg._v.update(slides_numbering='1.1',
+                           slides_section_slides=True,
+                           slides_accent='#0e2f92',
+                           slides_running_header=True)
         typ = self.backend.meta_block(self.ctx(meta={}), 2)
         self.assertIn('numbering: "1.1"', typ)
         self.assertIn('section-slides: true', typ)
@@ -3360,13 +3371,13 @@ class TypstSlides(unittest.TestCase):
     def test_a_bad_accent_or_numbering_is_refused(self):
         conf = self.d / 'p' / 'octavo.config.py'
         original = conf.read_text(encoding='utf-8')
-        for key, bad in (('typst_slides_accent', "'blue'"),
-                         ('typst_slides_accent', "'#ZZZ'"),
-                         ('typst_slides_numbering', '3')):
+        for key, bad in (('slides_accent', "'blue'"),
+                         ('slides_accent', "'#ZZZ'"),
+                         ('slides_numbering', '3')):
             with self.subTest(f'{key}={bad}'):
                 conf.write_text(original.replace(
-                    "    'typst_slides_aspect': '16-9',",
-                    f"    'typst_slides_aspect': '16-9',\n    '{key}': {bad},"),
+                    "    'slides_aspect': '16-9',",
+                    f"    'slides_aspect': '16-9',\n    '{key}': {bad},"),
                     encoding='utf-8')
                 with contextlib_redirect(), self.assertRaises(SystemExit):
                     config.load(conf)
@@ -3436,7 +3447,7 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('covers: "latin-in-cjk"', font_expr('ja', 'sans'))
 
     def test_a_configured_font_list_is_used_as_is(self):
-        self.cfg._v.update(typst_slides_font=['Noto Sans CJK JP'])
+        self.cfg._v.update(slides_font=['Noto Sans CJK JP'])
         block = self.backend.meta_block(self.ctx(meta={}), 1)
         self.assertIn('font: ("Noto Sans CJK JP", )', block)
 
@@ -3479,7 +3490,7 @@ class TypstSlides(unittest.TestCase):
 
     def test_aspect_is_validated(self):
         (self.d / 'x.config.py').write_text(
-            "CONFIG = {'typst_slides_aspect': '16:9'}", encoding='utf-8')
+            "CONFIG = {'slides_aspect': '16:9'}", encoding='utf-8')
         with self.assertRaises(SystemExit):
             config.load(self.d / 'x.config.py')
 
@@ -3958,7 +3969,7 @@ class TypstNotes(unittest.TestCase):
                      out_dir=self.d, profile='slides').keep_classes
         notes = Ctx(cfg=self.cfg, backend=be.get('typst-notes'),
                     out_dir=self.d, profile='slides').keep_classes
-        self.assertEqual(slides - {'typst-slides'}, notes - {'typst-notes'})
+        self.assertEqual(slides - {'typst-slides'}, notes - {'typst-notes', 'script'})
 
     def test_a_figure_is_capped_so_the_note_fits_on_the_page(self):
         backend = be.get('typst-notes')
@@ -4641,10 +4652,10 @@ class MathMacros(unittest.TestCase):
         # 論文: 定義は最初の見出しの前（題の周りと一緒に落とされやすい所）
         paper = root / 'papers' / 'paper' / 'paper.md'
         text = paper.read_text(encoding='utf-8')
-        at = text.index('\n## ')
+        at = text.index('\n# ')
         text = text[:at] + '\n\n\\newcommand{\\E}{\\mathbb{E}}\n' + text[at:]
-        text = re.sub(r'(\n## (?:要旨|Abstract)\s*\n+)', r'\1要旨で $\\E[y]$。\n\n', text, count=1)
-        text = re.sub(r'(\n## はじめに[^\n]*\n)', r'\1\n本文で $\\E[x]$。\n', text, count=1)
+        text = re.sub(r'(\n# (?:要旨|Abstract)\s*\n+)', r'\1要旨で $\\E[y]$。\n\n', text, count=1)
+        text = re.sub(r'(\n# はじめに[^\n]*\n)', r'\1\n本文で $\\E[x]$。\n', text, count=1)
         paper.write_text(text, encoding='utf-8')
         (root / 'papers' / 'paper' / 'appendix.md').write_text(
             '## 付録A．補足\n\n付録で $\\E[z]$。\n', encoding='utf-8')
@@ -5740,8 +5751,8 @@ class HandTables(unittest.TestCase):
             self.assertTrue(self.ht.run(self.cfg, []))
         paper = self.root / 'papers' / 'mypaper' / 'paper.md'
         paper.write_text(paper.read_text(encoding='utf-8').replace(
-            '## はじめに {#sec-intro}',
-            '## はじめに {#sec-intro}\n\n@tbl-compare を見る。\n\n: 比較 {#tbl-compare}\n'),
+            '# はじめに {#sec-intro}',
+            '# はじめに {#sec-intro}\n\n@tbl-compare を見る。\n\n: 比較 {#tbl-compare}\n'),
             encoding='utf-8')
         doc = self.cfg.document('mypaper')
         for target in ('typst', 'docx'):
@@ -5916,8 +5927,22 @@ class GuidePages(unittest.TestCase):
     def test_install_has_a_section_for_each_system(self):
         for lang, p in self.GUIDES.items():
             text = p.read_text(encoding='utf-8')
-            for heading in ('### Linux', '### macOS', '### Windows'):
+            for heading in ('### 1.1 Linux', '### 1.2 macOS', '### 1.3 Windows'):
                 self.assertIn(heading + '\n', text, lang)
+
+    def test_every_section_is_numbered(self):
+        """節（###）と項（####）には章の番号から続く番号が付いている。"""
+        for name, p in self.GUIDES.items():
+            text = re.sub(r'^```.*?^```', '', p.read_text(encoding='utf-8'), flags=re.S | re.M)
+            chapter = section = 0
+            for level, title in re.findall(r'^(#{2,4}) (.*)$', text, re.M):
+                if level == '##':
+                    chapter, section = int(title.split('.')[0]), 0
+                elif level == '###':
+                    section += 1
+                    self.assertTrue(title.startswith(f'{chapter}.{section} '), (name, title))
+                else:
+                    self.assertRegex(title, rf'^{chapter}\.{section}\.\d+ ', name)
 
     @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
     def test_the_pages_build_and_every_link_inside_works(self):
@@ -5946,6 +5971,537 @@ class GuidePages(unittest.TestCase):
                     self.assertNotRegex(prose, r'[^\x00-\x7f]\n[^<\s]')
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+# =====================================================================
+class OutputsAndDocs(unittest.TestCase):
+    """文書は docs/<名前>/<名前>.md、作るものは冒頭の outputs、回は sessions。
+    体裁は原稿の横の main.typ があればそれ、なければ組み込みのもの。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('paper', 'mine'), ('lecture', 'course'),
+                                                     ('slides', 'talk')),
+                                 example=False, legacy=False)
+        self.cfgp = self.root / 'octavo.config.py'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def cfg(self):
+        return config.load(self.cfgp)
+
+    def write(self, name, text):
+        p = self.root / 'docs' / name / f'{name}.md'
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding='utf-8')
+        return p
+
+    def test_new_writes_into_docs_with_what_it_makes(self):
+        for name in ('mine', 'course', 'talk'):
+            self.assertTrue((self.root / f'docs/{name}/{name}.md').is_file(), name)
+        self.assertTrue((self.root / 'docs/mine/main.typ').is_file())
+        for old in ('papers', 'slides', 'lectures'):
+            self.assertFalse((self.root / old).exists(), old)
+        cfg = self.cfg()
+        got = {n: (d.outputs, d.profile, d.sessions) for n, d in cfg.documents.items()}
+        self.assertEqual(got, {'mine': (('pdf',), 'paper', False),
+                               'course': (('pdf', 'slides'), 'handout', True),
+                               'talk': (('slides',), 'slides', False)})
+        self.assertTrue(all(d.derived for d in cfg.documents.values()))
+        head = (self.root / 'docs/course/course.md').read_text(encoding='utf-8').split('---')[1]
+        self.assertIn('outputs: [pdf, slides]', head)
+        self.assertIn('sessions: true', head)
+
+    def test_a_folder_without_its_manuscript_is_not_a_document(self):
+        (self.root / 'docs/notes').mkdir()
+        (self.root / 'docs/notes/scratch.md').write_text('# x\n', encoding='utf-8')
+        self.assertNotIn('notes', self.cfg().documents)
+
+    def test_outputs_take_the_output_names_and_the_old_format_names(self):
+        p = self.write('wp', '---\noutputs: [pdf, word, script]\n---\n\n# A\n')
+        cfg = self.cfg()
+        self.assertEqual(cfg.document('wp').targets, ('typst', 'docx', 'typst-notes'))
+        self.assertEqual(cfg.document('wp').outputs, ('pdf', 'word', 'script'))
+        p.write_text('---\ntargets: [typst, docx]\n---\n\n# A\n', encoding='utf-8')
+        self.assertEqual(self.cfg().document('wp').outputs, ('pdf', 'word'))
+        with contextlib_redirect() as err:
+            p.write_text('---\noutputs: [slides]\ntargets: [docx]\n---\n', encoding='utf-8')
+            self.assertEqual(self.cfg().document('wp').outputs, ('slides',))
+        for bad in ('[html]', '[pdf, flyer]'):
+            p.write_text(f'---\noutputs: {bad}\n---\n', encoding='utf-8')
+            with self.assertRaises(SystemExit):
+                self.cfg()
+        # 書かなければ pdf
+        p.write_text('# A\n', encoding='utf-8')
+        self.assertEqual(self.cfg().document('wp').outputs, ('pdf',))
+        self.assertEqual(be.resolve_targets('pdf,slides,typst', 'paper'), ['typst', 'typst-slides'])
+        with self.assertRaises(SystemExit):
+            be.resolve_targets('flyer', 'paper')
+
+    def test_the_layout_decides_paper_or_handout(self):
+        self.write('wp', '# A\n')
+        self.assertEqual(self.cfg().document('wp').profile, 'handout')
+        (self.root / 'docs/wp/main.typ').write_text('', encoding='utf-8')
+        self.assertEqual(self.cfg().document('wp').profile, 'paper')
+
+    def test_session_markers_make_a_document_of_sessions(self):
+        self.write('wp', '# A\n\n```\n::: {.session #x}\n:::\n```\n')
+        self.assertFalse(self.cfg().document('wp').sessions)        # コードの中は数えない
+        self.write('wp', '::: {.session #x}\n:::\n\n# A\n')
+        doc = self.cfg().document('wp')
+        self.assertTrue(doc.sessions)
+        self.assertEqual([p.name for p in self.cfg().parts(doc)], ['wp-x'])
+        self.write('wp', '---\nsessions: false\n---\n\n::: {.session #x}\n:::\n')
+        self.assertFalse(self.cfg().document('wp').sessions)
+
+    def ctx(self, doc, target='typst'):
+        cfg = self.cfg()
+        d = cfg.document(doc)
+        return Ctx(cfg=cfg.for_document(d), backend=be.get(target), out_dir=self.root,
+                   profile=d.profile, document=d)
+
+    def test_contents_and_abstract_follow_sessions_in_the_builtin_layout(self):
+        self.write('wp', '# A\n')
+        self.assertFalse(self.ctx('wp').profile_opt('toc'))
+        self.assertTrue(self.ctx('wp').profile_opt('abstract'))
+        self.assertTrue(self.ctx('course').profile_opt('toc'))
+        self.assertFalse(self.ctx('course').profile_opt('abstract'))
+        self.write('wp', '---\ntoc: true\n---\n\n# A\n')
+        self.assertTrue(self.ctx('wp').profile_opt('toc'))
+
+    def test_a_single_heading_is_a_section_not_a_title(self):
+        cfg = self.cfg()
+        doc = cfg.document('mine')
+        Path(doc.src).write_text('---\ntitle: T\n---\n\nLead.\n\n# Only\n\n## Sub\n',
+                                 encoding='utf-8')
+        ctx = self.ctx('mine')
+        body, _ = build.preprocess(ctx.cfg, doc, ctx.backend, ctx, Path(doc.src).read_text(encoding='utf-8'))
+        self.assertIn('# Only', body)
+        self.assertIn('Lead.', body)
+
+    def test_output_names_choose_what_is_kept(self):
+        self.assertIn('pdf', self.ctx('mine').keep_classes)
+        self.assertIn('word', self.ctx('mine', 'docx').keep_classes)
+        self.assertIn('script', self.ctx('talk', 'typst-notes').keep_classes)
+        src = '::: {.pdf-only}\nP\n:::\n\n::: {.word-only}\nW\n:::\n'
+        out = md.filter_divs(src, self.ctx('mine').keep_classes)
+        self.assertIn('P', out)
+        self.assertNotIn('W', out)
+
+    def test_newpage_becomes_each_outputs_page_break(self):
+        src = 'a\n\n\\newpage\n\nb\n\n\\clearpage\n\n```\n\\newpage\n```\n'
+        typ = md.page_breaks(src, be.get('typst').fmt_pagebreak(None))
+        self.assertEqual(typ.count('#pagebreak()'), 2)
+        self.assertIn('```\n\\newpage\n```', typ)                 # コードの中はそのまま
+        self.assertIn('\\clearpage', md.page_breaks(src, be.get('latex').fmt_pagebreak(None)))
+        self.assertIn('w:type="page"', md.page_breaks(src, be.get('docx').fmt_pagebreak(None)))
+        self.assertNotIn('newpage', md.page_breaks(src, be.get('typst-slides').fmt_pagebreak(None))
+                         .split('```')[0])
+
+    def test_newslide_in_one_line(self):
+        src = '## First\n\na\n\n\\newslide\n\nb\n\n\\newslide{Other}\n\nc\n\n\\newslide{}\n\nd\n'
+        out = md.slide_marks(src, True, 'en')
+        self.assertIn('## First (cont.) {.unnumbered}', out)
+        self.assertIn('## Other {.unnumbered}', out)
+        self.assertIn(md.UNTITLED_SLIDE, out)
+        self.assertNotIn('newslide', md.slide_marks(src, False, 'en'))
+
+    def test_renamed_keys_are_still_read(self):
+        text = self.cfgp.read_text(encoding='utf-8').replace(
+            "'documents'", "'typst_slides_accent': None,\n    'handout_fontsize': '12pt',\n    'documents'", 1)
+        self.cfgp.write_text(text, encoding='utf-8')
+        cfg = self.cfg()
+        self.assertIsNone(cfg['slides_accent'])
+        self.assertEqual(cfg['fontsize'], '12pt')
+        # サイドバーから変えると、前の名前の行が今の名前になる（2行にしない）
+        from octavo import confedit
+        confedit.set_value(self.cfgp, 'slides_accent', '#123456')
+        text = self.cfgp.read_text(encoding='utf-8')
+        self.assertIn("'slides_accent': '#123456'", text)
+        self.assertNotIn('typst_slides_accent', text)
+        # 原稿の冒頭でも
+        p = self.root / 'docs/talk/talk.md'
+        p.write_text('---\noutputs: [slides]\ntypst_slides_aspect: 4-3\n---\n\n## A\n',
+                     encoding='utf-8')
+        cfg = self.cfg()
+        self.assertEqual(cfg.for_document(cfg.document('talk'))['slides_aspect'], '4-3')
+        self.assertEqual(config.doc_setting_typos(p), [])
+        confedit.set_doc_value(cfg, cfg.document('talk'), 'slides_aspect', '16-9')
+        self.assertIn('slides_aspect: 16-9', p.read_text(encoding='utf-8'))
+        self.assertNotIn('typst_slides_aspect', p.read_text(encoding='utf-8'))
+
+    def test_build_folders_are_named_after_the_outputs(self):
+        cfg = self.cfg()
+        rel = {o: cfg.rel(cfg.out_dir(b)) for o, b in config.OUTPUTS.items()}
+        self.assertEqual(rel, {'pdf': 'build/pdf', 'word': 'build/word', 'tex': 'build/tex',
+                               'slides': 'build/slides', 'beamer': 'build/beamer',
+                               'script': 'build/script', 'poster': 'build/poster'})
+        self.assertEqual(cfg.rel(cfg.out_dir('typst', cfg.document('mine'))), 'build/pdf/mine')
+        # 設定の out_dirs と figure_ext は出力の名前でも形式の名前でも書ける
+        text = self.cfgp.read_text(encoding='utf-8').replace(
+            "    'documents'", "    'out_dirs': {'pdf': 'out/p', 'docx': 'out/w'},\n"
+            "    'figure_ext': {'word': '.jpg'},\n    'documents'", 1)
+        self.cfgp.write_text(text, encoding='utf-8')
+        cfg = self.cfg()
+        self.assertEqual(cfg.rel(cfg.out_dir('typst')), 'out/p')
+        self.assertEqual(cfg.rel(cfg.out_dir('docx')), 'out/w')
+        self.assertEqual(cfg['figure_ext'], {'docx': '.jpg'})
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_every_kind_builds_from_docs(self):
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        cfg = self.cfg()
+        with contextlib.redirect_stdout(io.StringIO()):
+            results = build.run(cfg, offline=True, citations=False)
+        self.assertTrue(all(r.ok for r in results), [r.report for r in results if not r.ok])
+        names = {(r.doc, r.target) for r in results}
+        self.assertTrue({('mine', 'typst'), ('course', 'typst'), ('talk', 'typst-slides')} <= names)
+        self.assertTrue((self.root / 'build/pdf/mine/body.typ').is_file())
+        if shutil.which('typst'):
+            with contextlib.redirect_stdout(io.StringIO()):
+                r = build.build_one(cfg, cfg.document('mine'), 'typst', do_compile=True,
+                                    offline=True, citations=False)
+            self.assertTrue(r.ok, r.report)
+            self.assertTrue((self.root / 'build/pdf/mine.pdf').is_file())     # 論文の PDF の写し
+        self.assertTrue((self.root / 'build/pdf/course.typ').is_file())
+
+
+# =====================================================================
+class CommandCleanup(unittest.TestCase):
+    """コマンドの整理: check values|cites|lint、build --sessions、template copy word、
+    1行の \\session{…}。前からの書き方も残る。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('paper', 'mine'),), legacy=False)
+        self.cfgp = str(self.root / 'octavo.config.py')
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def cli(self, *argv):
+        from octavo import cli
+        with contextlib.redirect_stdout(io.StringIO()) as out, contextlib_redirect():
+            rc = cli.main([*argv, '-c', self.cfgp])
+        return rc, out.getvalue()
+
+    def test_check_takes_one_part(self):
+        for part, old in (('values', 'values'), ('cites', 'checkbib'), ('lint', 'lint')):
+            new = self.cli('check', part, '--json')
+            self.assertEqual(new, self.cli(old, '--json'), part)
+            json.loads(new[1].strip().split('\n')[-1])
+        self.assertIn('--diff', self.cli('check', 'values', '--diff')[1] + '--diff')
+
+    def test_template_copy_word_is_used_for_word(self):
+        if not HAVE_PANDOC:
+            self.skipTest('pandoc が要る')
+        rc, out = self.cli('template', 'copy', 'word')
+        self.assertEqual(rc, 0, out)
+        ref = self.root / 'templates/word/reference.docx'
+        self.assertTrue(ref.is_file())
+        self.assertNotEqual(self.cli('template', 'copy', 'word')[0], 0)    # 2度目は --force が要る
+        cfg = config.load(self.cfgp)
+        ctx = Ctx(cfg=cfg, backend=be.get('docx'), out_dir=self.root, profile='paper')
+        args = be.get('docx').pandoc_args(ctx)
+        self.assertIn(str(ref), args)
+        self.assertIn('word/reference.docx', self.cli('template', 'list')[1])
+
+    def test_a_one_line_session_marker_has_every_attribute(self):
+        src = ('\\session{Week 1: Intro} {#w1 date="2026-10-14" subtitle="S" author="A" institute="I"}\n\n'
+               '# A\n\ntext\n\n\\session{} {#w2}\n\n# B\n\n```\n\\session{not this}\n```\n')
+        _, parts, _ = md._sections(src)
+        self.assertEqual([(k, t) for k, t, _, _ in parts], [('w1', 'Week 1: Intro'), ('w2', 'B')])
+        self.assertEqual(parts[0][3], {'id': 'w1', 'title': 'Week 1: Intro', 'date': '2026-10-14',
+                                       'subtitle': 'S', 'author': 'A', 'institute': 'I'})
+        self.assertTrue(md.has_session_markers(src))
+        out = md.replace_session_markers(src, lambda a: '<' + a['id'] + '>')
+        self.assertIn('<w1>', out)
+        self.assertNotIn('\\session{Week', out)
+        self.assertIn('\\session{not this}', out)                 # コードの中はそのまま
+
+    def test_build_sessions_cuts_the_handouts(self):
+        if not (HAVE_PANDOC and shutil.which('typst')):
+            self.skipTest('pandoc と typst が要る')
+        p = self.root / 'docs/c/c.md'
+        p.parent.mkdir(parents=True)
+        p.write_text('---\ntitle: C\noutputs: [pdf]\n---\n\n\\session{One} {#one}\n\n# A\n\nx\n\n'
+                     '\\session{Two} {#two}\n\n# B\n\ny\n', encoding='utf-8')
+        rc, out = self.cli('build', 'c', '--compile', '--sessions', '--no-analysis', '--offline')
+        self.assertEqual(rc, 0, out)
+        for key in ('one', 'two'):
+            self.assertTrue((self.root / f'build/handouts/c-{key}.pdf').is_file(), out)
+
+
+# =====================================================================
+class Poster(unittest.TestCase):
+    """ポスター（outputs: [poster]）: 一番上の見出し1つが1マス、既定は A0 縦・2列×3行。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('poster', 'post'),), legacy=False)
+        self.cfgp = self.root / 'octavo.config.py'
+        self.src = self.root / 'docs/post/post.md'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def test_new_poster_is_a_poster_document(self):
+        doc = config.load(self.cfgp).document('post')
+        self.assertEqual((doc.outputs, doc.profile), (('poster',), 'poster'))
+        self.assertIn('<!-- octavo:section poster -->', (self.root / 'AGENTS.md').read_text(encoding='utf-8'))
+        # 前からの置き場所のプロジェクトでは、docs/ が要ると言って断る
+        old = make_project(self.d / 'old', docs=(), analysis=False)
+        with contextlib_redirect():
+            self.assertEqual(scaffold.new(old / 'octavo.config.py', 'poster', 'x', quiet=True), 1)
+
+    def test_paper_sizes_and_grid(self):
+        from octavo.backends import typst_poster as tp
+        self.assertEqual(tp.paper_mm('a0', 'portrait'), (841, 1189))
+        self.assertEqual(tp.paper_mm('a0', 'landscape'), (1189, 841))
+        self.assertEqual(tp.paper_mm('b0', 'portrait'), (1030, 1456))            # JIS B
+        self.assertEqual(tp.paper_mm('48x36in', 'landscape'), (48 * 25.4, 36 * 25.4))
+        self.assertEqual(tp.grid_shape('3x2'), (3, 2))
+        self.assertEqual(tp.grid_shape(['2', '3']), (2, 3))
+        self.assertEqual(tp.row_ratios(['2', '1'], 2), [2.0, 1.0])
+        for bad in ('a9', 'big'):
+            with self.assertRaises(ValueError):
+                tp.paper_mm(bad, 'portrait')
+        self.src.write_text('---\noutputs: [poster]\nposter_rows: [1, 2]\n---\n\n# A\n', encoding='utf-8')
+        with self.assertRaises(SystemExit):                    # 行の比が格子の行の数と合わない
+            cfg = config.load(self.cfgp)
+            cfg.for_document(cfg.document('post'))
+
+    def test_cells_are_placed_like_the_grid(self):
+        from octavo.backends import typst_poster as tp
+        body = ('<!-- a note -->\n\n# A\n\na\n\n# B\n\n# C {span=2}\n\n# D {cell="1,3"}\n\n'
+                '# E\n\n```\n# not a cell\n```\n')
+        cells = tp.poster_cells(body)
+        self.assertEqual([c['name'] for c in cells], ['A', 'B', 'C', 'D', 'E'])
+        self.assertEqual(tp.place_cells(cells, 2, 3), '')
+        self.assertEqual({c['name']: c['at'] for c in cells},
+                         {'A': (1, 1), 'B': (2, 1), 'C': (1, 2), 'D': (1, 3), 'E': (2, 3)})
+        cells = tp.poster_cells('# A {span=3}\n')
+        self.assertIn('A', tp.place_cells(cells, 2, 3))           # 入りきらなければ止める
+
+    def test_qr_is_well_formed(self):
+        from octavo import qr
+        m = qr.matrix('https://example.org/paper')
+        self.assertEqual(len(m), 25)                              # 25 字 → 型番 2（21 + 4）
+        finder = [[True] * 7, [True] + [False] * 5 + [True]]
+        self.assertEqual(m[0][:7], finder[0])
+        self.assertEqual(m[1][:7], finder[1])
+        self.assertTrue(m[len(m) - 8][8])                         # 常に黒のモジュール
+        self.assertIn('<svg', qr.svg('x'))
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_it_typesets_and_reports_an_overflow(self):
+        self.src.write_text('---\ntitle: T\noutputs: [poster]\nqr: https://example.org\n---\n\n'
+                            '# Short\n\nx\n\n# Long\n\n' + 'word ' * 4000 + '\n', encoding='utf-8')
+        cfg = config.load(self.cfgp)
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = build.build_one(cfg, cfg.document('post'), 'typst-poster', do_compile=True,
+                                offline=True, citations=False)
+        self.assertTrue(r.ok, r.report)
+        self.assertTrue((self.root / 'build/poster/post.pdf').is_file())
+        self.assertTrue((self.root / 'build/poster/post-qr.svg').is_file())
+        self.assertTrue(any('Long' in l and 'overflow' in l for l in r.report), r.report)
+        self.assertFalse(any('Short' in l and 'overflow' in l for l in r.report), r.report)
+
+
+# =====================================================================
+class MarkedSelection(unittest.TestCase):
+    """slides_select / poster_select: marked — 印（.on-slides / .on-poster）の所だけを出す。"""
+
+    SRC = ('Intro.\n\n# S\n\n## A\n\nHandout only.\n\n### One\n\nNot this.\n\n'
+           '::: {.on-slides}\n- picked\n:::\n\n::: notes\nsay\n:::\n\n### Two {.on-slides}\n\nWhole.\n\n'
+           '#### Sub\n\nmore\n\n### Three\n\nText [short]{.on-slides} here.\n\n'
+           '::: {.slides-only}\nonly slides\n:::\n\n```\n# code {.on-slides}\n```\n\n'
+           '## B\n\nNothing.\n\n[^1]: note\n')
+
+    def test_only_the_marked_parts_and_their_headings(self):
+        out = md.select_marked(self.SRC, 'on-slides', ('slides-only',))
+        for kept in ('# S', '## A', '### One', '- picked', '::: notes', '### Two {.on-slides}',
+                     'Whole.', '#### Sub', 'more', '### Three', 'short', 'only slides', '[^1]: note'):
+            self.assertIn(kept, out)
+        for dropped in ('Intro.', 'Handout only.', 'Not this.', 'Text ', '## B', 'Nothing.',
+                        '# code'):
+            self.assertNotIn(dropped, out)
+        self.assertNotIn('\n\n\n', out)
+
+    def test_the_setting_is_checked_and_read_per_document(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        root = make_project(d / 'p', docs=(('lecture', 'lec'),), example=False, legacy=False)
+        src = root / 'docs/lec/lec.md'
+        src.write_text('---\noutputs: [pdf, slides]\nsessions: true\nslides_select: marked\n---\n\n'
+                       '# One\n\n## A\n\n### S {.on-slides}\n\nx\n\n# Two\n\n## B\n\ny\n',
+                       encoding='utf-8')
+        cfg = config.load(root / 'octavo.config.py')
+        doc = cfg.document('lec')
+        self.assertEqual(build.marked_only(cfg.for_document(doc), be.get('typst-slides')),
+                         ('on-slides', ('slides-only', 'only-slides', 'slide-only')))
+        self.assertIsNone(build.marked_only(cfg.for_document(doc), be.get('typst')))
+        self.assertEqual(build.unmarked_sessions(doc, 'on-slides'), {'02'})
+        src.write_text('---\nslides_select: some\n---\n', encoding='utf-8')
+        with self.assertRaises(SystemExit):
+            cfg = config.load(root / 'octavo.config.py')
+            cfg.for_document(cfg.document('lec'))
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_deck_of_marked_parts_names_what_it_left_out_by_number(self):
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        root = make_project(d / 'p', docs=(), legacy=False)
+        src = root / 'docs/t/t.md'
+        src.parent.mkdir(parents=True)
+        src.write_text('---\noutputs: [slides]\nslides_select: marked\n---\n\n# A\n\n## One\n\n'
+                       '![Trend](../../assets/figures/trend.png){#fig-trend}\n\n'
+                       '## Two {.on-slides}\n\nSee @fig-trend.\n', encoding='utf-8')
+        cfg = config.load(root / 'octavo.config.py')
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = build.build_one(cfg, cfg.document('t'), 'typst-slides', do_compile=True,
+                                offline=True, citations=False)
+        self.assertTrue(r.ok, r.report)
+        typ = (root / 'build/slides/t.typ').read_text(encoding='utf-8')
+        self.assertNotIn('trend.pdf', typ)                      # 図は拾っていない
+        self.assertNotIn('<fig-trend>', typ.split('#let octavo')[0] + typ.split('= Two')[-1])
+
+
+# =====================================================================
+class FixedNumbers(unittest.TestCase):
+    """講義のデッキの図・表・式・ブロックの番号を、プリントでの番号に合わせる。"""
+
+    def test_autolabel_names_what_gets_a_number(self):
+        src = ('# A\n\n![Cap](a.png)\n\n![](b.png)\n\n![Has](c.png){#fig-has}\n\n| a |\n|---|\n| 1 |\n\n'
+               ': Table cap\n\n::: question\nq\n:::\n\n::: {.nb}\nn\n:::\n\n```\n![Code](x.png)\n```\n')
+        out = crossref.autolabel(src)
+        self.assertEqual(out.count('\n'), src.count('\n'))           # 行の数は変えない
+        labels = [it.label for it in crossref.number(out).items if it.kind != 'sec']
+        self.assertEqual(len(labels), 4)
+        self.assertTrue(all(labels))
+        self.assertIn('fig-has', labels)
+        self.assertNotIn('octavo', out.split('```')[1])               # コードの中はそのまま
+        self.assertEqual(crossref.autolabel(src), out)                     # 何度でも同じ名前
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_deck_keeps_the_handout_numbers(self):
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        root = make_project(d / 'p', docs=(), legacy=False)
+        src = root / 'docs/c/c.md'
+        src.parent.mkdir(parents=True)
+        src.write_text('---\noutputs: [pdf, slides]\nsessions: true\n---\n\n# W\n\n## A\n\n'
+                       '::: {.pdf-only}\n![Only handout](../../assets/figures/trend.png)\n:::\n\n'
+                       '### S\n\n![Both](../../assets/figures/trend.png){#fig-both}\n\n'
+                       'See @fig-both.\n', encoding='utf-8')
+        cfg = config.load(root / 'octavo.config.py')
+        with contextlib.redirect_stdout(io.StringIO()):
+            r = build.build_one(cfg, cfg.document('c-01'), 'typst-slides', do_compile=True,
+                                offline=True, citations=False)
+        self.assertTrue(r.ok, r.report)
+        typ = (root / 'build/slides/c-slides-01.typ').read_text(encoding='utf-8')
+        self.assertIn('"fig-both": "1.2"', typ)
+        text = subprocess.run(['pdftotext', str(root / 'build/slides/c-slides-01.pdf'), '-'],
+                              capture_output=True, text=True, encoding='utf-8').stdout \
+            if shutil.which('pdftotext') else ''
+        if text:
+            self.assertIn('1.2', text)
+            self.assertNotIn('1.1', text)
+
+
+# =====================================================================
+class MigrateToDocs(unittest.TestCase):
+    """octavo migrate --docs: 前からの置き場所の原稿を docs/<名前>/ へ移す。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('paper', 'mine'), ('lecture', 'course'),
+                                                     ('slides', 'talk')))
+        self.cfgp = self.root / 'octavo.config.py'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def run_migrate(self, dry=False):
+        from octavo import relocate
+        with contextlib.redirect_stdout(io.StringIO()) as out:
+            rc = relocate.run(config.load(self.cfgp), dry_run=dry)
+        return rc, out.getvalue()
+
+    def test_check_says_they_can_be_moved(self):
+        rows = {i.label: i for i in audit.collect(config.load(self.cfgp))}
+        self.assertIn('migrate --docs', rows['where manuscripts live'].detail)
+        self.assertTrue(rows['where manuscripts live'].ok)
+
+    def test_a_dry_run_changes_nothing(self):
+        before = sorted(p.relative_to(self.root) for p in self.root.rglob('*'))
+        rc, out = self.run_migrate(dry=True)
+        self.assertEqual(rc, 0)
+        self.assertIn('docs/course/course.md', out)
+        self.assertEqual(before, sorted(p.relative_to(self.root) for p in self.root.rglob('*')))
+
+    def test_it_moves_them_and_they_mean_the_same(self):
+        # 前の書き方の論文: `# 題` が1つだけで、節は `##`
+        paper = self.root / 'papers/mine/paper.md'
+        paper.write_text('---\ntitle: T\ntargets: [typst, docx]\n---\n\n# Old title\n\n## Intro\n\nText.\n',
+                         encoding='utf-8')
+        talk = self.root / 'slides/talk.md'
+        talk.write_text(talk.read_text(encoding='utf-8') + '\n![x](../assets/figures/trend.png)\n',
+                        encoding='utf-8')
+        before = {n: (d.outputs, d.sessions, d.profile) for n, d in config.load(self.cfgp).documents.items()}
+        rc, out = self.run_migrate()
+        self.assertEqual(rc, 0, out)
+        cfg = config.load(self.cfgp)
+        after = {n: (d.outputs, d.sessions, d.profile) for n, d in cfg.documents.items()}
+        self.assertEqual(before, after)
+        self.assertTrue(all(d.derived for d in cfg.documents.values()))
+        self.assertTrue((self.root / 'docs/mine/appendix.md').is_file())
+        self.assertTrue((self.root / 'docs/mine/main.typ').is_file())
+        self.assertFalse((self.root / 'papers/mine').exists())
+        text = (self.root / 'docs/mine/mine.md').read_text(encoding='utf-8')
+        head = text.split('---')[1]
+        self.assertIn('outputs: [pdf, word]', head)
+        self.assertNotIn('targets', head)
+        self.assertNotIn('# Old title', text)                  # title: はもうあるので消すだけ
+        self.assertIn('../../assets/figures/trend.png',
+                      (self.root / 'docs/talk/talk.md').read_text(encoding='utf-8'))
+        self.assertIn('sessions: true', (self.root / 'docs/course/course.md').read_text(encoding='utf-8'))
+        self.assertIn("'docs/*/'", self.cfgp.read_text(encoding='utf-8'))
+        # 2回目は何もしない
+        rc, out = self.run_migrate()
+        self.assertIn('nothing to move', out)
+
+    def test_a_title_heading_moves_into_the_front_matter(self):
+        from octavo import relocate
+        mv = relocate.Move('x', Path('a'), Path('b'), front=['outputs: [pdf]'])
+        got = relocate.rewrite('# The Title\n\n## Intro\n\nText.\n', mv, Path('/p/papers/x'),
+                               Path('/p/docs/x'), True)
+        self.assertTrue(got.startswith('---\ntitle: The Title\noutputs: [pdf]\n---\n'), got)
+        self.assertNotIn('# The Title', got)
+
+    @unittest.skipUnless(shutil.which('git'), 'git が要る')
+    def test_it_uses_git_mv_and_stops_on_uncommitted_changes(self):
+        def git(*a):
+            return subprocess.run(['git', '-C', str(self.root), *a], capture_output=True, text=True)
+        git('init', '-q')
+        git('add', '-A')
+        git('-c', 'user.email=a@b', '-c', 'user.name=a', 'commit', '-qm', 'x')
+        talk = self.root / 'slides/talk.md'
+        talk.write_text(talk.read_text(encoding='utf-8') + 'more\n', encoding='utf-8')
+        rc, out = self.run_migrate()
+        self.assertEqual(rc, 1)
+        self.assertTrue(talk.is_file())
+        git('checkout', '--', '.')
+        rc, out = self.run_migrate()
+        self.assertEqual(rc, 0, out)
+        status = git('status', '--porcelain').stdout
+        self.assertIn('R  papers/mine/main.typ -> docs/mine/main.typ', status)
 
 
 # =====================================================================
@@ -6582,7 +7138,7 @@ class ExtensionProjectForm(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertTrue((d / 'x/analysis/model.qmd').is_file())
         self.assertTrue((d / 'x/analysis/octavo_helper.py').is_file())
-        self.assertTrue((d / 'x/slides/talk.md').is_file())
+        self.assertTrue((d / 'x/docs/talk/talk.md').is_file())
         ts = (self.EXT / 'src/projectForm.ts').read_text(encoding='utf-8')
         for flag in ("'--lang'", "'--with'", "'--engine'", "'--example'"):
             self.assertIn(flag, ts)

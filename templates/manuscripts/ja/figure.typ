@@ -1,7 +1,7 @@
 // 図「@@NAME@@」。Typst で描く（TeX の頃の TikZ の代わり）。
 // octavo build のたびに、このファイルより古ければ assets/figures/@@NAME@@.pdf と .png に組まれる。
 // 原稿では普通の図と同じく、キャプションとラベルを原稿の側に書く:
-//   ![キャプション](../../assets/figures/@@NAME@@.png){#fig-@@NAME@@}   （スライド・講義ノートからは ../assets/figures/）
+//   ![キャプション](../../assets/figures/@@NAME@@.png){#fig-@@NAME@@}
 // 図は本文の幅いっぱいに置かれる。小さくするなら {#fig-@@NAME@@ width=60%} のように書く。
 // Typst の書き方: https://typst.app/docs/
 

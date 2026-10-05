@@ -1,7 +1,7 @@
 <!-- octavo:example この付録は octavo new が置いたひな型。要らなければ
      ファイルごと消してよい（消せば本文だけが組まれる）。 -->
 
-## 追加の分析 {#sec-extra}
+# 追加の分析 {#sec-extra}
 
 <!-- octavo:example ここから ─ 説明。書いたら消す
 本文に入りきらない分析をここに置く。同じフォルダの paper.md と自動で
@@ -13,7 +13,7 @@
 octavo:example ここまで -->
 
 <!-- octavo:example ここから ─ 例 -->
-## 変数の定義 {#sec-definitions}
+# 変数の定義 {#sec-definitions}
 
 | 変数 | 定義 | 出所 |
 |---|---|---|

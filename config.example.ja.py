@@ -17,33 +17,19 @@ CONFIG = {
     # ================================================================
     # 原稿
     # ================================================================
-    # 手軽な指定。draft.md / slides.md / handout.md が置いてあれば、
-    # それぞれ論文 / 発表スライド / A4 プリントとして自動で登録される。
-    'draft': 'draft.md',
-    # 'appendix': 'appendix.md',
-    # 'slides': 'slides.md',
-    # 'handout': 'handout.md',
-
-    # 細かく決めたいときはこちら（書くと上の draft/slides/handout は無視される）。
-    # profile は 'paper'（論文）/ 'handout'（A4 プリント）/ 'slides'（スライド）。
-    # 同じ原稿からプリントとスライドの両方を作るなら targets に両方書く。
-    # 'documents': {
-    #     'paper':  {'src': 'draft.md',  'profile': 'paper',
-    #                'targets': ['typst', 'docx'], 'appendix': 'appendix.md'},
-    #     'slides': {'src': 'slides.md', 'profile': 'slides',
-    #                'targets': ['typst-slides']},
-    #     '第1回':  {'src': 'lecture01.md', 'profile': 'handout',
-    #                'targets': ['typst', 'typst-slides']},
-    #     # src にはワイルドカードも書ける。当たった原稿がそれぞれ文書になり、
-    #     # 名前は最初の * に当たった部分（キーに * があればそこに差し込む）。
-    #     # octavo init が書くのはこの形で、octavo new で足した原稿を拾う
-    #     'papers': {'src': 'papers/*/paper.md', 'appendix': 'papers/*/appendix.md',
-    #                'profile': 'paper', 'targets': ['typst']},
-    #     # split_slides: スライドを `#` 見出しごとに別々に組む（講義ノート ->
-    #     # <名前>-01, -02, …）。プリントは1本のまま
-    #     'lectures': {'src': 'lectures/*.md', 'profile': 'handout',
-    #                  'targets': ['typst', 'typst-slides'], 'split_slides': True},
-    # },
+    # 原稿は docs/<名前>/<名前>.md に置く（付録 appendix.md・論文の体裁 main.typ も同じ
+    # フォルダ）。フォルダごとに1つの文書で、名前はフォルダ名。何を作るかは原稿の冒頭に書く:
+    #   outputs: [pdf, slides]   # pdf / word / tex / slides / beamer / script（書かなければ pdf）
+    #   sessions: true           # 何回分かの授業でできている（スライドは回ごと）
+    'documents': {
+        'docs': {'src': 'docs/*/'},
+        # 前からの置き場所も読める（profile・targets・split_slides の書き方）:
+        # 'papers': {'src': 'papers/*/paper.md', 'appendix': 'papers/*/appendix.md',
+        #            'profile': 'paper', 'targets': ['typst']},
+        # 'lectures': {'src': 'lectures/*.md', 'profile': 'handout',
+        #              'targets': ['typst', 'typst-slides'], 'split_slides': True},
+    },
+    # documents を書かないときの近道（draft.md / slides.md / handout.md）も、前からのものとして読む。
 
     # ================================================================
     # 書誌（Zotero → .bib → 雑誌の書式）
@@ -150,7 +136,7 @@ CONFIG = {
     # ================================================================
     # 出力先（既定は build/ の下）
     # ================================================================
-    # 'out_dirs': {'latex': 'build/latex', 'docx': 'build/word'},
+    # 'out_dirs': {'latex': 'build/tex', 'docx': 'build/word'},
 
     # ================================================================
     # LaTeX
@@ -170,34 +156,34 @@ CONFIG = {
     # 'typst_citations': 'csl',     # 'csl'（他形式と同じ書式）| 'native'
     # A4 プリント（講義ノート）。体裁は templates/handout/handout.typ。
     # 書体の既定は BIZ UDゴシック。欧文は Inter
-    # 'handout_font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
-    # 'handout_fontsize': '11pt',
-    # 'handout_pagebreak': 'session',  # 'session' | 'section'（# ごと）| None（回の区切りでだけ）
+    # 'font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # 'fontsize': '11pt',
+    # 'pagebreak': 'session',  # 'session' | 'section'（# ごと）| None（回の区切りでだけ）
 
     # ================================================================
     # スライド（Typst。TeX 無しで組む）
     # ================================================================
-    # 'typst_slides_aspect': '16-9',   # '16-9' | '4-3'
+    # 'slides_aspect': '16-9',   # '16-9' | '4-3'
     # 既定は BIZ UDゴシック＋欧文 Inter。並びを書けばそのまま使う
-    # 'typst_slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
+    # 'slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
     # 見出しに番号を振る（Typst の numbering 文字列）。None なら振らない
-    # 'typst_slides_numbering': '1.1',
+    # 'slides_numbering': '1.1',
     # '#' の節ごとに扉のスライドを作る（既定は作らず、番号だけ進める）
-    # 'typst_slides_section_slides': True,
+    # 'slides_section_slides': True,
     # アクセントカラー。**これを書くと体裁が切り替わる**（題を色で立てて太字をやめる、
     # 箇条書きの印を ▶ に、ページ番号を「4 / 11」に、リンクにも色）。
     # 既定はこの青。従来どおり黒一色にしたいときは None にする
-    # 'typst_slides_accent': '#0e2f92',
+    # 'slides_accent': '#0e2f92',
     # 左上にいまの '#' の節を小さく出す（既定で出る。節がなければデッキのタイトル）
-    # 'typst_slides_running_header': False,
+    # 'slides_running_header': False,
     # 体裁を丸ごと変えるなら、同梱のテンプレートをコピーして直す（手引き「自分用にする」）:
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================
-    # 台本（typst-notes）。同じスライドを A4 で、typst-slides が落とす
-    # ::: notes を付けて組む。上の typst_slides_* はそのまま効く。
-    # 毎回作るなら文書の targets に足す。要るときだけなら
-    #   octavo build <名前> --to typst-notes
+    # 台本（script）。スライドの各ページを A4 に並べ、スライドが落とす
+    # ::: notes を付けて組む。上の slides_* はそのまま効く。
+    # 毎回作るなら原稿の冒頭の outputs に足す。要るときだけなら
+    #   octavo build <名前> --to script
     # 体裁は octavo template copy slides/typst-notes.typ でコピーして直す
     # ================================================================
 
@@ -213,7 +199,8 @@ CONFIG = {
     # ================================================================
     # Word
     # ================================================================
-    # octavo reference-docx reference.docx でスタイル定義用の docx を作り、Word でスタイルを
-    # 整えてから指定する。中身は空でよい（スタイル定義だけ使う）。
+    # octavo template copy word で templates/word/reference.docx を作り、Word でスタイルを
+    # 整えれば、Word の出力はそれを使う。別の .docx を使うならここに書く。中身は空でよい
+    # （スタイル定義だけ使う）。
     # 'docx_reference': 'reference.docx',
 }

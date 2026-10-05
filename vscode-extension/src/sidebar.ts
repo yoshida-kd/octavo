@@ -323,8 +323,8 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 // 論文だけ右クリックに「付録を足す」「main.tex を足す」、講義ノートだけ
                 // 「回ごとの配布資料を作る」が出る
                 it.contextValue = paper ? 'octavo.doc.paper'
-                    : node.doc.profile === 'handout' ? 'octavo.doc.lecture' : 'octavo.doc';
-                it.tooltip = `${node.doc.rel} · ${node.doc.profile} · ${node.doc.targets.join(', ')}`;
+                    : node.doc.handouts ? 'octavo.doc.lecture' : 'octavo.doc';
+                it.tooltip = `${node.doc.rel} · ${(node.doc.outputs ?? node.doc.targets).join(', ')}`;
                 const uri = resolvePathFromTool(node.doc.src);
                 if (uri) {
                     it.resourceUri = uri;

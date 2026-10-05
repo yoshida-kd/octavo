@@ -1,7 +1,7 @@
 <!-- octavo:example This appendix is the template octavo new wrote. Delete the
      whole file if you don't need one (the paper is then typeset on its own). -->
 
-## Additional analyses {#sec-extra}
+# Additional analyses {#sec-extra}
 
 <!-- octavo:example start — explanation; delete once you have your own text
 Analyses that don't fit in the main text go here. This file is linked to the
@@ -14,7 +14,7 @@ Labels work across the paper and the appendix, so the paper can refer to
 octavo:example end -->
 
 <!-- octavo:example start -->
-## Variable definitions {#sec-definitions}
+# Variable definitions {#sec-definitions}
 
 | Variable | Definition | Source |
 |---|---|---|

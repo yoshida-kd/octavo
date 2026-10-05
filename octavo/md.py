@@ -194,6 +194,9 @@ FENCE_LINE = re.compile(r'^\s*(```|~~~)')
 
 
 SESSION_OPEN = re.compile(r'^:{3,}\s*\{(?P<attr>(?:[^}]*\s)?\.session(?:\s[^}]*)?)\}\s*$')
+# 1行で書く区切り: `\session{題} {#id date="…" subtitle="…" author="…" institute="…"}`。
+# 題も属性も省ける（`\session{}`）。div の区切りと同じことができる
+SESSION_LINE = re.compile(r'^\s*\\session\{(?P<title>[^}]*)\}\s*(?:\{(?P<attr>[^}]*)\})?\s*$')
 
 
 def session_attrs(attr: str) -> dict:
@@ -224,6 +227,14 @@ def _marker_lines(lines: list) -> list:
         f = FENCE_LINE.match(line)
         if f:
             fence = None if fence == f.group(1) else (fence or f.group(1))
+            i += 1
+            continue
+        one = None if fence else SESSION_LINE.match(line)
+        if one:
+            a = session_attrs(one.group('attr') or '')
+            if one.group('title').strip():
+                a['title'] = one.group('title').strip()
+            out.append((i, None, a))
             i += 1
             continue
         m = None if fence else SESSION_OPEN.match(line)
@@ -443,6 +454,10 @@ def lecture_slide_level(md: str) -> int:
 
 
 NO_TITLE = re.compile(r'(?:^|\s)\.no-title(?:\s|$)')
+# `\newslide` / `\newslide{題}` / `\newslide{}`（題のない1枚）を1行で
+NEWSLIDE = re.compile(r'^\s*\\newslide(?:\{(?P<title>[^}]*)\})?\s*$')
+# `\newpage`（`\clearpage` も同じ意味に受ける）を1行で
+NEWPAGE = re.compile(r'^\s*\\(?:newpage|clearpage)\s*$')
 UNTITLED_SLIDE = '```{=typst}\n#octavo-untitled-slide()\n```'
 
 
@@ -454,6 +469,12 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
         ## 見出し {.same-slide}      この見出しでは新しいスライドにしない（前のスライドに続ける）
         ## 長い見出し {slide-title="短い題"}   スライドでだけ題を差し替える
         ### 図だけのスライド {.no-title}   スライドでは題を出さない（図に高さを回す）
+
+    1行で書く形もある（同じ意味）:
+
+        \newslide          新しい1枚。題は直前の題に「（続き）」
+        \newslide{題}      新しい1枚、題はそれ
+        \newslide{}        題のない1枚
 
     スライド（slides=True）では、区切りを1枚分の見出しに、`.same-slide` の見出しを
     太字の段落に、`slide-title` を見出しの題にする。それ以外の出力では、区切りを落とし、
@@ -481,6 +502,15 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
             continue
         if fence:
             out.append(line)
+            i += 1
+            continue
+        n = NEWSLIDE.match(line)
+        if n:
+            if slides and n.group('title') is not None and not n.group('title').strip():
+                out += ['', UNTITLED_SLIDE, '']
+            elif slides:
+                title = (n.group('title') or '').strip() or (last_title + cont).strip()
+                out += ['', '#' * depth + ' ' + title + ' {.unnumbered}', '']
             i += 1
             continue
         m = SLIDE_MARK.match(line)
@@ -518,6 +548,24 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
             last_title = h.group('title')
         out.append(line)
         i += 1
+    return '\n'.join(out)
+
+
+def page_breaks(md: str, repl: str) -> str:
+    """1行だけの `\\newpage`（`\\clearpage`）を、その出力の改ページ（repl）にする。
+
+    pandoc は生の TeX を LaTeX 以外では黙って捨てるので、Typst や Word では改ページが
+    消えてしまう。それを出力ごとの書き方に直す。コードの中は書き換えない。
+    """
+    out, fence = [], None
+    for line in md.split('\n'):
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+        elif not fence and NEWPAGE.match(line):
+            out.append(repl)
+            continue
+        out.append(line)
     return '\n'.join(out)
 
 
@@ -577,7 +625,7 @@ def rebase_links(md: str, src_dir: Path, out_dir: Path) -> str:
     `papers/<名前>/paper.md` なら `../../assets/figures/…`）。エディタのプレビューに
     図が出るようにするためで、これは原稿の側の正しい書き方。
 
-    ところが出力は `build/typst-slides/` や `build/typst/<名前>/` に置かれ、
+    ところが出力は `build/slides/` や `build/pdf/<名前>/` に置かれ、
     原稿と階層の深さが同じとはかぎらない。そのままコピーすると、同じ `../assets/figures/…`
     が `build/assets/figures/…` を指してしまい、typst compile が file not found で
     止まる（原稿は正しいのに組版だけ落ちる）。
@@ -652,6 +700,144 @@ def _wanted(cond: list, keep: set) -> bool:
 # 行内の出し分け `[文面]{.handout-only}`。中に `[@key]` のような角括弧が1段あってもよい。
 # 画像（`![…]`）とリンク（`[…](…)`）は対象にならない（`{` が直後に来ない）
 SPAN = re.compile(r'(?<![!\]\\])\[((?:[^\[\]\n]|\[[^\[\]\n]*\])*)\]\{([^{}\n]*)\}')
+
+
+def select_marked(md: str, mark: str, keep_also: tuple = ()) -> str:
+    """印（`.on-slides` など）の付いた所だけを残す（`slides_select: marked` のスライド）。
+
+    残すもの:
+      * `::: {.on-slides}` の囲みの中身（囲みの行は外す）
+      * 見出しに `{.on-slides}` を付けた節（次の同じか上の段の見出しの手前まで）
+      * 行の中の `[…]{.on-slides}`（その文言だけを1つの段落にする）
+      * keep_also のクラスの囲み（`.slides-only` など、その出力のための囲み）と `::: notes`
+      * 脚注の定義、回の区切り
+      * 残した中身の上にある見出し（スライドの題と構成が原稿のままになる）
+    コードブロックの中の見出しや囲みは数えない。
+    """
+    lines = md.split('\n')
+    n = len(lines)
+    keep = [False] * n
+    quiet = set()                                # 残すが、上の見出しを残す理由にはしない行
+    code = [False] * n
+    fence = None
+    for i, line in enumerate(lines):
+        f = FENCE_LINE.match(line)
+        if f:
+            code[i] = True
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+        elif fence:
+            code[i] = True
+
+    def classes(attr: str) -> set:
+        return set(re.findall(r'(?:^|\s)\.([\w-]+)', attr or ''))
+
+    def heading(i):
+        if code[i]:
+            return None
+        m = ANY_HEADING.match(lines[i])
+        return m if m else None
+
+    def close_of(i):
+        depth = 1
+        for j in range(i + 1, n):
+            if code[j]:
+                continue
+            if DIV_CLOSE.match(lines[j]):
+                depth -= 1
+                if depth == 0:
+                    return j
+            elif DIV_OPEN.match(lines[j]):
+                depth += 1
+        return n - 1
+
+    spans = re.compile(r'\[([^\[\]]*)\]\{[^}]*\.' + re.escape(mark) + r'(?:\s[^}]*)?\}')
+    extra = {}                                   # 行の中の印から作る段落
+    i = 0
+    while i < n:
+        if code[i]:
+            keep[i] = keep[i] or False
+            i += 1
+            continue
+        line = lines[i]
+        h = heading(i)
+        if h and mark in classes(h.group('attr')):
+            level = len(h.group('hash'))
+            j = i + 1
+            while j < n and not ((hh := heading(j)) and len(hh.group('hash')) <= level):
+                j += 1
+            for k in range(i, j):
+                keep[k] = True
+            i = j
+            continue
+        d = DIV_OPEN.match(line)
+        if d:
+            cls = classes(d.group(2)) | ({d.group(3)} if d.group(3) else set())
+            end = close_of(i)
+            if mark in cls:
+                for k in range(i + 1, end):
+                    keep[k] = True
+                i = end + 1
+                continue
+            if 'notes' in cls or cls & set(keep_also):
+                for k in range(i, end + 1):
+                    keep[k] = True
+                i = end + 1
+                continue
+        if re.match(r'^\[\^[^\]]+\]:', line):
+            keep[i] = True
+            quiet.add(i)
+            j = i + 1
+            while j < n and (not lines[j].strip() or lines[j][:1] in ' \t'):
+                keep[j] = bool(lines[j].strip())
+                quiet.add(j)
+                j += 1
+            i = j
+            continue
+        if SESSION_OPEN.match(line) or SESSION_LINE.match(line):
+            end = close_of(i) if SESSION_OPEN.match(line) else i
+            for k in range(i, end + 1):
+                keep[k] = True
+                quiet.add(k)
+            i = end + 1
+            continue
+        found = spans.findall(line)
+        if found:
+            extra[i] = ' '.join(x.strip() for x in found if x.strip())
+        i += 1
+
+    # 残した中身の上にある見出しを残す
+    stack = []                                   # [(段, 行)]
+    for i in range(n):
+        h = heading(i)
+        if h:
+            level = len(h.group('hash'))
+            while stack and stack[-1][0] >= level:
+                stack.pop()
+            stack.append((level, i))
+            continue
+        if (keep[i] and lines[i].strip() and i not in quiet) or i in extra:
+            for _, k in stack:
+                keep[k] = True
+
+    out = []
+
+    def blank():
+        if out and out[-1].strip():
+            out.append('')
+
+    for i in range(n):
+        if keep[i]:
+            if (i > 0 and not keep[i - 1]) or heading(i):
+                blank()
+            if not lines[i].strip() and not code[i] and out and not out[-1].strip():
+                continue                         # 空行を重ねない（コードの中はそのまま）
+            out.append(lines[i])
+            if heading(i):
+                blank()
+        elif i in extra:
+            blank()
+            out += [extra[i], '']
+    return '\n'.join(out).strip('\n') + '\n'
 
 
 def filter_spans(md: str, keep: set) -> str:

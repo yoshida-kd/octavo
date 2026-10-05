@@ -6,7 +6,7 @@
     const words = JSON.parse(document.body.getAttribute('data-words') || '{}');
     const $ = (id) => document.getElementById(id);
     const NAME_OK = /^[^\s/\\.][^\s/\\]*$/;
-    const PARTS = ['analysis', 'paper', 'slides', 'lecture'];
+    const PARTS = ['analysis', 'paper', 'slides', 'lecture', 'poster'];
     let busy = false;
 
     const checked = (id) => $(id).checked;

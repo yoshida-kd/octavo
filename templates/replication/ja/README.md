@@ -20,7 +20,7 @@
 あるいは [Octavo](https://github.com/yoshida-kd/octavo) があれば
 
     octavo analysis run --force
-    octavo values --diff      # 前と同じ数字が出たか
+    octavo check values --diff  # 前と同じ数字が出たか
 
 ## 実行環境
 

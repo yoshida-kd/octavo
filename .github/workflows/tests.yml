@@ -99,8 +99,8 @@ jobs:
           octavo new paper smoke
           octavo new slides deck
           octavo build --compile
-          test -f build/typst/smoke/main.pdf
-          test -f build/typst-slides/deck.typ
+          test -f build/pdf/smoke/main.pdf && test -f build/pdf/smoke.pdf
+          test -f build/slides/deck.typ
           # 英語のプロジェクトも（ひな型は言語ごとに別のファイル）
           cd /tmp
           octavo init proj-en --lang en
@@ -108,15 +108,15 @@ jobs:
           octavo new paper smoke
           octavo template list
           octavo build --compile
-          test -f build/typst/smoke/main.pdf
+          test -f build/pdf/smoke/main.pdf && test -f build/pdf/smoke.pdf
           # 見本つき（既定は見本を置かない）。見本の論文がそのまま組める
           cd /tmp
           octavo init demo --example
           cd demo
           octavo new slides talk --example
           octavo build --compile --no-analysis
-          test -f build/typst/example-paper/main.pdf
-          test -f build/typst-slides/talk.pdf
+          test -f build/pdf/example-paper/main.pdf && test -f build/pdf/example-paper.pdf
+          test -f build/slides/talk.pdf
 
       - uses: actions/upload-artifact@v4
         with:
@@ -166,7 +166,7 @@ jobs:
           octavo analysis run
           octavo new paper smoke
           octavo build --compile --no-analysis
-          test -f build/typst/smoke/main.pdf
+          test -f build/pdf/smoke/main.pdf && test -f build/pdf/smoke.pdf
 
   # Windows（Linux・macOS の次の扱い）。setup.ps1 を winget で本当に実行し、
   # このブランチの octavo に入れ替えて、テスト一式・octavo env・分析・組版を通す。
@@ -231,8 +231,8 @@ jobs:
           if (-not (Test-Path renv.lock)) { throw 'no renv.lock' }
           octavo analysis run
           octavo build --compile
-          if (-not (Test-Path build\typst\smoke\main.pdf)) { throw 'no PDF' }
-          if (-not (Test-Path build\typst-slides\deck.typ)) { throw 'no deck' }
+          if (-not (Test-Path build\pdf\smoke\main.pdf)) { throw 'no PDF' }
+          if (-not (Test-Path build\slides\deck.typ)) { throw 'no deck' }
 
   # macOS。setup.sh の Homebrew の道をそのまま実行し（pandoc・Typst・Quarto・
   # フォント）、テスト一式と、wheel からの init → 組版をリポジトリの外で通す。
@@ -291,9 +291,9 @@ jobs:
           octavo init proj --with analysis,paper=smoke,slides=deck,lecture=course
           cd proj
           octavo build --compile --no-analysis
-          test -f build/typst/smoke/main.pdf
-          test -f build/typst-slides/deck.pdf
-          test -f build/typst-slides/course-slides-01.pdf
+          test -f build/pdf/smoke/main.pdf && test -f build/pdf/smoke.pdf
+          test -f build/slides/deck.pdf
+          test -f build/slides/course-slides-01.pdf
 
   # VS Code 拡張がコンパイルでき、.vsix にまとまるか。strict + noUnused* なので
   # 使われない変数1つでも落ちる。作った .vsix は artifact として落とせる。

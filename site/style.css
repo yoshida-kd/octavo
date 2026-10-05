@@ -232,6 +232,11 @@ footer a { color: var(--muted); }
 }
 .guide .content h3 { margin: 32px 0 10px; font-size: 20px; scroll-margin-top: 16px; }
 .guide .content h4 { margin: 24px 0 8px; font-size: 17px; scroll-margin-top: 16px; }
+/* 折りたたんだ節（見出しが summary の中にある） */
+.guide .content details.fold { margin: 24px 0 14px; }
+.guide .content details.fold > summary { cursor: pointer; }
+.guide .content details.fold > summary h4 { display: inline; margin: 0; }
+.guide .content details.fold[open] > summary { margin-bottom: 8px; }
 .guide .content hr { display: none; }                /* 章の区切りは h2 の罫で足りる */
 .guide .content ul, .guide .content ol { padding-left: 1.4em; margin: 0 0 14px; }
 .guide .content li { margin: 0 0 4px; }

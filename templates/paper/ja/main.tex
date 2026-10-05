@@ -1,13 +1,13 @@
 % =====================================================================
 %  日本語論文テンプレート（LuaLaTeX + ltjsarticle + CSL 引用）
 %
-%  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ papers/<名前>/ に
-%  置くので、タイトル・著者・体裁を書き換える。組版のたびに build/latex/<名前>/ へ
-%  コピーされるので、直すのは papers/ の側。body.tex / abstract.tex は Octavo が
+%  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ docs/<名前>/ に
+%  置くので、タイトル・著者・体裁を書き換える。組版のたびに build/tex/<名前>/ へ
+%  コピーされるので、直すのは docs/ の側。body.tex / abstract.tex は Octavo が
 %  自動生成するので直接編集しない（次の変換で消える）。
 %
-%    octavo build <名前> --to latex
-%    cd build/latex/<名前> && latexmk -lualatex main.tex
+%    octavo build <名前> --to tex
+%    cd build/tex/<名前> && latexmk -lualatex main.tex
 %
 %  引用は pandoc --citeproc が CSL（octavo.config.py の 'csl'）で解決して
 %  body.tex に地の文として書き込む。**biblatex/biber は使わない。**
@@ -133,7 +133,7 @@
 % body.tex の末尾に「参考文献」節と書誌一覧（CSLReferences）が入っている。
 \input{body}
 
-% 付録があるなら次を有効にし、先に octavo build --to latex --appendix を実行する。
+% 付録があるなら次を有効にし、先に octavo build --to tex --appendix を実行する。
 % \clearpage
 % \appendix
 % \input{appendix}

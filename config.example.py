@@ -17,34 +17,20 @@ CONFIG = {
     # ================================================================
     # Documents
     # ================================================================
-    # The simple way: if draft.md / slides.md / handout.md exist, each is
-    # registered automatically as a paper / slide deck / A4 handout.
-    'draft': 'draft.md',
-    # 'appendix': 'appendix.md',
-    # 'slides': 'slides.md',
-    # 'handout': 'handout.md',
-
-    # For finer control, use this instead (writing it disables the
-    # draft/slides/handout shortcuts above). profile is one of 'paper',
-    # 'handout' (A4 print), or 'slides'. List both targets if you want a
-    # handout and slides built from the same source.
-    # 'documents': {
-    #     'paper':  {'src': 'draft.md',  'profile': 'paper',
-    #                'targets': ['typst', 'docx'], 'appendix': 'appendix.md'},
-    #     'slides': {'src': 'slides.md', 'profile': 'slides',
-    #                'targets': ['typst-slides']},
-    #     'week1':  {'src': 'lecture01.md', 'profile': 'handout',
-    #                'targets': ['typst', 'typst-slides']},
-    #     # src accepts wildcards too. Each match becomes a document named
-    #     # after what the first * matched (a * in the key is filled with it).
-    #     # This is the shape octavo init writes; it picks up octavo new's files
-    #     'papers': {'src': 'papers/*/paper.md', 'appendix': 'papers/*/appendix.md',
-    #                'profile': 'paper', 'targets': ['typst']},
-    #     # split_slides: build the slides per `#` heading (lecture notes ->
-    #     # <name>-01, -02, ...). The handout stays one document
-    #     'lectures': {'src': 'lectures/*.md', 'profile': 'handout',
-    #                  'targets': ['typst', 'typst-slides'], 'split_slides': True},
-    # },
+    # A manuscript lives in docs/<name>/<name>.md (its appendix.md and a paper's
+    # main.typ layout in the same folder): one document per folder, named after it.
+    # What it makes goes at the top of the manuscript:
+    #   outputs: [pdf, slides]   # pdf / word / tex / slides / beamer / script (pdf if not written)
+    #   sessions: true           # made of several class sessions (one deck each)
+    'documents': {
+        'docs': {'src': 'docs/*/'},
+        # The older places are read too (written with profile, targets, split_slides):
+        # 'papers': {'src': 'papers/*/paper.md', 'appendix': 'papers/*/appendix.md',
+        #            'profile': 'paper', 'targets': ['typst']},
+        # 'lectures': {'src': 'lectures/*.md', 'profile': 'handout',
+        #              'targets': ['typst', 'typst-slides'], 'split_slides': True},
+    },
+    # Without documents, the older shortcuts (draft.md / slides.md / handout.md) are still read.
 
     # ================================================================
     # Bibliography (Zotero -> .bib -> journal style)
@@ -160,7 +146,7 @@ CONFIG = {
     # ================================================================
     # Output directories (default: under build/)
     # ================================================================
-    # 'out_dirs': {'latex': 'build/latex', 'docx': 'build/word'},
+    # 'out_dirs': {'latex': 'build/tex', 'docx': 'build/word'},
 
     # ================================================================
     # LaTeX
@@ -180,35 +166,35 @@ CONFIG = {
     # 'typst_citations': 'csl',     # 'csl' (same style as other formats) | 'native'
     # A4 handouts (lecture notes); the layout is templates/handout/handout.typ.
     # Font default: BIZ UDGothic, with Inter for Latin
-    # 'handout_font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
-    # 'handout_fontsize': '11pt',
-    # 'handout_pagebreak': 'session',  # 'session' | 'section' (each #) | None (only at session markers)
+    # 'font': ['BIZ UDMincho', 'Noto Serif CJK JP'],
+    # 'fontsize': '11pt',
+    # 'pagebreak': 'session',  # 'session' | 'section' (each #) | None (only at session markers)
 
     # ================================================================
     # Slides (Typst — no TeX needed)
     # ================================================================
-    # 'typst_slides_aspect': '16-9',   # '16-9' | '4-3'
+    # 'slides_aspect': '16-9',   # '16-9' | '4-3'
     # Default: BIZ UDGothic with Inter for Latin; a list you write is used as-is
-    # 'typst_slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
+    # 'slides_font': ['BIZ UDGothic', 'Noto Sans CJK JP'],
     # Number the headings (a Typst numbering string). None = no numbers
-    # 'typst_slides_numbering': '1.1',
+    # 'slides_numbering': '1.1',
     # Give each '#' section a divider slide (default: no divider, the counter still advances)
-    # 'typst_slides_section_slides': True,
+    # 'slides_section_slides': True,
     # Accent colour. **Setting this switches the look**: titles in colour rather
     # than bold, ▶ list markers, "4 / 11" page numbers, coloured links.
     # Defaults to this blue; set to None for plain black instead
-    # 'typst_slides_accent': '#0e2f92',
+    # 'slides_accent': '#0e2f92',
     # The current '#' section small in the top-left corner (on by default;
     # the deck's title where there is no section)
-    # 'typst_slides_running_header': False,
+    # 'slides_running_header': False,
     # To change the whole look, copy the bundled template and edit it (the guide, "Making it yours"):
     #   octavo template copy slides/typst-slides.typ
 
     # ================================================================
-    # The speaker script (typst-notes) — the same deck, A4, with the
-    # ::: notes that typst-slides drops. Every typst_slides_* key above
-    # applies here too. Put it in a document's targets to build it every
-    # time, or just ask for it: octavo build <name> --to typst-notes
+    # The speaker script (script) — the pages of the deck on A4, with the
+    # ::: notes that the slides drop. Every slides_* key above
+    # applies here too. Put it in a manuscript's outputs to build it every
+    # time, or just ask for it: octavo build <name> --to script
     # Its look: octavo template copy slides/typst-notes.typ, then edit it
     # ================================================================
 
@@ -224,8 +210,8 @@ CONFIG = {
     # ================================================================
     # Word
     # ================================================================
-    # Generate a template with `octavo reference-docx reference.docx`, adjust
-    # its styles in Word, then point to it here. Its content doesn't matter
-    # — only the style definitions are used.
+    # `octavo template copy word` writes templates/word/reference.docx; adjust its
+    # styles in Word and Word output uses it. To use another .docx, point to it here.
+    # Its content doesn't matter — only the style definitions are used.
     # 'docx_reference': 'reference.docx',
 }

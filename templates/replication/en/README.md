@@ -20,7 +20,7 @@ This package alone reproduces every number, figure and table in the paper.
 or, with [Octavo](https://github.com/yoshida-kd/octavo) installed,
 
     octavo analysis run --force
-    octavo values --diff      # did the same numbers come out?
+    octavo check values --diff  # did the same numbers come out?
 
 ## Software
 

@@ -126,7 +126,7 @@ ov_write_lines <- function(txt, path) {
 #' @param name 本文で {{name}} と書く名前
 #' @param x    値（長さ1）。整数・小数・文字のいずれでもよい
 #' @param fmt  Python の書式指定（".3f" 等）。省略なら Octavo 側の既定
-#' @param note 覚え書き。octavo values で表示される
+#' @param note 覚え書き。octavo check values で表示される
 ov_value <- function(name, x, fmt = NULL, note = NULL) {
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
     stop("ov_value: name は長さ1の文字列")

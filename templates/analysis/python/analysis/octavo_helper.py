@@ -129,7 +129,7 @@ def ov_value(name: str, x, fmt: str | None = None, note: str | None = None):
     name  本文で {{name}} と書く名前（英字か _ で始め、英数字・_ ・. だけ）
     x     値（長さ1）。整数・小数・文字のいずれでもよい
     fmt   Python の書式指定（".3f" 等）。省略なら Octavo 側の既定
-    note  覚え書き。octavo values で表示される
+    note  覚え書き。octavo check values で表示される
     """
     import re
     if not isinstance(name, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.]*', name):

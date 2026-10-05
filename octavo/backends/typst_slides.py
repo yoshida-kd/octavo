@@ -42,6 +42,8 @@ class TypstSlidesBackend(TypstBackend):
     always_standalone = True
     is_slides = True
     session_tag = 'slides'
+    fixed_numbering = True
+    select_mark = ('slides_select', 'on-slides', ('slides-only', 'only-slides', 'slide-only'))
     wants_abstract_file = False
 
     def pandoc_args(self, ctx: Ctx) -> list:
@@ -139,18 +141,18 @@ class TypstSlidesBackend(TypstBackend):
                 v = sep.join(str(x) for x in v)
             fields.append(f'  {k}: ' + ('none' if v in (None, '') else
                                          f'[{_content_escape(str(v))}]'))
-        num = cfg['typst_slides_numbering']
-        acc = cfg['typst_slides_accent']
+        num = cfg['slides_numbering']
+        acc = cfg['slides_accent']
         fields += [f'  lang: "{ctx.lang}"',
                    f'  slide-level: {slide_level}',
-                   f'  aspect: "{cfg["typst_slides_aspect"]}"',
+                   f'  aspect: "{cfg["slides_aspect"]}"',
                    '  numbering: ' + (f'"{num}"' if num else 'none'),
                    '  section-slides: '
-                   + ('true' if cfg['typst_slides_section_slides'] else 'false'),
+                   + ('true' if cfg['slides_section_slides'] else 'false'),
                    '  accent: ' + (f'rgb("{acc}")' if acc else 'none'),
                    '  running-header: '
-                   + ('true' if cfg['typst_slides_running_header'] else 'false'),
-                   '  font: ' + font_expr(ctx.lang, 'sans', cfg['typst_slides_font'])]
+                   + ('true' if cfg['slides_running_header'] else 'false'),
+                   '  font: ' + font_expr(ctx.lang, 'sans', cfg['slides_font'])]
         return '#let octavo = (\n' + ',\n'.join(fields) + ',\n)\n'
 
     def template(self, ctx: Ctx) -> str:
@@ -161,7 +163,7 @@ class TypstSlidesBackend(TypstBackend):
                      figures=re.findall(r'image\("[^"]*?/?([\w.-]+\.\w+)"', typ),
                      refs=re.findall(r'image\("([^"]+)"', typ))
         check_cjk(typ, ctx, '.typ',
-                  t('the CJK font in typst_slides_font must be installed '
+                  t('the CJK font in slides_font must be installed '
                     '(check with: typst fonts)'),
                   templates=[ctx.template('slides/typst-slides.typ'),
                              ctx.template('typst/crossref.typ')])

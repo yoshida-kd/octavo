@@ -1,7 +1,7 @@
 // =====================================================================
 //  Octavo の Typst スライドの体裁（パッケージを使わない素の Typst）
 //
-//  octavo build --to typst-slides は、このファイルの**前に** `#let octavo = (…)`
+//  octavo build --to slides   は、このファイルの**前に** `#let octavo = (…)`
 //  を、**後ろに**本文を書いて、1つの完結した .typ にする。コンパイル時に
 //  パッケージを取りに行かないので、ネットワークがなくても組める。
 //
@@ -14,12 +14,12 @@
 //    octavo.title / subtitle / author / institute / date   タイトルスライド（なければ none）
 //    octavo.lang          "ja" | "en"
 //    octavo.slide-level   1 なら見出し1つが1枚。2 なら「#」が節（扉は section-slides のとき）、「##」が1枚
-//    octavo.aspect        "16-9" | "4-3"（typst_slides_aspect）
-//    octavo.numbering     見出しの番号（typst_slides_numbering）。none なら振らない
-//    octavo.section-slides 「#」の節を扉のスライドにするか（typst_slides_section_slides）
-//    octavo.accent        差し色（typst_slides_accent）。none なら黒のまま
-//    octavo.running-header 左上にいまの節（なければデッキの題）を出すか（typst_slides_running_header）
-//    octavo.font          本文フォントの候補（typst_slides_font）
+//    octavo.aspect        "16-9" | "4-3"（slides_aspect）
+//    octavo.numbering     見出しの番号（slides_numbering）。none なら振らない
+//    octavo.section-slides 「#」の節を扉のスライドにするか（slides_section_slides）
+//    octavo.accent        差し色（slides_accent）。none なら黒のまま
+//    octavo.running-header 左上にいまの節（なければデッキの題）を出すか（slides_running_header）
+//    octavo.font          本文フォントの候補（slides_font）
 //
 //  事例・論点などのブロックは、ふつうは原稿に `::: {.question #question-why}` と書く
 //  （A4 プリント・Word・LaTeX と同じ書き方と番号。見た目は typst/crossref.typ）。

@@ -206,9 +206,10 @@ function html(w: vscode.Webview, media: vscode.Uri, init: FormInit): string {
 <fieldset>
   <legend>${esc(vscode.l10n.t('What to start with'))}</legend>
   ${part('analysis', vscode.l10n.t('Analysis'), 'analysis/<name>.qmd', engine)}
-  ${part('paper', vscode.l10n.t('Paper'), 'papers/<name>/paper.md')}
-  ${part('slides', vscode.l10n.t('Talk slides'), 'slides/<name>.md')}
-  ${part('lecture', vscode.l10n.t('Lecture notes'), 'lectures/<name>.md')}
+  ${part('paper', vscode.l10n.t('Paper'), 'docs/<name>/<name>.md')}
+  ${part('slides', vscode.l10n.t('Talk slides'), 'docs/<name>/<name>.md')}
+  ${part('lecture', vscode.l10n.t('Lecture notes'), 'docs/<name>/<name>.md')}
+  ${part('poster', vscode.l10n.t('Poster'), 'docs/<name>/<name>.md')}
   <div class="row">
     <label><input type="checkbox" id="example">
       ${esc(vscode.l10n.t('Fill them with examples (made-up data), to look at'))}</label>

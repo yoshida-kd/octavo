@@ -9,8 +9,8 @@ date: 2026-04-10
      it's yours.
 
      From this one file:
-       octavo build @@NAME@@ --to typst          A4 handout (all sessions in one)
-       octavo build @@NAME@@ --to typst-slides   slides (one deck per `#` session)
+       octavo build @@NAME@@ --to pdf      A4 handout (all sessions in one)
+       octavo build @@NAME@@ --to slides   slides (one deck per `#` session)
      Decks are named @@NAME@@-01, @@NAME@@-02, … in order of appearance.
      To keep a deck's name when inserting sessions, give the heading an id
      (`# Session 2: title (example) {#second}` -> @@NAME@@-second).

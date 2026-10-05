@@ -9,16 +9,16 @@ date: 2026-01-01
      replaced it with your own text. octavo check reports the markers that are
      still there. The working agreements are in AGENTS.md. -->
 
-## Abstract
+# Abstract
 
 <!-- octavo:example start -->
-Write the abstract here. A `## Abstract` section is split off from the body: it
+Write the abstract here. A `# Abstract` section is split off from the body: it
 becomes abstract.typ / abstract.tex for Typst and LaTeX, and the opening section
 in Word.
 
 <!-- octavo:example end -->
 
-## Introduction {#sec-intro}
+# Introduction {#sec-intro}
 
 <!-- octavo:example start — how citations are written: `@<key>` in text and
      `[@<key>; @<key2>]` in parentheses. For the possessive ("Yamada's (2020)")
@@ -29,7 +29,7 @@ This paper follows \poscite{yamada2020} framework.
 
 <!-- octavo:example end -->
 
-## Analysis {#sec-analysis}
+# Analysis {#sec-analysis}
 
 <!-- octavo:example start — numbers and cross-references. Numbers are not typed:
      register them with `ov_value()` in the .qmd and call them as `{{name}}`
@@ -58,8 +58,8 @@ $$ {#eq-model}
 
 <!-- octavo:example end -->
 
-## Conclusion {#sec-conclusion}
+# Conclusion {#sec-conclusion}
 
-## References
+# References
 
 (This section is dropped at conversion time; the bibliography is built from literature.bib.)

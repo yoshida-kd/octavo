@@ -1,7 +1,7 @@
 // The figure "@@NAME@@", drawn in Typst (where TikZ used to be).
 // Every octavo build turns it into assets/figures/@@NAME@@.pdf and .png when those are older than this file.
 // The manuscript places it like any other figure, with the caption and label on its side:
-//   ![Caption](../../assets/figures/@@NAME@@.png){#fig-@@NAME@@}   (from slides and lecture notes: ../assets/figures/)
+//   ![Caption](../../assets/figures/@@NAME@@.png){#fig-@@NAME@@}
 // The figure is set to the full text width; for less, write {#fig-@@NAME@@ width=60%}.
 // Writing Typst: https://typst.app/docs/
 

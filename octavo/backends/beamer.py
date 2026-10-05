@@ -54,6 +54,7 @@ class BeamerBackend(Backend):
     min_pandoc = (2, 8)
     always_standalone = True
     is_slides = True
+    select_mark = ('slides_select', 'on-slides', ('slides-only', 'only-slides', 'slide-only'))
     session_tag = 'slides'
     keeps_notes = True
 

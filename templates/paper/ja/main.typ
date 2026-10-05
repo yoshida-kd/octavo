@@ -2,12 +2,12 @@
 //  日本語論文テンプレート（Typst）
 //
 //  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ
-//  papers/<名前>/ に置くので、タイトル・著者・体裁を書き換える。組版のたびに
-//  build/typst/<名前>/ へコピーされるので、直すのは papers/ の側。body.typ /
+//  docs/<名前>/ に置くので、タイトル・著者・体裁を書き換える。組版のたびに
+//  build/pdf/<名前>/ へコピーされるので、直すのは docs/ の側。body.typ /
 //  abstract.typ は Octavo が自動生成するので直接編集しない。
 //
-//    octavo build <名前> --to typst
-//    cd build/typst/<名前> && typst compile --root ../../.. main.typ
+//    octavo build <名前> --to pdf
+//    cd build/pdf/<名前> && typst compile --root ../../.. main.typ
 //    （--root がないと ../../../assets/figures を読めない。octavo build --compile なら自動）
 //
 //  引用の扱いは octavo.config.py の typst_citations で決まる:
@@ -75,7 +75,7 @@
 // #bibliography("../../../literature.bib", style: "chicago-author-date",
 //               title: "参考文献")
 
-// 付録があるなら（先に octavo build <名前> --to typst --appendix）。
+// 付録があるなら（先に octavo build <名前> --to pdf --appendix）。
 // octavo-appendix から先は節が A, B, …、図表・式が A.1 になる
 // #pagebreak()
 // #show: octavo-appendix

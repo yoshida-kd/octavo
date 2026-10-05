@@ -25,7 +25,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 ```
 
 ```markdown
-<!-- 原稿（papers/・slides/・lectures/ のどれでも） -->
+<!-- 原稿（docs/<name>/<name>.md） -->
 標本は {{n_obs}} 件、x の係数は {{coef_x}}（*p* {{p_x}}）だった。
 ```
 
@@ -35,7 +35,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 
 - 書式は `{{coef_x:.2f}}`（Python の書式指定）で本文側から変えられる
 - 整数（R の `nrow()`）は `1,523`、小数（`coef()`）は既定 3 桁
-- `octavo values` で「本文が呼んでいる名前」と「assets/values/ にある値」を突き合わせる。
+- `octavo check values` で「本文が呼んでいる名前」と「assets/values/ にある値」を突き合わせる。
   **原稿を触ったら必ず1回実行する**
 - 図の名前（`ov_figure(p, "trend")`）と表の名前（`ov_table(tab, "summary")`）は
   内容で付ける。番号は入れない。表のラベルは `tbl-<表の名前>` にすると、分析の
@@ -61,14 +61,14 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 1. `analysis/*.qmd` を編集する（データの読み込みは `data/` から）。新しく足すなら
    `octavo new analysis <name>`
 2. `octavo analysis run` で実行する（`octavo build` でも古ければ自動で実行される）
-3. `octavo values` で数値が出ているか確かめる
+3. `octavo check values` で数値が出ているか確かめる
 4. 原稿から `{{名前}}` で呼ぶ
 
 `.qmd` は `octavo.config.py` の `analysis`（既定は `analysis/*.qmd`）が拾う。重い
 データの変更も検知させたいときは `deps` に足す。`octavo build --no-analysis` は `.qmd` を
 実行せずいまの `assets/values/` で変換する（重い推定を待ちたくないとき）。
 
-再推定したあとは **`octavo values --diff`** を見る。前に分析を実行したときから
+再推定したあとは **`octavo check values --diff`** を見る。前に分析を実行したときから
 **本文のどの数字が動いたか**が出る。数字が動いたら、それを説明している
 言い回し（「わずかに」「約」「有意に」）も直すこと。
 
@@ -125,9 +125,9 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 止まるようにし、取得元と取得日を `data/raw/README.md` に書く。
 
 - 同じ名前を2つの `.qmd` が登録すると警告が出て**後が勝つ**。
-  `octavo values` の出所欄で確かめる
+  `octavo check values` の出所欄で確かめる
 - **`.qmd` を消したり名前を変えたら、対応する `assets/values/*.json` も消す。**
-  残すと本文が古い数値を拾い続ける（`octavo analysis` / `octavo values` が
+  残すと本文が古い数値を拾い続ける（`octavo analysis` / `octavo check values` が
   「対応する .qmd がない値のファイル」として知らせる）
 
 ## データを差し替えたら

@@ -10,7 +10,7 @@
 数値・図・表は Octavo がどの文書にも差し込み、PDF（Typst）と Word に仕上げる（TeX が
 あれば LaTeX にも）。文献は1つの `.bib` から、好きな CSL スタイルで整形される。
 
-![Octavo の仕組み: 分析と手で作ったファイルから数値・図・表ができ、原稿はそれを名前で呼び、octavo build が PDF と Word を作る](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-ja.svg)
+![Octavo の仕組み: 分析と手で作ったファイルから数値・図・表ができ、原稿はそれを名前で呼んで作るものを選び、octavo build が PDF・スライド・ポスター・Word・LaTeX を作る](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-ja.svg)
 
 ## できあがるもの
 
@@ -26,7 +26,8 @@
   同じ補助関数（`ov_value`・`ov_figure`・`ov_table`）があり、プロジェクトの `.venv` と renv も
   用意される。
 - **1つの原稿から、いくつもの文書。** 投稿先の書式に合わせた論文、発表スライド、A4 の
-  プリントと回ごとのスライドを兼ねる講義ノート。発表者用の台本も、共著者に回す Word も出せる。
+  プリントと回ごとのスライドを兼ねる講義ノート、学会の A0 ポスター。発表者用の台本も、共著者に回す
+  Word も出せる。
 - **ラベルで参照する**: `@fig-trend` は「図2.1」になり、節を並べ替えても、番号は正しいまま。
 - **TikZ なしで図を描く**: `octavo new figure` で置いた Typst のファイルに箱と矢印の図を
   描けば、通常の図と同じように使える。
@@ -83,7 +84,7 @@ octavo build --compile        # 分析を実行してから、全部を PDF ま�
 octavo init study --with analysis,paper
 cd study
 octavo env                    # このプロジェクトの分析の環境（.venv と renv）
-octavo build paper --compile  # analysis/analysis.qmd と papers/paper/paper.md を書いたら
+octavo build paper --compile  # analysis/analysis.qmd と docs/paper/paper.md を書いたら
 octavo check                  # 投稿する前に
 ```
 
@@ -115,7 +116,7 @@ The sample has {{n_obs}} cases (@fig-trend).
 4. [分析](https://yoshida-kd.github.io/octavo/ja/guide/#4-分析) — Quarto から数値・図・表を
 5. [文献](https://yoshida-kd.github.io/octavo/ja/guide/#5-文献)
 6. [論文](https://yoshida-kd.github.io/octavo/ja/guide/#6-論文-下書きから投稿まで) — 点検、匿名審査、投稿、改訂
-7. [スライドと講義ノート](https://yoshida-kd.github.io/octavo/ja/guide/#7-スライドと講義ノート) — 回の区切り、回ごとの配布資料
+7. [スライド・講義ノート・ポスター](https://yoshida-kd.github.io/octavo/ja/guide/#7-スライド講義ノートポスター) — 回の区切り、回ごとの配布資料、ポスター
 8. [自分用にする](https://yoshida-kd.github.io/octavo/ja/guide/#8-自分用にする) — テンプレート、Word のスタイル、書体
 9. [コマンド一覧](https://yoshida-kd.github.io/octavo/ja/guide/#9-コマンド一覧)
 10. [VS Code](https://yoshida-kd.github.io/octavo/ja/guide/#10-vs-code)

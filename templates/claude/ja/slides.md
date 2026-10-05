@@ -2,26 +2,25 @@
 # スライド・講義ノート
 
 ```
-slides/<name>.md   発表スライド（**これを書く**）
-lectures/<name>.md 講義ノート。A4 プリントと、回ごとのスライドを作る（**これを書く**）
+docs/<name>/<name>.md   発表スライド（outputs: [slides]）か講義ノート（outputs: [pdf, slides]、sessions: true）
 ```
 
 ## 発表スライド
 
 ```bash
-octavo build example-talk --compile        # slides/example-talk.md を PDF まで
+octavo build example-talk --compile        # docs/example-talk/example-talk.md を PDF まで
 ```
 
 ## 講義ノート
 
-講義ノート **1本から** A4 プリント（全回を1冊）と、**`#` 見出しの回ごとに別々の
+講義ノート **1本から** A4 ハンドアウト（全回を1冊）と、**`#` 見出しの回ごとに別々の
 スライド**を作る。`#` が1回分、`##` が節、`###` がスライド1枚（回の中が `##` だけなら
 `##` が1枚）。
 
 ```bash
-octavo build example-lecture --to typst --compile           # A4 プリントを PDF まで
-octavo build example-lecture --to typst-slides --compile    # スライドを回ごとに PDF まで
-octavo build example-lecture-03 --to typst-slides           # 3回目だけ
+octavo build example-lecture --to pdf --compile      # A4 ハンドアウトを PDF まで
+octavo build example-lecture --to slides --compile   # スライドを回ごとに PDF まで
+octavo build example-lecture-03 --to slides          # 3回目だけ
 ```
 
 - スライドの名前は `<講義ノートの名前>-01`, `-02`, …（`#` の出てきた順）。
@@ -36,16 +35,19 @@ octavo build example-lecture-03 --to typst-slides           # 3回目だけ
 書く。原稿に1つでもあれば区切りが回を決め、`#` / `##` は節・小節として自由に使える:
 
 ```markdown
-::: {.session #third title="第3回 政策と政府" date="2026-10-14"}
-:::
+\session{第3回 政策と政府} {#third date="2026-10-14"}
 ```
 
 - 区切りから次の区切りの直前までが1回分。`#third` がスライドの名前になる
-  （`example-lecture-third`）。`title` / `subtitle` / `date` はその回のタイトルスライドに出る。
-  `title` を書かなければ、その回の最初の見出しが題になる
-- スライドは見出しで区切る。`::: {.slide}` + `:::` で区切りを足し、見出しに `{.same-slide}` で
+  （`example-lecture-third`）。`\session{…}` の題と `subtitle` / `date` はその回のタイトルスライドに出る。
+  題を書かなければ（`\session{}`）、その回の最初の見出しが題になる。前からの
+  `::: {.session …}` + `:::` も同じ意味
+- スライドにはふつう全部が出る（プリントだけのものは `.pdf-only`）。冒頭に `slides_select: marked`
+  があれば、スライドには `.on-slides` の印の所（囲み・見出しに付けた節・`[…]{.on-slides}`）と
+  その上の見出しだけが出る。その文書では、スライドに載せたい所に印を付ける
+- スライドは見出しで区切る。1行の `\newslide`（`\newslide{題}`）で区切りを足し、見出しに `{.same-slide}` で
   区切りを外し、`{slide-title="…"}` でスライドの題だけ変える
-- A4 プリントでは区切りで必ず改ページするので、`octavo extract example-lecture` で
+- A4 プリントでは区切りで必ず改ページするので、`octavo build example-lecture --sessions` で
   全体の PDF から**回ごとの PDF** を切り出せる（`build/handouts/example-lecture-third.pdf`。
   ページ番号は全体のまま）。`--session third` で1回分、`--pages 12-19` でページ番号で、
   `--cover` で表紙と目次を付ける
@@ -88,7 +90,7 @@ octavo build example-lecture-03 --to typst-slides           # 3回目だけ
 
 `##` が1枚（発表スライドの `#` は節、講義ノートの `#` は回の区切り）。
 図は枠に収まるように置かれる。
-`::: notes`（発表者ノート）は投影するスライドには出ず、台本（`--to typst-notes`）に出る。
+`::: notes`（発表者ノート）は投影するスライドには出ず、台本（`--to script`）に出る。
 
 分析があれば、授業資料・スライドにも `{{…}}` の数値差し込みが使える（同じ
 `assets/values/` を読む）。**論文と同じく、数値を手で書かない。**

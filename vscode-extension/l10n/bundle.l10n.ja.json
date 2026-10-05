@@ -24,8 +24,9 @@
   "To change the formatting, write it as {0}.": "表示形式を変えるには {0} のように書きます。",
   "No such value under assets/values/: {0}": "assets/values/ にない値: {0}",
   "Add ov_value(\"{0}\", …) to the .qmd and run octavo analysis run, or check the spelling.": ".qmd に ov_value(\"{0}\", …) を追加して octavo analysis run を実行するか、名前の綴りを確認してください。",
-  "Typst (needs pandoc 3.1+)": "Typst（pandoc 3.1 以上が必要）",
-  "Talk and lecture slides (needs Typst 0.12+; a standalone .typ)": "発表・授業用スライド（Typst 0.12 以上が必要。単体の .typ）",
+  "The PDF (your main.typ beside the manuscript, or the built-in layout)": "PDF（原稿の横の main.typ、なければ組み込みの体裁）",
+  "Slides (one deck per session for lecture notes)": "スライド（講義ノートは回ごと）",
+  "A poster (A0 by default; the top-level headings make the cells)": "ポスター（既定は A0。一番上の見出しがマスになる）",
   "LuaLaTeX (needs TeX; body.tex, or a standalone .tex for handouts)": "LuaLaTeX（TeX が必要。body.tex、またはプリント用の単体の .tex）",
   "Talk and lecture slides (needs TeX; a standalone .tex)": "発表・授業用スライド（TeX が必要。単体の .tex）",
   "Runs: {0}": "実行方法: {0}",
@@ -135,7 +136,6 @@
   "Octavo: the octavo command is still {0} after the setup. If it runs from a git clone, the setup leaves it alone (the terminal says where): update the clone with git pull.": "Octavo: セットアップ後も octavo コマンドは {0} のままです。git clone から動作している場合、セットアップでは置き換えられません（場所はターミナルに表示されています）。clone を git pull で更新してください。",
   "Add an analysis (.qmd)…": "分析（.qmd）を追加…",
   "No analysis yet.": "分析はまだありません。",
-  "lectures/<name>.md — an A4 handout + a deck per session": "lectures/<name>.md — A4 のプリント + 回ごとのスライド",
   "Talk slides": "発表スライド",
   "Name of the analysis (becomes analysis/<name>.qmd)": "分析の名前（analysis/<name>.qmd になります）",
   "Lecture notes": "講義ノート",
@@ -231,5 +231,9 @@
   "Octavo: done. Reopen an R file (or reload the window) and the R extension stops asking.": "Octavo: 済みました。R のファイルを開き直す（かウィンドウを再読み込みする）と、R 拡張機能はもう聞いてきません。",
   "Undo": "元に戻す",
   "OK": "OK",
-  "Octavo: in this project, terminals no longer run the .venv activate command (the Python extension typed it into R terminals too, where R reports an error). Octavo uses .venv by itself.": "Octavo: このプロジェクトでは、ターミナルで .venv の activate を実行しないようにしました（Python 拡張機能が R のターミナルにも打ち込み、R がエラーを出していたため）。Octavo は .venv を自分で使います。"
+  "Octavo: in this project, terminals no longer run the .venv activate command (the Python extension typed it into R terminals too, where R reports an error). Octavo uses .venv by itself.": "Octavo: このプロジェクトでは、ターミナルで .venv の activate を実行しないようにしました（Python 拡張機能が R のターミナルにも打ち込み、R がエラーを出していたため）。Octavo は .venv を自分で使います。",
+  "docs/<name>/<name>.md — an A4 handout + a deck per session": "docs/<name>/<name>.md — A4 プリントと、回ごとのスライド",
+  "docs/<name>/<name>.md — with main.typ, the journal layout": "docs/<name>/<name>.md — 投稿先の体裁 main.typ つき",
+  "docs/<name>/<name>.md — A0, the top-level headings make the cells": "docs/<name>/<name>.md — A0。一番上の見出しがマスになる",
+  "Poster": "ポスター"
 }

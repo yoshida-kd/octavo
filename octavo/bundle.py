@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """`octavo bundle` — 投稿システムに上げられる形にまとめ直す。
 
-    octavo bundle                        論文が1本なら、その build/typst/<名前>/ から
+    octavo bundle                        論文が1本なら、その build/pdf/<名前>/ から
                                          submission-<名前>.zip
     octavo bundle example-paper --to latex 論文が複数あるときは名前を指定する
     octavo bundle --dir                  zip にせずフォルダで残す

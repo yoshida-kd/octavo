@@ -19,7 +19,7 @@ date: 2026-01-01
 - Each `##` heading is one slide (a `#` section shows at the top left)
 
 ::: notes
-Speaker notes. Never on the projected deck; they go in the speaker script (octavo build <name> --to typst-notes).
+Speaker notes. Never on the projected deck; they go in the speaker script (octavo build <name> --to script).
 :::
 
 ## Prior work

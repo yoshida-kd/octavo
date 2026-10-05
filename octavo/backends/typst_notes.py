@@ -112,7 +112,7 @@ class TypstNotesBackend(TypstSlidesBackend):
 
     def check(self, typ: str, ctx: Ctx) -> None:
         check_cjk(typ, ctx, '.typ',
-                  t('the CJK font in typst_slides_font must be installed '
+                  t('the CJK font in slides_font must be installed '
                     '(check with: typst fonts)'),
                   templates=[ctx.template('slides/typst-notes.typ'),
                              ctx.template('typst/crossref.typ')])

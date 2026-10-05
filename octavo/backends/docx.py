@@ -20,6 +20,7 @@ from pathlib import Path
 
 from .. import crossref as xref
 from .. import md as mdlib
+from .. import tmpl
 from .base import Backend, Ctx
 from ..i18n import t, tag
 
@@ -43,6 +44,12 @@ class DocxBackend(Backend):
         args = ['-t', 'docx', '--wrap=preserve', '--standalone',
                 '--top-level-division=section']
         ref = ctx.cfg['docx_reference']
+        if not ref:
+            # octavo template copy word で作った見た目の元（プロジェクト → 自分の templates/）
+            try:
+                ref = tmpl.find('word/reference.docx', ctx.cfg.root)
+            except tmpl.TemplateError:
+                ref = None
         if ref and Path(ref).exists():
             args += ['--reference-doc', str(ref)]
             ctx.say(f'{tag("Word")} ' + t('using the styles from {file}', file=Path(ref).name))

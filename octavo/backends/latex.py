@@ -84,6 +84,9 @@ class LatexBackend(Backend):
         return f'`{latex_ref(item, short, ctx)}`{{=latex}}'
 
     # -- 回の区切り・事例などのブロック ----------------------------------------
+    def fmt_pagebreak(self, ctx: Ctx) -> str:
+        return '```{=latex}\n\\clearpage\n```'
+
     def fmt_session(self, attrs: dict, ctx: Ctx) -> str:
         return '\n```{=latex}\n\\clearpage\n```\n' if ctx.standalone else ''
 
@@ -240,7 +243,7 @@ def crossref_tex(ctx: Ctx) -> str:
         # 最初の節の番号（ガイダンスを 0 にする）と、`#` ごとの改ページ
         if ctx.first_section != 1:
             lines.append(f'\\AtBeginDocument{{\\setcounter{{section}}{{{ctx.first_section - 1}}}}}')
-        brk = ctx.cfg['handout_pagebreak']
+        brk = ctx.cfg['pagebreak']
         if brk == 'section' or (brk == 'session' and not ctx.has_sessions):
             lines += ['\\let\\octavosection\\section',
                       '\\renewcommand{\\section}{\\clearpage\\octavosection}']

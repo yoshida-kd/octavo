@@ -20,15 +20,15 @@ Octavo 本体のほかに、いくつかのツールを使う: **pandoc**（変�
 
 | 使っているもの | 読むところ |
 |---|---|
-| Ubuntu などの Debian 系 Linux（手元の PC でも、SSH でつなぐサーバーでも） | [Linux](#linux) |
-| Mac | [macOS](#macos) |
-| Windows | [Windows](#windows)（WSL を使う方法がおすすめ。Windows で直接も可） |
+| Ubuntu などの Debian 系 Linux（手元の PC でも、SSH でつなぐサーバーでも） | [Linux](#11-linux) |
+| Mac | [macOS](#12-macos) |
+| Windows | [Windows](#13-windows)（WSL を使う方法がおすすめ。Windows で直接も可） |
 
 どの環境でも、やり方は2通りある。**VS Code で**（拡張機能を入れてボタンを押す）か、
 **ターミナルで**（コマンド4つ）。入るものは同じ。LaTeX は含まれない（なくてよい。
-[LaTeX を使うなら](#latex-を使うなら)を参照）。
+[LaTeX を使うなら](#16-latex-を使うなら)を参照）。
 
-### Linux
+### 1.1 Linux
 
 Octavo は Ubuntu 24.04 で確かめている。Debian やほかの版の Ubuntu でも動く（その
 ディストリビューションにない書体は Noto で代わりに組む）。`sudo` を使える利用者で行う。
@@ -59,7 +59,7 @@ octavo doctor                                     # すべて ok になってい
 Posit Package Manager にする。プロジェクトの renv は、そこからコンパイルなしの出来合いで
 パッケージを入れる。
 
-### macOS
+### 1.2 macOS
 
 **先に Homebrew を入れる。**Octavo はほかのものを Homebrew で入れる。ターミナルを開き、
 [brew.sh](https://brew.sh) にある1行を実行する:
@@ -91,15 +91,15 @@ octavo doctor                                     # すべて ok になってい
 
 R は CRAN の配布するもの（Homebrew の `r` cask）なので、CRAN のパッケージがそのまま入る。
 
-### Windows
+### 1.3 Windows
 
 方法は2つある。**WSL を使う方法をすすめる。**Octavo は Linux を第一に作って確かめて
 いて、WSL なら Windows の中でそれをそのまま使える。Windows で直接使うのは、WSL が
 使えないときだけにする。
 
-#### WSL を使う（おすすめ）
+#### 1.3.1 WSL を使う（おすすめ）
 
-1. **WSL を入れる。**PowerShell を*管理者として*開き（スタートボタンを右クリック →
+1. WSL を入れる。PowerShell を*管理者として*開き（スタートボタンを右クリック →
    *ターミナル（管理者）*、Windows 10 では *Windows PowerShell（管理者）*）、次を実行する:
 
    ```powershell
@@ -108,17 +108,18 @@ R は CRAN の配布するもの（Homebrew の `r` cask）なので、CRAN の�
 
    再起動を求められたら再起動する。そのあと Ubuntu が起動し、利用者名とパスワードを
    決めるよう求めてくる。パスワードはセットアップで聞かれるので覚えておく。
-2. Windows に [VS Code](https://code.visualstudio.com/) を入れ、**WSL** 拡張機能と
-   **Octavo** 拡張機能を入れる。
+2. Windows に [VS Code](https://code.visualstudio.com/) を入れ、**WSL** 拡張機能を入れる。
 3. VS Code の左下から **WSL: Connect to WSL** でつなぎ、Ubuntu の*中の*フォルダーを開く
    （たとえば `/home/<ユーザー名>`）。
-4. Octavo 拡張機能が勧める**セットアップ**を押し、Ubuntu のパスワードを入れる。
-   ここから先は [Linux](#linux) と同じ。
+4. **Octavo** 拡張機能を入れる。
+5. Octavo 拡張機能が勧める**セットアップ**を押し、Ubuntu のパスワードを入れる。
+   ここから先は [Linux](#11-linux) と同じ。
 
 ターミナルで行う場合は、スタートメニューから *Ubuntu* を開き、
-[Linux の「ターミナルで」](#linux)の手順に従う。
+[Linux の「ターミナルで」](#11-linux)の手順に従う。
 
-#### Windows で直接使う（WSL なし）
+<details class="fold">
+<summary><h4 id="132-windows-で直接使うwsl-なし">1.3.2 Windows で直接使う（WSL なし）</h4></summary>
 
 [winget](https://learn.microsoft.com/ja-jp/windows/package-manager/winget/) を使う。
 Windows 11 と最近の Windows 10 に入っている（`winget` が見つからなければ、Microsoft Store
@@ -148,11 +149,13 @@ octavo setup                  # pandoc・Typst・Quarto・書体・R・renv（wi
 octavo doctor                 # すべて ok になっていれば完了
 ```
 
+</details>
+
 どの環境でも同じように動くプロジェクトにするための習慣が2つある。パスは `/` で書く
 （`../assets/figures/trend.png`）。ファイル名の大文字・小文字は原稿の書き方とそろえる
 （Windows は `Trend.png` と `trend.png` を区別しないが、Linux は区別する）。
 
-### 動くか確かめる
+### 1.4 動くか確かめる
 
 ```bash
 octavo doctor       # 何が入っているか。足りないものには入れ方が付く
@@ -163,7 +166,7 @@ octavo selftest     # 小さな見本を組み、引用が実際にどう組ま�
 英語と日本語の文献・表・図・相互参照を含む見本を一時フォルダーで組み、引用が実際にどう
 組まれたかを表示する。機械ごとに1回実行して、目で確かめる。
 
-### 更新する
+### 1.5 更新する
 
 ```bash
 uv tool upgrade octavo-kit    # 最新の octavo
@@ -173,14 +176,14 @@ octavo setup                  # それが使うツール（何度実行しても
 VS Code では、拡張機能を更新し、Octavo のサイドバーの「**ツール**」→「**ツールを
 インストール・更新する**」を実行する。
 
-### LaTeX を使うなら
+### 1.6 LaTeX を使うなら
 
 ここまでで入るのは Typst で PDF を作る一式で、LaTeX が要るのは `latex` と `beamer` の形式
 だけ。Linux では `octavo setup --with-tex` で TeX Live を足す（数 GB）。Mac は
 [MacTeX](https://www.tug.org/mactex/)、Windows は [MiKTeX](https://miktex.org/) を入れる。
 `octavo doctor` は TeX を別に扱い、なくても「不足」には数えない。
 
-### 表示の言語
+### 1.7 表示の言語
 
 メッセージは英語で出る。システムが日本語なら日本語で出る。`export OCTAVO_LANG=ja`
 （または `en`）で選べる。これはメッセージの言語だけで、プロジェクトを*何語で書くか*は
@@ -196,7 +199,7 @@ VS Code の表示言語に従う。
 > 分析を選ぶと環境まで整える）。原稿・分析・図・表は、あとからサイドバーの **+** で追加する。
 > 下のコマンドは、そのボタンが実行しているものである。[10. VS Code](#10-vs-code) も参照。
 
-### まず見本を動かす
+### 2.1 まず見本を動かす
 
 ```bash
 octavo init demo --all --example
@@ -208,7 +211,7 @@ octavo build --compile        # 分析を実行してから、全部を PDF ま�
 架空のデータの分析と、それを使う論文・スライド・講義ノートの入ったプロジェクトができる。
 PDF は `build/` にできる。
 
-### 自分のプロジェクトを始める
+### 2.2 自分のプロジェクトを始める
 
 `octavo init` はプロジェクトの枠だけを作る。ほかはすべて `octavo new` で足し、どれもいくつでも
 置ける:
@@ -222,20 +225,25 @@ octavo env                                # このプロジェクトの分析環
 ```bash
 octavo new analysis model           # analysis/model.qmd（初回は octavo.R と data/ も）
 octavo new analysis model --engine python   # 同じものを Python で書く（octavo_helper.py を置く）
-octavo new paper example-paper      # papers/example-paper/: paper.md と体裁の main.typ
+octavo new paper example-paper      # docs/example-paper/: example-paper.md と体裁の main.typ
 octavo new paper example-paper --appendix   # 付録 appendix.md を足す（既にある論文にも）
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
-octavo new slides example-talk      # slides/example-talk.md
-octavo new lecture example-lecture  # lectures/example-lecture.md
+octavo new slides example-talk      # docs/example-talk/example-talk.md
+octavo new lecture example-lecture  # docs/example-lecture/example-lecture.md
+octavo new poster example-poster    # docs/example-poster/example-poster.md
 octavo new figure dag               # figures/dag.typ（Typst で描く図）
 octavo new table compare            # tables/compare.csv（手で作る表）
 ```
 
 `init --with` にも同じ部品を書ける（`--with lecture`、`--with analysis,slides=talk`。`--all`
-で全種類。`--engine python` で分析を Python にする）。`--example` を付けると、見出しだけの骨組みの代わりに書き方の見本が入る。`init` や `new analysis` に `--env` を付けると、分析の環境も同じ手順で整える。文書は
-名前で指す。論文はフォルダー名、スライドと講義ノートはファイル名: `octavo build example-paper`。
+で全種類。`--engine python` で分析を Python にする）。`--example` を付けると、見出しだけの骨組みの代わりに書き方の見本が入る。`init` や `new analysis` に `--env` を付けると、分析の環境も同じ手順で整える。
 
-### プロジェクトの中身
+**1つの文書は `docs/<name>/<name>.md`。**付録（`appendix.md`）や論文の体裁（`main.typ`）も同じ
+フォルダーに置く。文書は名前で指す: `octavo build example-paper`。`paper`・`slides`・`lecture` は
+ひな型の違いで、どれも同じ「文書」になる。何を作るかは原稿の冒頭で決める
+（[3.6](#36-何を作るかと文書ごとの設定)）。
+
+### 2.3 プロジェクトの中身
 
 ```
 study/
@@ -244,9 +252,7 @@ study/
   AGENTS.md          このプロジェクトの約束（AI アシスタント向け。Claude Code・GitHub Copilot・Codex・Antigravity が読む）
   CLAUDE.md          Claude Code に AGENTS.md を読ませるだけの1行
   README.md          自分で書き足す数行
-  papers/<name>/     paper.md と、main.typ（投稿先の体裁）
-  slides/<name>.md   発表スライド
-  lectures/<name>.md 講義ノート
+  docs/<name>/       <name>.md（原稿）と、あれば appendix.md・main.typ（投稿先の体裁）
   analysis/          .qmd と補助（R なら octavo.R、Python なら octavo_helper.py）
   data/raw/          入手したままのデータ（git に入らない。data/raw/README.md に出所を書く）
   data/derived/      分析が作ったデータ（git に入らない）
@@ -256,13 +262,19 @@ study/
     values/          {{…}} の数値
     figures/         図（.pdf と .png）
     tables/          表（.typ・.tex・.md）
-  build/             出力。丸ごと消しても作り直せる
+  build/             出力。出力ごとのフォルダー（pdf/・slides/・script/・word/・tex/・handouts/）。丸ごと消しても作り直せる
 ```
 
 `octavo.config.py` はこれらのフォルダーの原稿と分析を最初から拾うので、足すたびに書き換える
 必要はない。
 
-### 分析の環境
+**前の版で作ったプロジェクト**は、原稿が `papers/<name>/paper.md`・`slides/<name>.md`・
+`lectures/<name>.md` にある。そのままで今までどおり組める。`docs/` に揃えるなら
+`octavo migrate --docs`（`--dry-run` で何をするかだけ見る）。原稿を移し、図のパスと冒頭の
+`outputs` / `sessions` を書き、設定に `docs/*/` を足す。文書の名前は変わらない。`octavo check`
+も、移せる原稿があれば知らせる。
+
+### 2.4 分析の環境
 
 R や Quarto などのツールは機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
 
@@ -282,7 +294,7 @@ octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmark
   がそれらを（VS Code の R 拡張機能用の `languageserver` も）自分の R のライブラリに入れる。
   古い R のパッケージを消したあとなどは、`octavo setup --r-editor` でそれだけを入れ直せる。
 
-### 見本の見分け方
+### 2.5 見本の見分け方
 
 `--example` が書くものには印がある。`octavo:example` のコメント、値の `_placeholder`、枠と ×
 だけの図。`octavo check` が残りを数える。中身を置き換えたら印も消す。**仮の値は
@@ -295,8 +307,8 @@ octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmark
 
 | 何を | 書き方 |
 |---|---|
-| 見出し | `## 分析 {#sec-analysis}`。番号は書かない。ラベルで参照できる |
-| 要旨 | `## 要旨` の節（論文） |
+| 見出し | `# 分析 {#sec-analysis}`。`#` が一番上の節（`##` から始めても組める）。番号は書かない。ラベルで参照できる |
+| 要旨 | `# 要旨` の節 |
 | 引用 | `@key`、`[@key; @key2]`、所有格は `\poscite{key}`（「山田・田中(2020)」） |
 | 分析の数値 | `{{n_obs}}`、`{{coef_x:.2f}}`（§4） |
 | 図 | `![推移](../../assets/figures/trend.png){#fig-trend}` |
@@ -305,13 +317,13 @@ octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmark
 | 参照 | `@fig-trend` →「図2.1」 |
 | 題・著者・日付 | 冒頭の YAML（front matter） |
 
-### 番号ではなくラベルで指す
+### 3.1 番号ではなくラベルで指す
 
 番号は**原稿に書かない**。見出しにも、キャプションにも、地の文にも。ラベルを付けて名前で
 指せば、番号は組むときに振られる。節を足したり動かしたりしても、参照を直す必要はない。
 
 ```markdown
-## Analysis {#sec-analysis}
+# Analysis {#sec-analysis}
 
 @fig-trend shows the trend and @tbl-desc the descriptive statistics.
 We estimate @eq-model (see also [-@eq-model]).
@@ -338,7 +350,7 @@ $$ {#eq-model}
 - `# 題 {.appendix}` の見出しから後ろは、同じファイルの中で付録になる（A, B, …）。
 - 存在しないラベルと、2回付けたラベルは `octavo check` が止める。
 
-### 事例・論点など、番号の付くブロック
+### 3.2 事例・論点など、番号の付くブロック
 
 ```markdown
 ::: {.question #question-why title="Why is government the main actor?"}
@@ -375,7 +387,7 @@ Unnumbered blocks need no label.
 },
 ```
 
-### 数式
+### 3.3 数式
 
 ドル記号で囲んで LaTeX の書き方で書く。Typst の数式、Word の数式になり、LaTeX ではそのまま。
 
@@ -397,7 +409,7 @@ $$
 - 桁区切りのある値は数式の外に置く（`$N$ = {{n_obs}}`）。中に置くとカンマが区切りとして
   組まれる。
 
-### 図
+### 3.4 図
 
 原稿には `.png` を、原稿から見た相対パスで書く（論文なら `../../assets/figures/`、
 スライドと講義ノートなら `../assets/figures/`）。出力ごとに Octavo が使うファイルを選ぶ:
@@ -454,7 +466,7 @@ PDF が重くなる。どこから来た画像か、使ってよいかは、デ�
 ほかの図と同じように貼る。Typst で描けるものは何でも使える。複数の図で共有する部品は
 `figures/_parts.typ` に置き、`json("/assets/values/analysis.json")` で分析の数値も使える。
 
-### 表
+### 3.5 表
 
 短い表は原稿に Markdown の表で書いてよい。ほかの2種類は、表題の行だけ（隣に表のない
 `: 表題 {#tbl-名前}`）で置く:
@@ -468,31 +480,74 @@ PDF が重くなる。どこから来た画像か、使ってよいかは、デ�
   UTF-8（Shift_JIS も読める）。Windows の Excel では *データ → テキストまたは CSV から*
   で開く。
 
-### 1つの文書だけの設定
+### 3.6 何を作るかと文書ごとの設定
 
-投稿先や発表ごとに変わる設定は、その原稿の冒頭に書けばその文書にだけ効く:
+**何を作るかは、原稿の冒頭の `outputs:` で決める。**書かなければ `pdf`。
+
+```markdown
+---
+title: Title of the Paper
+outputs: [pdf, word]
+---
+```
+
+| 出力 | できるもの |
+|---|---|
+| `pdf` | PDF。体裁は、原稿の横に `main.typ` があればそれ（論文）、なければ Octavo の組み込みのもの（A4。表紙・目次） |
+| `word` | Word |
+| `tex` | LaTeX（TeX が要る。原稿の横に `main.tex` があればそれ） |
+| `slides` | スライド |
+| `script` | 発表の台本（スライドの各ページと `::: notes`） |
+| `poster` | ポスター（[7.3](#73-ポスター)） |
+| `beamer` | LaTeX のスライド（TeX が要る） |
+
+**何回分かの授業でできている原稿は `sessions: true`** と書く。`#` 見出し1つ（か `::: {.session}`
+の区切り1つ）が1回分になり、スライドと台本は回ごとに別のファイルになる（[7.2](#72-講義ノート)）。
+区切りを書いた原稿は、書かなくても回でできているものとする。
+
+題は冒頭の `title:` に書く。本文に `# 題` は書かない（`#` の見出しは節になる）。
+
+**そのほかの設定**も、投稿先や発表ごとに変わるものは原稿の冒頭に書けば、その文書にだけ効く:
 
 ```markdown
 ---
 title: Title of the Paper
 csl: apa
 word_limit: 8000
-targets: [typst, docx]
 ---
 ```
 
 | キー | 対象 | 何か |
 |---|---|---|
+| `outputs`・`sessions` | すべて | 何を作るか・回でできているか（上） |
 | `csl` | すべて | 引用の書式 |
 | `japanese_citation_form`・`citations_by_language` | すべて | 日本語の文献の組み方（§5） |
-| `targets` | すべて | 出力形式 |
-| `word_limit`・`char_limit`・`abstract_word_limit`・`abstract_char_limit` | 論文 | 投稿規定の上限（`octavo check`） |
-| `typst_slides_*` | スライド・講義ノート | スライドの体裁（§7） |
-| `date_format` | スライド・講義ノート | 日付の出し方 |
-| `first_section`・`handout_pagebreak`・`handout_font`・`handout_fontsize` | 講義ノート | A4 プリント（§7） |
+| `word_limit`・`char_limit`・`abstract_word_limit`・`abstract_char_limit` | すべて | 投稿規定の上限（`octavo check`） |
+| `slides_*` | スライド | スライドの体裁（§7） |
+| `slides_select`・`poster_select` | スライド・ポスター | `marked` で、印（`.on-slides`・`.on-poster`）の所だけを出す（§7） |
+| `date_format` | すべて | 日付の出し方 |
+| `toc` | 組み込みの体裁の PDF | 目次（既定は `sessions` があればあり） |
+| `first_section`・`pagebreak`・`font`・`fontsize` | 組み込みの体裁の PDF | 番号の始まり・改ページ・書体（§7） |
 
 `octavo config --doc <name>` で一覧し、`set` / `unset` でその1行を書き換える。VS Code では
 サイドバーの各原稿の下の「**この文書の設定**」。
+
+### 3.7 改ページとスライドの区切り
+
+どちらも、その行に1つだけ書く:
+
+```markdown
+\newpage
+
+\newslide
+
+\newslide{Another title}
+```
+
+- `\newpage` は改ページ（PDF・Word・LaTeX）。スライドでは何もしない。
+- `\newslide` はそこから新しいスライド。題は直前のスライドの題に「（続き）」が付く。
+  `\newslide{題}` はその題で、`\newslide{}` は題のない1枚（図に高さを回せる）。
+  スライド以外の出力では何もしない。
 
 ---
 
@@ -507,7 +562,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
                              assets/tables/*           表
 ```
 
-### 数値・図・表を渡す
+### 4.1 数値・図・表を渡す
 
 新しい `.qmd` は、最初から補助（R なら `octavo.R`、Python なら `octavo_helper.py`。下を参照）を読み込んでいる。論文に出すものを登録する:
 
@@ -528,7 +583,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 `octavo.config.py` の `meta` から（`affiliation` と `email` も書いてあれば入る）、日付・目次・
 節番号付き。
 
-### 数値の出方
+### 4.2 数値の出方
 
 | 値 | 例 | 出方 |
 |---|---|---|
@@ -539,7 +594,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 書式は原稿の `{{coef_x:.2f}}` か、`ov_value(..., fmt = ".2f")` で決める。値のない名前は
 `{{name}}` のまま出力に残り、そう知らされる。
 
-### 分析が実行されるとき
+### 4.3 分析が実行されるとき
 
 `octavo build` は、`.qmd` か、それが使うファイルが前回から変わっていれば実行する。
 
@@ -547,7 +602,7 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 octavo analysis              # どれが古いか
 octavo analysis run          # 古いものを実行する
 octavo build --no-analysis   # 何も実行せずに組む
-octavo values --diff         # 前回の実行で本文のどの数値が変わったか
+octavo check values --diff   # 前回の実行で本文のどの数値が変わったか
 ```
 
 - Quarto がなければ警告して先に進む。分析が失敗したら組むのを止める（古い数値のまま組んで
@@ -581,7 +636,7 @@ octavo:
 - VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
   プレビューは分析を実行せず、古いものがあれば知らせる。
 
-### Python で書く
+### 4.4 Python で書く
 
 `--engine python` を付ける（VS Code では「**Python の分析**」を選ぶ）と、`.qmd` が Python で
 書かれる。`analysis/octavo_helper.py` を読み込み、これが同じ名前の関数で同じファイルを書くので、
@@ -601,7 +656,7 @@ ov_table(tab, "summary")               # pandas の DataFrame（辞書、リス�
   `nbclient`・`pyyaml`）が入り、`octavo env` が `.venv` に入れる。`octavo analysis run` はその
   `.venv` を自分で使う。R と Python の `.qmd` は1つのプロジェクトに同居できる。
 
-### 他の言語
+### 4.5 他の言語
 
 Octavo はファイルを読むだけなので、Julia などの `.qmd` でも、`{"name": value}` を
 `assets/values/<好きな名前>.json` に、図を `.pdf` と `.png` で `assets/figures/` に、表を
@@ -616,7 +671,7 @@ Octavo はファイルを読むだけなので、Julia などの `.qmd` でも�
 保たれ、キーも変わらない。**Octavo は `.bib` を書き換えない。**
 
 ```bash
-octavo checkbib           # 本文の引用キーが .bib にあるか、.bib に問題がないか
+octavo check cites        # 本文の引用キーが .bib にあるか、.bib に問題がないか
 octavo csl get apa        # 投稿先の書式を取得する
 ```
 
@@ -647,7 +702,7 @@ Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." 
 いないので、投稿先に指示があればそれに従う。`citations_by_language: False` にすると、書誌全体を
 `csl_locale` の言語で組む。
 
-文献の一覧は最後に置かれる。論文の最後の節の `## 参考文献` は、その置き場所の印にすぎない
+文献の一覧は最後に置かれる。論文の最後の節の `# 参考文献` は、その置き場所の印にすぎない
 （下に書いたものは一覧に置き換わる）。講義ノートの中で読書案内を並べた同じ名前の見出しは、
 書いたとおりに残る。一覧を別の場所に置くには、そこに `::: {#refs}` と `:::` を書く。
 
@@ -658,13 +713,14 @@ Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." 
 
 ## 6. 論文: 下書きから投稿まで
 
-論文は `papers/<name>/paper.md` と、**手で持つ投稿先の体裁** `main.typ`（タイトル部分・
-書体・余白）の組。`octavo build` が本文を `build/typst/<name>/` に書き、`main.typ` がそれを
-組む。`--compile` で PDF まで作る。
+論文は `docs/<name>/<name>.md` と、**手で持つ投稿先の体裁** `main.typ`（タイトル部分・
+書体・余白）の組。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを
+組む。`--compile` で PDF まで作る（`build/pdf/<name>/main.pdf`。同じものを `build/pdf/<name>.pdf`
+にも置く）。
 
 ```bash
 octavo build example-paper --compile            # PDF
-octavo build example-paper --to docx            # Word
+octavo build example-paper --to word            # Word
 octavo build example-paper --compile --appendix # appendix.md も
 ```
 
@@ -672,11 +728,11 @@ octavo build example-paper --compile --appendix # appendix.md も
 と `#include "appendix.typ"` のコメントを外す。付録の節は A, B, … になり、ラベルは本文と
 付録をまたいで使える。
 
-### 投稿の前に
+### 6.1 投稿の前に
 
 ```bash
 octavo check           # 検査をまとめて。致命的な問題があれば終了コードが 0 以外になる
-octavo lint            # 手入力の数値と、字下げの揃っていない入れ子の箇条書き
+octavo check lint      # 手入力の数値と、字下げの揃っていない入れ子の箇条書き
 ```
 
 `octavo check` が見るもの: 図と表のファイルの欠け、解決しない `{{…}}`、仮の値、古い分析、
@@ -686,7 +742,7 @@ octavo lint            # 手入力の数値と、字下げの揃っていない�
 `lint_accepted` に書く（`'中間レポート40%'`）。分量の上限は
 設定か原稿の冒頭に書く（`word_limit: 8000`、日本語の雑誌なら `char_limit`）。
 
-### 匿名審査
+### 6.2 匿名審査
 
 ```markdown
 ::: {.no-anonymous}
@@ -702,20 +758,20 @@ octavo bundle example-paper --anonymous   # 投稿用のファイルに自分の
 `--anonymous` は `.no-anonymous` のブロックを落とし（`.anonymous-only` は残し）、タイトル
 部分から著者を外し、`main.typ` のタイトル部分を切り替える。次にふつうに組めば全部元に戻る。
 
-### 投稿先に出すファイルをまとめる
+### 6.3 投稿先に出すファイルをまとめる
 
 ```bash
 octavo bundle example-paper    # submission-example-paper.zip（ファイルを1つのフォルダーにまとめたもの）
 ```
 
-### 送ったあと
+### 6.4 送ったあと
 
 - **共著者の Word での直し**: `octavo review returned.docx` が変更履歴とコメントを一覧に
-  する。反映は自分で `paper.md` に行う（Word のファイルには数値が文字で入っているので、
+  する。反映は自分で原稿に行う（Word のファイルには数値が文字で入っているので、
   原稿に戻す変換はしない）。
 - **送った版を残す**: `octavo release example-paper v1-submitted` がその時点にタグを打ち、
   PDF を GitHub Release に置く（`gh` コマンドが要る）。
-- **改訂**: `octavo values --diff example-paper-v1-submitted` で、その版から動いた数値が分かる。
+- **改訂**: `octavo check values --diff example-paper-v1-submitted` で、その版から動いた数値が分かる。
 - **データ**: `octavo data hash` が `data/` のハッシュ値を記録し、`octavo data status` が
   そのあと変わったかを見る。
 - **再現用パッケージ**: `octavo bundle --replication` が、分析・値・図表・設定・ハッシュ値を
@@ -723,11 +779,11 @@ octavo bundle example-paper    # submission-example-paper.zip（ファイルを1
 
 ---
 
-## 7. スライドと講義ノート
+## 7. スライド・講義ノート・ポスター
 
-### スライド
+### 7.1 スライド
 
-`slides/<name>.md`: `#` と `##` があれば `#` が節、`##` が1枚のスライド。見出しが1段なら
+スライドだけの文書（`outputs: [slides]`）は、`#` と `##` があれば `#` が節、`##` が1枚のスライド。見出しが1段なら
 その見出しが1枚ずつ。タイトルスライドは冒頭の YAML から作る。図はスライドの残りの高さに
 収まるように置かれる。
 
@@ -737,29 +793,30 @@ octavo build example-talk --compile
 
 | キー | 既定 | 何か |
 |---|---|---|
-| `typst_slides_aspect` | `'16-9'` | または `'4-3'` |
-| `typst_slides_accent` | `'#0e2f92'` | アクセントカラー。`None` で黒一色 |
-| `typst_slides_numbering` | `None` | 見出しの番号（`'1.'`、`'1.1'`） |
-| `typst_slides_section_slides` | `False` | `#` の節ごとに扉のスライドを作る |
-| `typst_slides_running_header` | `True` | 左上にいまの節を出す |
-| `typst_slides_font` | BIZ UDゴシック + Inter | 書体 |
+| `slides_aspect` | `'16-9'` | または `'4-3'` |
+| `slides_accent` | `'#0e2f92'` | アクセントカラー。`None` で黒一色 |
+| `slides_numbering` | `None` | 見出しの番号（`'1.'`、`'1.1'`） |
+| `slides_section_slides` | `False` | `#` の節ごとに扉のスライドを作る |
+| `slides_running_header` | `True` | 左上にいまの節を出す |
+| `slides_font` | BIZ UDゴシック + Inter | 書体 |
+
+前の名前（`typst_slides_aspect` など）で書いてあっても読む。
 
 **スライドの区切りと題**は原稿で決められる。A4 プリントなどほかの出力には影響しない:
 
 ```markdown
 ## A long heading for the handout {slide-title="Short title"}
 
-::: {.slide}
-:::
+\newslide
 
 ### A heading that stays on the same slide {.same-slide}
 
-::: {.slide title="Another title"}
-:::
+\newslide{Another title}
 ```
 
-- `::: {.slide}` + `:::` で、そこから新しいスライドにする。`title` を省くと直前のスライドの
-  題に「（続き）」を付ける
+- `\newslide` で、そこから新しいスライドにする。題は直前のスライドの題に「（続き）」を付けたもの。
+  `\newslide{題}` はその題、`\newslide{}` は題のない1枚（[3.7](#37-改ページとスライドの区切り)）。
+  前からの `::: {.slide title="…"}` + `:::` も同じ意味
 - 見出しに `{.same-slide}`: 新しいスライドにせず、いまのスライドに太字の小見出しとして続ける
 - `{slide-title="…"}`: スライドでだけ見出しの題を差し替える（回の `#` 見出しなら、その回の
   スライドの題になる）
@@ -767,22 +824,23 @@ octavo build example-talk --compile
 - 見出しに `{.no-title}`: 題のない新しいスライドにする。図に高さを回せる（左上の節名は残り、
   プリントの見出しはそのまま）
 
-`::: notes` には発表者ノートを書く。投影するスライドには出ず、`--to typst-notes` で
+`::: notes` には発表者ノートを書く。投影するスライドには出ず、`--to script` で
 **台本**ができる。組んだスライドの各ページを縮小して並べ、その下にそのページのノートを置く
 （A4 に2枚ずつ）。先にスライドを組むので、絵は投影する画面と同じになる。スライドには書誌一覧を出さない。出すなら
 `slides_bibliography: True` にし、原稿の最後に見出しと `::: {#refs}` + `:::` を置く。
 
-### 講義ノート
+### 7.2 講義ノート
 
 VS Code での作り方と書き方は、[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)に1ページでまとめてある。
 ここは要点だけ。
 
-1本から**全回をまとめた A4 プリント**と**回ごとのスライド**ができる:
+冒頭に `outputs: [pdf, slides]` と `sessions: true` を書いた1本（`octavo new lecture` が書く）から、
+**全回をまとめた A4 プリント**と**回ごとのスライド**ができる:
 
 ```bash
-octavo build example-lecture --to typst --compile           # A4 プリント
-octavo build example-lecture --to typst-slides --compile    # 回ごとのスライド
-octavo build example-lecture-03 --to typst-slides           # 1回分だけ
+octavo build example-lecture --to pdf --compile      # A4 プリント
+octavo build example-lecture --to slides --compile   # 回ごとのスライド
+octavo build example-lecture-03 --to slides          # 1回分だけ
 ```
 
 区切りを書いていなければ、**`#` 見出しが1回分**で、その中の `##` が節、`###` がスライド
@@ -793,18 +851,19 @@ octavo build example-lecture-03 --to typst-slides           # 1回分だけ
 区切りがあれば区切りが回を決め、見出しは自由に使える:
 
 ```markdown
-::: {.session #third title="Session 3: policy and government" subtitle="Public policy" date="2026-10-14"}
-:::
+\session{Session 3: policy and government} {#third subtitle="Public policy" date="2026-10-14"}
 ```
 
-`title`・`subtitle`・`date` はその回のタイトルスライドに出る（`title` がなければ回の最初の
-見出しが題になる）。デッキの番号はプリントと同じ。どの段が1枚のスライドになるかは講義ノート
+`\session{…}` の中がその回の題、`{…}` には `#id`（回の名前）・`subtitle`・`date`・`author`・
+`institute` を書ける（どれも省ける。題を省くなら `\session{}`）。題・副題・日付はその回の
+タイトルスライドに出る（題がなければ回の最初の見出しが題になる）。前からの
+`::: {.session #third title="…"}` + `:::` も同じ意味。デッキの図・表・式・事例などの番号はプリントと同じ（プリントだけの図や、スライドに拾わなかった図があっても、番号はプリントのまま）。どの段が1枚のスライドになるかは講義ノート
 全体で決まる（ふつうは `###`）ので、区切りを足しても変わらない。
 
 **出し分け。**条件付きブロックで、どの出力に入れるかを決める:
 
 ```markdown
-::: {.handout-only}
+::: {.pdf-only}
 Fill-in-the-blank space and detailed footnotes: handout only.
 :::
 
@@ -816,22 +875,30 @@ Figures and short prompts: slides only.
 | 印 | 残る出力 |
 |---|---|
 | `.slides-only` | スライド・台本 |
-| `.handout-only` | A4 プリント |
-| `.print-only` | 紙に出るもの（プリント・論文・Word） |
+| `.pdf-only` | PDF（A4 プリント・論文） |
+| `.word-only` | Word |
+| `.print-only` | 紙に出るもの（PDF・Word・LaTeX） |
 | `.no-slides` | スライドと台本以外 |
+
+前からの `.handout-only` も使える（組み込みの体裁の PDF・Word・LaTeX に残る）。
+
+**一部だけをスライドにする。**冒頭に `slides_select: marked` と書くと、スライドには `.on-slides`
+の印の所（`::: {.on-slides}` の囲み、見出しに `{.on-slides}` を付けた節、行の中の
+`[…]{.on-slides}`）と、その上の見出しだけが出る。印のない所はプリントにだけ出る。拾わなかった
+図などへの参照はプリントでの番号を文字で書き、印のない回はスライドを作らない。
 
 **回ごとの PDF。**1回分ずつ配るなら:
 
 ```bash
-octavo extract example-lecture                      # 回ごとに build/handouts/example-lecture-<id>.pdf
+octavo build example-lecture --sessions             # 回ごとに build/handouts/example-lecture-<id>.pdf
 octavo extract example-lecture --session third      # 1回分（カンマ区切りで複数なら1つの PDF）
 octavo extract example-lecture --pages 12-19        # 印字のページ番号で
 octavo extract example-lecture --session third --cover   # 表紙と目次を前に付ける
 ```
 
 プリント全体を1回だけ組み、各回のページを切り出すので、ページ番号・目次・番号はすべて全体の
-まま。回の頭は必ず新しいページから始まる。`octavo build` は回ごとの PDF を作らないので、
-ターミナルでは原稿を直したら `octavo extract` を実行し直す。VS Code では、サイドバーで講義
+まま。回の頭は必ず新しいページから始まる。ターミナルでは `octavo build <name> --sessions` で
+組むときに一緒に作る（付けなければ回ごとの PDF は作り直されない）。VS Code では、サイドバーで講義
 ノートを開いた中の「**回ごとの配布資料を作る**」で作れるほか、区切りのある講義ノートを保存する
 たびに裏で作り直される（設定の `octavo.updateHandoutsOnSave` で止められる）。
 
@@ -842,16 +909,63 @@ octavo extract example-lecture --session third --cover   # 表紙と目次を前
 | キー | 既定 | 何か |
 |---|---|---|
 | `first_section` | `1` | `0` にするとガイダンスが「0」になる（図は「0.1」） |
-| `handout_pagebreak` | `'session'` | 回ごとに改ページ。`'section'` は `#` ごと、`None` は区切りでだけ |
-| `handout_font` | BIZ UDゴシック + Inter | 本文の書体 |
-| `handout_fontsize` | `'11pt'` | 文字の大きさ |
+| `pagebreak` | `'session'` | 回ごとに改ページ。`'section'` は `#` ごと、`None` は区切りでだけ |
+| `font` | BIZ UDゴシック + Inter | 本文の書体 |
+| `fontsize` | `'11pt'` | 文字の大きさ |
+| `toc` | `true` | 目次（回のない文書では `false`） |
 | `date_format` | `'%Y年%-m月%-d日'`（英語は `'%B %-d, %Y'`） | `date:` の出し方。`date: today` は組んだ日 |
+
+### 7.3 ポスター
+
+学会のポスター発表用。冒頭に `outputs: [poster]` と書いた原稿（`octavo new poster <name>` が書く）
+から、1枚の PDF（`build/poster/<name>.pdf`）を組む。既定は **A0 縦**で、**一番上の段の見出し
+（`#`）1つが1マス**になり、2列×3行の格子に左上から順に入る。
+
+```markdown
+---
+title: Counting how policy is made
+author: [Author One, Author Two]
+institute: Example University
+event: Example Conference 2026
+date: 2026-10-14
+logo: ../../figures/logo.png
+qr: https://example.org/paper
+qr_label: The paper
+outputs: [poster]
+poster_grid: 3x2
+poster_rows: [2, 1]
+---
+
+# Question
+
+# Results {span=2}
+
+# Notes {cell="3,2"}
+```
+
+| 書き方 | 意味 |
+|---|---|
+| 見出しの後ろの `{span=2}` / `{rows=2}` | 2列ぶん / 2行ぶんのマス |
+| `{cell="3,2"}` | 3列目の2行目に置く（1 から数える。ほかのマスは空いている所へ順に） |
+| `poster_size` | `a0`（既定）・`a1`・`a2`・`b0`・`b1`（日本の B 列）、または `1189x841mm` のような寸法 |
+| `poster_orientation` | `portrait`（縦、既定）か `landscape`（横） |
+| `poster_grid` / `poster_rows` | 格子（列×行、既定 `2x3`）と、行の高さの比（既定は均等） |
+| `logo` / `qr` / `qr_label` | 題の帯の左のロゴ（いくつでも）、右の QR コード（URL から作る）とその下の文字 |
+
+論文の原稿からポスターも作るなら、`outputs: [pdf, poster]` と `poster_select: marked` と書き、
+ポスターに載せる所に `.on-poster` の印を付ける（スライドの `.on-slides` と同じ書き方）。
+
+文字の大きさと余白は判型に合わせて伸び縮みする。図はマスの残りの高さに収まる。引いた文献は
+最後のマス（`# References`）に入る。**マスに入りきらない中身は、組むと「はみ出し」と
+知らせる**（PDF でもそのマスの右下に赤い印が付く）。文を削るか、マスを大きくする。色は
+`slides_accent`、書体は `poster_font`。体裁は `octavo template copy poster/typst-poster.typ` で
+変えられる。
 
 ---
 
 ## 8. 自分用にする
 
-### テンプレート
+### 8.1 テンプレート
 
 Octavo が組むときに使うもの — A4 プリントとスライドの体裁、論文の `main.typ`、`octavo new`
 が書く原稿、`octavo init` が書くプロジェクト — はどれも差し替えられるファイル。コピーして
@@ -867,22 +981,24 @@ octavo template diff slides/typst-slides.typ      # Octavo を更新したあと
 | テンプレート | 差し替えると |
 |---|---|
 | `slides/typst-slides.typ`・`slides/typst-notes.typ` | スライドと台本の見た目が変わる |
+| `poster/typst-poster.typ` | ポスターの見た目が変わる |
 | `handout/handout.typ` | 講義ノートの A4 プリントが変わる |
 | `paper/<lang>/main.typ` | 新しい論文がいつもの体裁で始まる |
 | `manuscripts/<lang>/*.md` | 新しい原稿が自分の骨組みで始まる |
 | `typst/crossref.typ` | 番号と参照の見た目が変わる |
 | `citations/japanese.lua` | 書誌の日本語文献の形が変わる |
 
-### Word のスタイル
+### 8.2 Word のスタイル
 
 ```bash
-octavo reference-docx reference.docx
+octavo template copy word          # templates/word/reference.docx（--user で全部のプロジェクトに）
 ```
 
 できたファイルを Word で開いてスタイル（`Heading 1`・`Body Text`・`Theorem` など）を直して
-保存し、`'docx_reference': 'reference.docx'` を設定する。
+保存すると、以後の Word の出力はこれで組まれる。設定の `docx_reference` に別の .docx を書けば、
+そちらが優先する（前からの `octavo reference-docx` も使える）。
 
-### 書体
+### 8.3 書体
 
 | | 和文 | 欧文 |
 |---|---|---|
@@ -891,50 +1007,53 @@ octavo reference-docx reference.docx
 
 `octavo setup` が入れる。ない機械では Noto CJK か、その OS にある書体（Mac はヒラギノ、
 Windows は游ゴシック）で組む。足りないものは `octavo doctor` に出る。変えるなら
-`handout_font`・`typst_slides_font`、論文は `main.typ`。
+`font`・`slides_font`、論文は `main.typ`。
 
 ---
 
 ## 9. コマンド一覧
 
 ```
-octavo build [documents...] [--to formats] [--compile] [--appendix] [--no-analysis] [--anonymous]
-octavo watch [documents...] [--to formats]     保存のたびに組み直す
-octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   講義ノートから回ごとの PDF
-octavo documents                               登録されている原稿
-octavo config [--doc NAME] [set KEY VALUE | unset KEY]   設定を見る・変える
-octavo analysis [run [QMD]]                    分析が最新か見る・実行する
-octavo values [--unused] [--diff [ref]]        {{...}} と分析の値を突き合わせる
-octavo lint                                    手入力の数値と、字下げの揃っていない入れ子の箇条書き
-octavo check [--strict] [--anonymous]          投稿・配布の前の検査をまとめて
+octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions] [--no-analysis] [--anonymous]
+octavo watch [documents...] [--to outputs]                           保存のたびに組み直す
+octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   一部の回やページだけを1つの PDF に
+octavo documents                                                     登録されている原稿
+octavo config [--doc NAME] [set KEY VALUE | unset KEY]               設定を見る・変える
+octavo analysis [run [QMD]]                                          分析が最新か見る・実行する
+octavo check [--strict] [--anonymous]                                投稿・配布の前の検査をまとめて
+octavo check values [--unused] [--diff [ref]]                        {{...}} と分析の値を突き合わせる
+octavo check cites [--list] [--unused]                               引用キーと .bib を突き合わせる
+octavo check lint                                                    手入力の数値と、字下げの揃っていない入れ子の箇条書き
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
-octavo review returned.docx                    共著者の変更履歴
-octavo release <document> <label>              タグを打ち、PDF を GitHub Release へ
-octavo data hash|status                        data/ のハッシュ値
-octavo checkbib [--list] [--unused]            引用キーと .bib を突き合わせる
-octavo csl get|list|which [ID]                 引用の書式
+octavo review returned.docx                                          共著者の変更履歴
+octavo release <document> <label>                                    タグを打ち、PDF を GitHub Release へ
+octavo data hash|status                                              data/ のハッシュ値
+octavo csl get|list|which [ID]                                       引用の書式
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
 octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
-octavo template list|copy|diff [name] [--user]
-octavo env                                     このプロジェクトの .venv と renv
-octavo setup [--with-tex] [--check] [--r-editor]            ツールを入れる・更新する
-octavo doctor                                  何が入っているか
-octavo selftest                                見本を最後まで組んでみる
-octavo reference-docx [out.docx]               直して使う Word のスタイルのファイル
-octavo outline [documents...]                  見出しの構成
-octavo targets                                 出力形式の一覧
+octavo template list|copy|diff [name] [--user]                       テンプレート（copy word で Word のスタイルのファイル）
+octavo env                                                           このプロジェクトの R と Python のパッケージ（.venv と renv）
+octavo setup [--with-tex] [--check] [--r-editor]                     ツールを入れる・更新する
+octavo doctor                                                        何が入っているか
+octavo selftest                                                      見本を最後まで組んでみる
+octavo outline [documents...]                                        見出しの構成
+octavo targets                                                       出力の一覧
+octavo migrate [--docs] [--dry-run]                                  前からのプロジェクトを今の形に（--docs は原稿を docs/ へ）
 ```
 
-出力形式（`--to` にカンマ区切りで。`all` で全部）:
+出力（原稿の冒頭の `outputs:` と `--to` に、カンマ区切りで。`--to all` で全部）:
 
-| 形式 | 作るもの | 要るもの |
+| 出力 | 作るもの | 要るもの |
 |---|---|---|
-| `typst` | 論文（`main.typ` と組む）、A4 プリント | Typst |
-| `typst-slides` | スライド | Typst |
-| `typst-notes` | 台本 | Typst |
-| `docx` | Word | pandoc だけ |
-| `latex` | 論文（`main.tex` と組む）、A4 プリント | TeX |
+| `pdf` | PDF（`main.typ` があれば論文の体裁、なければ組み込みの体裁） | Typst |
+| `slides` | スライド | Typst |
+| `script` | 台本 | Typst |
+| `poster` | ポスター | Typst |
+| `word` | Word | pandoc だけ |
+| `tex` | LaTeX（`main.tex` があれば論文の体裁） | TeX |
 | `beamer` | スライド | TeX |
+
+前の形式の名前（`typst`・`typst-slides`・`typst-notes`・`docx`・`latex`）も同じ意味に受ける。
 
 ---
 

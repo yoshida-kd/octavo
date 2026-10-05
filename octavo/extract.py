@@ -9,7 +9,7 @@
   1. octavo build と同じ手順で <名前>.typ を書く（分析は実行しない）
   2. typst で全体の PDF を組み、区切りの目印（templates/handout/handout.typ の
      octavo-session）から、回ごとの物理ページと印字のページ番号を読む
-  3. 対応表を build/typst/<名前>.pages.json に書く
+  3. 対応表を build/pdf/<名前>.pages.json に書く
   4. `typst compile --pages` で回ごとの PDF を build/handouts/<名前>-<id>.pdf に書く
 
 ページの切り出しにも Typst を使う（qpdf などを足さない）。回の頭は必ず改ページ
@@ -139,7 +139,7 @@ def run(cfg, name: str, sessions: list | None = None, pages: str | None = None,
                                           for k in sessions]))
     else:
         if not table['sessions']:
-            raise ExtractError(t('{file} has no session markers (::: {{.session #id}}), so '
+            raise ExtractError(t('{file} has no session markers (::: {.session #id}), so '
                                  'there is nothing to cut. --pages 12-19 cuts by page '
                                  'number', file=cfg.rel(doc.src)))
         jobs = [(s['key'], [(s['first'], s['last'])]) for s in table['sessions']]

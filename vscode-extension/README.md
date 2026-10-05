@@ -179,7 +179,7 @@ The extension registers a `$octavo` problem matcher:
 {
   "label": "octavo build",
   "type": "shell",
-  "command": "octavo build --to typst,docx",
+  "command": "octavo build --to pdf,word",
   "problemMatcher": ["$octavo"]
 }
 ```

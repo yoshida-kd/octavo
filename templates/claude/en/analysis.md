@@ -26,7 +26,7 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 ```
 
 ```markdown
-<!-- any manuscript: papers/, slides/ or lectures/ -->
+<!-- any manuscript: docs/<name>/<name>.md -->
 The sample has {{n_obs}} cases; the coefficient on x is
 {{coef_x}} (*p* {{p_x}}).
 ```
@@ -39,7 +39,7 @@ the `.qmd` instead.
 
 - Formatting can be overridden from the prose: `{{coef_x:.2f}}` (a Python format spec)
 - Integers (R's `nrow()`) render as `1,523`; doubles (`coef()`) get 3 decimals by default
-- `octavo values` cross-checks the names the prose asks for against what's in
+- `octavo check values` cross-checks the names the prose asks for against what's in
   `assets/values/`. **Run it every time the manuscript is touched.**
 - Name figures (`ov_figure(p, "trend")`) and tables (`ov_table(tab, "summary")`) by
   their content, never with a number. Label the table `tbl-<table name>` and the
@@ -66,7 +66,7 @@ VS Code's table view as well.
 
 1. Edit `analysis/*.qmd` (load data from `data/`). To add one, `octavo new analysis <name>`
 2. `octavo analysis run` (or just `octavo build` — stale analyses run automatically)
-3. `octavo values` to confirm the numbers came out
+3. `octavo check values` to confirm the numbers came out
 4. Reference them from the manuscript as `{{name}}`
 
 The `analysis` glob in `octavo.config.py` (`analysis/*.qmd` by default) picks up
@@ -74,7 +74,7 @@ every `.qmd`. Add heavy inputs to `deps` to have them watched too.
 `octavo build --no-analysis` converts against the current `assets/values/` without
 re-running anything — what you want when an estimation is slow.
 
-After a re-estimation, read **`octavo values --diff`**: it shows **which numbers
+After a re-estimation, read **`octavo check values --diff`**: it shows **which numbers
 in the paper moved** since the analysis last ran. When one moves, fix the prose
 around it too ("slightly", "about", "significantly").
 
@@ -133,10 +133,10 @@ with `manual: true`. It stops rather than overwrite a file already in `data/raw/
 source and date go into `data/raw/README.md`.
 
 - If two `.qmd` files register the same name it warns and **the later one wins**;
-  check the source column in `octavo values`.
+  check the source column in `octavo check values`.
 - **When you delete or rename a `.qmd`, delete its `assets/values/*.json` too.** Left
   behind, the manuscript keeps picking up stale numbers (`octavo analysis` and
-  `octavo values` flag these as value files with no matching `.qmd`).
+  `octavo check values` flag these as value files with no matching `.qmd`).
 
 ## When the data changes
 

@@ -11,7 +11,7 @@ Quarto, and let Octavo place the analysis's numbers, figures and tables in every
 document — then typeset them to PDF (with Typst) and Word, or LaTeX if you have
 TeX. Citations come from one `.bib` file, in any CSL style.
 
-![How Octavo works: the analysis and the files you make by hand give the numbers, figures and tables; the manuscript refers to them by name; octavo build makes PDF and Word](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-en.svg)
+![How Octavo works: the analysis and the files you make by hand give the numbers, figures and tables; the manuscript refers to them by name and says what to make; octavo build makes the PDF, slides, a poster, Word and LaTeX](https://raw.githubusercontent.com/yoshida-kd/octavo/main/docs/images/flow-en.svg)
 
 ## What you get
 
@@ -30,8 +30,8 @@ references are filled in when it is typeset.
   with the same helpers (`ov_value`, `ov_figure`, `ov_table`), and the project's
   `.venv` and renv are set up for you.
 - **One source, several documents.** A paper in your journal's layout, a talk,
-  and lecture notes that become an A4 handout plus one slide deck per session —
-  with speaker scripts, and Word for coauthors.
+  lecture notes that become an A4 handout plus one slide deck per session, and an A0
+  conference poster — with speaker scripts, and Word for coauthors.
 - **References by label**: `@fig-trend` becomes "Figure 2.1", and stays right
   when you reorder sections.
 - **Diagrams without TikZ**: `octavo new figure` gives you a Typst file to draw
@@ -92,7 +92,7 @@ Then your own project, starting with the parts you need:
 octavo init study --with analysis,paper
 cd study
 octavo env                    # the project's analysis environment (.venv and renv)
-octavo build paper --compile  # after writing analysis/analysis.qmd and papers/paper/paper.md
+octavo build paper --compile  # after writing analysis/analysis.qmd and docs/paper/paper.md
 octavo check                  # before you submit
 ```
 
@@ -124,7 +124,7 @@ The sample has {{n_obs}} cases (@fig-trend).
 4. [The analysis](https://yoshida-kd.github.io/octavo/guide/#4-the-analysis) — numbers, figures and tables from Quarto
 5. [Citations](https://yoshida-kd.github.io/octavo/guide/#5-citations)
 6. [Papers](https://yoshida-kd.github.io/octavo/guide/#6-papers-from-draft-to-submission) — checking, blind review, submitting, revisions
-7. [Slides and lecture notes](https://yoshida-kd.github.io/octavo/guide/#7-slides-and-lecture-notes) — sessions, per-session handouts
+7. [Slides, lecture notes and posters](https://yoshida-kd.github.io/octavo/guide/#7-slides-lecture-notes-and-posters) — sessions, per-session handouts, posters
 8. [Making it yours](https://yoshida-kd.github.io/octavo/guide/#8-making-it-yours) — templates, Word styles, fonts
 9. [Command reference](https://yoshida-kd.github.io/octavo/guide/#9-command-reference)
 10. [VS Code](https://yoshida-kd.github.io/octavo/guide/#10-vs-code)

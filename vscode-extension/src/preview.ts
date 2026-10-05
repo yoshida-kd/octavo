@@ -33,7 +33,9 @@ export interface DocInfo {
     rel: string;
     appendix: string | null;
     profile: string;
-    targets: string[];
+    targets: string[];       // 中の形式の名前（typst など）
+    outputs: string[];       // 作るもの（pdf / slides / … 原稿の冒頭の outputs:）
+    sessions: boolean;       // 回でできているか（スライドは回ごと）
     split_slides: boolean;
     exists: boolean;
     parts: Part[];
@@ -49,7 +51,7 @@ interface BuildReport { ok: boolean; results: BuildOne[] }
 export type SideMode = 'slides' | 'notes' | 'none';
 
 // PDF を出せる形式。前にあるものほど「本文の列」に向く（docx は PDF にならない）。
-const MAIN_ORDER = ['typst', 'latex', 'beamer', 'typst-slides', 'typst-notes'];
+const MAIN_ORDER = ['typst', 'typst-poster', 'latex', 'beamer', 'typst-slides', 'typst-notes'];
 const SLIDE_ORDER = ['typst-slides', 'beamer'];
 
 /** stdout に警告が混じることがあるので、最後の JSON だけを読む（bib.ts と同じ）。 */
@@ -227,7 +229,7 @@ export class PreviewManager implements vscode.Disposable {
     private readonly media: vscode.Uri;
     private readonly busyEmitter = new vscode.EventEmitter<boolean>();
     /** 組んでいるあいだ true。回ごとの配布資料の更新は、これが false になるまで待つ
-     *  （同じ build/typst/<名前>.typ を書くので、同時には実行しない）。 */
+     *  （同じ build/pdf/<名前>.typ を書くので、同時には実行しない）。 */
     readonly onBusy = this.busyEmitter.event;
 
     constructor(context: vscode.ExtensionContext,
@@ -236,6 +238,7 @@ export class PreviewManager implements vscode.Disposable {
         this.subs.push(
             vscode.workspace.onDidSaveTextDocument((d) => this.onSave(d)),
             vscode.window.onDidChangeTextEditorSelection((e) => this.onCursor(e)),
+            vscode.window.tabGroups.onDidChangeTabs((e) => this.onTabsChanged(e)),
             vscode.workspace.onDidChangeConfiguration((e) => {
                 if (e.affectsConfiguration('octavo.previewFollowCursor')) {
                     this.followOverride = undefined;
@@ -301,7 +304,9 @@ export class PreviewManager implements vscode.Disposable {
 
     /** スライドを出す文書か（論文に台本やスライドの列は要らない）。 */
     private get slideish(): boolean {
-        return this.doc?.profile === 'slides' || this.doc?.split_slides === true;
+        const t = this.doc?.targets ?? [];
+        return this.doc?.split_slides === true
+            || t.some((x) => SLIDE_ORDER.includes(x) || x === 'typst-notes');
     }
 
     // -- 開く -----------------------------------------------------------
@@ -526,6 +531,37 @@ export class PreviewManager implements vscode.Disposable {
     }
 
     // -- きっかけ -------------------------------------------------------
+    /** 原稿（と付録）のタブがどこにも残っていなければ、プレビューも閉じる
+     *  （設定 octavo.previewCloseWithManuscript で止められる）。 */
+    private onTabsChanged(e: vscode.TabChangeEvent): void {
+        if (!this.live || !this.doc || e.closed.length === 0) {
+            return;
+        }
+        if (!vscode.workspace.getConfiguration('octavo').get<boolean>('previewCloseWithManuscript', true)) {
+            return;
+        }
+        const mine = (t: vscode.Tab): boolean => {
+            const input = t.input;
+            if (!(input instanceof vscode.TabInputText)) {
+                return false;
+            }
+            const p = input.uri.fsPath;
+            return samePath(editorPath(this.doc?.src), p) || samePath(editorPath(this.doc?.appendix), p);
+        };
+        if (!e.closed.some(mine)) {
+            return;
+        }
+        const open = vscode.window.tabGroups.all.some((g) => g.tabs.some(mine));
+        if (open) {
+            return;
+        }
+        this.main?.dispose();
+        this.side?.dispose();
+        this.main = undefined;
+        this.side = undefined;
+        this.syncContext();
+    }
+
     private onSave(saved: vscode.TextDocument): void {
         if (!this.live || !this.doc) {
             return;

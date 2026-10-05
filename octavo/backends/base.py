@@ -33,6 +33,8 @@ PROFILES = {
                 'standalone_fragmentable': True},
     'slides':  {'toc': False, 'number_sections': False, 'abstract': False,
                 'standalone_fragmentable': True},
+    'poster':  {'toc': False, 'number_sections': False, 'abstract': False,
+                'standalone_fragmentable': True},
 }
 
 
@@ -70,6 +72,12 @@ class Ctx:
     slide_level: int | None = None
     document: object = None                         # 組んでいる文書（config.Document）
     build_opts: dict = field(default_factory=dict)  # offline / citations / anonymous
+    # ポスター: 紙の大きさ（mm）、マスの格子（列, 行）、行の高さの比（Backend.prepare が入れる）
+    # 番号を決め打ちにするもの（ラベル -> 番号）。講義のデッキをプリントの番号に合わせる
+    fixed_numbers: dict = field(default_factory=dict)
+    poster_paper: tuple = (841, 1189)
+    poster_grid: tuple = (2, 3)
+    poster_rows: list = field(default_factory=lambda: [1, 1, 1])
     compile_error: str = ''                         # compile() の下ごしらえで失敗したとき
 
     # -- 素性 ---------------------------------------------------------------
@@ -87,6 +95,15 @@ class Ctx:
         override = self.cfg.get(key, None)
         if override is not None and key == 'toc':
             return override
+        doc = self.document
+        if doc is not None and getattr(doc, 'derived', False) and self.profile == 'handout':
+            # docs/<名前>/ の文書を組み込みの体裁で組むとき: 回でできている文書（講義
+            # ノート）は目次あり・要旨は切り離さない。そうでない文書（ワーキングペーパー
+            # など）は目次なし・要旨は本文の頭に
+            if key == 'toc':
+                return bool(doc.sessions)
+            if key == 'abstract':
+                return not doc.sessions
         return PROFILES[self.profile][key]
 
     def _number_sections(self) -> bool:
@@ -120,6 +137,10 @@ class Ctx:
         # `slide` は `slides` の打ち間違いが多いので、同じ意味に受ける（`.slide-only`）
         keep = ({'slides', 'slide', 'screen', b} if self.backend.is_slides
                 else {'print', 'doc', b, self.profile})
+        # 出力の名前でも出し分けられる（`.pdf-only` `.word-only` `.script-only`）
+        from ..config import OUTPUT_OF
+        if b in OUTPUT_OF:
+            keep.add(OUTPUT_OF[b])
         if self.anonymous:
             # `::: {.no-anonymous}` で囲んだ謝辞・自己紹介がこれで落ちる。
             # 新しい機構ではなく、既にある条件付きブロックに印を1つ足すだけ。
@@ -182,7 +203,7 @@ class Ctx:
     @property
     def is_handout(self) -> bool:
         """完結した文書で、スライドでないもの（講義ノートの A4 プリント）。"""
-        return self.standalone and not self.backend.is_slides
+        return self.standalone and not self.backend.is_slides and self.backend.handout_layout
 
     def template(self, rel: str) -> Path:
         """ひな型の実際のパス。プロジェクト・ユーザーの上書きがあればそちら（tmpl.py）。"""
@@ -303,6 +324,24 @@ class Backend:
     def fmt_appendix_start(self, ctx: Ctx) -> str:
         """`# 題 {.appendix}` の直前に入れるもの（ここから付録）。"""
         return ''
+
+    places_bibliography = False    # 書誌の見出しと置き場所を本文に自分で書くか（ポスターのマス）
+    handout_layout = True          # 単独で組むとき A4 ハンドアウトの体裁を使うか（ポスターは自前）
+    # 「印の所だけ」を選べる出力: (設定の鍵, 印のクラス, 一緒に残すその出力向けの囲み)
+    select_mark: tuple | None = None
+    fixed_numbering = False        # プリントも作る文書なら、番号をプリントに合わせるか（Typst のデッキ）
+
+    def prepare(self, ctx: Ctx) -> None:
+        """前処理の前に1度呼ぶ（設定から形式ごとの値を読む）。既定は何もしない。"""
+
+    def after_compile(self, ctx: Ctx, path: Path) -> None:
+        """組版が通ったあとに1度呼ぶ（組んだものを調べて知らせる）。既定は何もしない。"""
+
+    def fmt_pagebreak(self, ctx: Ctx) -> str:
+        """原稿の `\\newpage`。既定（Word）は改ページの段落。スライドは何もしない。"""
+        if self.is_slides:
+            return ''
+        return '```{=openxml}\n<w:p><w:r><w:br w:type="page"/></w:r></w:p>\n```'
 
     def fmt_theorem(self, env, item, title: str, body: str, ctx: Ctx) -> str:
         """事例・論点などのブロック。既定（Word）は番号を文字で書いた太字の頭を付け、

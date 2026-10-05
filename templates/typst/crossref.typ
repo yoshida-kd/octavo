@@ -15,6 +15,9 @@
 //    offset   節の番号に足す数（first_section が 0 なら -1。ガイダンスが「0」になる）
 //    preset   節の数え始め（講義の回ごとのデッキ: 講義ノートでその回より前にある節の数）
 //    theorem-kinds  事例・論点などのブロックの番号の組（"case" など。figure の kind）
+//    fixed    ラベル -> 番号（文字列）。ここにある図・表・式・ブロックは、数えずにこの番号を
+//             出す（講義の回のデッキで、プリントと同じ番号にするため。拾わなかった図が
+//             あっても番号がずれない）
 //
 //  式の番号はラベルのある式（$$ … $$ {#eq-…}）にだけ付く。
 //
@@ -114,9 +117,13 @@
   body
 }
 
+// いま組んでいる図・式に決め打ちの番号があれば、その番号（キャプション・式番号が読む）
+#let octavo-fixed-now = state("octavo-fixed-now", none)
+
 #let octavo-crossref-rules(lang: "ja", within: true, section: auto,
                            count-unnumbered: false, offset: 0, preset: 0,
-                           theorem-kinds: (), body) = {
+                           theorem-kinds: (), fixed: (:), body) = {
+  let fixed-of(el) = if el.has("label") { fixed.at(str(el.label), default: none) } else { none }
   // 節の番号（その場所で）。なければ none
   let sec-at(loc) = {
     if not within or section == none { return none }
@@ -134,11 +141,19 @@
   set figure(numbering: n => context num(n, here()))
   // 表のキャプションは表の上（和文でも英文でも論文の慣行）
   show figure.where(kind: table): set figure.caption(position: top)
-  set math.equation(numbering: n => context "(" + num(n, here()) + ")")
-  // 事例・論点などのブロック
+  set math.equation(numbering: n => context {
+    let fx = octavo-fixed-now.get()
+    "(" + (if fx != none { fx } else { num(n, here()) }) + ")"
+  })
+  // 事例・論点などのブロック。ほかの図・表は、決め打ちの番号があればキャプションに渡す
   show figure: it => {
-    if type(it.kind) != str or it.kind not in theorem-kinds { return it }
-    let n = if it.numbering == none { none } else { num(it.counter.get().first(), here()) }
+    let fx = fixed-of(it)
+    if type(it.kind) != str or it.kind not in theorem-kinds {
+      if fx == none { return it }
+      return { octavo-fixed-now.update(fx); it; octavo-fixed-now.update(none) }
+    }
+    let n = if it.numbering == none { none } else if fx != none { fx }
+            else { num(it.counter.get().first(), here()) }
     let title = if it.caption == none { none } else { it.caption.body }
     octavo-theorem-box(it.supplement, n, title, it.body, lang: lang)
   }
@@ -147,7 +162,8 @@
     if it.numbering == none { return it }
     if type(it.kind) == str and it.kind in theorem-kinds { return it }
     context {
-      let n = num(it.counter.get().first(), here())
+      let fx = octavo-fixed-now.get()
+      let n = if fx != none { fx } else { num(it.counter.get().first(), here()) }
       let word = if it.kind == table { if ja { "表" } else { "Table" } }
                  else { if ja { "図" } else { "Figure" } }
       if ja [#strong[#word#n]#h(1em)#it.body] else [#strong[#word #n.]#h(0.5em)#it.body]
@@ -178,6 +194,10 @@
     if it.block and not it.has("label") and it.numbering != none {
       counter(math.equation).update(v => v - 1)
       math.equation(it.body, block: true, numbering: none)
+    } else if it.block and fixed-of(it) != none {
+      octavo-fixed-now.update(fixed-of(it))
+      it
+      octavo-fixed-now.update(none)
     } else { it }
   }
 
@@ -187,8 +207,9 @@
     if el == none { return it }
     let loc = el.location()
     let short = it.supplement == []
+    let fx = fixed-of(el)
     let body = if el.func() == figure {
-      let n = num(el.counter.at(loc).first(), loc)
+      let n = if fx != none { fx } else { num(el.counter.at(loc).first(), loc) }
       if type(el.kind) == str and el.kind in theorem-kinds {
         if short { n } else if ja [#el.supplement#n] else [#el.supplement #n]
       } else {
@@ -197,7 +218,7 @@
         if short { n } else if ja { word + n } else { word + " " + n }
       }
     } else if el.func() == math.equation {
-      let n = "(" + num(counter(math.equation).at(loc).first(), loc) + ")"
+      let n = "(" + (if fx != none { fx } else { num(counter(math.equation).at(loc).first(), loc) }) + ")"
       if short { n } else if ja { "式" + n } else { "Equation " + n }
     } else if el.func() == heading {
       let app = octavo-appendix-state.at(loc)

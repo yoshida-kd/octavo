@@ -2,11 +2,11 @@
 # Papers
 
 ```
-papers/<name>/    a paper: paper.md, main.typ (layout), and if needed appendix.md, main.tex (**this is what you write**)
+docs/<name>/    a paper: <name>.md, main.typ (layout), and if needed appendix.md, main.tex (**this is what you write**)
 ```
 
 Journal-specific layout (document class, margins, title block, leading) belongs in
-**`papers/<name>/main.typ`** (or `main.tex` for LaTeX): **a file you own, sitting next
+**`docs/<name>/main.typ`** (or `main.tex` for LaTeX): **a file you own, sitting next
 to the manuscript.** Octavo never regenerates it — it copies it into `build/` on every
 build and typesets there (what it writes is `body.typ`, `abstract.typ` and the like).
 
@@ -14,28 +14,28 @@ build and typesets there (what it writes is `body.typ`, `abstract.typ` and the l
 
 ```bash
 octavo build <name> --compile          # typeset main.typ into a PDF
-octavo build <name> --to docx          # Word, to send to coauthors
+octavo build <name> --to word          # Word, to send to coauthors
 # submitting in LaTeX (needs TeX: octavo setup --with-tex)
 octavo new paper <name> --tex          # add the main.tex layout beside the manuscript (once)
-octavo build <name> --to latex && cd build/latex/<name> && latexmk -lualatex main.tex
+octavo build <name> --to tex && cd build/tex/<name> && latexmk -lualatex main.tex
 ```
 
 ## Adding an appendix
 
 Write the appendix in `appendix.md` in the paper's folder. Being next to
-`paper.md` is enough to attach it (delete it if you don't need one).
+the manuscript is enough to attach it (delete it if you don't need one).
 
 ```bash
-octavo new paper <name> --appendix   # add appendix.md (paper.md is left alone)
+octavo new paper <name> --appendix   # add appendix.md (the manuscript is left alone)
 octavo build <name> --appendix
 ```
 
 Then uncomment `#show: octavo-appendix` and `#include "appendix.typ"` in
-`papers/<name>/main.typ` (or `\appendix` and `\input{appendix}` in `main.tex`
+`docs/<name>/main.typ` (or `\appendix` and `\input{appendix}` in `main.tex`
 for LaTeX).
 
 The appendix gets **the same treatment** as the body: values, citations and
-cross-references all work, and `octavo values`, `octavo checkbib` and
+cross-references all work, and `octavo check values`, `octavo check cites` and
 `octavo outline` read it. Don't write "Appendix A" in the headings: its sections
 are lettered A, B, … when typeset, and its figures, tables and equations
 numbered A.1, … Labels work across the paper and the appendix (the paper can
@@ -82,10 +82,10 @@ Acknowledgements: funded by ...
 octavo review 20260907_draft_tanaka.docx
 ```
 
-**Never write the docx back into `paper.md`.** In the returned file `{{n_obs}}`
+**Never write the docx back into the manuscript (`.md`).** In the returned file `{{n_obs}}`
 is already the literal "1,523"; writing it back pins the number into the
 manuscript. `octavo review` exists so you can **read** the tracked changes and
-comments; you apply them by hand in `paper.md`.
+comments; you apply them by hand in the manuscript.
 
 ### For a revision (R&R)
 
@@ -96,7 +96,7 @@ git, so that is where the actual file survives):
 ```bash
 octavo release example-paper v1-submitted     # tag example-paper-v1-submitted + the PDF
 # ... review, revise ...
-octavo values --diff example-paper-v1-submitted    # what moved since submission
+octavo check values --diff example-paper-v1-submitted    # what moved since submission
 ```
 
 ### After acceptance
@@ -110,5 +110,5 @@ may be redistributed.
 
 ## Never, in a paper
 
-- **Never write a coauthor's docx back into `paper.md`** (it pins the numbers).
+- **Never write a coauthor's docx back into the manuscript** (it pins the numbers).
 - Never fix `main.typ` / `main.tex` inside `build/` (the one beside the manuscript is the original).
