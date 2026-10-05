@@ -6205,7 +6205,9 @@ class CommandCleanup(unittest.TestCase):
         cfg = config.load(self.cfgp)
         ctx = Ctx(cfg=cfg, backend=be.get('docx'), out_dir=self.root, profile='paper')
         args = be.get('docx').pandoc_args(ctx)
-        self.assertIn(str(ref), args)
+        # 一時フォルダーは macOS（/private/var）や Windows（短い名前）で別の書き方になるので、解決して比べる
+        i = args.index('--reference-doc')
+        self.assertEqual(Path(args[i + 1]).resolve(), ref.resolve())
         self.assertIn('word/reference.docx', self.cli('template', 'list')[1])
 
     def test_a_one_line_session_marker_has_every_attribute(self):
