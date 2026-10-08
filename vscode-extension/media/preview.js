@@ -31,7 +31,11 @@ const message = document.getElementById('message');
 const staleBar = document.getElementById('stale');
 const staleText = document.getElementById('stale-text');
 const staleRun = document.getElementById('stale-run');
+const staleMark = document.getElementById('stale-mark');
+const staleClose = document.getElementById('stale-close');
 staleRun.onclick = () => vscode.postMessage({ type: 'runAnalysis' });
+staleMark.onclick = () => vscode.postMessage({ type: 'markFresh' });
+staleClose.onclick = () => vscode.postMessage({ type: 'dismissStale' });
 
 let scale = 0;            // 0 = 幅に合わせる
 let doc = null;
@@ -349,6 +353,9 @@ window.addEventListener('message', (ev) => {
   } else if (m.type === 'stale') {
     staleText.textContent = m.text || '';
     staleRun.textContent = m.button || '';
+    staleMark.textContent = m.mark || '';
+    staleMark.title = m.markTitle || '';
+    staleClose.title = m.close || '';
     staleBar.classList.toggle('on', !!m.text);
   }
 });

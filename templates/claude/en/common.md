@@ -186,6 +186,13 @@ octavo outline                 # show the heading structure
 
 `octavo build --no-citations` skips citation resolution for a fast look.
 
+The user often has the manuscript open in the editor while you work.
+
+- Change a manuscript (`.md`) with the editing tool that goes through the editor; don't
+  rewrite the file from the shell or a script (`sed` and the like) — the change does not show
+  in the editor and the preview, and it collides with unsaved edits
+- Ask the user to save the manuscript before you change it
+
 ## Before you finish
 
 ```bash

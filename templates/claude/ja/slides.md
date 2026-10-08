@@ -23,7 +23,8 @@ octavo build example-lecture --to slides --compile   # スライドを回ごと�
 octavo build example-lecture-03 --to slides          # 3回目だけ
 ```
 
-- スライドの名前は `<講義ノートの名前>-01`, `-02`, …（`#` の出てきた順）。
+- 回のスライドの名前は `<講義ノートの名前>-01`, `-02`, …（`#` の出てきた順。PDF は
+  `build/slides/<講義ノートの名前>-slides-01.pdf`）。
   **途中に回を挿し込むと後ろの番号がずれる**ので、名前を固定したい回は見出しに
   id を付ける: `# 第2回 {#second}` → `example-lecture-second`
 - 各回のスライドのタイトルスライドは、その回の `#` 見出しがタイトル、講義ノートのタイトルがサブタイトルになる
@@ -42,7 +43,7 @@ octavo build example-lecture-03 --to slides          # 3回目だけ
   （`example-lecture-third`）。`\session{…}` の題と `subtitle` / `date` はその回のタイトルスライドに出る。
   題を書かなければ（`\session{}`）、その回の最初の見出しが題になる。前からの
   `::: {.session …}` + `:::` も同じ意味
-- スライドにはふつう全部が出る（プリントだけのものは `.pdf-only`）。冒頭に `slides_select: marked`
+- スライドにはふつう全部が出る（プリントだけのものは `.no-slides`）。冒頭に `slides_select: marked`
   があれば、スライドには `.on-slides` の印の所（囲み・見出しに付けた節・`[…]{.on-slides}`）と
   その上の見出しだけが出る。その文書では、スライドに載せたい所に印を付ける
 - スライドは見出しで区切る。1行の `\newslide`（`\newslide{題}`）で区切りを足し、見出しに `{.same-slide}` で
@@ -74,10 +75,11 @@ octavo build example-lecture-03 --to slides          # 3回目だけ
 組み方は日本語 LaTeX の jsarticle を基準にしている。体裁の全体は
 `templates/handout/handout.typ`（変えるなら `octavo template copy handout/handout.typ`）。
 
-出し分けは条件付きブロックで書く。
+出し分けは条件付きブロックで書く（プリントだけなら `.no-slides`＝PDF・Word・LaTeX に
+出る、スライドだけなら `.slides-only`、PDF だけなら `.pdf-only`。行の中なら `[…]{.slides-only}`）。
 
 ```markdown
-::: {.handout-only}
+::: {.no-slides}
 プリントにだけ出る（書き込み欄・詳しい注）
 :::
 
@@ -88,8 +90,10 @@ octavo build example-lecture-03 --to slides          # 3回目だけ
 
 ## スライドに共通のこと
 
-`##` が1枚（発表スライドの `#` は節、講義ノートの `#` は回の区切り）。
-図は枠に収まるように置かれる。
+1枚になるのは、いちばん浅い見出しの1つ下の段（発表スライドは `#` 節・`##` 1枚、
+講義ノートは `#` 回・`##` 節・`###` 1枚。見出しが1段しかなければその段）。
+図は枠に収まるように置かれる。入りきらない1枚は次のページに送られ、`octavo build` が
+そう知らせるので、`\newslide` で分けるか短くする。
 `::: notes`（発表者ノート）は投影するスライドには出ず、台本（`--to script`）に出る。
 
 分析があれば、授業資料・スライドにも `{{…}}` の数値差し込みが使える（同じ

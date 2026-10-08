@@ -16,8 +16,9 @@
 // 代わりに古い分析があれば帯を出し、ボタンで実行する（analysis.ts）。
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { fetchAnalysis, staleNames } from './analysis';
+import { AnalysisReport, fetchAnalysis } from './analysis';
 import { dirOf, findConfig, readToolFile, resolvePathFromTool, runCapture } from './runner';
+import { showIfOldCli } from './setup';
 
 export interface Part {
     name: string;
@@ -91,7 +92,8 @@ class PdfPanel {
     private queued: unknown[] = [];
 
     constructor(private readonly media: vscode.Uri, column: vscode.ViewColumn,
-                title: string, onDispose: () => void, onToggleFollow: () => void) {
+                title: string, onDispose: () => void, onToggleFollow: () => void,
+                onStale: (action: 'mark' | 'dismiss') => void) {
         this.panel = vscode.window.createWebviewPanel(
             'octavo.preview', title, { viewColumn: column, preserveFocus: true },
             { enableScripts: true, retainContextWhenHidden: true,
@@ -110,6 +112,10 @@ class PdfPanel {
             }
             if (m?.type === 'runAnalysis') {
                 void vscode.commands.executeCommand('octavo.analysisRun');
+                return;
+            }
+            if (m?.type === 'markFresh' || m?.type === 'dismissStale') {
+                onStale(m.type === 'markFresh' ? 'mark' : 'dismiss');
                 return;
             }
             if (m?.type === 'ready') {
@@ -161,7 +167,10 @@ class PdfPanel {
 
     /** 古い分析があることを帯で知らせる（text が空なら帯を消す）。 */
     stale(text: string): void {
-        this.post({ type: 'stale', text, button: vscode.l10n.t('Run the analysis') });
+        this.post({ type: 'stale', text, button: vscode.l10n.t('Run the analysis'),
+                    mark: vscode.l10n.t('Mark as up to date'),
+                    markTitle: vscode.l10n.t('Record it as up to date without running it (when you know nothing it uses has changed)'),
+                    close: vscode.l10n.t('Hide until something else changes') });
     }
 
     dispose(): void {
@@ -203,7 +212,7 @@ class PdfPanel {
   <span id="pages"></span>
 </div>
 <div id="outline"></div>
-<div id="stale"><span id="stale-text"></span><button id="stale-run"></button></div>
+<div id="stale"><span id="stale-text"></span><button id="stale-run"></button><button id="stale-mark" class="secondary"></button><button id="stale-close" class="close">×</button></div>
 <div id="view"><div id="pages-host"></div></div>
 <div id="message"></div>
 <script nonce="${nonce}" type="module" src="${uri('preview.js')}"></script>
@@ -215,6 +224,9 @@ class PdfPanel {
 // --------------------------------------------------------------------- 本体
 export class PreviewManager implements vscode.Disposable {
     private main?: PdfPanel;
+    /** 帯に出している古い分析と、利用者が「隠す」を押したときの並び（同じ並びなら出さない） */
+    private staleShown: string[] = [];
+    private staleHidden = '';
     private side?: PdfPanel;
     private doc?: DocInfo;
     private configUri?: vscode.Uri;
@@ -227,6 +239,9 @@ export class PreviewManager implements vscode.Disposable {
     private lastSyncLine = -1;
     private readonly subs: vscode.Disposable[] = [];
     private readonly media: vscode.Uri;
+    private readonly mdWatcher = vscode.workspace.createFileSystemWatcher('**/*.md');
+    /** 原稿ごとに、最後に組んだときの中身（保存で組んだあと、同じ中身で二度組まない） */
+    private readonly lastText = new Map<string, string>();
     private readonly busyEmitter = new vscode.EventEmitter<boolean>();
     /** 組んでいるあいだ true。回ごとの配布資料の更新は、これが false になるまで待つ
      *  （同じ build/pdf/<名前>.typ を書くので、同時には実行しない）。 */
@@ -237,6 +252,9 @@ export class PreviewManager implements vscode.Disposable {
         this.media = vscode.Uri.joinPath(context.extensionUri, 'media');
         this.subs.push(
             vscode.workspace.onDidSaveTextDocument((d) => this.onSave(d)),
+            // AI や別のツールがディスク上の原稿を書き換えたとき（保存の出来事は起きない）
+            this.mdWatcher,
+            this.mdWatcher.onDidChange((u) => void this.onDiskChange(u)),
             vscode.window.onDidChangeTextEditorSelection((e) => this.onCursor(e)),
             vscode.window.tabGroups.onDidChangeTabs((e) => this.onTabsChanged(e)),
             vscode.workspace.onDidChangeConfiguration((e) => {
@@ -444,13 +462,13 @@ export class PreviewManager implements vscode.Disposable {
         if (main && !this.main) {
             this.main = new PdfPanel(this.media, vscode.ViewColumn.Two, 'Octavo',
                                      () => { this.main = undefined; this.syncContext(); },
-                                     () => this.toggleFollow());
+                                     () => this.toggleFollow(), (a) => void this.onStale(a));
             this.main.follow(this.following);
         }
         if (this.sideTarget() && !this.side) {
             this.side = new PdfPanel(this.media, vscode.ViewColumn.Three, 'Octavo',
                                      () => { this.side = undefined; this.syncContext(); },
-                                     () => this.toggleFollow());
+                                     () => this.toggleFollow(), (a) => void this.onStale(a));
             this.side.follow(this.following);
         }
         this.syncContext();
@@ -488,13 +506,28 @@ export class PreviewManager implements vscode.Disposable {
         if (!this.configUri) {
             return;
         }
-        const names = staleNames(await fetchAnalysis(dirOf(this.configUri)));
-        const text = names.length
-            ? vscode.l10n.t('The analysis is out of date ({0}), so the numbers, figures and tables may be old.',
-                            names.map((n) => n.split('/').pop()).join(', '))
-            : '';
+        const text = staleText(await fetchAnalysis(dirOf(this.configUri)), (names) => {
+            this.staleShown = names;
+            return names.join('\n') === this.staleHidden;
+        });
         this.main?.stale(text);
         this.side?.stale(text);
+    }
+
+    /** 帯のボタン: 実行せずに最新と記録する（mark）／次に変わるまで隠す（dismiss）。 */
+    private async onStale(action: 'mark' | 'dismiss'): Promise<void> {
+        const names = this.staleShown;
+        if (action === 'dismiss' || !this.configUri || !names.length) {
+            this.staleHidden = names.join('\n');
+            this.main?.stale('');
+            this.side?.stale('');
+            return;
+        }
+        const r = await runCapture(dirOf(this.configUri), ['analysis', 'mark-fresh', ...names], 30000);
+        if (r.code !== 0 && !showIfOldCli(r.stderr + r.stdout)) {
+            void vscode.window.showErrorMessage((r.stderr || r.stdout).trim());
+        }
+        await this.showStale();
     }
 
     private async buildInto(panel: PdfPanel | undefined, docName: string,
@@ -577,7 +610,12 @@ export class PreviewManager implements vscode.Disposable {
         if (!mine) {
             return;
         }
-        // 回の区切りが動いているかもしれないので、原稿そのものなら引き直す
+        this.lastText.set(p, saved.getText());
+        this.rebuildFor(p);
+    }
+
+    /** 原稿が組み直しの理由のとき。回の区切りが動いているかもしれないので引き直してから組む。 */
+    private rebuildFor(p: string): void {
         void (async () => {
             if (samePath(editorPath(this.doc?.src), p)) {
                 const fresh = await this.findDocument(p);
@@ -589,6 +627,51 @@ export class PreviewManager implements vscode.Disposable {
             }
             await this.build();
         })();
+    }
+
+    /**
+     * 開いている原稿（か付録）が、エディタの保存を通らずに書き換えられた。
+     * 中身が最後に組んだときと違えば組み直す。エディタに保存していない変更があれば、
+     * ぶつかっていることを知らせる（VS Code はそのときエディタを読み直さない）。
+     */
+    private async onDiskChange(uri: vscode.Uri): Promise<void> {
+        if (!this.live || !this.doc) {
+            return;
+        }
+        const p = uri.fsPath;
+        if (!(samePath(editorPath(this.doc.src), p) || samePath(editorPath(this.doc.appendix), p))) {
+            return;
+        }
+        let text: string;
+        try {
+            text = Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');
+        } catch {
+            return;
+        }
+        if (this.lastText.get(p) === text) {
+            return;
+        }
+        this.lastText.set(p, text);
+        this.rebuildFor(p);
+        const open = vscode.workspace.textDocuments.find((d) => samePath(d.uri.fsPath, p));
+        if (open && !open.isDirty && open.getText() !== text) {
+            // 保存していない変更はないのに、エディタがディスクの中身を読み直していない
+            // （ファイルの監視が届かない環境がある）。読み直しても失うものはない
+            await reloadFromDisk(open, text);
+            return;
+        }
+        if (open?.isDirty) {
+            const compare = vscode.l10n.t('Compare');
+            const disk = vscode.l10n.t('Use the file on disk');
+            const pick = await vscode.window.showWarningMessage(vscode.l10n.t(
+                '{0} was changed on disk (by an AI assistant or another tool) while it has unsaved edits here. The preview shows the file on disk.',
+                path.basename(p)), compare, disk);
+            if (pick) {
+                await vscode.window.showTextDocument(open, { preview: false });
+                await vscode.commands.executeCommand(pick === compare
+                    ? 'workbench.files.action.compareWithSaved' : 'workbench.action.files.revert');
+            }
+        }
     }
 
     private onCursor(e: vscode.TextEditorSelectionChangeEvent): void {
@@ -684,4 +767,44 @@ export function syncNeedles(doc: vscode.TextDocument, line: number): string[] {
         }
     }
     return out;
+}
+
+/**
+ * 帯の文。古いものがなければ空。hidden(並び) が true なら（利用者が隠した並びと同じ）空。
+ * 手動実行の分析だけが古いなら、実行は利用者が決めることなので言い方を変える。
+ */
+export function staleText(report: AnalysisReport | undefined,
+                          hidden: (names: string[]) => boolean): string {
+    const units = (report?.units ?? []).filter((u) => u.exists && u.stale);
+    const names = units.map((u) => u.key);
+    if (!names.length || hidden(names)) {
+        return '';
+    }
+    const short = names.map((n) => n.split('/').pop()).join(', ');
+    return units.every((u) => u.manual)
+        ? vscode.l10n.t('A manually run analysis has changed since it last ran ({0}). It runs only when you choose.', short)
+        : vscode.l10n.t('The analysis is out of date ({0}), so the numbers, figures and tables may be old.', short);
+}
+
+/**
+ * 保存していない変更のないエディタを、ディスクの中身に読み直す。まず URI を渡して
+ * 「元に戻す」を実行し、まだ違えば、そのエディタを一度前に出して実行してから元の
+ * エディタに戻す。
+ */
+async function reloadFromDisk(doc: vscode.TextDocument, disk: string): Promise<void> {
+    try {
+        await vscode.commands.executeCommand('workbench.action.files.revert', doc.uri);
+    } catch {
+        // URI を受け取らない版では、下で前に出してから実行する
+    }
+    if (doc.isDirty || doc.getText() === disk) {
+        return;
+    }
+    const before = vscode.window.activeTextEditor;
+    await vscode.window.showTextDocument(doc, { preview: false, preserveFocus: false });
+    await vscode.commands.executeCommand('workbench.action.files.revert');
+    if (before && before.document !== doc) {
+        await vscode.window.showTextDocument(before.document,
+            { viewColumn: before.viewColumn, preserveFocus: false });
+    }
 }

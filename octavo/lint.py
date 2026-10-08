@@ -223,7 +223,7 @@ def _known_conditions() -> set:
     from . import config as configmod
     from .backends.base import PROFILES
     return ({'slides', 'slide', 'screen', 'print', 'doc', 'anonymous', 'lint'}
-            | set(configmod.BACKENDS) | set(PROFILES))
+            | set(configmod.BACKENDS) | set(configmod.OUTPUTS) | set(PROFILES))
 
 
 @dataclass
@@ -251,8 +251,10 @@ def div_problems(text: str) -> list:
         is_open = bool(mdlib.DIV_OPEN.match(bare)) and not mdlib.DIV_CLOSE.match(bare)
         if is_open:
             p = prev.strip()
-            # 直前が囲みの開き・閉じ・見出しなら空行がなくても読まれる
-            if p and not (mdlib.DIV_OPEN.match(p) or mdlib.DIV_CLOSE.match(p) or p.startswith('#')):
+            # 直前が囲みの開き・閉じ・見出し、1行の記法（`\newslide` `\session{…}`
+            # `\newpage`。組む前に前後に空行のある形へ置き換わる）なら空行がなくても読まれる
+            if p and not (mdlib.DIV_OPEN.match(p) or mdlib.DIV_CLOSE.match(p) or p.startswith('#')
+                          or mdlib.one_line_mark(p)):
                 out.append((offset + i, 'literal', bare, ''))
         elif ':::' in bare and not mdlib.DIV_CLOSE.match(bare) and '\x00octavo-code-' not in bare:
             out.append((offset + i, 'literal', bare, ''))
@@ -291,7 +293,7 @@ def div_issue_text(it: DivIssue) -> str:
         return t('not read as a block — put a blank line before the opening :::')
     if it.suggest:
         return t('shown in no output — did you mean .{name}?', name=it.suggest)
-    return t('shown in no output — not a name octavo knows (slides, handout, print, …)')
+    return t('shown in no output — not a name octavo knows (pdf, slides, word, …)')
 
 
 # ---------------------------------------------------------------- 表示

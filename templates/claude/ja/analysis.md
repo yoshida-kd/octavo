@@ -121,8 +121,11 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
 `  manual: true`（と `  deps: [...]`）を書いてもよい。
 
 **原データをネットから取る処理**（API・ダウンロード）もこの形にする:
-`analysis/00-fetch-<取得元>.qmd` に `manual: true`。`data/raw/` にもうあるファイルは上書きせずに
-止まるようにし、取得元と取得日を `data/raw/README.md` に書く。
+`analysis/00-fetch-<取得元>.qmd` に `manual: true`。`data/raw/` にもうあるファイルは上書きせず、
+取得を飛ばして**正常に終わる**ようにする（`stop()` で止めると実行が失敗の扱いになる）。
+R ならそれだけのチャンクに `if (file.exists(out)) knitr::knit_exit("取得済み")` と書く
+（同じチャンクの残りは実行されてしまう）。取得元と取得日は `data/raw/README.md` に書く。
+中身を変えずに「古い」と出たら、実行せずに `octavo analysis mark-fresh <qmd>` で記録し直せる。
 
 - 同じ名前を2つの `.qmd` が登録すると警告が出て**後が勝つ**。
   `octavo check values` の出所欄で確かめる

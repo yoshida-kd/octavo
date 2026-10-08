@@ -92,6 +92,8 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     # 分析が出した数値を先に入れる。以降の処理（要旨の切り出し、表・図の
     # 差し替え、分量の勘定）はすべて「数値が入ったあとの本文」を見る。
     body = valmod.substitute(body, ctx.values, cfg, ctx.report)
+    # `### 題` のすぐ下の `- ` が見出しの下線と読まれないように
+    body = mdlib.keep_atx_headings(body)
     ctx.meta = {**(cfg['meta'] or {}), **doc.meta, **meta}
     if 'lang' in ctx.meta:
         ctx.meta['lang_short'] = str(ctx.meta['lang'])[:2]

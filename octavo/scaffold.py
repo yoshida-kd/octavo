@@ -353,6 +353,45 @@ def migrate_instructions(root: Path, lang: str, dry_run: bool = False) -> tuple:
     return True, t('Moved the rules from CLAUDE.md to AGENTS.md; CLAUDE.md now points at it.')
 
 
+SECTION_LINE = re.compile(r'^<!-- octavo:section ([\w-]+) -->\s*$', re.M)
+
+
+def rules_update(root: Path, lang: str) -> tuple:
+    """約束事のファイル（AGENTS.md か、前からの CLAUDE.md）の Octavo の節を、今のひな型に
+    差し替えた全文。(ファイル, 前の全文, 新しい全文, [差し替えた節]) か、ファイルがなければ None。
+
+    節は `<!-- octavo:section X -->` の行から次の節の行（なければ末尾）まで。最初の節より
+    前は残す。ひな型のない節（自分で付けた名前など）も残す。節の中に書き足したところは
+    差し替えで消えるので、呼ぶ側が差分を見せる。
+    """
+    p = instruction_file(root)
+    if p is None:
+        return None
+    old = p.read_text(encoding='utf-8')
+    marks = list(SECTION_LINE.finditer(old))
+    if not marks:
+        return p, old, old, []
+    out = [old[:marks[0].start()]]
+    changed = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(old)
+        part = old[m.start():end]
+        name = m.group(1)
+        try:
+            frag = render_template(f'claude/{_lang(lang)}/{name}.md', {'NAME': root.name}, root)
+        except (OSError, SystemExit, tmpl.TemplateError):     # ひな型のない節（自分で付けた名前など）
+            frag = None
+        if frag is None or not frag.startswith(m.group(0).rstrip()):
+            out.append(part)
+            continue
+        tail = '\n\n' if i + 1 < len(marks) else '\n'
+        frag = frag.rstrip('\n') + tail
+        if frag.rstrip() != part.rstrip():
+            changed.append(name)
+        out.append(frag if frag.rstrip() != part.rstrip() else part)
+    return p, old, ''.join(out), changed
+
+
 def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
     """約束事のファイルに節がなければ末尾に書き足す。ファイルを消してあれば何もしない。"""
     p = instruction_file(root)

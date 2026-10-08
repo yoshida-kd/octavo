@@ -129,8 +129,11 @@ Analysis section). The `.qmd` can say it itself instead, so the glob in the conf
 `octavo:` then `  manual: true` (and `  deps: [...]`) in its front matter.
 
 **Fetching raw data** (an API, a download) is such a step: `analysis/00-fetch-<source>.qmd`
-with `manual: true`. It stops rather than overwrite a file already in `data/raw/`, and the
-source and date go into `data/raw/README.md`.
+with `manual: true`. When the file is already in `data/raw/` it skips the fetch and **ends as a
+success** rather than overwrite it (stopping with `stop()` makes the run fail). In R, put
+`if (file.exists(out)) knitr::knit_exit("Already fetched")` in a chunk of its own (the rest of
+its chunk still runs). The source and date go into `data/raw/README.md`. If it shows as out of
+date with nothing changed, `octavo analysis mark-fresh <qmd>` records it without running it.
 
 - If two `.qmd` files register the same name it warns and **the later one wins**;
   check the source column in `octavo check values`.

@@ -55,12 +55,12 @@
     "scope": "markdown",
     "prefix": "phandout",
     "body": [
-      "::: {.handout-only}",
+      "::: {.no-slides}",
       "${1:プリントにだけ出す内容。}",
       ":::",
       "$0"
     ],
-    "description": "A4 プリント（handout）のときだけ残る"
+    "description": "プリントだけ（スライドと台本には出ない）"
   },
 
   "スライド専用ブロック": {

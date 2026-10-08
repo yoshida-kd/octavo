@@ -246,7 +246,15 @@ MESSAGES: dict = {
     'every ::: block is read as a block': '::: の囲みはすべて囲みとして読まれる',
     'not read as a block — put a blank line before the opening :::': '囲みとして読まれない — 開きの ::: の前に空行を入れる',
     'shown in no output — did you mean .{name}?': 'どの出力にも出ない — .{name} のことか',
-    'shown in no output — not a name octavo knows (slides, handout, print, …)': 'どの出力にも出ない — octavo の知らない名前（slides・handout・print など）',
+    'the slide "{title}" (page {page}) did not fit and runs over {n} pages '
+    '— split it with \\newslide, or shorten it':
+        'スライド「{title}」（{page} ページ）が入りきらず {n} ページになった — \\newslide で分けるか、短くする',
+    'the slide "{title}" did not fit, so it goes on over a slide titled "{title}{cont}" (add a \\newslide to choose where it breaks)':
+        'スライド「{title}」が入りきらないので、「{title}{cont}」の1枚に続けた（分ける場所を選ぶなら \\newslide を入れる）',
+    'the untitled slide on page {page} did not fit and runs over {n} pages '
+    '— split it with \\newslide, or shorten it':
+        '{page} ページの題のないスライドが入りきらず {n} ページになった — \\newslide で分けるか、短くする',
+    'shown in no output — not a name octavo knows (pdf, slides, word, …)': 'どの出力にも出ない — octavo の知らない名前（pdf・slides・word など）',
     '{n} ::: {n|block is|blocks are} written so that pandoc or octavo will not read {n|it|them} as meant':
         '::: の囲み {n} 個が、pandoc か octavo に思ったとおりに読まれない書き方になっている',
     'octavo — build LaTeX / Typst / Beamer / Word from a Markdown manuscript.': 'octavo — Markdown の原稿から LaTeX / Typst / Beamer / Word を作る。',
@@ -440,7 +448,12 @@ MESSAGES: dict = {
     'something is missing, clashing, or not anonymised. Fix what is above before submitting': '欠落・衝突・匿名化の漏れがある。上を見て直してから投稿する',
     'stale': '古い',
     'status=check against the record (default) / hash=write the record': 'status=記録と食い違わないか（既定） / hash=記録する',
-    'status=see whether it is up to date (default) / run=run it': 'status=最新かどうか見る（既定） / run=実行する',
+    'status=see whether it is up to date (default) / run=run it / '
+    'mark-fresh=record the named .qmd as up to date without running it':
+        'status=最新かどうか見る（既定） / run=実行する / mark-fresh=名指しした .qmd を、実行せずに最新と記録する',
+    'name the .qmd to record as up to date: octavo analysis mark-fresh <qmd>':
+        '最新と記録する .qmd を名指しする: octavo analysis mark-fresh <qmd>',
+    'recorded as up to date (not run): {unit}': '最新と記録した（実行はしていない）: {unit}',
     'stopped': '止めた',
     'style IDs are listed at https://www.zotero.org/styles': 'スタイル ID は https://www.zotero.org/styles で確認できる',
     'substituted {n}': '{n} 個を差し込んだ',
@@ -884,6 +897,62 @@ MESSAGES: dict = {
         '原稿 {n} 本を docs/ に移した。文書の名前は同じなので、組版・タグ・プレビューは今までどおり',
     'there are uncommitted changes in the manuscripts or the config — commit them first, then run this again':
         '原稿か設定にコミットしていない変更がある。先にコミットしてから、もう一度実行する',
+    'next: {commit}, then {migrate} (or {dirty} to move them as they are)':
+        '次は {commit} のあと {migrate}（今のまま移すなら {dirty}）',
+    "go ahead even with uncommitted changes":
+        "コミットしていない変更があっても進める",
+    "rewrite the older notation in the manuscripts (::: {.session}, ::: {.slide}, .handout-only) into the current one, checking that every output stays the same":
+        "原稿の前からの書き方（::: {.session}、::: {.slide}、.handout-only）を今の書き方に書き換える（出力が変わらないことを確かめる）",
+    "replace Octavo's sections of AGENTS.md with the current ones":
+        "AGENTS.md の Octavo の節を、今の版に差し替える",
+    "to bring its Octavo sections up to date: {cmd}":
+        "Octavo の節を今の版にするなら: {cmd}",
+    "There is no AGENTS.md (or CLAUDE.md with rules), so there is nothing to update.":
+        "AGENTS.md（か約束を書いた CLAUDE.md）がないので、差し替えるものはない。",
+    "{file}: every Octavo section is already current":
+        "{file}: Octavo の節はどれも今の版",
+    "sections to replace: {names}":
+        "差し替える節: {names}",
+    "anything you wrote inside these sections is replaced too — copy it out first if you want to keep it (text before the first section is kept)":
+        "これらの節の中に書き足したところも差し替わる — 残したいなら先に書き写しておく（最初の節より前は残る）",
+    "nothing was changed (drop --dry-run to update it)":
+        "何も変えていない（差し替えるには --dry-run を外す）",
+    "{file} has uncommitted changes — commit them first (so git can show and undo the update), or add --allow-dirty":
+        "{file} にコミットしていない変更がある — 先にコミットする（差し替えを git で見て戻せるように）か、--allow-dirty を付ける",
+    "the previous version is kept as {file}":
+        "前の版は {file} に残した",
+    "updated {file}":
+        "{file} を差し替えた",
+    "git diff shows the change, git checkout undoes it":
+        "変更は git diff で見られ、git checkout で戻せる",
+    "a session marker with attributes the one-line form cannot hold":
+        "1行の書き方では書けない属性のある回の区切り",
+    "a slide marker with contents or other attributes":
+        "中身かほかの属性のあるスライドの区切り",
+    ".handout-only: this document is not in the handout layout, so .handout-only shows in none of its outputs — left as it is":
+        ".handout-only: この文書はプリントの体裁ではないので、.handout-only はどの出力にも出ない — そのままにした",
+    ".handout-only: this document also makes a poster, where .no-slides shows but .handout-only does not — left as it is":
+        ".handout-only: この文書はポスターも作り、そこには .no-slides は出るが .handout-only は出ない — そのままにした",
+    "left as it is":
+        "そのまま",
+    "nothing to rewrite: the manuscripts already use the current notation":
+        "書き換えるものはない: 原稿はもう今の書き方",
+    "line removed":
+        "行を消す",
+    "nothing was changed (drop --dry-run to rewrite them)":
+        "何も変えていない（書き換えるには --dry-run を外す）",
+    "there are uncommitted changes in the manuscripts — commit them first, so the rewrite is a change of its own":
+        "原稿にコミットしていない変更がある — 書き換えが1つの変更になるよう、先にコミットする",
+    "next: {commit}, then {migrate} (or {dirty} to rewrite them as they are)":
+        "次は {commit} のあと {migrate}（今のまま書き換えるなら {dirty}）",
+    "pandoc is not found, so the outputs could not be compared before and after":
+        "pandoc がないので、書き換えの前と後の出力を比べられなかった",
+    "rewrote {name}":
+        "{name} を書き換えた",
+    "{name}: the outputs changed, so it was put back as it was:":
+        "{name}: 出力が変わったので、元に戻した:",
+    "rewrote {name} — every output is the same as before ({n} {n|file|files})":
+        "{name} を書き換えた — 出力は前とすべて同じ（{n} ファイル）",
     'nothing was changed (drop --dry-run to move them)': '何も変えていない（移すには --dry-run を外す）',
     'say what would change, and change nothing': '何が変わるかだけ言い、何も変えない',
     "installed (for VS Code's R extension)": '入っている（VS Code の R 拡張機能用）',

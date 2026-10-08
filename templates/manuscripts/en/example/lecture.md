@@ -25,7 +25,7 @@ date: 2026-04-10
 - One `#` is one session. Its title becomes the deck's title slide; each `##` is a slide
 - Use conditional blocks for what should differ
 
-::: {.handout-only}
+::: {.no-slides}
 Handout only: blanks to fill in, longer notes.
 
 (                                                        )
@@ -56,7 +56,7 @@ the trend.
 
 - Today's summary
 
-::: {.handout-only}
+::: {.no-slides}
 **Assignment** Read … before next week.
 :::
 

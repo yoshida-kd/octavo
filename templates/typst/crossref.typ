@@ -98,7 +98,14 @@
       n
     }))
   } else {
-    block(breakable: false, width: 100%, { fig; n })
+    // 上下の空きは文書の側（A4 プリントなら jsarticle の \intextsep）が決める。
+    // 中の図には付けない（付けると図と注のあいだが開く）
+    let inner = { let g = state("octavo-in-figure-group", false); g.update(true); fig; n; g.update(false) }
+    context {
+      let sep = state("octavo-float-sep", none).get()
+      if sep == none { block(breakable: false, width: 100%, inner) }
+      else { block(breakable: false, width: 100%, above: sep, below: sep, inner) }
+    }
   }
 }
 

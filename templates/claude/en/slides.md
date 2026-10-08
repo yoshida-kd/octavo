@@ -23,7 +23,8 @@ octavo build example-lecture --to slides --compile   # one PDF deck per session
 octavo build example-lecture-03 --to slides          # just the third session
 ```
 
-- Decks are named `<notes name>-01`, `-02`, … in order of the `#` headings.
+- Session decks are named `<notes name>-01`, `-02`, … in order of the `#` headings (the PDF is
+  `build/slides/<notes name>-slides-01.pdf`).
   **Inserting a session renumbers the ones after it**, so give a heading an id
   to pin its name: `# Second session {#second}` → `example-lecture-second`
 - A session deck's title slide takes the `#` heading as its title and the notes'
@@ -44,7 +45,7 @@ and the `#` / `##` headings are free to be sections and subsections:
   (`example-lecture-third`). the title in `\session{…}` and `subtitle` / `date` go on the deck's title slide;
   without a title (`\session{}`), the session's first heading is used. The older
   `::: {.session …}` + `:::` means the same
-- Normally everything goes on the slides (handout-only material is `.pdf-only`). With
+- Normally everything goes on the slides (handout-only material is `.no-slides`). With
   `slides_select: marked` at the top, the slides get only what is marked `.on-slides` (blocks,
   sections whose heading has it, `[…]{.on-slides}`) and the headings above it — in such a
   document, mark what should be on the slides
@@ -78,10 +79,11 @@ contents are numbered i, ii, and the body starts at 1. The type follows the Japa
 class jsarticle; the whole layout is `templates/handout/handout.typ`
 (`octavo template copy handout/handout.typ` to change it).
 
-Conditional blocks decide what goes where.
+Conditional blocks decide what goes where (`.no-slides` for the handout only — PDF, Word and
+LaTeX; `.slides-only`; `.pdf-only` for the PDF alone; inside a line, `[…]{.slides-only}`).
 
 ```markdown
-::: {.handout-only}
+::: {.no-slides}
 handout only (fill-in blanks, longer notes)
 :::
 
@@ -92,8 +94,10 @@ slides only (figures, short prompts)
 
 ## Common to all slides
 
-Each `##` is a slide (a `#` is a section in a talk, and a session break in
-lecture notes). Figures are fitted into the slide. `::: notes` (speaker notes)
+A slide is the level just below the shallowest heading (a talk: `#` section, `##` slide;
+lecture notes: `#` session, `##` section, `###` slide; with one level only, that level).
+Figures are fitted into the slide. A slide that does not fit runs onto the next page and
+`octavo build` says so — split it with `\newslide` or shorten it. `::: notes` (speaker notes)
 never appear on the projected deck; they go in the speaker script
 (`--to script`).
 

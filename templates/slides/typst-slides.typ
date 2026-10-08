@@ -130,7 +130,12 @@
 #let nb(body) = labeled(if octavo.lang == "ja" { "注意" } else { "Note" }, body)
 #let memo(body) = labeled(if octavo.lang == "ja" { "付記" } else { "Memo" }, body)
 // 題のないスライド（原稿の `### 題 {.no-title}`）。新しいページにするだけ
-#let octavo-untitled-slide() = pagebreak(weak: true)
+// 1枚の始まりには <octavo-slide-start> の目印を置く（入りきらずに次のページへ
+// 送られた1枚を、組んだあとに Octavo が見つけて知らせるため）
+#let octavo-untitled-slide() = {
+  pagebreak(weak: true)
+  [#metadata(none) <octavo-slide-start>]
+}
 // 出典などを小さくグレーで（元のプリアンブルの \smallgray 相当）
 #let smallgray(body) = text(fill: luma(120), size: 10pt, body)
 
@@ -150,6 +155,7 @@
     // section-slides: false なら扉を出さず、番号を進めるだけ
     if octavo.section-slides {
       pagebreak(weak: true)
+      [#metadata(none) <octavo-slide-start>]
       v(1fr)
       align(center, text(size: 34pt, weight: w, fill: accent, num + it.body))
       v(1fr)
@@ -157,6 +163,7 @@
     }
   } else if it.level == octavo.slide-level {
     pagebreak(weak: true)
+    [#metadata(it.body) <octavo-slide-start>]
     block(below: if styled { 0.9em } else { 0.8em },
           text(size: 30pt, weight: w, fill: accent, num + it.body))
   } else {

@@ -35,7 +35,7 @@ sys.path.insert(0, str(ROOT))
 import octavo                                                        # noqa: E402
 from octavo import (analysis, audit, bib, build, bundle, check, theorems,      # noqa: E402
                       config, crossref, csl, dataset, doctor, envsetup, lint, md,
-                      pandocrun, paths, review, scaffold, selftest, tmpl, values)
+                      pandocrun, paths, review, scaffold, selftest, syntax, tmpl, values)
 from octavo import backends as be                                    # noqa: E402
 from octavo.backends.base import Ctx                                 # noqa: E402
 
@@ -2009,6 +2009,31 @@ class AnalysisUnits(unittest.TestCase):
         later = time.time() + 10
         os.utime(self.d / 'data' / 'x.csv', (later, later))
         self.assertTrue(analysis.is_stale(cfg, u, analysis.read_stamp(cfg)))
+
+    def test_a_new_time_with_the_same_contents_is_not_stale(self):
+        """git でブランチを切り替えて戻すと、中身が同じでも更新時刻だけ新しくなる。"""
+        cfg = self.cfg("'analysis': [{'src': 'analysis/one.qmd',"
+                       " 'deps': ['data/*.csv']}]")
+        u = analysis.units(cfg)[0]
+        analysis.write_stamp(cfg, {analysis.key(cfg, u): u.record()})
+        later = time.time() + 10
+        os.utime(self.d / 'analysis' / 'one.qmd', (later, later))
+        self.assertFalse(analysis.is_stale(cfg, u, analysis.read_stamp(cfg)))
+        (self.d / 'data' / 'x.csv').write_text('a,b\n1,2\n', encoding='utf-8')
+        os.utime(self.d / 'data' / 'x.csv', (later + 1, later + 1))
+        self.assertTrue(analysis.is_stale(cfg, u, analysis.read_stamp(cfg)))
+
+    def test_mark_fresh_records_without_running(self):
+        cfg = self.cfg("'analysis': ['analysis/*.qmd']")
+        report: list = []
+        with unittest.mock.patch.object(analysis, 'render') as render:
+            analysis.mark_fresh(cfg, ['one'], report)
+        render.assert_not_called()
+        stamp = analysis.read_stamp(cfg)
+        one, two = analysis.units(cfg)
+        self.assertFalse(analysis.is_stale(cfg, one, stamp))
+        self.assertTrue(analysis.is_stale(cfg, two, stamp))
+        self.assertIn('marked_at', stamp[analysis.key(cfg, one)])
 
     def test_stamp_lives_in_values_dir(self):
         cfg = self.cfg("'analysis': ['analysis/one.qmd']")
@@ -7286,6 +7311,249 @@ class AgentInstructions(unittest.TestCase):
                 if f.name == 'stub.md':
                     continue
                 self.assertNotIn('Claude', f.read_text(encoding='utf-8'), f)
+
+
+class SlideBreaksAndChecks(unittest.TestCase):
+    """講義ノートで見つかったもの: 見出しの下の `- `、`#` の下の `\\newslide`、検査の空振り。"""
+
+    def test_a_dash_under_a_heading_is_not_its_underline(self):
+        src = '### 官吏との対比\n- \n\n### みなし公務員\n- \n'
+        out = md.keep_atx_headings(src)
+        self.assertEqual(out, '### 官吏との対比\n\n- \n\n### みなし公務員\n\n- \n')
+        self.assertEqual(md.keep_atx_headings('```\n# x\n-\n```'), '```\n# x\n-\n```')
+        if HAVE_PANDOC:
+            r = subprocess.run(['pandoc', '-f', 'markdown', '-t', 'typst'], input=out,
+                               capture_output=True, text=True, encoding='utf-8')
+            self.assertIn('=== みなし公務員', r.stdout)
+            self.assertNotIn('\\#', r.stdout)
+
+    def test_newslide_continues_a_shallower_heading(self):
+        src = '# リアクションペーパー等\n- いち\n\\newslide\n- に\n\n## 節\n\n### 本題\n- さん\n'
+        out = md.slide_marks(src, True, 'ja', level=3)
+        self.assertIn('### リアクションペーパー等（続き） {.unnumbered}', out)
+
+    def test_newslide_with_no_title_to_continue_is_untitled(self):
+        out = md.slide_marks('- いち\n\\newslide\n- に\n', True, 'ja', level=3)
+        self.assertIn('octavo-untitled-slide', out)
+        self.assertNotIn('（続き）', out)
+
+    def test_newslide_leaves_a_break_in_other_outputs(self):
+        out = md.slide_marks('前\n\\newslide{題}\n::: {.x}\n中\n:::\n', False, 'ja')
+        self.assertEqual(out, '前\n\n::: {.x}\n中\n:::\n')
+
+    def test_output_names_are_known_to_the_check(self):
+        src = '::: {.pdf-only}\nプリント\n:::\n\n[行]{.word-only} [行]{.script-only}\n'
+        self.assertEqual(lint.div_problems(src), [])
+
+    def test_a_block_right_after_a_one_line_mark_is_read(self):
+        for mark in ('\\newslide{講義の進め方}', '\\newslide', '\\newpage',
+                     '\\session{第1回} {#w1}'):
+            src = f'{mark}\n::: {{.slides-only}}\n- だけ\n:::\n'
+            self.assertEqual(lint.div_problems(src), [], mark)
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_slide_that_runs_over_is_reported(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            make_project(d, docs=(), analysis=False, legacy=False)
+            (d / 'docs' / 'talk').mkdir(parents=True)
+            items = '\n'.join(f'- 項目 {i}' for i in range(30))
+            (d / 'docs' / 'talk' / 'talk.md').write_text(
+                f'---\ntitle: 題\noutputs: [slides]\n---\n\n# 節\n\n## 短い\n\n- 一つ\n\n'
+                f'## 長い\n\n{items}\n', encoding='utf-8')
+            cfg = config.load(d / 'octavo.config.py')
+            res = build.build_one(cfg, cfg.document('talk'), 'typst-slides',
+                                  citations=False, offline=True, do_compile=True)
+            text = '\n'.join(res.report)
+            self.assertIn('長い（続き）', text)
+            self.assertNotIn('短い', text)
+            typ = (d / 'build' / 'slides' / 'talk.typ').read_text(encoding='utf-8')
+            self.assertIn('[長い（続き）]', typ)
+            self.assertNotIn('octavo-at', typ)              # 測るための目印は残さない
+            from octavo.backends import typst_slides
+            # 一時フォルダーはリンク越しのことがある（macOS の /var）ので、解決してから渡す
+            self.assertEqual(typst_slides.overflowing_slides(
+                (d / 'build' / 'slides' / 'talk.typ').resolve(), str(d.resolve())), [])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class ContinuationSlides(unittest.TestCase):
+    """入りきらない1枚を「題（続き）」に分ける: 入れ子の項目がページをまたいでも二重にしない。"""
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_nested_item_running_over_moves_whole(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            make_project(d, docs=(), analysis=False, legacy=False)
+            (d / 'docs' / 'talk').mkdir(parents=True)
+            items = '\n'.join(f'- 項目 {i}\n  - 入れ子 {i}' for i in range(9))
+            case = '事例の本文。' * 25
+            (d / 'docs' / 'talk' / 'talk.md').write_text(
+                f'---\ntitle: 題\noutputs: [slides]\n---\n\n# 節\n\n## 長い\n\n'
+                f'::: {{.case #case-x title="題"}}\n{case}\n:::\n\n{items}\n\n## 次\n\n- 一つ\n',
+                encoding='utf-8')
+            cfg = config.load(d / 'octavo.config.py')
+            res = build.build_one(cfg, cfg.document('talk'), 'typst-slides',
+                                  citations=False, offline=True, do_compile=True)
+            self.assertTrue(res.ok, '\n'.join(res.report))
+            typ = (d / 'build' / 'slides' / 'talk.typ').read_text(encoding='utf-8')
+            from octavo.backends import typst_slides
+            self.assertEqual(typst_slides.overflowing_slides(
+                (d / 'build' / 'slides' / 'talk.typ').resolve(), str(d.resolve())), [])
+            # 続きの1枚どうしのあいだには、項目が2つ以上ある（1つだけの続きを作らない）
+            parts = typ.split('[長い（続き）]')
+            self.assertGreaterEqual(len(parts), 2)
+            for part in parts[1:-1]:
+                self.assertGreaterEqual(part.count('\n- 項目'), 2, part[:200])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class MigrateSyntax(unittest.TestCase):
+    """octavo migrate --syntax: 前からの書き方を今の書き方へ（出力が変わらないときだけ）。"""
+
+    OLD = ded("""
+        ---
+        title: 講義
+        outputs: [pdf, slides]
+        ---
+
+        ::: {.session #week1 title="第1回 はじめに" date="2026-10-02"}
+        :::
+
+        # 節
+
+        ## 1枚目
+
+        ::: {.handout-only}
+        プリントだけ
+        :::
+
+        - [プリントの言い方]{.handout-only}[スライドの言い方]{.slides-only}
+
+        ::: {.slide title="区切った1枚"}
+        :::
+
+        - 中身
+
+        ::: {.slide .no-title}
+        :::
+
+        - 題なし
+
+        ::: {.slide}
+        :::
+
+        - 続き
+
+        ```markdown
+        ::: {.handout-only}
+        :::
+        ```
+
+        <!-- ::: {.slide}
+        ::: -->
+        """)
+
+    def test_each_old_form_has_its_new_form(self):
+        pl = syntax.plan(Path('x.md'), self.OLD, True, '')
+        out = pl.text
+        self.assertIn('\\session{第1回 はじめに} {#week1 date="2026-10-02"}', out)
+        self.assertIn('::: {.no-slides}\nプリントだけ', out)
+        self.assertIn('[プリントの言い方]{.no-slides}[スライドの言い方]{.slides-only}', out)
+        self.assertIn('\\newslide{区切った1枚}', out)
+        self.assertIn('\\newslide{}', out)
+        self.assertIn('\\newslide\n', out)
+        self.assertIn('```markdown\n::: {.handout-only}\n:::\n```', out)     # コードの中はそのまま
+        self.assertIn('<!-- ::: {.slide}\n::: -->', out)                     # コメントの中も
+        self.assertNotIn('{.session', out)
+
+    def test_handout_only_stays_when_the_rule_says_so(self):
+        pl = syntax.plan(Path('x.md'), self.OLD, False, 'why')
+        self.assertIn('::: {.handout-only}\nプリントだけ', pl.text)
+        self.assertIn('why', [w for _, w in pl.left])
+
+    def test_the_line_endings_are_kept(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            f = d / 'x.md'
+            syntax.write_like(f, 'a\nb\n', b'old\r\nfile\r\n')
+            self.assertEqual(f.read_bytes(), b'a\r\nb\r\n')
+            syntax.write_like(f, 'a\nb\n', b'old\nfile\n')
+            self.assertEqual(f.read_bytes(), b'a\nb\n')
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_a_marker_it_cannot_write_on_one_line_is_left(self):
+        src = '::: {.session #a .extra}\n:::\n\n# x\n'
+        pl = syntax.plan(Path('x.md'), src, True, '')
+        self.assertEqual(pl.text, src)
+        self.assertEqual(len(pl.left), 1)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc が要る')
+    def test_rewrites_only_when_the_outputs_stay_the_same(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            make_project(d, docs=(), analysis=False, legacy=False)
+            (d / 'docs' / 'notes').mkdir(parents=True)
+            src = d / 'docs' / 'notes' / 'notes.md'
+            src.write_text(self.OLD, encoding='utf-8')
+            cfg = config.load(d / 'octavo.config.py')
+            with contextlib.redirect_stdout(io.StringIO()) as out:
+                rc = syntax.run(cfg, allow_dirty=True)
+            self.assertEqual(rc, 0, out.getvalue())
+            self.assertIn('\\newslide{区切った1枚}', src.read_text(encoding='utf-8'))
+            # 出力が変わるなら元に戻す
+            src.write_text(self.OLD, encoding='utf-8')
+            calls = iter([{'a': b'1'}, {'a': b'2'}, {'a': b'1'}])
+            with unittest.mock.patch.object(syntax, '_build', lambda *a: next(calls)), \
+                    contextlib.redirect_stdout(io.StringIO()):
+                rc = syntax.run(config.load(d / 'octavo.config.py'), allow_dirty=True)
+            self.assertEqual(rc, 1)
+            self.assertEqual(src.read_text(encoding='utf-8'), self.OLD)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_handout_rule_follows_the_outputs(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            make_project(d, docs=(), analysis=False, legacy=False)
+            for name, outs in (('a', '[pdf, slides]'), ('b', '[pdf, word]'),
+                               ('c', '[pdf, poster]')):
+                (d / 'docs' / name).mkdir(parents=True)
+                (d / 'docs' / name / f'{name}.md').write_text(
+                    f'---\ntitle: x\noutputs: {outs}\n---\n\n# x\n', encoding='utf-8')
+            cfg = config.load(d / 'octavo.config.py')
+            self.assertTrue(syntax.handout_rule(cfg, cfg.document('a'))[0])
+            # Word も作る文書でも、.no-slides なら .handout-only と同じ（Word にも出る）
+            self.assertTrue(syntax.handout_rule(cfg, cfg.document('b'))[0])
+            # ポスターには .no-slides だけが出るので、書き換えない
+            self.assertFalse(syntax.handout_rule(cfg, cfg.document('c'))[0])
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class MigrateRules(unittest.TestCase):
+    """octavo migrate --rules: AGENTS.md の Octavo の節を今の版に。"""
+
+    def test_sections_are_replaced_and_the_rest_kept(self):
+        d = Path(tempfile.mkdtemp()) / 'proj'
+        try:
+            make_project(d, docs=(('slides', 'talk'),), analysis=False, legacy=False)
+            agents = d / 'AGENTS.md'
+            now = agents.read_text(encoding='utf-8')
+            self.assertEqual(scaffold.rules_update(d, 'ja')[3], [])        # もう今の版
+            old = ('自分の前置き\n\n' + now.replace('.pdf-only', '.handout-only')
+                   + '\n<!-- octavo:section mine -->\n自分の節\n')
+            agents.write_text(old, encoding='utf-8')
+            p, before, after, changed = scaffold.rules_update(d, 'ja')
+            self.assertEqual(changed, ['slides'])
+            self.assertTrue(after.startswith('自分の前置き'))
+            self.assertIn('自分の節', after)
+            self.assertNotIn('.handout-only', after)
+        finally:
+            shutil.rmtree(d.parent, ignore_errors=True)
 
 
 if __name__ == '__main__':

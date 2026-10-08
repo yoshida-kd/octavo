@@ -115,6 +115,18 @@
 #set terms(hanging-indent: 1.5em)
 #set table(inset: 6pt, stroke: none)
 #show figure.where(kind: table): set figure.caption(position: top)
+// 図・表の上下の空きは jsarticle の \intextsep（12pt）、図とキャプションのあいだは
+// \abovecaptionskip（5pt。表は上のキャプションと表のあいだ、\belowcaptionskip）。
+// 事例・論点などのブロック（独自の kind の figure）には付けない。出典の注
+// （figure-note）を付けた図は、図・キャプション・注のまとまりの上下に付ける
+// （crossref.typ の octavo-figure-group が octavo-float-sep を読む）
+#let float-sep = 12pt * mag
+#state("octavo-float-sep", none).update(float-sep)
+#set figure(gap: 5pt * mag)
+#show figure: it => if it.kind in (image, table) {
+  context if state("octavo-in-figure-group", false).get() { it }
+    else { block(above: float-sep, below: float-sep, it) }
+} else { it }
 #let horizontalRule = line(start: (25%, 0%), end: (75%, 0%))
 #let divider = if "divider" in std { divider } else { horizontalRule }
 #show raw: set text(font: ("DejaVu Sans Mono",), size: 0.9em)

@@ -161,6 +161,10 @@ Second half — on a new slide titled "Short title (cont.)".
 `::: {.slide title="…"}` + `:::` も同じ意味。区切りで
 できるスライドは、そのときの1枚の段（ふつうは `###`）の見出しになる。
 
+1枚に入りきらない中身は、「題（続き）」の1枚に続き、`octavo build` がそう知らせる。分ける
+場所を自分で決めたいなら、そこに `\newslide` を入れる。題のないスライドが入りきらないときは、
+知らせるだけ。
+
 **話すことのメモ**は `::: notes` に書く。スライドにもプリントにも出ず、**台本**にだけ出る
 （プレビューの右の列で「台本」を選ぶと見える）。台本には投影するスライドがそのまま縮小して
 A4 に2枚ずつ並び、それぞれの下にそのスライドに書いたノートが付く:
@@ -178,7 +182,7 @@ Ask the room first; give the answer after two minutes.
 囲んだところを、どちらか一方にだけ出す:
 
 ```markdown
-::: {.pdf-only}
+::: {.no-slides}
 Space for students to write in, longer explanations, footnotes.
 :::
 
@@ -189,18 +193,18 @@ A big figure or one short question.
 
 | 印 | 出るところ |
 |---|---|
-| `.pdf-only` | A4 プリントだけ（前からの `.handout-only` も同じ） |
+| `.no-slides` | プリントだけ。PDF・Word・LaTeX のどれにも出て、スライドと台本には出ない（前からの `.handout-only` も同じ） |
 | `.slides-only` | スライドと台本だけ |
-| `.no-slides` | スライドと台本以外 |
+| `.pdf-only` | PDF だけ（Word・LaTeX には出ない） |
 
 （`.slide-only` は `.slides-only` と同じに読む。）箇条書きの中では囲みの行を項目の本文の桁に
 そろえ、**開きの `:::` の前には必ず空行を入れる**。空行がないと pandoc は囲みと読まず、`:::` が
-そのまま出る。短い文言なら、行の中で `[…]{.pdf-only}` と書ける:
+そのまま出る。短い文言なら、行の中で `[…]{.no-slides}` と書ける:
 
 ```markdown
 - Local government employs most officials.
 
-  ::: {.pdf-only}
+  ::: {.no-slides}
   - Longer explanation for the handout.
   :::
 
@@ -208,7 +212,7 @@ A big figure or one short question.
   - One line for the slide.
   :::
 
-- Grading: [midterm and final]{.pdf-only}[see the handout]{.slides-only}.
+- Grading: [midterm and final]{.no-slides}[see the handout]{.slides-only}.
 ```
 
 「**投稿前に検査する**」（か `octavo check lint`）が、囲みとして読まれない `:::` と、どの出力にも
@@ -423,7 +427,7 @@ A4 プリントの組み方は日本語 LaTeX の jsarticle にならう（1行4
 | 番号のない見出し | `## 題 {.unnumbered}` か `{-}` |
 | スライドでだけ別の題 | `### 題 {slide-title="短い題"}` |
 | 話すことのメモ | `::: notes` … `:::` |
-| プリントだけ / スライドだけ | `::: {.pdf-only}` / `::: {.slides-only}`、行の中なら `[…]{.slides-only}` |
+| プリントだけ / スライドだけ | `::: {.no-slides}` / `::: {.slides-only}`、行の中なら `[…]{.slides-only}` |
 | 論点（番号つき） | `::: {.question #question-x title="…"}` … `:::` |
 | ブロックを指す | `@question-x` |
 | 再掲 / 一覧 | `::: {.restate #question-x}` / `::: {.list-of .question}` |

@@ -155,7 +155,7 @@ def add_docs_entry(config: Path) -> bool:
     return True
 
 
-def run(cfg, dry_run: bool = False) -> int:
+def run(cfg, dry_run: bool = False, allow_dirty: bool = False) -> int:
     moves, skipped = plan(cfg)
     root = cfg.root
     for line in skipped:
@@ -164,14 +164,18 @@ def run(cfg, dry_run: bool = False) -> int:
         print(t('nothing to move: every manuscript is already in docs/'))
         return 0
     in_git = _git(root, 'rev-parse', '--is-inside-work-tree').returncode == 0
-    if in_git and not dry_run:
-        # 移す原稿や設定に作業中の変更があれば止める（git mv と書き換えが混ざらないように）
+    if in_git and not dry_run and not allow_dirty:
+        # 移す原稿や設定に作業中の変更があれば止める（git mv と書き換えが混ざらないように）。
+        # --allow-dirty なら進める（書き換えと移動を1つのコミットにまとめたいとき）
         paths = [str(m.src) for m in moves] + [str(a) for m in moves for a, _ in m.others]
         paths.append(str(cfg.source))
         dirty = _git(root, 'status', '--porcelain', '--', *paths).stdout.strip()
         if dirty:
             print(t('there are uncommitted changes in the manuscripts or the config — commit '
-                    'them first, then run this again') + '\n' + dirty)
+                    'them first, then run this again') + '\n' + dirty + '\n\n' + t(
+                'next: {commit}, then {migrate} (or {dirty} to move them as they are)',
+                commit='git commit -am "…"', migrate='octavo migrate --docs',
+                dirty='octavo migrate --docs --allow-dirty'))
             return 1
     head = '(' + t('dry run') + ') ' if dry_run else ''
     for mv in moves:

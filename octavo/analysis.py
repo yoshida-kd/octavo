@@ -57,6 +57,29 @@ class Unit:
         ts += [p.stat().st_mtime for p in self.deps if p.exists()]
         return max(ts)
 
+    def digest(self) -> str:
+        """.qmd と依存ファイルの中身のハッシュ値（sha256）。
+
+        更新時刻は git の切り替え・pull・clone で中身が同じでも新しくなるので、
+        時刻が新しいときはこれで本当に変わったかを確かめる。
+        """
+        import hashlib
+        h = hashlib.sha256()
+        for p in (self.src,) + tuple(sorted(self.deps, key=str)):
+            h.update(p.name.encode('utf-8') + b'\0')
+            try:
+                with open(p, 'rb') as f:
+                    for chunk in iter(lambda: f.read(1 << 20), b''):
+                        h.update(chunk)
+            except OSError:
+                h.update(b'\0missing')
+            h.update(b'\0')
+        return h.hexdigest()
+
+    def record(self) -> dict:
+        """刻印に残す、いまの状態。"""
+        return {'newest': self.newest(), 'hash': self.digest()}
+
 
 def _expand(root: Path, pats) -> list:
     """グロブを開く。`.` で始まるものは拾わない。
@@ -186,14 +209,38 @@ def write_stamp(cfg, data: dict) -> None:
 
 
 def is_stale(cfg, u: Unit, stamp: dict) -> bool:
-    """前に実行したときより .qmd（か依存ファイル）が新しいか。"""
+    """前に実行したときから .qmd（か依存ファイル）が変わったか。
+
+    まず更新時刻を比べ、新しくなっていれば中身のハッシュ値も比べる（記録にあれば）。
+    git でブランチを切り替えて戻しただけのように、時刻だけ新しく中身が同じなら古くない。
+    """
     rec = stamp.get(key(cfg, u))
     if not isinstance(rec, dict):
         return True
     try:
-        return u.newest() > float(rec.get('newest', 0)) + 1e-6
+        if u.newest() <= float(rec.get('newest', 0)) + 1e-6:
+            return False
     except (TypeError, ValueError):
         return True
+    return not (rec.get('hash') and rec['hash'] == u.digest())
+
+
+def mark_fresh(cfg, names, report: list) -> bool:
+    """名指しした .qmd を、実行せずに「最新」と記録する（octavo analysis mark-fresh）。
+
+    取得用の .qmd のように、二度目は実行したくないが中身が変わっていないと
+    分かっているもののため。前に実行した時刻は残す。
+    """
+    chosen = pick(cfg, names)
+    stamp = read_stamp(cfg)
+    for u in chosen:
+        k = key(cfg, u)
+        old = stamp.get(k) if isinstance(stamp.get(k), dict) else {}
+        stamp[k] = {**u.record(), 'rendered_at': old.get('rendered_at'),
+                    'marked_at': time.time()}
+        report.append(f'{tag("analysis")} ' + t('recorded as up to date (not run): {unit}', unit=k))
+    write_stamp(cfg, stamp)
+    return True
 
 
 # ---------------------------------------------------------------- 実行
@@ -346,7 +393,7 @@ def run(cfg, force: bool = False, report: list | None = None,
         if on_start:
             on_start(key(cfg, u))
         if render(cfg, u, report):
-            stamp[key(cfg, u)] = {'newest': u.newest(), 'rendered_at': time.time()}
+            stamp[key(cfg, u)] = {**u.record(), 'rendered_at': time.time()}
             write_stamp(cfg, stamp)
         else:
             ok = False

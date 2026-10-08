@@ -3,6 +3,43 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.3
+
+- **Whether an analysis is out of date is decided by its contents.** Switching git branches
+  and back, a pull or a fresh clone no longer makes an unchanged `.qmd` stale.
+  `octavo analysis mark-fresh <qmd>` records one as up to date without running it (for a
+  `.qmd` that fetches raw data and must not run twice). The guide shows how such a `.qmd`
+  ends as a success when the data is already there (`knitr::knit_exit()`).
+- The preview's "out of date" bar can be hidden until something else changes, has
+  **Mark as up to date**, and says differently when only a manually run analysis changed.
+- **The preview follows changes made on disk** — by an AI assistant or another tool — not only
+  saves in the editor, and an editor without unsaved edits is reloaded from disk; if the
+  manuscript also has unsaved edits, it says so and offers to compare or to load the file on
+  disk. The rules `octavo init` writes ask AI assistants to edit
+  manuscripts through the editor, not by rewriting the file from the shell.
+- **A slide that does not fit goes on over a slide titled "Title (cont.)"** instead of an
+  untitled page, and `octavo build` says so (a `\newslide` chooses where it breaks). Slides that
+  fit are not touched; an untitled slide that does not fit is reported.
+- **`octavo migrate --syntax`** rewrites the older notation (`::: {.session}`, `::: {.slide}`,
+  `.handout-only`) into `\session{…}`, `\newslide` and `.no-slides`, keeping the rewrite only if
+  every output stays the same. **`octavo migrate --rules`** brings Octavo's sections of
+  `AGENTS.md` up to date and shows the difference.
+- `\newslide` under a `#` heading that is itself a slide continues its title
+  ("Title (cont.)"); with no title to continue it makes an untitled slide rather than one titled
+  "(cont.)" alone.
+- An empty list item (`- `) right under a heading no longer turns the heading into
+  "### Title" one level up (pandoc read the `-` as the heading's underline).
+- The A4 handout has space above and below figures and tables, and between a figure and its
+  caption (jsarticle's `\intextsep` and `\abovecaptionskip`).
+- `octavo check` knows the output names (`.pdf-only`, `.word-only`, …), and no longer says a
+  block right after `\newslide`, `\session{…}` or `\newpage` is not read as a block.
+- `octavo migrate --allow-dirty` goes ahead with uncommitted changes; without it, the message
+  says what to run next.
+- **"Handout only" is written `.no-slides`** in the guide, the examples, the snippet and the rules
+  `octavo new` adds (it shows in the PDF, Word and LaTeX); `.pdf-only` is for the PDF alone. The
+  older `.handout-only` still works and means the same in lecture notes. The rules also say which
+  heading level makes a slide.
+
 ## 0.6.2
 
 - **One kind of document: what it makes is chosen at its top.** A manuscript lives in

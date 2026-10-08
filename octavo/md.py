@@ -461,6 +461,14 @@ NEWPAGE = re.compile(r'^\s*\\(?:newpage|clearpage)\s*$')
 UNTITLED_SLIDE = '```{=typst}\n#octavo-untitled-slide()\n```'
 
 
+def one_line_mark(line: str) -> bool:
+    """1行で書く記法（`\\newslide` `\\newpage` `\\session{…}`）の行か。
+
+    どれも組む前に、前後に空行のある形に置き換わる（スライド以外では空行になる）。
+    """
+    return bool(NEWSLIDE.match(line) or NEWPAGE.match(line) or SESSION_LINE.match(line))
+
+
 def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = None) -> str:
     """スライドの区切りと題を原稿で決める書き方を、出力に合わせて直す。
 
@@ -508,9 +516,13 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
         if n:
             if slides and n.group('title') is not None and not n.group('title').strip():
                 out += ['', UNTITLED_SLIDE, '']
+            elif slides and not (n.group('title') or '').strip() and not last_title:
+                out += ['', UNTITLED_SLIDE, '']      # 続ける題がない
             elif slides:
                 title = (n.group('title') or '').strip() or (last_title + cont).strip()
                 out += ['', '#' * depth + ' ' + title + ' {.unnumbered}', '']
+            else:
+                out.append('')      # 区切りは残す（直後の `:::` が囲みとして読まれるように）
             i += 1
             continue
         m = SLIDE_MARK.match(line)
@@ -520,7 +532,8 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
             while j < len(lines) and not lines[j].strip():
                 j += 1
             end = j if j < len(lines) and DIV_CLOSE.match(lines[j]) else i
-            if slides and NO_TITLE.search(m.group('attr') or ''):
+            if slides and (NO_TITLE.search(m.group('attr') or '')
+                           or not (xref.attr_value(m.group('attr'), 'title') or last_title)):
                 out += ['', UNTITLED_SLIDE, '']
             elif slides:
                 title = xref.attr_value(m.group('attr'), 'title') or (last_title + cont).strip()
@@ -544,10 +557,37 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
             if short:
                 line = f"{h.group('hash')} {short} {{{attr}}}"
                 h = ANY_HEADING.match(line)
-        if h and len(h.group('hash')) == depth:
+        # 「（続き）」の元になる題: 1枚の段の見出しと、それより浅い見出し（すぐ下に
+        # 中身があれば、それ自体が1枚の題になる）。`####` などは1枚の中の小見出し
+        if h and len(h.group('hash')) <= depth:
             last_title = h.group('title')
         out.append(line)
         i += 1
+    return '\n'.join(out)
+
+
+SETEXT_UNDER = re.compile(r'^\s*(?:-+|=+)\s*$')
+
+
+def keep_atx_headings(md: str) -> str:
+    """`#` の見出しのすぐ下が `-` や `=` だけの行なら、あいだに空行を入れる。
+
+    pandoc はその行を見出しの下線（Setext 形式）と読み、`### 題` を「### 題」という
+    文字の `##` 見出しにしてしまう。書きかけの節に置いた空の箇条書き（`- `）でよく
+    起こるが、書いた人にはまず見えない。空行を入れれば、`-` は空の項目、`---` は
+    区切り線として読まれる。コードの中は見ない。
+    """
+    out, fence, prev_heading = [], None, False
+    for line in md.split('\n'):
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            prev_heading = False
+        elif not fence:
+            if prev_heading and SETEXT_UNDER.match(line):
+                out.append('')
+            prev_heading = bool(re.match(r'#{1,6}[ \t]', line))
+        out.append(line)
     return '\n'.join(out)
 
 
@@ -563,7 +603,7 @@ def page_breaks(md: str, repl: str) -> str:
         if f:
             fence = None if fence == f.group(1) else (fence or f.group(1))
         elif not fence and NEWPAGE.match(line):
-            out.append(repl)
+            out += ['', repl, ''] if repl else ['']
             continue
         out.append(line)
     return '\n'.join(out)

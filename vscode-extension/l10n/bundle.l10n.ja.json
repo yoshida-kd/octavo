@@ -235,5 +235,12 @@
   "docs/<name>/<name>.md — an A4 handout + a deck per session": "docs/<name>/<name>.md — A4 プリントと、回ごとのスライド",
   "docs/<name>/<name>.md — with main.typ, the journal layout": "docs/<name>/<name>.md — 投稿先の体裁 main.typ つき",
   "docs/<name>/<name>.md — A0, the top-level headings make the cells": "docs/<name>/<name>.md — A0。一番上の見出しがマスになる",
-  "Poster": "ポスター"
+  "Poster": "ポスター",
+  "Mark as up to date": "最新と記録する",
+  "Record it as up to date without running it (when you know nothing it uses has changed)": "実行せずに最新と記録します（使うものが何も変わっていないと分かっているとき）",
+  "Hide until something else changes": "ほかに変わるまで隠す",
+  "A manually run analysis has changed since it last ran ({0}). It runs only when you choose.": "手動で実行する分析が、前回の実行のあとに変わりました（{0}）。実行するかどうかはあなたが決めます。",
+  "Compare": "比べる",
+  "Use the file on disk": "ディスクの方を読み込む",
+  "{0} was changed on disk (by an AI assistant or another tool) while it has unsaved edits here. The preview shows the file on disk.": "{0} が、ここで保存していない変更があるあいだに、ディスク上で書き換えられました（AI か別のツールによる）。プレビューはディスクの方を表示しています。"
 }

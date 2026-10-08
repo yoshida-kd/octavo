@@ -434,6 +434,14 @@ def cmd_analysis(args) -> int:
                   + "\n    'analysis': ['analysis/*.qmd'],")
         return 0
 
+    if args.action == 'mark-fresh':
+        if not args.names:
+            sys.exit(t('name the .qmd to record as up to date: octavo analysis mark-fresh <qmd>'))
+        report = []
+        analysismod.mark_fresh(cfg, args.names, report)
+        for line in report:
+            print('  ' + line)
+        return 0
     if args.action == 'run':
         report: list = []
         _, ok = analysismod.run(
@@ -766,9 +774,55 @@ def cmd_migrate(args) -> int:
     cfg = configmod.load(args.config)
     if args.docs:
         from . import relocate
-        return relocate.run(cfg, dry_run=args.dry_run)
+        return relocate.run(cfg, dry_run=args.dry_run, allow_dirty=args.allow_dirty)
+    if args.syntax:
+        from . import syntax
+        return syntax.run(cfg, dry_run=args.dry_run, allow_dirty=args.allow_dirty)
+    if args.rules:
+        return migrate_rules(cfg, args.dry_run, args.allow_dirty)
     moved, line = scaffold.migrate_instructions(Path(cfg.root), cfg['lang'], args.dry_run)
     print(('(' + t('dry run') + ') ' if args.dry_run and moved else '') + line)
+    if not moved and (Path(cfg.root) / scaffold.INSTRUCTIONS).is_file():
+        print(t('to bring its Octavo sections up to date: {cmd}', cmd='octavo migrate --rules'))
+    return 0
+
+
+def migrate_rules(cfg, dry_run: bool, allow_dirty: bool) -> int:
+    """約束事のファイルの Octavo の節を今のひな型に（octavo migrate --rules）。"""
+    import difflib
+    from .relocate import _git
+    root = Path(cfg.root)
+    got = scaffold.rules_update(root, cfg['lang'])
+    if got is None:
+        print(t('There is no AGENTS.md (or CLAUDE.md with rules), so there is nothing to update.'))
+        return 0
+    p, old, new, changed = got
+    if not changed:
+        print(t('{file}: every Octavo section is already current', file=p.name))
+        return 0
+    diff = difflib.unified_diff(old.splitlines(), new.splitlines(), f'{p.name} (now)',
+                                f'{p.name} (updated)', lineterm='', n=1)
+    print('\n'.join(diff))
+    print('\n' + t('sections to replace: {names}', names=', '.join(changed)))
+    print(t('anything you wrote inside these sections is replaced too — copy it out first if '
+            'you want to keep it (text before the first section is kept)'))
+    if dry_run:
+        print(t('nothing was changed (drop --dry-run to update it)'))
+        return 0
+    in_git = _git(root, 'rev-parse', '--is-inside-work-tree').returncode == 0
+    if in_git and not allow_dirty and _git(root, 'status', '--porcelain', '--', str(p)).stdout.strip():
+        print(t('{file} has uncommitted changes — commit them first (so git can show and undo '
+                'the update), or add --allow-dirty', file=p.name))
+        return 1
+    tracked = in_git and _git(root, 'ls-files', '--error-unmatch', str(p)).returncode == 0
+    if not tracked:
+        bak = p.with_name(p.name + '.bak')
+        bak.write_text(old, encoding='utf-8')
+        print(t('the previous version is kept as {file}', file=bak.name))
+    from .syntax import write_like
+    write_like(p, new, p.read_bytes())
+    print(t('updated {file}', file=p.name) + (' — ' + t('git diff shows the change, git checkout '
+                                                          'undoes it') if tracked else ''))
     return 0
 
 
@@ -1078,8 +1132,9 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('analysis', help=t('run the analysis (.qmd)')))
     p.add_argument('action', nargs='?', default='status',
-                   choices=['status', 'run'],
-                   help=t('status=see whether it is up to date (default) / run=run it'))
+                   choices=['status', 'run', 'mark-fresh'],
+                   help=t('status=see whether it is up to date (default) / run=run it / '
+                          'mark-fresh=record the named .qmd as up to date without running it'))
     p.add_argument('names', nargs='*',
                    help=t('with run: only these .qmd (run even if not stale)'))
     p.add_argument('--force', action='store_true',
@@ -1186,6 +1241,14 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('move the manuscripts from papers/, slides/ and lectures/ into '
                           'docs/<name>/<name>.md'))
     p.add_argument('--dry-run', action='store_true', help=t('say what would change, and change nothing'))
+    p.add_argument('--syntax', action='store_true',
+                   help=t('rewrite the older notation in the manuscripts (::: {.session}, '
+                          '::: {.slide}, .handout-only) into the current one, checking that '
+                          'every output stays the same'))
+    p.add_argument('--rules', action='store_true',
+                   help=t("replace Octavo's sections of AGENTS.md with the current ones"))
+    p.add_argument('--allow-dirty', action='store_true',
+                   help=t('go ahead even with uncommitted changes'))
     p.set_defaults(func=cmd_migrate)
 
     p = with_config(sub.add_parser('env', help=t("set up this project's R and Python packages "

@@ -118,6 +118,9 @@ class TypstNotesBackend(TypstSlidesBackend):
                              ctx.template('typst/crossref.typ')])
 
     # -- 組む: 先にスライドを組み、ノートのページを引く ------------------------
+    def after_compile(self, ctx: Ctx, typ) -> None:
+        """台本のページは1枚ごとではないので、はみ出しは見ない（スライドの側で知らせる）。"""
+
     def compile(self, ctx: Ctx, path):
         from .. import build
         r = build.build_one(ctx.cfg, ctx.document, 'typst-slides', do_compile=True,

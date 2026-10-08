@@ -279,6 +279,18 @@ run `octavo migrate --docs` (`--dry-run` shows what it would do): it moves the m
 fixes the figure paths, writes `outputs` / `sessions` at the top and adds `docs/*/` to the
 config. The document names stay the same. `octavo check` also says when there is something to move.
 
+Two more steps bring such a project fully up to date; both take `--dry-run` to show what they
+would change, and work on a committed project (`--allow-dirty` to go ahead anyway):
+
+- `octavo migrate --syntax` rewrites the older notation in the manuscripts — `::: {.session}`,
+  `::: {.slide}` and `.handout-only` — into `\session{…}`, `\newslide` and `.no-slides`. It
+  builds every document before and after and keeps the rewrite only if **every output is the same**.
+  `.handout-only` is left as it is where `.no-slides` would mean something else (a document that
+  is not in the handout layout, or one that also makes a poster).
+- `octavo migrate --rules` replaces Octavo's sections of `AGENTS.md` (from `<!-- octavo:section … -->`
+  to the next one) with the current versions, and shows the difference. Anything you wrote
+  inside those sections is replaced too; what is before the first section is kept.
+
 ### 2.4 The analysis environment
 
 Tools such as R and Quarto are installed once per machine. **The packages an analysis uses
@@ -517,7 +529,7 @@ outputs: [pdf, word]
 | `beamer` | LaTeX slides (needs TeX) |
 
 **A manuscript made of several class sessions says `sessions: true`.** One `#` heading (or one
-`::: {.session}` marker) is one session, and the slides and the script come out as one file per
+`\session{…}` marker) is one session, and the slides and the script come out as one file per
 session ([7.2](#72-lecture-notes)). A manuscript with markers is made of sessions without saying so.
 
 The title goes in the front matter (`title:`). Don't write a `# Title` heading — a `#` heading is a section.
@@ -615,12 +627,15 @@ name with no value stays as `{{name}}` in the output and is reported.
 ### 4.3 When the analysis runs
 
 `octavo build` runs a `.qmd` when it, or a file it depends on, changed since the last run.
+What counts is the contents: switching git branches and back, or a fresh clone, does not make
+a `.qmd` out of date.
 
 ```bash
 octavo analysis              # which are out of date
 octavo analysis run          # run the out-of-date ones
 octavo build --no-analysis   # build without running anything
 octavo check values --diff   # which numbers in the text changed at the last run
+octavo analysis mark-fresh analysis/00-fetch.qmd   # record it as up to date without running it
 ```
 
 - If Quarto is missing, the build warns and goes on. If an analysis fails, the build stops —
@@ -640,16 +655,28 @@ octavo check values --diff   # which numbers in the text changed at the last run
   `deps` (more files to watch). An entry for that file in the config wins over it.
 - **Fetching raw data from the web** (an API, a download, an R package that fetches) goes in
   its own `.qmd`, run by hand: `analysis/00-fetch-<source>.qmd` with `manual: true`. Have it
-  stop rather than overwrite a file already in `data/raw/`, and write where it came from and
-  when into `data/raw/README.md` — that file is the only record once `data/raw/` is ignored.
+  skip the fetch when the file is already in `data/raw/` (rather than overwrite it, or stop with
+  an error that makes the run fail), and write where it came from and when into
+  `data/raw/README.md` — that file is the only record once `data/raw/` is ignored.
+  `knitr::knit_exit()` ends the `.qmd` there as a successful run; put it in a chunk of its own,
+  since the rest of its chunk still runs.
 
-```yaml
+````markdown
 ---
 title: "Fetch the raw data"
 octavo:
   manual: true
 ---
+
+```{r}
+out <- "../data/raw/survey.csv"
+if (file.exists(out)) knitr::knit_exit("Already fetched. Move the file away to fetch again.")
 ```
+
+```{r}
+download.file("https://example.org/survey.csv", out)
+```
+````
 
 - In VS Code the sidebar's **Analysis** section shows each `.qmd` and runs it with one
   button. The preview never runs the analysis; it says when something is out of date.
@@ -891,7 +918,7 @@ the whole of the notes (normally `###`), so adding markers does not change it.
 **What goes where.** Conditional blocks choose the output:
 
 ```markdown
-::: {.pdf-only}
+::: {.no-slides}
 Fill-in-the-blank space and detailed footnotes: handout only.
 :::
 
@@ -902,13 +929,13 @@ Figures and short prompts: slides only.
 
 | Marker | Kept in |
 |---|---|
+| `.no-slides` | everything but slides and speaker scripts — the usual mark for "handout only" |
 | `.slides-only` | slides, speaker scripts |
-| `.pdf-only` | the PDF (handout, paper) |
+| `.pdf-only` | the PDF only (handout, paper; not Word or LaTeX) |
 | `.word-only` | Word |
 | `.print-only` | anything printed (PDF, Word, LaTeX) |
-| `.no-slides` | everything but slides and speaker scripts |
 
-The older `.handout-only` still works (kept in the built-in layout's PDF, Word and LaTeX).
+The older `.handout-only` still works; in lecture notes it means the same as `.no-slides`.
 
 **Only part of the notes on the slides.** With `slides_select: marked` at the top, the slides get
 only what is marked `.on-slides` (a `::: {.on-slides}` block, a section whose heading has
@@ -1071,7 +1098,7 @@ octavo doctor                                                        what is ins
 octavo selftest                                                      a sample typeset end to end
 octavo outline [documents...]                                        the heading structure
 octavo targets                                                       the outputs
-octavo migrate [--docs] [--dry-run]                                  bring an older project up to date (--docs: manuscripts into docs/)
+octavo migrate [--docs|--syntax|--rules] [--dry-run]                 bring an older project up to date (manuscripts into docs/, notation, AGENTS.md)
 ```
 
 Outputs (in `outputs:` at the top of a manuscript and after `--to`, comma-separated; `--to all` for every one):

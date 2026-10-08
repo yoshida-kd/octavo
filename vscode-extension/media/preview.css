@@ -89,5 +89,15 @@ body {
   background: var(--vscode-button-background);
 }
 #stale-run:hover { background: var(--vscode-button-hoverBackground); }
+#stale-mark {
+  flex: none; border: none; border-radius: 3px; padding: 3px 10px; cursor: pointer;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, rgba(128,128,128,.2));
+}
+#stale-mark:hover { background: var(--vscode-button-secondaryHoverBackground, rgba(128,128,128,.3)); }
+#stale-close {
+  flex: none; border: none; background: none; cursor: pointer; padding: 0 4px;
+  color: var(--vscode-foreground); font-size: 16px; line-height: 1;
+}
 
 #follow.on { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }

@@ -171,6 +171,10 @@ A `\newslide` with no title takes the previous slide's title plus " (cont.)". Th
 `::: {.slide title="…"}` + `:::` means the same. The new
 slide gets a heading at the slide level (normally `###`).
 
+A slide with more than fits goes on over a new slide titled "Title (cont.)", and `octavo build`
+says so; put a `\newslide` where you want it to break instead. An untitled slide that does not
+fit is only reported.
+
 **Notes for what you will say** go in `::: notes`. They appear on neither the slides nor the
 handout, only in the **speaker script** (pick Speaker script for the preview's right column).
 The script shows each slide as projected, shrunk, two to an A4 page, with the notes written on
@@ -189,7 +193,7 @@ Ask the room first; give the answer after two minutes.
 Fence a part to show it in one of them only:
 
 ```markdown
-::: {.pdf-only}
+::: {.no-slides}
 Space for students to write in, longer explanations, footnotes.
 :::
 
@@ -200,18 +204,18 @@ A big figure or one short question.
 
 | Mark | Shown in |
 |---|---|
-| `.pdf-only` | the A4 handout only (the older `.handout-only` too) |
+| `.no-slides` | the handout only — in every printed form (PDF, Word, LaTeX), not on the slides or in the speaker script (the older `.handout-only` is the same) |
 | `.slides-only` | the slides and the speaker script only |
-| `.no-slides` | everything but the slides and the speaker script |
+| `.pdf-only` | the PDF only (not Word or LaTeX) |
 
 (`.slide-only` is read as `.slides-only`.) Inside a list item, indent the fence to the item's
 text, and **leave a blank line before every opening `:::`** — without it pandoc does not see a
-block and prints the `:::`. For a few words, `[…]{.pdf-only}` works inside a line:
+block and prints the `:::`. For a few words, `[…]{.no-slides}` works inside a line:
 
 ```markdown
 - Local government employs most officials.
 
-  ::: {.pdf-only}
+  ::: {.no-slides}
   - Longer explanation for the handout.
   :::
 
@@ -219,7 +223,7 @@ block and prints the `:::`. For a few words, `[…]{.pdf-only}` works inside a l
   - One line for the slide.
   :::
 
-- Grading: [midterm and final]{.pdf-only}[see the handout]{.slides-only}.
+- Grading: [midterm and final]{.no-slides}[see the handout]{.slides-only}.
 ```
 
 **Check before submitting** (or `octavo check lint`) points out a `:::` that will not be read as a
@@ -444,7 +448,7 @@ indented by one character).
 | a heading without a number | `## Title {.unnumbered}` or `{-}` |
 | another title on the slides | `### Title {slide-title="Short"}` |
 | notes for what you say | `::: notes` … `:::` |
-| handout only / slides only | `::: {.pdf-only}` / `::: {.slides-only}`, in a line `[…]{.slides-only}` |
+| handout only / slides only | `::: {.no-slides}` / `::: {.slides-only}`, in a line `[…]{.slides-only}` |
 | a question (numbered) | `::: {.question #question-x title="…"}` … `:::` |
 | point at a block | `@question-x` |
 | show again / list | `::: {.restate #question-x}` / `::: {.list-of .question}` |

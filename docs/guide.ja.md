@@ -274,6 +274,17 @@ study/
 `outputs` / `sessions` を書き、設定に `docs/*/` を足す。文書の名前は変わらない。`octavo check`
 も、移せる原稿があれば知らせる。
 
+さらに次の2つで今の形に揃う。どちらも `--dry-run` で変わるところだけを見られ、コミット
+してあるプロジェクトで動く（そのまま進めるなら `--allow-dirty`）。
+
+- `octavo migrate --syntax` は、原稿の前からの書き方（`::: {.session}`・`::: {.slide}`・
+  `.handout-only`）を `\session{…}`・`\newslide`・`.no-slides` に書き換える。書き換えの前と後で
+  文書を組み、**出力がすべて同じときだけ**書き換えを残す。`.no-slides` にすると意味が変わる
+  文書（プリントの体裁でない文書や、ポスターも作る文書）の `.handout-only` はそのままにする。
+- `octavo migrate --rules` は、`AGENTS.md` の Octavo の節（`<!-- octavo:section … -->` から次の節
+  まで）を今の版に差し替え、違いを見せる。その節の中に書き足したところも差し替わる。最初の節
+  より前は残る。
+
 ### 2.4 分析の環境
 
 R や Quarto などのツールは機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
@@ -501,7 +512,7 @@ outputs: [pdf, word]
 | `poster` | ポスター（[7.3](#73-ポスター)） |
 | `beamer` | LaTeX のスライド（TeX が要る） |
 
-**何回分かの授業でできている原稿は `sessions: true`** と書く。`#` 見出し1つ（か `::: {.session}`
+**何回分かの授業でできている原稿は `sessions: true`** と書く。`#` 見出し1つ（か `\session{…}`
 の区切り1つ）が1回分になり、スライドと台本は回ごとに別のファイルになる（[7.2](#72-講義ノート)）。
 区切りを書いた原稿は、書かなくても回でできているものとする。
 
@@ -597,12 +608,14 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 ### 4.3 分析が実行されるとき
 
 `octavo build` は、`.qmd` か、それが使うファイルが前回から変わっていれば実行する。
+見るのは中身なので、git でブランチを切り替えて戻した・clone し直しただけでは古くならない。
 
 ```bash
 octavo analysis              # どれが古いか
 octavo analysis run          # 古いものを実行する
 octavo build --no-analysis   # 何も実行せずに組む
 octavo check values --diff   # 前回の実行で本文のどの数値が変わったか
+octavo analysis mark-fresh analysis/00-fetch.qmd   # 実行せずに最新と記録する
 ```
 
 - Quarto がなければ警告して先に進む。分析が失敗したら組むのを止める（古い数値のまま組んで
@@ -622,16 +635,27 @@ octavo check values --diff   # 前回の実行で本文のどの数値が変わ�
   見張るファイル）。設定にその `.qmd` を個別に書いてあれば、そちらが優先。
 - **原データをネットから取得する処理**（API、ダウンロード、データを取得する R パッケージ）は、
   手で実行する別の `.qmd` にする: `analysis/00-fetch-<取得元>.qmd` に `manual: true`。
-  `data/raw/` にもうあるファイルは上書きせずに止まるようにし、取得元と取得日を
-  `data/raw/README.md` に書く（`data/raw/` を git に入れないなら、残る記録はそれだけ）。
+  `data/raw/` にもうあるファイルは上書きせず、取得を飛ばすようにする（エラーで止めると、
+  実行が失敗の扱いになる）。取得元と取得日は `data/raw/README.md` に書く（`data/raw/` を
+  git に入れないなら、残る記録はそれだけ）。`knitr::knit_exit()` を呼ぶと、`.qmd` はそこで
+  正常に終わる。同じチャンクの残りは実行されてしまうので、それだけのチャンクに置く。
 
-```yaml
+````markdown
 ---
 title: "Fetch the raw data"
 octavo:
   manual: true
 ---
+
+```{r}
+out <- "../data/raw/survey.csv"
+if (file.exists(out)) knitr::knit_exit("Already fetched. Move the file away to fetch again.")
 ```
+
+```{r}
+download.file("https://example.org/survey.csv", out)
+```
+````
 
 - VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
   プレビューは分析を実行せず、古いものがあれば知らせる。
@@ -863,7 +887,7 @@ octavo build example-lecture-03 --to slides          # 1回分だけ
 **出し分け。**条件付きブロックで、どの出力に入れるかを決める:
 
 ```markdown
-::: {.pdf-only}
+::: {.no-slides}
 Fill-in-the-blank space and detailed footnotes: handout only.
 :::
 
@@ -874,13 +898,13 @@ Figures and short prompts: slides only.
 
 | 印 | 残る出力 |
 |---|---|
+| `.no-slides` | スライドと台本以外。「プリントだけ」はふつうこれ |
 | `.slides-only` | スライド・台本 |
-| `.pdf-only` | PDF（A4 プリント・論文） |
+| `.pdf-only` | PDF だけ（A4 プリント・論文。Word・LaTeX には出ない） |
 | `.word-only` | Word |
 | `.print-only` | 紙に出るもの（PDF・Word・LaTeX） |
-| `.no-slides` | スライドと台本以外 |
 
-前からの `.handout-only` も使える（組み込みの体裁の PDF・Word・LaTeX に残る）。
+前からの `.handout-only` も使える。講義ノートでは `.no-slides` と同じ意味。
 
 **一部だけをスライドにする。**冒頭に `slides_select: marked` と書くと、スライドには `.on-slides`
 の印の所（`::: {.on-slides}` の囲み、見出しに `{.on-slides}` を付けた節、行の中の
@@ -1038,7 +1062,7 @@ octavo doctor                                                        何が入�
 octavo selftest                                                      見本を最後まで組んでみる
 octavo outline [documents...]                                        見出しの構成
 octavo targets                                                       出力の一覧
-octavo migrate [--docs] [--dry-run]                                  前からのプロジェクトを今の形に（--docs は原稿を docs/ へ）
+octavo migrate [--docs|--syntax|--rules] [--dry-run]                 前からのプロジェクトを今の形に（原稿を docs/ へ・書き方・AGENTS.md）
 ```
 
 出力（原稿の冒頭の `outputs:` と `--to` に、カンマ区切りで。`--to all` で全部）:
