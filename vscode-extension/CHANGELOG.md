@@ -3,6 +3,23 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.4
+
+- **R packages a `.qmd` uses are installed for you**, including a `.qmd` brought in from
+  elsewhere: `octavo env` now installs every package the project's `library(x)` / `x::f()`
+  use that is missing (before, only the first `octavo env` did, through `renv::init()`), and when
+  an R `.qmd` fails while running, Octavo installs what it uses and is missing and runs it once
+  more. Both record the additions in `renv.lock`. A package not on CRAN is named, with the
+  command to install it yourself.
+- **Projects with only `.qmd` files.** For a report or an assignment written entirely in
+  Quarto, the `.qmd`'s output (beside it, as always) is the result. With no manuscript,
+  `octavo check` and `octavo build` no longer fail as long as there is a `.qmd`.
+- The New project form in VS Code listed pre-`docs/` paths; fixed.
+- Fixed: Quarto's `analysis/.quarto/` folder went into git (the ignore line only matched the
+  project's top folder), and the replication package carried Quarto's `<name>_files/` and the
+  HTML beside each `.qmd`. Projects made before keep their `.gitignore`: change `/.quarto/` to
+  `.quarto/` there by hand.
+
 ## 0.6.3
 
 - **Whether an analysis is out of date is decided by its contents.** Switching git branches

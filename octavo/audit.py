@@ -156,11 +156,17 @@ def collect(cfg, anonymous: bool = False) -> list:
 
     # -- 原稿 ---------------------------------------------------------------
     srcs = cfg.sources()
-    items.append(Item(
-        ok=bool(srcs), fatal=True, label=t('manuscript'),
-        detail=', '.join(cfg.rel(p) for _, p, _ in srcs) or t('none found'),
-        hint=t('add one with octavo new paper|slides|lecture <name>, or check '
-               'documents in octavo.config.py')))
+    if srcs or not anamod.units(cfg):
+        items.append(Item(
+            ok=bool(srcs), fatal=True, label=t('manuscript'),
+            detail=', '.join(cfg.rel(p) for _, p, _ in srcs) or t('none found'),
+            hint=t('add one with octavo new paper|slides|lecture <name>, or check '
+                   'documents in octavo.config.py')))
+    else:
+        # .qmd だけで使うプロジェクト（レポート・課題）。原稿がないのは問題ではない
+        items.append(Item(
+            ok=True, fatal=False, label=t('manuscript'),
+            detail=t('none — the .qmd files are the work (each one\'s output is beside it)')))
 
     # 前からの置き場所（papers/・slides/・lectures/）の原稿。そのままでも組めるので
     # 問題にはしないが、docs/ へ移せることと、その命令を知らせる
@@ -369,7 +375,8 @@ def collect(cfg, anonymous: bool = False) -> list:
                    '— it depends on the journal')))
 
     # -- 再現性 -------------------------------------------------------------
-    if has_analysis:
+    # 値を書かない .qmd（レポート）だけなら、記録が残らないのは当然なので出さない
+    if has_analysis and valmod.files(cfg):
         sess = valmod.session_info(cfg)
         items.append(Item(
             ok=bool(sess), fatal=False, label=t('environment record'),

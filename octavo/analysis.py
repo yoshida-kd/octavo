@@ -284,6 +284,10 @@ def _env(cfg) -> dict:
     return env
 
 
+# Quarto が .qmd の隣に書く完成品（再現用パッケージには入れない。実行すればできる）
+RENDERED = ('.pdf', '.docx', '.html', '.pptx', '.odt', '.epub', '.rtf')
+
+
 def render(cfg, u: Unit, report: list) -> bool:
     cmd = [quarto_exe(), 'render', str(u.src)]
     if cfg['analysis_to']:
@@ -311,6 +315,52 @@ def render(cfg, u: Unit, report: list) -> bool:
     return True
 
 
+def render_installing(cfg, u: Unit, report: list, on_note=None) -> bool:
+    """実行する。R の .qmd が失敗したら、その .qmd が使っているのに入っていない
+    パッケージ（外から持ち込んだ .qmd の library(x) など）を renv に入れて、1回だけやり直す。
+
+    足りないものがなければ（ほかの理由の失敗）、最初の失敗をそのまま報告する。
+    renv のプロジェクトでなければ入れない（環境を作るのは octavo env）。
+    """
+    first: list = []
+    if render(cfg, u, first):
+        report.extend(first)
+        return True
+    if 'r' not in engine(u.src).split('+'):
+        report.extend(first)
+        return False
+    from . import envsetup
+    if not (Path(cfg.root) / 'renv' / 'activate.R').exists():
+        report.extend(first)
+        report.append(f'{tag("analysis")}{tag("note")} ' + t(
+            'this project has no renv yet: octavo env sets it up and installs the R '
+            'packages the .qmd files use'))
+        return False
+    if on_note:
+        on_note(t('{unit} failed: looking for R packages it uses that are not installed…',
+                  unit=key(cfg, u)))
+    got = envsetup.install_missing(cfg.root, [u.src])
+    if got is None:
+        report.extend(first)
+        return False
+    installed, failed = got
+    for name in failed:
+        report.append(f'{tag("analysis")}{tag("warning")} ' + t(
+            'could not install the R package {pkg} (not on CRAN?). Install it into the '
+            'project yourself, e.g. renv::install("{pkg}") or renv::install("user/repo") '
+            'for GitHub, then renv::snapshot()', pkg=name))
+    if not installed:
+        report.extend(first)
+        return False
+    report.append(f'{tag("analysis")} ' + t(
+        'installed the R {n|package|packages} {pkgs} that {unit} uses (recorded in renv.lock), '
+        'and ran it again', n=len(installed), pkgs=', '.join(installed), unit=key(cfg, u)))
+    if on_note:
+        on_note(t('installed {pkgs}; running {unit} again…',
+                  pkgs=', '.join(installed), unit=key(cfg, u)))
+    return render(cfg, u, report)
+
+
 def pick(cfg, names) -> list:
     """名前（`analysis/01-clean.qmd`、`01-clean.qmd`、`01-clean`）から Unit を選ぶ。"""
     us = units(cfg)
@@ -328,13 +378,14 @@ def pick(cfg, names) -> list:
 
 
 def run(cfg, force: bool = False, report: list | None = None,
-        names=None, auto: bool = False, on_start=None) -> tuple:
+        names=None, auto: bool = False, on_start=None, on_note=None) -> tuple:
     """古い .qmd を実行する。(実行した本数, 失敗がなかったか) を返す。
 
     names  実行する .qmd を名指しする。**名指ししたものは古くなくても実行する**
            （わざわざ選んだのだから）。
     auto   octavo build から呼ぶとき。manual の .qmd は実行せず、古ければ言うだけ。
     on_start  1本実行する直前に key を渡して呼ぶ（長い分析の進み具合を見せる）。
+    on_note   途中で知らせること（足りない R のパッケージを入れている、など）を渡して呼ぶ。
     """
     report = report if report is not None else []
     us = units(cfg)
@@ -392,7 +443,7 @@ def run(cfg, force: bool = False, report: list | None = None,
         ran += 1
         if on_start:
             on_start(key(cfg, u))
-        if render(cfg, u, report):
+        if render_installing(cfg, u, report, on_note):
             stamp[key(cfg, u)] = {**u.record(), 'rendered_at': time.time()}
             write_stamp(cfg, stamp)
         else:

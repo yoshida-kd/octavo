@@ -297,10 +297,17 @@ Tools such as R and Quarto are installed once per machine. **The packages an ana
 belong to the project**:
 
 ```bash
-octavo env    # .venv (uv) with requirements.txt, renv with knitr and rmarkdown
+octavo env    # .venv (uv) with requirements.txt, renv with knitr, rmarkdown and what the .qmd files use
 ```
 
 A project whose analyses are all in Python gets no renv. In VS Code you do not have to run it: **adding the first analysis** (or starting a project with one) sets the environment up right after, with the progress in a notification.
+
+**R packages the `.qmd` files use are installed for you** — a `.qmd` brought in from elsewhere
+included. `octavo env` installs every package that a `library(x)` or `x::f()` in the project
+uses and is not installed yet; and when an R `.qmd` fails while running, Octavo installs what
+that `.qmd` uses and is missing, then runs it once more. Both record what they added in
+`renv.lock`. They install the latest version from CRAN; a package that is not on CRAN (GitHub,
+Bioconductor) is named, with the command to install it yourself.
 
 Run it again after adding a package to `requirements.txt`; after `install.packages()` in R,
 run `renv::snapshot()`. Git keeps the records (`requirements.txt`, `renv.lock`), not the
@@ -701,7 +708,27 @@ ov_table(tab, "summary")               # a pandas DataFrame (or a dict, or a lis
   `pyyaml`), and `octavo env` installs it into `.venv`, which `octavo analysis run` uses by
   itself. R and Python `.qmd` files can live in one project.
 
-### 4.5 Other languages
+### 4.5 Using Octavo with `.qmd` files alone
+
+A project need not have a manuscript. A report or an assignment written entirely in Quarto can
+live in `analysis/` like any analysis, helpers or not, and Octavo looks after the environment
+(`octavo env`) and running it (`octavo analysis run`, or ▶ in VS Code). Its output —
+HTML, PDF or Word — lands beside the `.qmd`, as Quarto always writes it; to look at a PDF, use the Quarto extension's **Preview**. With no manuscript,
+`octavo check` and `octavo build` do not count that as a problem as long as there is a `.qmd`.
+
+A Japanese PDF from Quarto (`format: typst`) is set in whatever Japanese typeface the machine
+happens to have. To use the manuscripts' typefaces, name them in the `.qmd`'s header:
+
+```yaml
+format:
+  typst:
+    papersize: a4
+    include-in-header:
+      text: |
+        #set text(font: ((name: "Libertinus Serif", covers: "latin-in-cjk"), "BIZ UDMincho", "Noto Serif CJK JP"))
+```
+
+### 4.6 Other languages
 
 Octavo only reads files, so a Julia or other `.qmd` works if it writes
 `{"name": value}` into `assets/values/<anything>.json`, figures as `.pdf` and `.png` into
@@ -1090,7 +1117,7 @@ octavo release <document> <label>                                    tag, and th
 octavo data hash|status                                              fingerprints of data/
 octavo csl get|list|which [ID]                                       citation styles
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
+octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]                       templates (copy word: a Word style file to edit)
 octavo env                                                           the project's R and Python packages (.venv, renv)
 octavo setup [--with-tex] [--check] [--r-editor]                     install or update the tools

@@ -32,6 +32,7 @@ import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from . import analysis as anamod
 from . import backends as be
 from . import dataset
 from . import tmpl
@@ -212,13 +213,15 @@ def replication(cfg, dest: Path, with_raw: bool = False) -> Result:
     def excluded(rel: str) -> bool:
         return any(Path(rel).match(pat) for pat in excl)
 
-    def copy_tree(src: Path, rel_root: str, why: str) -> int:
+    def copy_tree(src: Path, rel_root: str, why: str, skip=None) -> int:
         if not src.is_dir():
             return 0
         n = 0
         for p in sorted(src.rglob('*')):
             if not p.is_file() or any(x.startswith('.') for x in
                                       p.relative_to(src).parts):
+                continue
+            if skip and skip(p):
                 continue
             rel = f'{rel_root}/{p.relative_to(src).as_posix()}'
             if excluded(rel):
@@ -240,8 +243,15 @@ def replication(cfg, dest: Path, with_raw: bool = False) -> Result:
 
     # -- 分析と成果物 -------------------------------------------------------
     # ヘルパー（octavo.R）は analysis/ の中にあるので、これ1回で入る
+    # Quarto の作業物と出力（<名前>_files/、.qmd の隣の HTML・PDF など）は、
+    # 実行すればできるので入れない
+    def quarto_output(p: Path) -> bool:
+        if any(x.endswith('_files') for x in p.relative_to(cfg.root / 'analysis').parts[:-1]):
+            return True
+        return p.suffix in anamod.RENDERED and p.with_suffix('.qmd').is_file()
     res.say(f'{tag("replication")} analysis '
-            + str(copy_tree(cfg.root / 'analysis', 'analysis', t('analysis'))))
+            + str(copy_tree(cfg.root / 'analysis', 'analysis', t('analysis'),
+                            skip=quarto_output)))
     # プロジェクトと同じ場所に置く（octavo.R の既定の置き場 assets/ がそのまま効く）。
     # 手で作った図（Typst の .typ など）と表（.csv）も、論文の図表の元なので入れる
     for d in (Path(cfg['values_dir']), Path(cfg['figure_dir']), Path(cfg['table_dir']),

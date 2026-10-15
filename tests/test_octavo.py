@@ -3158,6 +3158,148 @@ class Bundle(unittest.TestCase):
 
 
 # =====================================================================
+class QmdOnly(unittest.TestCase):
+    """原稿がなく、.qmd だけで使うプロジェクト（レポート・課題）。
+
+    .qmd の出力（Quarto がいつもどおり隣に書くもの）そのものが提出物なので、
+    原稿がないことは問題にしない。
+    """
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(), example=False, analysis=False)
+        (self.root / 'analysis').mkdir()
+        (self.root / 'analysis' / 'mine.qmd').write_text(
+            '---\ntitle: mine\nformat: html\n---\n\n```{r}\n1 + 1\n```\n', encoding='utf-8')
+        self.cfg = config.load(self.root / 'octavo.config.py')
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def test_no_manuscript_is_not_fatal_when_there_is_a_qmd(self):
+        items = audit.collect(self.cfg)
+        row = next(i for i in items if i.label == 'manuscript')
+        self.assertTrue(row.ok)
+        self.assertFalse([i for i in items if i.fatal and not i.ok])
+        # 値を書かない .qmd では、環境の記録（_session）の行は出さない
+        self.assertFalse([i for i in items if i.label == 'environment record'])
+
+    def test_no_manuscript_and_no_qmd_is_still_fatal(self):
+        (self.root / 'analysis' / 'mine.qmd').unlink()
+        items = audit.collect(config.load(self.root / 'octavo.config.py'))
+        row = next(i for i in items if i.label == 'manuscript')
+        self.assertFalse(row.ok)
+        self.assertTrue(row.fatal)
+
+    def test_build_ends_cleanly(self):
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['build', '--no-analysis', '-c', str(self.root / 'octavo.config.py')])
+        self.assertEqual(code, 0)
+
+    def test_quarto_output_stays_out_of_the_replication_package(self):
+        a = self.root / 'analysis'
+        (a / 'mine.html').write_text('<html></html>', encoding='utf-8')
+        (a / 'mine_files').mkdir()
+        (a / 'mine_files' / 'x.png').write_bytes(b'')
+        (a / 'notes.pdf').write_bytes(b'%PDF')          # .qmd の出力ではない
+        res = bundle.replication(self.cfg, self.d / 'rep')
+        names = sorted(p.relative_to(self.d / 'rep').as_posix() for p in res.files
+                       if p.relative_to(self.d / 'rep').parts[0] == 'analysis')
+        self.assertEqual(names, ['analysis/mine.qmd', 'analysis/notes.pdf'])
+
+    def test_quarto_working_folders_are_ignored_at_any_depth(self):
+        for lang in ('ja', 'en'):
+            lines = (ROOT / 'templates' / 'project' / lang / 'gitignore').read_text(
+                encoding='utf-8').splitlines()
+            self.assertIn('.quarto/', lines)
+            self.assertNotIn('/.quarto/', lines)
+            self.assertIn('analysis/*.html', lines)
+
+
+class MissingRPackages(unittest.TestCase):
+    """.qmd が使っているのに入っていない R のパッケージを入れる。
+
+    octavo env は毎回（記録を戻したあとに）足りないものを入れ、分析が失敗したときは
+    その .qmd の分を入れて1回だけやり直す。R と renv は使わず、入れる部分を差し替える。
+    """
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(), example=False, analysis=False)
+        (self.root / 'analysis').mkdir()
+        self.qmd = self.root / 'analysis' / 'a.qmd'
+        self.qmd.write_text('---\ntitle: a\n---\n\n```{r}\nlibrary(praise)\n```\n',
+                            encoding='utf-8')
+        (self.root / 'renv').mkdir()
+        (self.root / 'renv' / 'activate.R').write_text('', encoding='utf-8')
+        self.cfg = config.load(self.root / 'octavo.config.py')
+        self.u = analysis.units(self.cfg)[0]
+        self.calls = 0
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def render(self, *results):
+        it = iter(results)
+
+        def fake(cfg, u, report):
+            self.calls += 1
+            ok = next(it)
+            report.append('ran' if ok else 'failed')
+            return ok
+        return unittest.mock.patch.object(analysis, 'render', fake)
+
+    def test_installs_and_runs_again(self):
+        with self.render(False, True), unittest.mock.patch.object(
+                envsetup, 'install_missing', return_value=(['praise'], [])) as inst:
+            report: list = []
+            self.assertTrue(analysis.render_installing(self.cfg, self.u, report))
+        inst.assert_called_once()
+        self.assertEqual(self.calls, 2)
+        self.assertNotIn('failed', report)              # 最初の失敗は報告しない
+        self.assertTrue(any('praise' in r for r in report))
+
+    def test_nothing_missing_keeps_the_first_failure(self):
+        with self.render(False), unittest.mock.patch.object(
+                envsetup, 'install_missing', return_value=([], [])):
+            report: list = []
+            self.assertFalse(analysis.render_installing(self.cfg, self.u, report))
+        self.assertEqual(self.calls, 1)
+        self.assertIn('failed', report)
+
+    def test_what_cannot_be_installed_is_named(self):
+        with self.render(False), unittest.mock.patch.object(
+                envsetup, 'install_missing', return_value=([], ['nothere'])):
+            report: list = []
+            self.assertFalse(analysis.render_installing(self.cfg, self.u, report))
+        self.assertTrue(any('renv::install("nothere")' in r for r in report))
+
+    def test_python_and_no_renv_are_left_alone(self):
+        self.qmd.write_text('```{python}\nimport x\n```\n', encoding='utf-8')
+        with self.render(False), unittest.mock.patch.object(envsetup, 'install_missing') as inst:
+            self.assertFalse(analysis.render_installing(self.cfg, self.u, []))
+        inst.assert_not_called()
+        self.qmd.write_text('```{r}\nlibrary(x)\n```\n', encoding='utf-8')
+        (self.root / 'renv' / 'activate.R').unlink()
+        self.calls = 0
+        with self.render(False), unittest.mock.patch.object(envsetup, 'install_missing') as inst:
+            report: list = []
+            self.assertFalse(analysis.render_installing(self.cfg, self.u, report))
+        inst.assert_not_called()
+        self.assertTrue(any('octavo env' in r for r in report))
+
+    def test_the_r_output_is_read_even_after_a_progress_bar(self):
+        out = '\x1b[?25l  (0/1) Downloading\x1b[?25h\nOCTAVO-INSTALLED: a b \nOCTAVO-FAILED: c \n'
+        self.assertEqual(envsetup._installed_lines(out), (['a', 'b'], ['c']))
+        self.assertEqual(envsetup._installed_lines('\x1b[?25hOCTAVO-INSTALLED: a\n'), (['a'], []))
+
+    def test_env_installs_what_the_project_uses(self):
+        self.assertIn('octavo_missing(".")', envsetup.R_SCRIPT)
+        self.assertIn('renv::snapshot', envsetup.MISSING_SCRIPT)
+
+
 @unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')
 class AnalysisEndToEnd(unittest.TestCase):
     """**octavo.R を実際に実行する。**

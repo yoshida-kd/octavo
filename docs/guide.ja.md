@@ -290,10 +290,16 @@ study/
 R や Quarto などのツールは機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
 
 ```bash
-octavo env    # .venv（uv）に requirements.txt を、renv に knitr と rmarkdown を入れる
+octavo env    # .venv（uv）に requirements.txt を、renv に knitr・rmarkdown と .qmd が使うものを入れる
 ```
 
 分析がすべて Python のプロジェクトには renv は作らない。VS Code では自分で実行しなくてよい。**最初の分析を追加したとき**（分析を入れてプロジェクトを作ったとき）に、続けて環境を整え、進み具合は通知に出る。
+
+**`.qmd` が使う R のパッケージは自動で入る**（よそから持ち込んだ `.qmd` も）。`octavo env` は、
+プロジェクトの中の `library(x)` や `x::f()` が使っていて、まだ入っていないパッケージをすべて入れる。
+R の `.qmd` が実行の途中で失敗したときも、その `.qmd` が使っていて足りないものを入れ、もう1回
+実行する。どちらも足したものを `renv.lock` に記録する。入るのは CRAN の最新版で、CRAN にない
+もの（GitHub・Bioconductor）は、名前と自分で入れるコマンドを示す。
 
 `requirements.txt` にパッケージを足したらもう一度実行する。R で `install.packages()` したら
 `renv::snapshot()` を実行する。git に入るのは記録（`requirements.txt`・`renv.lock`）だけで、
@@ -680,7 +686,26 @@ ov_table(tab, "summary")               # pandas の DataFrame（辞書、リス�
   `nbclient`・`pyyaml`）が入り、`octavo env` が `.venv` に入れる。`octavo analysis run` はその
   `.venv` を自分で使う。R と Python の `.qmd` は1つのプロジェクトに同居できる。
 
-### 4.5 他の言語
+### 4.5 `.qmd` だけで使う
+
+原稿のないプロジェクトでもよい。Quarto だけで書くレポートや課題は、分析と同じく `analysis/` に
+置けば（補助の関数を使っていなくてよい）、環境（`octavo env`）と実行（`octavo analysis run`、
+VS Code なら ▶）を Octavo が受け持つ。出力（HTML・PDF・Word）は Quarto のいつもどおり
+`.qmd` の隣にできる。PDF を見るには Quarto 拡張機能の **Preview** を使う。原稿がなくても、`.qmd` があれば `octavo check` と `octavo build` は問題にしない。
+
+Quarto で日本語の PDF（`format: typst`）を作ると、書体はその機械にある日本語の書体任せになる。
+原稿と同じ書体にするなら、`.qmd` の冒頭で指定する:
+
+```yaml
+format:
+  typst:
+    papersize: a4
+    include-in-header:
+      text: |
+        #set text(font: ((name: "Libertinus Serif", covers: "latin-in-cjk"), "BIZ UDMincho", "Noto Serif CJK JP"))
+```
+
+### 4.6 他の言語
 
 Octavo はファイルを読むだけなので、Julia などの `.qmd` でも、`{"name": value}` を
 `assets/values/<好きな名前>.json` に、図を `.pdf` と `.png` で `assets/figures/` に、表を
@@ -1054,7 +1079,7 @@ octavo release <document> <label>                                    タグを�
 octavo data hash|status                                              data/ のハッシュ値
 octavo csl get|list|which [ID]                                       引用の書式
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|analysis|figure|table <name> [--example] [--engine r|python] [--env]
+octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]                       テンプレート（copy word で Word のスタイルのファイル）
 octavo env                                                           このプロジェクトの R と Python のパッケージ（.venv と renv）
 octavo setup [--with-tex] [--check] [--r-editor]                     ツールを入れる・更新する

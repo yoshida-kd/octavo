@@ -111,7 +111,9 @@ def run_analysis(cfg, args, quiet: bool = False) -> int:
     if not cfg['analysis_auto'] and not force:
         return 0
     report: list = []
-    _, ok = analysismod.run(cfg, force=force, report=report, auto=True)
+    _, ok = analysismod.run(cfg, force=force, report=report, auto=True,
+                            on_note=None if quiet else
+                            (lambda m: print('  ' + m, file=sys.stderr, flush=True)))
     if report and not quiet:
         head = '== ' + t('Analysis') + ' '
         print(head + '=' * max(4, 62 - len(head)))
@@ -182,6 +184,11 @@ def cmd_build(args) -> int:
         return 1
     if run_diagrams(cfg, quiet=quiet) or run_tables(cfg, quiet=quiet):
         return 1
+    if docs is None and not cfg.documents and analysismod.units(cfg):
+        # .qmd だけのプロジェクト。分析を実行したら、それで終わり
+        if not quiet:
+            print(t('no manuscripts to typeset — each .qmd\'s output is beside it'))
+        return print_results_json([]) if quiet else 0
     if targets is None and docs is None and not quiet:
         print(cfg.describe())
     results = buildmod.run(cfg, doc_names=docs, targets=targets,
@@ -446,7 +453,8 @@ def cmd_analysis(args) -> int:
         report: list = []
         _, ok = analysismod.run(
             cfg, force=args.force, report=report, names=args.names or None,
-            on_start=lambda k: print('  ' + t('running {unit}…', unit=k), flush=True))
+            on_start=lambda k: print('  ' + t('running {unit}…', unit=k), flush=True),
+            on_note=lambda m: print('  ' + m, flush=True))
         for line in report:
             print('  ' + line)
         return 0 if ok else 1

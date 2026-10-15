@@ -39,7 +39,7 @@ renv/python/
 __pycache__/
 
 # Quarto's working files (assets/values/*.json is output and is committed)
-/.quarto/
+.quarto/
 **/*_files/
 analysis/*.html
 assets/values/.analysis-stamp.json

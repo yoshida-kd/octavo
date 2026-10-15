@@ -91,7 +91,8 @@ months nor a reviewer can reproduce the result.
   package to `requirements.txt` with its version, then `octavo env` — don't
   `pip install` into anything else
 - R: run in the renv project, and always follow `install.packages()` with
-  `renv::snapshot()` (commit `renv.lock`)
+  `renv::snapshot()` (commit `renv.lock`). A package that a `.qmd` only names in `library(x)`
+  is installed from CRAN and recorded by `octavo env`, or by `octavo analysis run` when the run fails
 
 `.venv/` and `renv/library/` are not in git. **Only the records
 (`requirements.txt` / `renv.lock`) are**, so failing to record loses the environment.

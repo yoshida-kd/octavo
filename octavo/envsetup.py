@@ -9,14 +9,19 @@
   Python  uv で `.venv` を作り、requirements.txt に書いたものを入れる
           （Python の .qmd は Quarto が ipykernel などで動かすので、それも入る）
   R       （R の .qmd があるときだけ）renv を入れ（なければ利用者のライブラリへ）、`renv::init()` か
-          `renv::restore()`、Quarto の knitr エンジンに要る knitr / rmarkdown を
-          足して `renv::snapshot()`
+          `renv::restore()`、Quarto の knitr エンジンに要る knitr / rmarkdown と、
+          `.qmd` などが使っているのに入っていないパッケージ（外から持ち込んだ .qmd の
+          `library(x)` など。renv::dependencies() で探す）を足して `renv::snapshot()`
+
+R の分析が失敗したときにも、その .qmd が使っているのに入っていないパッケージを入れて
+もう一度実行する（install_missing。analysis.run が呼ぶ）。
 
 道具（uv・R）そのものは入れない。それは setup.sh（`octavo setup`）の役目。
 """
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,11 +35,37 @@ R_NEEDS = ('knitr', 'rmarkdown')
 # Rscript に渡す（一時ファイルにして）。repos が未設定（@CRAN@）なら CRAN のクラウドミラー。
 # Linux で setup.sh を通していれば Rprofile.site が Posit Package Manager の
 # ビルド済みパッケージを向いているので、それがそのまま使われる。
-R_SCRIPT = r'''
+# 足りないパッケージを探して入れる（R_SCRIPT と MISSING_SCRIPT が使う）。
+#   octavo_missing  渡した場所（.qmd やフォルダ）が library() / pkg:: で使っているのに、
+#                   いまのライブラリ（renv のプロジェクトならその中）にないもの
+#   octavo_install  入れる。まとめて入れて、だめなら1つずつ（CRAN にないものだけが残る）。
+#                   入れたもの・入らなかったものを OCTAVO-INSTALLED: / OCTAVO-FAILED: の行で出す
+R_FUNCTIONS = r'''
 repos <- getOption("repos")
 if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
   repos <- c(CRAN = "https://cloud.r-project.org")
 options(repos = repos)
+octavo_missing <- function(paths) {
+  deps <- tryCatch(unique(renv::dependencies(paths, quiet = TRUE)$Package),
+                   error = function(e) character())
+  deps <- deps[nzchar(deps) & deps != "R"]
+  setdiff(deps, rownames(utils::installed.packages()))
+}
+octavo_install <- function(pkgs) {
+  pkgs <- unique(pkgs)
+  if (!length(pkgs)) return(character())
+  try(renv::install(pkgs, prompt = FALSE), silent = TRUE)
+  for (p in pkgs[!vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]) {
+    try(renv::install(p, prompt = FALSE), silent = TRUE)
+  }
+  ok <- pkgs[vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)]
+  cat("\nOCTAVO-INSTALLED:", ok, "\n")
+  cat("OCTAVO-FAILED:", setdiff(pkgs, ok), "\n")
+  ok
+}
+'''
+
+R_SCRIPT = R_FUNCTIONS + r'''
 if (!requireNamespace("renv", quietly = TRUE)) {
   lib <- Sys.getenv("R_LIBS_USER")
   dir.create(lib, recursive = TRUE, showWarnings = FALSE)
@@ -50,11 +81,19 @@ if (file.exists("renv.lock")) {
 }
 need <- c(@@NEEDS@@)
 miss <- need[!vapply(need, requireNamespace, logical(1), quietly = TRUE)]
+# .qmd などが使っているのに入っていないもの（記録のあとで足した .qmd や、外から持ち込んだ .qmd）
+miss <- unique(c(miss, octavo_missing(".")))
 if (length(miss)) {
-  renv::install(miss, prompt = FALSE)
-  changed <- TRUE
+  if (length(octavo_install(miss))) changed <- TRUE
 }
 if (changed || !file.exists("renv.lock")) renv::snapshot(prompt = FALSE)
+'''
+
+# 分析が失敗したとき: その .qmd が使っているのに入っていないものを入れる（renv の
+# プロジェクトの中で。入れたら renv.lock にも記録する）
+MISSING_SCRIPT = R_FUNCTIONS + r'''
+ok <- octavo_install(octavo_missing(c(@@PATHS@@)))
+if (length(ok)) renv::snapshot(prompt = FALSE)
 '''
 
 
@@ -194,6 +233,39 @@ def r_env(root: Path) -> bool | None:
         return ok
     finally:
         os.unlink(path)
+
+
+def install_missing(root: Path, qmds: list) -> tuple | None:
+    """renv のプロジェクトで、qmds が使っているのに入っていない R のパッケージを入れる。
+
+    (入れたもの, 入らなかったもの) を返す。renv のプロジェクトでない・R がないときは None
+    （何もしない。環境を作るのは octavo env の役目）。
+    """
+    rscript = shutil.which('Rscript')
+    if not rscript or not (Path(root) / 'renv' / 'activate.R').exists():
+        return None
+    paths = ', '.join('"' + Path(q).resolve().as_posix().replace('"', '\\"') + '"' for q in qmds)
+    fd, path = tempfile.mkstemp(prefix='octavo-missing-', suffix='.R')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+            fh.write(MISSING_SCRIPT.replace('@@PATHS@@', paths))
+        # プロジェクトの根で実行する（.Rprofile が renv を有効にする）
+        r = subprocess.run([rscript, path], cwd=str(root), capture_output=True, text=True,
+                           encoding='utf-8', errors='replace')
+    except OSError:
+        return None
+    finally:
+        os.unlink(path)
+    return _installed_lines(r.stdout or '')
+
+
+def _installed_lines(out: str) -> tuple:
+    """R の OCTAVO-INSTALLED: / OCTAVO-FAILED: の行を読む。renv の進み具合の表示が
+    改行なしで前に付くことがある（端末の制御文字）ので、行の途中からでも読む。"""
+    got: dict = {'INSTALLED': [], 'FAILED': []}
+    for m in re.finditer(r'OCTAVO-(INSTALLED|FAILED):([^\n]*)', out):
+        got[m.group(1)] = m.group(2).split()
+    return got['INSTALLED'], got['FAILED']
 
 
 def pending(cfg) -> bool:

@@ -84,7 +84,8 @@ ov_value("p_x", ov_pval(summary(m)$coefficients["x", "Pr(>|t|)"]))
   動かすなら `uv run` か activate）。パッケージは `requirements.txt` に版つきで足してから `octavo env`。
   ほかの場所に `pip install` しない
 - R: renv のプロジェクトとして動かす。`install.packages()` のあとは必ず
-  `renv::snapshot()`（`renv.lock` を commit する）
+  `renv::snapshot()`（`renv.lock` を commit する）。`.qmd` に `library(x)` を書いただけのパッケージは、
+  `octavo env` か、実行が失敗したときの `octavo analysis run` が CRAN から入れて記録する
 
 `.venv/` と `renv/library/` は git に入らない。**入るのは記録
 （`requirements.txt` / `renv.lock`）だけ**なので、記録を怠ると環境が失われる。

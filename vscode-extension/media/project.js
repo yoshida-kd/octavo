@@ -46,11 +46,9 @@
                 L.push('  analysis/' + n + '.qmd   analysis/' + (py ? 'octavo_helper.py' : 'octavo.R'),
                        '  data/   assets/   requirements.txt');
             } else if (p === 'paper') {
-                L.push('  papers/' + n + '/paper.md   main.typ');
-            } else if (p === 'slides') {
-                L.push('  slides/' + n + '.md');
+                L.push('  docs/' + n + '/' + n + '.md   docs/' + n + '/main.typ');
             } else {
-                L.push('  lectures/' + n + '.md');
+                L.push('  docs/' + n + '/' + n + '.md');
             }
         }
         return L.join('\n');
