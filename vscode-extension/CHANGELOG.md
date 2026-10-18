@@ -3,6 +3,43 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.5
+
+- **A quick guide** (`/quickstart/`, `/ja/quickstart/` on the web page): install, make a
+  project, write, build, check and the AI assistants, in one short page with the terminal
+  steps folded. The web page's top is simpler (a short lead, a one-line install band, the
+  diagram and the sample, the features), and its home links to the quick guide.
+- On Linux, `octavo setup` no longer installs the system `python3`: uv brings the Python that
+  `octavo` and a project's `.venv` use (checked with no system Python on the path:
+  `uv tool install`, `octavo env` and a Python analysis through Quarto all work).
+- The Japanese guides' footer is Japanese, and a settings table in the lecture-notes guide
+  that had been split across two lines is whole again.
+- **The Zotero collection is a setting.** `zotero_collection` in `octavo.config.py` names
+  the collection `octavo bib pull` fetches the `.bib` from, so it is no longer typed each
+  time (`--collection` still overrides it). **Choose the Zotero Collection** in the sidebar
+  picks it from Zotero's collections (`octavo bib collections --json`), with a way to reload
+  after making one in Zotero, or to type the name when Zotero is not running there.
+- **Ask Priorwork for the literature.** Right-click a paper in the sidebar → **Ask Priorwork
+  for the Literature** copies a request, with the manuscript's path and the Zotero
+  collection, to paste into the agent's chat in your Priorwork workspace. Priorwork reads
+  the manuscript and writes the draft of the literature review with `[@key]` citations from
+  the project's `.bib`.
+- **Zotero's collections are a tree.** `zotero_collection` takes a path (`'Research / Make
+  or buy'`; a name alone still works when it is used once), `octavo bib pull` also fetches
+  the collections under it (one `.bib`, each entry once), and the sidebar's list is shaped
+  like Zotero's. So several Priorwork surveys for one paper can each use a collection under
+  the project's.
+- **Several collections, and the Zotero web API.** `zotero_collection` can be a list, so a
+  survey on a topic can serve several papers (and a paper several surveys); the sidebar's
+  picker lets you check any number of collections. Where Zotero does not run (a server over
+  SSH), `octavo bib pull` and the picker read the Zotero web API: `octavo bib login` (or
+  **Use the Zotero Web API (API Key)…**) keeps the key in `~/.config/octavo/zotero.env`, and
+  the citation keys come from Better BibTeX's pinned keys.
+- **Choosing collections goes folder by folder**: only the top folders are listed, choosing one
+  opens it, and you mark the collections to use (with "Up", "Mark this folder" and a search over
+  all folders). **Ask Priorwork for the Literature** can also ask to use surveys already in
+  Priorwork for the paper.
+
 ## 0.6.4
 
 - **R packages a `.qmd` uses are installed for you**, including a `.qmd` brought in from

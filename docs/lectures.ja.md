@@ -387,8 +387,8 @@ The number of civil servants is small.[^count] A short note can go inline.^[Like
 | 最初の節の番号 | `first_section: 0` | 1 | 0 にするとガイダンスが「0」（図は「図0.1」）になる |
 | 改ページする位置 | `pagebreak: section` | 回ごと | `section` で `#` ごと、`none` で回の区切りのところだけ |
 | 本文の書体 | `font: …` | BIZ UDゴシック | A4 プリントの本文 |
-| 文字の大きさ | `fontsize: 10.5pt` |
-| 目次 | `toc: false` | 出す | A4 プリントの目次 | 11pt | A4 プリントの本文 |
+| 文字の大きさ | `fontsize: 10.5pt` | 11pt | A4 プリントの本文 |
+| 目次 | `toc: false` | 出す | A4 プリントの目次 |
 | 日付の書式 | `date_format: "%Y-%m-%d"` | 2026年4月10日 | 表紙とタイトルスライドの日付 |
 | 縦横比 | `slides_aspect: 4-3` | 16:9 | スライド |
 | アクセントカラー | `slides_accent: none` | 紺 | スライドの見出しなどの色。`none` で黒一色 |

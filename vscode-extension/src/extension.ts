@@ -17,7 +17,8 @@ import { BibCache } from './bib';
 import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
 import { HandoutManager } from './handouts';
-import { PreviewManager } from './preview';
+import { askPriorwork, chooseCollection, currentCollections, login } from './literature';
+import { DocInfo, PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
 import { showProjectForm } from './projectForm';
 import { QmdPreview } from './qmdPreview';
@@ -452,20 +453,33 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('octavo.bibPull', async () => {
             const configUri = await requireConfig();
             if (!configUri) return;
-            const collection = await vscode.window.showInputBox({
-                title: vscode.l10n.t(
-                    'Zotero collection name (empty means the whole library)'),
-            });
-            if (collection === undefined) return;
-            const args = ['bib', 'pull'];
-            if (collection.trim()) args.push('--collection', collection.trim());
-            runInTerminal('bib', dirOf(configUri), args);
+            // コレクションは設定（zotero_collection）に持つ。まだ決めていなければ、ここで選ぶ
+            const cwd = dirOf(configUri);
+            if (!(await currentCollections(cwd)).length) {
+                if ((await chooseCollection(() => tree.refresh())) === undefined) return;
+            }
+            runInTerminal('bib', cwd, ['bib', 'pull']);
             // 少し待ってからキャッシュを更新（Zotero からの取得は数秒かかることがある）。
             setTimeout(() => {
                 void cache.refresh(true);
                 void valuesCache.refresh(true);
             }, 4000);
         }),
+
+        vscode.commands.registerCommand('octavo.chooseZoteroCollection', async () => {
+            const chosen = await chooseCollection(() => tree.refresh());
+            if (chosen === undefined) return;
+            const pull = vscode.l10n.t('Pull Now');
+            const picked = await vscode.window.showInformationMessage(
+                chosen.length ? vscode.l10n.t('octavo bib pull now fetches the .bib from the Zotero collections {0} (and the ones under them).', chosen.map((c) => `"${c}"`).join(', '))
+                              : vscode.l10n.t('octavo bib pull now fetches the .bib from the whole Zotero library.'), pull);
+            if (picked === pull) {
+                await vscode.commands.executeCommand('octavo.bibPull');
+            }
+        }),
+        vscode.commands.registerCommand('octavo.zoteroLogin', () => login()),
+        vscode.commands.registerCommand('octavo.askPriorwork',
+            (node?: { doc?: DocInfo }) => askPriorwork(node?.doc)),
 
         vscode.commands.registerCommand('octavo.insertCitation', () => insertCitationCommand(cache)),
 

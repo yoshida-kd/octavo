@@ -62,6 +62,7 @@ CSL_CHOICES = ('chicago-author-date', 'apa', 'american-political-science-associa
 KNOBS = (
     Knob('lang', 'document', 'choice', 'Language of the documents', ('ja', 'en')),
     Knob('csl', 'document', 'suggest', 'Citation style (CSL)', CSL_CHOICES, docs=ALL_DOCS),
+    Knob('zotero_collection', 'document', 'collections', 'Zotero collections of the references'),
     Knob('outputs', 'document', 'multi', 'What to make', tuple(configmod.OUTPUTS),
          docs=ALL_DOCS, project=False),
     Knob('sessions', 'document', 'bool', 'Made of sessions (one deck each)',
@@ -132,6 +133,18 @@ def parse_value(k: Knob, raw: str):
     `ast.literal_eval` に任せないのは、`16-9` が 7 になるから。
     """
     s = raw.strip()
+    if k.kind == 'collections':
+        # Zotero のコレクション: 1つなら文字列、いくつもなら並び（["A", "B / C"] か、; で区切る）
+        if s.startswith('['):
+            try:
+                got = [str(x).strip() for x in ast.literal_eval(s) if str(x).strip()]
+            except (ValueError, SyntaxError):
+                raise EditError(t('{key} takes a name or a list of names', key=k.key))
+        else:
+            got = [x.strip() for x in s.split(';') if x.strip()]
+        if not got:
+            raise EditError(t('{key} cannot be empty', key=k.key))
+        return got[0] if len(got) == 1 else got
     if s.lower() in ('none', 'null', ''):
         if k.kind in ('color', 'int') or (k.kind == 'choice' and None in k.choices):
             return None

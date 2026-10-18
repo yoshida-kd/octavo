@@ -53,5 +53,8 @@
   "view.project.welcomeNoFolder": "先にフォルダを開いて、その中に Octavo のプロジェクトを作ります。\n[フォルダを開く](command:vscode.openFolder)",
   "config.qmdPreview.description": "Octavo のプロジェクトで .qmd を開いたとき、その分析が最後に出力した HTML を横に表示します。これで組み直すことはありません。分析を実行すると、画面は自動で読み直されます。",
   "config.previewFollowCursor.description": "原稿のカーソルの位置に合わせて、PDF プレビューをスクロールします。プレビューだけを自分でスクロールすることもできます。プレビューのツールバーの ⇅ ボタンで、その回だけ切り替えられます。",
-  "config.previewCloseWithManuscript.description": "プレビューしている原稿（と付録）のタブをすべて閉じたら、PDF プレビューも閉じます。"
+  "config.previewCloseWithManuscript.description": "プレビューしている原稿（と付録）のタブをすべて閉じたら、PDF プレビューも閉じます。",
+  "command.chooseZoteroCollection.title": "文献の Zotero のコレクションを選ぶ",
+  "command.askPriorwork.title": "Priorwork で先行研究を頼む",
+  "command.zoteroLogin.title": "Zotero のウェブ API を使う（API キー）…"
 }

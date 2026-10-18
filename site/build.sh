@@ -1,7 +1,9 @@
 #!/bin/sh
-# 手引き（docs/guide*.md）と講義ノートの手引き（docs/lectures*.md）を、Pages に出す HTML にする。
+# 手引き（docs/guide*.md）・講義ノートの手引き（docs/lectures*.md）・クイックガイド（docs/quickstart*.md）を、
+# Pages に出す HTML にする。
 #   sh site/build.sh <出力先>   ->  <出力先>/guide/index.html・<出力先>/ja/guide/index.html
 #                                  <出力先>/lectures/index.html・<出力先>/ja/lectures/index.html
+#                                  <出力先>/quickstart/index.html・<出力先>/ja/quickstart/index.html
 # .github/workflows/pages.yml とテストが使う。原稿は Markdown のまま docs/ に置く。
 #
 # 見出しの id は GitHub と同じ作り方（gfm_auto_identifiers）にする。手引きの中の
@@ -40,3 +42,9 @@ page "$repo/docs/lectures.md" "$out/lectures/index.html" en "Making lecture note
 page "$repo/docs/lectures.ja.md" "$out/ja/lectures/index.html" ja "講義ノートの作り方" \
   "Octavo で講義ノートを作る手引き。1本の Markdown から A4 プリント・回ごとのスライド・回ごとの配布資料を VS Code で。" \
   "目次" "../../" "../" lectures
+page "$repo/docs/quickstart.md" "$out/quickstart/index.html" en "Octavo quick guide" \
+  "From installing Octavo to your first PDF in six short steps: install, make a project, write, build, check." \
+  "Contents" "../" "../" quickstart
+page "$repo/docs/quickstart.ja.md" "$out/ja/quickstart/index.html" ja "Octavo クイックガイド" \
+  "Octavo を入れてから最初の PDF ができるまでの6つの手順。インストール、プロジェクト作成、執筆、ビルド、チェック。" \
+  "目次" "../../" "../" quickstart

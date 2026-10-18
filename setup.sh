@@ -192,7 +192,7 @@ say "apt の更新" "Updating apt"
 run $SUDO apt-get update -qq
 
 # xz-utils: Typst の配布物（.tar.xz）を展開するのに要る。最小構成の Ubuntu にはない
-PKGS=(pandoc fontconfig python3 curl ca-certificates xz-utils)
+PKGS=(pandoc fontconfig curl ca-certificates xz-utils)
 if [ "$WITH_CJK" = 1 ]; then
   PKGS+=(fonts-noto-cjk fonts-noto-cjk-extra)
 fi

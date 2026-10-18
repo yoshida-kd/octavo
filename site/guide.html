@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<!-- 手引きのページのテンプレート（pandoc）。site/build.sh が docs/guide*.md と docs/lectures*.md から組む。
-     slug はページのフォルダー名（guide / lectures）。 -->
+<!-- 手引きのページのテンプレート（pandoc）。site/build.sh が docs/guide*.md・docs/lectures*.md・docs/quickstart*.md から組む。
+     slug はページのフォルダー名（guide / lectures / quickstart）。 -->
 <title>$pagetitle$</title>
 <meta name="description" content="$description$">
 <link rel="alternate" hreflang="en" href="${root}${slug}/">
@@ -50,13 +50,11 @@ $endif$
     </a>
     <nav>
 $if(en)$
-      <a href="$home$#install">Install</a>
       <a href="${root}guide/">Guide</a>
       <a href="${root}lectures/">Lecture notes</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
       <a href="${root}ja/${slug}/" hreflang="ja" lang="ja" data-lang="ja">日本語</a>
 $else$
-      <a href="$home$#install">インストール</a>
       <a href="${root}ja/guide/">手引き</a>
       <a href="${root}ja/lectures/">講義ノート</a>
       <a href="https://github.com/yoshida-kd/octavo">GitHub</a>
@@ -83,10 +81,17 @@ $body$
 
 <footer>
   <div class="wrap">
+$if(en)$
     <span>Octavo · MIT License · by <a href="https://github.com/yoshida-kd">yoshida-kd</a></span>
     <span><a href="https://github.com/yoshida-kd/octavo">Source</a> ·
     <a href="https://pypi.org/project/octavo-kit/">PyPI</a> ·
     <a href="https://github.com/yoshida-kd/octavo/issues">Issues</a></span>
+$else$
+    <span>Octavo · MIT ライセンス · <a href="https://github.com/yoshida-kd">yoshida-kd</a></span>
+    <span><a href="https://github.com/yoshida-kd/octavo">ソース</a> ·
+    <a href="https://pypi.org/project/octavo-kit/">PyPI</a> ·
+    <a href="https://github.com/yoshida-kd/octavo/issues">Issue</a></span>
+$endif$
   </div>
 </footer>
 

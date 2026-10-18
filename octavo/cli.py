@@ -670,20 +670,46 @@ def cmd_checkbib(args) -> int:
 
 
 def cmd_bib(args) -> int:
-    if args.action == 'collections':
+    if args.action == 'login':
+        # ウェブ API のキー（Zotero が手元で動いていないサーバーなどで使う）。キーは標準入力から読む
+        # （コマンド行に書くと履歴に残る）。プロジェクトではなく ~/.config/octavo/ に書く
+        key = (args.api_key or sys.stdin.readline()).strip()
+        if not key or not args.user_id:
+            print(t('usage: octavo bib login --user-id ID (and the API key on stdin)'), file=sys.stderr)
+            return 2
+        path = zoteromod.save_credentials(key, args.user_id)
         try:
-            for name in zoteromod.collections():
-                print('  ' + name)
+            n = len(zoteromod.collections('web'))
         except zoteromod.ZoteroError as e:
             print(str(e), file=sys.stderr)
             return 1
+        print(t('saved the Zotero web API key to {path} ({n} {n|collection|collections} found)', path=path, n=n))
+        return 0
+    if args.action == 'collections':
+        try:
+            names = zoteromod.collections(args.source)
+        except zoteromod.ZoteroError as e:
+            if args.json:
+                import json as _json
+                print(_json.dumps({'ok': False, 'error': str(e)}, ensure_ascii=False))
+            else:
+                print(str(e), file=sys.stderr)
+            return 1
+        if args.json:
+            import json as _json
+            print(_json.dumps({'ok': True, 'collections': names}, ensure_ascii=False))
+        else:
+            for c in names:   # Zotero と同じ木の形で
+                print('  ' + '  ' * c['depth'] + c['name'])
         return 0
 
     cfg = configmod.load(args.config)
     if args.action == 'pull':
         dest = Path(args.out) if args.out else Path(cfg['bib_file'])
+        # 指定が無ければ、設定のコレクション（無ければライブラリ全体）
+        collection = args.collection or cfg['zotero_collection']
         try:
-            n, src = zoteromod.pull(dest, args.collection, args.format)
+            n, src = zoteromod.pull(dest, collection, args.format, source=args.source)
         except zoteromod.ZoteroError as e:
             print(str(e), file=sys.stderr)
             return 1
@@ -1216,10 +1242,17 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_checkbib)
 
     p = with_config(sub.add_parser('bib', help=t('talk to Zotero')))
-    p.add_argument('action', choices=['pull', 'collections', 'clean'])
-    p.add_argument('--collection', help=t('Zotero collection name (leave it out for the whole library)'))
+    p.add_argument('action', choices=['pull', 'collections', 'clean', 'login'])
+    p.add_argument('--collection', help=t('Zotero collection name (default: zotero_collection in the config, '
+                                          'or the whole library)'))
     p.add_argument('--format', default='biblatex', choices=['biblatex', 'bibtex'])
     p.add_argument('--out', help=t('where to write it (default: bib_file from the config)'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable output (collections)'))
+    p.add_argument('--source', choices=zoteromod.SOURCES, default='auto',
+                   help=t('where to read Zotero: the Zotero running here (local), the web API (web), or local '
+                          'if it answers, else web (auto)'))
+    p.add_argument('--user-id', help=t('login: your Zotero user ID (zotero.org/settings/keys)'))
+    p.add_argument('--api-key', help=t('login: the API key (better given on stdin)'))
     p.set_defaults(func=cmd_bib)
 
     p = with_config(sub.add_parser('csl', help=t("the journal's style (CSL)")))

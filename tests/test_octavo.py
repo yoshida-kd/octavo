@@ -1337,6 +1337,135 @@ class DocSettings(unittest.TestCase):
         self.assertTrue(any('slides_aspect: 4-3' in line for line in r.report), r.report)
 
 
+class ZoteroCollectionSetting(unittest.TestCase):
+    """`zotero_collection`: `octavo bib pull` が .bib を取ってくるコレクションを設定に持つ（毎回打たない）。
+    Priorwork（先行研究のサーベイ）は、原稿がこのプロジェクトにあれば同じ値を読む。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        make_project(self.d / 'p')
+        self.path = self.d / 'p' / 'octavo.config.py'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def pull(self, *extra):
+        from octavo import cli
+        got = {}
+
+        def fake_pull(dest, collection=None, fmt='biblatex', backup=True, source='auto'):
+            got['collection'] = collection
+            return 0, 'test'
+        with unittest.mock.patch('octavo.zotero.pull', fake_pull), \
+                unittest.mock.patch('octavo.check.run', lambda *a, **k: 0), \
+                contextlib.redirect_stdout(io.StringIO()):
+            cli.main(['bib', 'pull', '-c', str(self.path), *extra])
+        return got['collection']
+
+    def test_pull_uses_the_collection_in_the_config(self):
+        from octavo import confedit
+        self.assertIsNone(config.load(self.path)['zotero_collection'])
+        self.assertIsNone(self.pull())                                  # 無ければライブラリ全体
+        confedit.set_value(self.path, 'zotero_collection', 'Make or buy')
+        self.assertIn("    'zotero_collection': 'Make or buy',\n", self.path.read_text(encoding='utf-8'))
+        self.assertEqual(config.load(self.path)['zotero_collection'], 'Make or buy')
+        self.assertEqual(self.pull(), 'Make or buy')
+        self.assertEqual(self.pull('--collection', 'Other'), 'Other')   # 指定すればそちら
+        # いくつも（1つのテーマのサーベイを、いくつもの論文で使う）: 並びか ; 区切り
+        confedit.set_value(self.path, 'zotero_collection', 'Make or buy; Surveys / Outsourcing')
+        self.assertEqual(config.load(self.path)['zotero_collection'], ['Make or buy', 'Surveys / Outsourcing'])
+        confedit.set_value(self.path, 'zotero_collection', '["A / B", "C"]')
+        self.assertEqual(self.pull(), ['A / B', 'C'])
+
+    RAW = [  # ローカル API が返す形（親子は parentCollection）
+        {'key': 'P', 'data': {'name': 'Make or buy', 'parentCollection': False}, 'meta': {'numItems': 2}},
+        {'key': 'T', 'data': {'name': 'Theory', 'parentCollection': 'P'}, 'meta': {'numItems': 1}},
+        {'key': 'M', 'data': {'name': 'Methods', 'parentCollection': 'P'}, 'meta': {'numItems': 0}},
+        {'key': 'Q', 'data': {'name': 'Another', 'parentCollection': False}, 'meta': {'numItems': 0}},
+        {'key': 'Q2', 'data': {'name': 'Theory', 'parentCollection': 'Q'}, 'meta': {'numItems': 0}},
+    ]
+
+    def test_collections_form_a_tree(self):
+        from octavo import zotero
+        cols = zotero.tree(self.RAW)
+        self.assertEqual([(c['path'], c['depth']) for c in cols], [
+            ('Another', 0), ('Another / Theory', 1),
+            ('Make or buy', 0), ('Make or buy / Methods', 1), ('Make or buy / Theory', 1)])
+        self.assertEqual(zotero.resolve('make or buy/theory', cols)['key'], 'T')
+        with self.assertRaises(zotero.ZoteroError):            # 同じ名前が2つ: パスで指定してもらう
+            zotero.resolve('Theory', cols)
+        self.assertEqual([c['key'] for c in zotero.subtree('P', cols)], ['P', 'M', 'T'])
+
+    def test_pull_takes_the_subcollections_too(self):
+        from octavo import zotero
+        bibs = {'P': '@article{a2020,\n title={A}}\n', 'T': '@article{b2021,\n title={B}}\n@article{a2020,\n title={A}}\n',
+                'M': ''}
+        with unittest.mock.patch.object(zotero, 'alive', lambda: '127.0.0.1'), \
+                unittest.mock.patch.object(zotero, 'api_collections', lambda host: self.RAW), \
+                unittest.mock.patch.object(zotero, 'bbt_available', lambda host: False), \
+                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key: bibs[key]):
+            text, src = zotero.fetch('Make or buy')
+        self.assertEqual(re.findall(r'@article\{(\w+)', text), ['a2020', 'b2021'])
+        self.assertIn('Make or buy', src)
+
+    def test_several_collections_are_merged(self):
+        from octavo import zotero
+        bibs = {'P': '@article{a2020,\n title={A}}\n', 'T': '@article{b2021,\n title={B}}\n', 'M': '',
+                'Q': '@article{c2022,\n title={C}}\n@article{a2020,\n title={A}}\n', 'Q2': ''}
+        with unittest.mock.patch.object(zotero, 'alive', lambda: '127.0.0.1'), \
+                unittest.mock.patch.object(zotero, 'api_collections', lambda host: self.RAW), \
+                unittest.mock.patch.object(zotero, 'bbt_available', lambda host: False), \
+                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key: bibs[key]):
+            text, _ = zotero.fetch(['Make or buy / Theory', 'Another'])
+        self.assertEqual(re.findall(r'@article\{(\w+)', text), ['c2022', 'a2020', 'b2021'])
+
+    def test_the_web_api_when_zotero_is_not_here(self):
+        from octavo import zotero
+        items = [{'key': 'I1', 'biblatex': '@article{smith_title_2020,\n title={A}}',
+                  'data': {'extra': 'Citation Key: smith2020'}},
+                 {'key': 'I2', 'biblatex': '@book{doe_book_2019,\n title={B}}', 'data': {'citationKey': 'doe2019'}},
+                 {'key': 'I3', 'biblatex': '@article{roe_x_2018,\n title={C}}', 'data': {}},
+                 {'key': 'N1', 'data': {'itemType': 'note'}}]
+        calls = []
+
+        def web_get(path, params):
+            calls.append(path)
+            if path == '/collections':
+                return json.dumps(self.RAW), len(self.RAW)
+            return (json.dumps(items), len(items)) if path == '/collections/T/items/top' else ('[]', 0)
+        with unittest.mock.patch.object(zotero, 'alive', lambda: None), \
+                unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')), \
+                unittest.mock.patch.object(zotero, '_web_get', web_get):
+            text, src = zotero.fetch('Make or buy')
+            self.assertEqual([c['path'] for c in zotero.collections()][:2], ['Another', 'Another / Theory'])
+        self.assertEqual(re.findall(r'@\w+\{(\w+)', text), ['smith2020', 'doe2019', 'roe_x_2018'])
+        self.assertIn('1', src)                                       # 固定したキーの無い文献の数
+        self.assertIn('/collections/M/items/top', calls)             # 下のコレクションも
+        with unittest.mock.patch.object(zotero, 'alive', lambda: None), \
+                unittest.mock.patch.object(zotero, 'credentials', lambda: ('', '')):
+            with self.assertRaises(zotero.ZoteroError):
+                zotero.fetch('Make or buy')
+
+    def test_login_keeps_the_key_out_of_the_project(self):
+        from octavo import zotero
+        home = self.d / 'home'
+        with unittest.mock.patch.object(Path, 'home', lambda: home), \
+                unittest.mock.patch.dict(os.environ, {'ZOTERO_API_KEY': '', 'ZOTERO_USER_ID': ''}):
+            path = zotero.save_credentials(' secret ', '42')
+            self.assertEqual(zotero.credentials(), ('secret', '42'))
+        self.assertEqual(path, home / '.config' / 'octavo' / 'zotero.env')
+        if os.name != 'nt':
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
+    def test_collections_as_json(self):
+        from octavo import cli
+        out = io.StringIO()
+        cols = [{'key': 'A', 'name': 'A', 'parent': '', 'path': 'A', 'depth': 0, 'items': 1}]
+        with unittest.mock.patch('octavo.zotero.collections', lambda source='auto': cols), contextlib.redirect_stdout(out):
+            cli.main(['bib', 'collections', '--json'])
+        self.assertEqual(json.loads(out.getvalue()), {'ok': True, 'collections': cols})
+
+
 class ConfEdit(unittest.TestCase):
     """`octavo config` — 画面から設定を変える口（VS Code のサイドバーが使う）。
 
@@ -6004,7 +6133,7 @@ class Website(unittest.TestCase):
                 rel = path.relative_to((ROOT / 'site').resolve())
                 if rel.parts[0] == 'images':
                     path = ROOT / 'docs' / Path(*rel.parts)
-                for slug in ('guide', 'lectures'):
+                for slug in ('guide', 'lectures', 'quickstart'):
                     if slug in rel.parts:
                         # 手引きのページは docs/<slug>*.md から組む（site/build.sh）
                         path = ROOT / 'docs' / (f'{slug}.ja.md' if rel.parts[0] == 'ja'
@@ -6056,7 +6185,9 @@ class GuidePages(unittest.TestCase):
     # 英語と日本語の組。どの組もコードと見出しの数がそろっている
     PAIRS = {'guide': GUIDES,
              'lectures': {'en': ROOT / 'docs' / 'lectures.md',
-                          'ja': ROOT / 'docs' / 'lectures.ja.md'}}
+                          'ja': ROOT / 'docs' / 'lectures.ja.md'},
+             'quickstart': {'en': ROOT / 'docs' / 'quickstart.md',
+                            'ja': ROOT / 'docs' / 'quickstart.ja.md'}}
 
     @staticmethod
     def code_blocks(text: str) -> list:
@@ -6118,7 +6249,8 @@ class GuidePages(unittest.TestCase):
             subprocess.run(['sh', str(ROOT / 'site' / 'build.sh'), str(d)], check=True,
                            capture_output=True)
             for lang, rel in (('en', 'guide/index.html'), ('ja', 'ja/guide/index.html'),
-                              ('en', 'lectures/index.html'), ('ja', 'ja/lectures/index.html')):
+                              ('en', 'lectures/index.html'), ('ja', 'ja/lectures/index.html'),
+                              ('en', 'quickstart/index.html'), ('ja', 'ja/quickstart/index.html')):
                 html = (d / rel).read_text(encoding='utf-8')
                 ids = set(re.findall(r'\bid="([^"]+)"', html))
                 broken = [a for a in re.findall(r'href="#([^"]+)"', html) if a not in ids]

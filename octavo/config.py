@@ -125,6 +125,9 @@ DEFAULTS: dict = {
 
     # ---- 書誌 -------------------------------------------------------------
     'bib_file': 'literature.bib',  # Zotero からエクスポートしたもの（正本、1ファイル）
+    # `octavo bib pull` が .bib を取ってくる Zotero のコレクション（None ならライブラリ全体）。
+    # Priorwork（先行研究のサーベイ）も、原稿がこのプロジェクトにあれば同じコレクションを使う
+    'zotero_collection': None,
     # 雑誌に合わせた書式。CSL スタイル ID（'apa', 'ieee',
     # 'modern-language-association' …）か .csl へのパス。
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。

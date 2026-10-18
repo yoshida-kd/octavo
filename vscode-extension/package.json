@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.6.4",
+  "version": "0.6.5",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -217,6 +217,22 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.chooseZoteroCollection",
+        "title": "%command.chooseZoteroCollection.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.zoteroLogin",
+        "title": "%command.zoteroLogin.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.askPriorwork",
+        "title": "%command.askPriorwork.title%",
+        "category": "Octavo",
+        "icon": "$(library)"
+      },
+      {
         "command": "octavo.insertCitation",
         "title": "%command.insertCitation.title%",
         "category": "Octavo"
@@ -251,6 +267,7 @@
         { "command": "octavo.analysisRunOne", "when": "view == octavo.project && viewItem == octavo.analysisUnit", "group": "inline" },
         { "command": "octavo.addAppendix", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@1" },
         { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" },
+        { "command": "octavo.askPriorwork", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@3" },
         { "command": "octavo.extract", "when": "view == octavo.project && viewItem == octavo.doc.lecture", "group": "octavo@1" }
       ],
       "commandPalette": [
@@ -319,6 +336,16 @@
         },
         {
           "command": "octavo.bibPull"
+        },
+        {
+          "command": "octavo.chooseZoteroCollection"
+        },
+        {
+          "command": "octavo.zoteroLogin"
+        },
+        {
+          "command": "octavo.askPriorwork",
+          "when": "editorLangId == markdown"
         },
         {
           "command": "octavo.insertCitation",

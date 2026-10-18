@@ -742,6 +742,34 @@ Export your library from your reference manager (Zotero or any other) as BibTeX 
 to `literature.bib`. With Zotero, Better BibTeX's "Keep updated" export keeps it current and
 the keys stable. **Octavo never edits the `.bib`.**
 
+If Zotero runs on the same machine, `octavo bib pull` can fetch it too. Name the collection to fetch
+from in `octavo.config.py` as `zotero_collection` (**Choose the Zotero Collection** in the VS Code
+sidebar picks it from the same tree as in Zotero); without it, the whole library is fetched.
+Collections can be nested, so write the path (`'Research / Make or buy'`). The collections under it
+are fetched too (an entry in more than one is kept once). For several, write a list
+(`['Make or buy', 'Surveys / Outsourcing']`; when a survey on a topic serves several papers, say).
+
+If Zotero does not run on this machine (a server over SSH, say), Octavo reads the Zotero web API. Give
+an API key (make one at <https://www.zotero.org/settings/keys>; reading the library is enough) and your
+user ID once with `octavo bib login` (or **Use the Zotero Web API (API Key)…** in the sidebar). The key
+is kept in `~/.config/octavo/zotero.env`, not in the project. Through the web API the citation keys are
+those Better BibTeX pinned (Zotero's Citation Key), so pin the keys in Better BibTeX.
+
+```bash
+octavo bib collections    # the collections in Zotero
+octavo bib pull           # fetch literature.bib from zotero_collection
+octavo bib login --user-id 1234567   # give the web API key (on stdin)
+```
+
+**With a literature survey (Priorwork).** If you gather the literature with
+[Priorwork](https://github.com/yoshida-kd/priorwork), right-click the paper in the sidebar → **Ask
+Priorwork for the Literature** to copy a request, and paste it to the agent in the window of your
+Priorwork workspace. Priorwork reads the manuscript (never changing it), gathers the included papers
+in the same Zotero collection, and writes the draft of the literature review with `[@key]` citations.
+Put the included papers in Zotero and `octavo bib pull`, and they are your references.
+For several surveys for one paper, make a collection for each under the project's (`octavo bib pull`
+takes the collections under it too).
+
 ```bash
 octavo check cites        # keys cited but missing from the .bib, and problems in the .bib
 octavo csl get apa        # fetch a journal's style

@@ -114,8 +114,32 @@ MESSAGES: dict = {
     'What to add': '足すもの',
     'Wrote a project skeleton in {path}:': '{path} にひな型を作った:',
     'Wrote {path}. Open it in Word, set up the styles (Heading 1, Body Text, Table Caption and so on), then write this in octavo.config.py:': '{path} を作った。Word で開いてスタイル（見出し 1、本文、Table Caption 等）を整え、octavo.config.py に次を書く:',
-    'Zotero collection name (leave it out for the whole library)': 'Zotero のコレクション名（省略で全体）',
-    'Zotero is not answering': 'Zotero が応答しない',
+    'Zotero collection name (default: zotero_collection in the config, or the whole library)':
+        'Zotero のコレクション名（省略すると設定の zotero_collection、それも無ければライブラリ全体）',
+    'machine-readable output (collections)': '機械可読の出力（collections）',
+    'login: your Zotero user ID (zotero.org/settings/keys)': 'login: Zotero のユーザー ID（zotero.org/settings/keys）',
+    '{key} takes a name or a list of names': '{key} には名前か、名前の並びを書いてください',
+    '{n} {n|entry has|entries have} no pinned citation key (pin keys in Better BibTeX to keep them stable)':
+        '{n} 件の文献に固定した引用キーがありません（キーが変わらないよう、Better BibTeX でキーを固定してください）',
+    'where to read Zotero: the Zotero running here (local), the web API (web), or local if it answers, else web (auto)':
+        'Zotero をどこから読むか: このマシンの Zotero（local）、ウェブ API（web）、応答すれば local・無ければ web（auto）',
+    'login: the API key (better given on stdin)': 'login: API キー（標準入力で渡すほうがよい）',
+    'the Zotero web API refused ({why}). Check the API key and the user ID (octavo bib login)':
+        'Zotero のウェブ API に断られました（{why}）。API キーとユーザー ID を確かめてください（octavo bib login）',
+    'Zotero collections of the references': '参考文献の Zotero のコレクション',
+    'the Zotero web API failed ({why})': 'Zotero のウェブ API が失敗しました（{why}）',
+    'saved the Zotero web API key to {path} ({n} {n|collection|collections} found)':
+        'Zotero のウェブ API のキーを {path} に保存しました（コレクション {n} 個）',
+    'the whole library': 'ライブラリ全体',
+    'usage: octavo bib login --user-id ID (and the API key on stdin)': '使い方: octavo bib login --user-id ID（API キーは標準入力で）',
+    'on a server without Zotero, use the Zotero web API: octavo bib login': 'Zotero の無いサーバーでは、Zotero のウェブ API を使う: octavo bib login',
+    'cannot reach the Zotero web API ({why})': 'Zotero のウェブ API に届きません（{why}）',
+    'Zotero web API / {what}': 'Zotero のウェブ API / {what}',
+    'the Zotero web API needs an API key and your user ID: octavo bib login':
+        'Zotero のウェブ API には API キーとユーザー ID が要ります: octavo bib login',
+    'more than one collection is called {name}; give the path (parent / child): {paths}':
+        '{name} という名前のコレクションが複数あります。パス（親 / 子）で指定してください: {paths}',
+    '{path} and {n} subcollections': '{path} とその下の {n} 個のコレクション',
     'Zotero is not answering ({where}).': 'Zotero が応答しない（{where}）。',
     'Zotero local API / collection {name}': 'Zotero ローカル API / コレクション {name}',
     'Zotero local API / the whole library': 'Zotero ローカル API / ライブラリ全体',

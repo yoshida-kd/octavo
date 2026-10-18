@@ -283,6 +283,11 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                   command: 'octavo.envSetup', icon: 'package' },
                 { kind: 'action', label: vscode.l10n.t('Run the analysis (analysis run)'),
                   command: 'octavo.analysisRun', icon: 'graph' },
+                { kind: 'action', label: vscode.l10n.t('Choose the Zotero Collection'),
+                  command: 'octavo.chooseZoteroCollection', icon: 'library',
+                  tooltip: vscode.l10n.t('The collection octavo bib pull fetches the .bib from (Priorwork uses it too)') },
+                { kind: 'action', label: vscode.l10n.t('Pull References from Zotero (bib pull)'),
+                  command: 'octavo.bibPull', icon: 'cloud-download' },
                 { kind: 'action', label: vscode.l10n.t('Check the Bibliography (checkbib)'),
                   command: 'octavo.checkbib', icon: 'book' },
                 { kind: 'action', label: vscode.l10n.t('Check before submitting (check)'),
@@ -425,6 +430,11 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
         }
         const title = doc ? `${doc}: ${s.label} (${s.key})` : `${s.label} (${s.key})`;
+        if (s.kind === 'collections') {
+            // Zotero のコレクション: Zotero の一覧（木）から選ぶ専用の画面で
+            await vscode.commands.executeCommand('octavo.chooseZoteroCollection');
+            return true;
+        }
         if (s.kind === 'multi') {
             // 出力形式など: いくつでも選ぶ。何も選ばなければプロジェクトの値に戻す
             const now = Array.isArray(s.value) ? s.value as string[] : [];

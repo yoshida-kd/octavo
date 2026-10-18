@@ -39,6 +39,10 @@ CONFIG = {
     # as-is.
     #   octavo checkbib                            cross-check citation keys
     'bib_file': 'literature.bib',
+    # The Zotero collection `octavo bib pull` fetches the .bib from (None for the
+    # whole library). Priorwork (literature surveys) uses the same collection for
+    # a manuscript in this project.
+    'zotero_collection': None,
 
     # Target journal's citation style: a CSL style ID, or a path to a .csl
     # file.

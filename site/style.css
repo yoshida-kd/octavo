@@ -120,6 +120,8 @@ img { max-width: 100%; height: auto; display: block; }
 
 /* 節 */
 section { padding: 40px 0; }
+section.install { padding: 32px 0 28px; }
+section.install p { margin: 0; font-size: 18px; }
 section.alt { background: var(--bg-alt); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 h2 { margin: 0 0 16px; font-size: 26px; line-height: 1.3; }
 h3 { margin: 0 0 6px; font-size: 17px; }
@@ -135,7 +137,7 @@ p { margin: 0 0 14px; }
 
 .features {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 16px;
   margin-top: 8px;
 }
@@ -237,6 +239,10 @@ footer a { color: var(--muted); }
 .guide .content details.fold > summary { cursor: pointer; }
 .guide .content details.fold > summary h4 { display: inline; margin: 0; }
 .guide .content details.fold[open] > summary { margin-bottom: 8px; }
+/* 見出しを持たない折りたたみ（クイックガイドの「ターミナルでは」） */
+.guide .content details:not(.fold) { margin: 0 0 14px; }
+.guide .content details:not(.fold) > summary { cursor: pointer; }
+.guide .content details:not(.fold)[open] > summary { margin-bottom: 8px; }
 .guide .content hr { display: none; }                /* 章の区切りは h2 の罫で足りる */
 .guide .content ul, .guide .content ol { padding-left: 1.4em; margin: 0 0 14px; }
 .guide .content li { margin: 0 0 4px; }

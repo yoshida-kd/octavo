@@ -719,6 +719,33 @@ Octavo はファイルを読むだけなので、Julia などの `.qmd` でも�
 する。Zotero なら Better BibTeX の「Keep updated」で自動的にエクスポートすると、ファイルが最新に
 保たれ、キーも変わらない。**Octavo は `.bib` を書き換えない。**
 
+Zotero を同じマシンで動かしているなら、`octavo bib pull` で取ってくることもできる。どのコレクション
+から取るかは `octavo.config.py` の `zotero_collection` に書いておく（VS Code のサイドバーの
+**Zotero のコレクションを選ぶ** で、Zotero と同じ木の形の一覧から選べる）。書かなければライブラリ全体。
+コレクションは入れ子にできるので、パス（`'研究 / Make or buy'`）で書く。そのコレクションの下の
+コレクションの文献もまとめて取る（同じキーの文献は1つにする）。いくつも使うなら並びで書く
+（`['Make or buy', 'サーベイ / 外部委託']`。テーマごとの先行研究を、いくつもの論文で使うときなど）。
+
+Zotero が手元で動いていない（SSH でつないだサーバーなど）なら、Zotero のウェブ API で読む。
+API キー（<https://www.zotero.org/settings/keys> で作る。ライブラリを読めれば足りる）とユーザー ID を、
+一度だけ `octavo bib login` で入れる（サイドバーの **Zotero のウェブ API を使う（API キー）…** でも同じ）。
+キーはプロジェクトではなく `~/.config/octavo/zotero.env` に保存する。ウェブ API では、引用キーは
+Better BibTeX が固定したもの（Zotero の Citation Key）を使うので、Better BibTeX でキーを固定しておく。
+
+```bash
+octavo bib collections    # Zotero のコレクションの一覧
+octavo bib pull           # zotero_collection から literature.bib を取ってくる
+octavo bib login --user-id 1234567   # ウェブ API のキーを入れる（キーは標準入力で）
+```
+
+**先行研究のサーベイ（Priorwork）と。**[Priorwork](https://github.com/yoshida-kd/priorwork) で
+先行研究を集めるなら、サイドバーで論文を右クリック → **Priorwork で先行研究を頼む** で依頼文を
+コピーし、Priorwork のワークスペースのウィンドウでエージェントに貼る。Priorwork は原稿を読み
+（書き換えない）、同じ Zotero のコレクションに採用論文を集め、先行研究の下書きを `[@key]` の
+引用で書き出す。採用論文を Zotero に入れて `octavo bib pull` すれば、そのまま参考文献になる。
+1つの論文にいくつもサーベイを作るときは、プロジェクトのコレクションの下にサーベイごとの
+コレクションを作る（`octavo bib pull` は下のコレクションの文献も取る）。
+
 ```bash
 octavo check cites        # 本文の引用キーが .bib にあるか、.bib に問題がないか
 octavo csl get apa        # 投稿先の書式を取得する

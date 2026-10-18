@@ -37,6 +37,9 @@ CONFIG = {
     # 正本は1つの .bib。Zotero の書き出しをそのまま置く。
     #   octavo checkbib                         引用キーとの突き合わせ
     'bib_file': 'literature.bib',
+    # octavo bib pull が .bib を取ってくる Zotero のコレクション（None ならライブラリ全体）。
+    # Priorwork（先行研究のサーベイ）も、このプロジェクトの原稿には同じコレクションを使う
+    'zotero_collection': None,
 
     # 投稿先の書式。CSL のスタイル ID か .csl へのパス。
     #   octavo csl list          手元にあるもの
