@@ -58,7 +58,10 @@ octavo doctor                                     # everything should read ok
 
 `octavo setup` adds CRAN's repository so that R is the latest release, and points R at
 Posit Package Manager, from which a project's renv installs packages as ready-made binaries
-instead of compiling them.
+instead of compiling them. If you installed R some other way, Octavo's own installs (`octavo env`,
+and the R packages a failing `.qmd` needs) take the packages from there too as long as you have
+not chosen another source; `octavo doctor` says when R compiles everything from source (slow, and
+it needs build tools) and gives the line to put in `~/.Rprofile`.
 
 ### 1.2 macOS
 
@@ -1181,14 +1184,14 @@ puts all of this behind buttons:
   environment, runs the analysis and the checks.
 - **Preview**: the PDF beside the manuscript, rebuilt on every save; lecture notes get a third
   column with the deck (or the speaker script) for the session the cursor is in. Text can be
-  selected, links followed, and ☰ lists the bookmarks.
+  selected, links followed, and ☰ lists the bookmarks. Click in the PDF and press Ctrl+F (Cmd+F on a Mac) to search its text; the view of a `.qmd`'s HTML searches the same way.
 - **New project** is one screen: where, the name, the language, what to start with (an analysis in R or Python, a paper, slides, lecture notes) and whether to fill them with examples. With an analysis chosen, the environment is set up right after. In a folder that is not a project yet, the sidebar offers it first.
 - The extension also installs **Quarto**, **R** and **Python** extensions with it (an extension pack; you can uninstall any of them). The R extension uses the R package `languageserver` for completion and the like, and in a renv project it asks to install it, project after project. Octavo offers once to install it in your own R library and add that library to the R extension's `r.libPaths` (in a terminal: `octavo setup --r-editor`; `octavo setup` installs it too).
 - The sidebar lists manuscripts (with their settings), analyses and tools; open a paper to add
   an appendix, lecture notes with session markers to make per-session handouts (also remade on
   every save).
 - The preview scrolls to where the cursor is in the manuscript (it can still be scrolled on its own; the ⇅ button in its toolbar, or the setting `octavo.previewFollowCursor`, turns that off).
-- Opening a `.qmd` in an Octavo project shows the HTML it last rendered (`<name>.html` beside it) in the next column, and reloads it when the analysis runs again. Nothing is rendered by opening or saving it. While the Quarto extension's own **Preview** is running, this view closes and stays closed (`octavo.qmdPreview` turns it off altogether).
+- Opening a `.qmd` in an Octavo project shows the HTML it last rendered (`<name>.html` beside it) in the next column, and reloads it when the analysis runs again. It scrolls to where the cursor is in the `.qmd` (the same `octavo.previewFollowCursor` as the PDF) and can be searched with Ctrl+F. Nothing is rendered by opening or saving it. While the Quarto extension's own **Preview** is running, this view closes and stays closed (`octavo.qmdPreview` turns it off altogether).
 - In a project with an R analysis and a `.venv`, the extension stops the Python extension from typing the `.venv` activate command into new terminals (in an R terminal it is an error: `unexpected symbol`). It says so once, with **Undo**; it leaves the setting alone if you have set it yourself.
 - Completion and checks for citations (`@`) and analysis values (`{{`).
 - A `.csv` file in `tables/` or `data/` gets an **Edit as a Table** button in its title bar that opens it as a grid.

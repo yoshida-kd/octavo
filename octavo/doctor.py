@@ -55,6 +55,38 @@ def r_editor_state() -> tuple:
                    cmd='octavo setup --r-editor'))
 
 
+# Linux で R が CRAN のどこから取るか。本家（cloud.r-project.org など）はソースしか配らず、
+# quanteda や igraph のようにコンパイルが要るパッケージは、コンパイラや開発用のライブラリのない
+# 素の Ubuntu / WSL で入らない。Posit Package Manager はビルド済みを配る。
+# ホームで、--vanilla なしで調べる（Rprofile.site と ~/.Rprofile が書いた設定を見る）。
+R_REPOS_CHECK = ('r <- getOption("repos"); '
+                 'cat("OCTAVO-REPOS:", if (is.null(r) || is.na(r["CRAN"])) "@CRAN@" else unname(r["CRAN"]), "\\n")')
+PPM_URL = 'https://packagemanager.posit.co/cran/latest'
+PPM_HOSTS = ('packagemanager.posit.co', 'p3m.dev', 'r-universe.dev')
+
+# ソースしか取れない取得先を見つけたとき、その URL（report() が直し方を出す）
+LAST_R_REPOS: list = []
+
+
+def r_repos_state() -> tuple:
+    """(良いか, 説明)。Linux の R の CRAN の取得先が、ビルド済みを配るところか。"""
+    LAST_R_REPOS.clear()
+    try:
+        r = subprocess.run(['Rscript', '-e', R_REPOS_CHECK], capture_output=True, text=True,
+                           timeout=30, encoding='utf-8', errors='replace', cwd=str(Path.home()))
+        m = re.search(r'OCTAVO-REPOS:\s*(\S+)', r.stdout or '')
+    except (OSError, subprocess.TimeoutExpired):
+        m = None
+    url = m.group(1) if m else '@CRAN@'
+    if url == '@CRAN@':
+        return True, t('not set (Octavo takes ready-made packages from Posit Package Manager)')
+    if any(h in url for h in PPM_HOSTS):
+        return True, t('Posit Package Manager (ready-made Linux packages)')
+    LAST_R_REPOS.append(url)
+    return False, t('{url}: every package is compiled from source here (slow, needs build tools)',
+                    url=url)
+
+
 def _run(cmd, timeout=20) -> tuple:
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
@@ -204,6 +236,8 @@ def collect() -> dict:
         f['r_quarto'] = (k, t('installed') if k else t(
             'not installed (Quarto needs them to run an R .qmd outside a project): {cmd}',
             cmd='octavo setup --r-editor'))
+        if sys.platform.startswith('linux'):
+            f['r_repos'] = r_repos_state()
         stale = stale_r_libraries()
         LAST_R_STALE[:] = stale
         n = sum(r[1] for r in stale)
@@ -411,6 +445,7 @@ LABELS = {
     'languageserver': '      └ languageserver',
     'r_quarto': '      └ knitr, rmarkdown',
     'r_packages': '      └ packages',
+    'r_repos': '      └ package source',
     'uv': '  └ uv (Python)',
     'pandoc': 'pandoc',
     'pandoc_citeproc': '  └ CSL citations',
@@ -447,7 +482,7 @@ def report(verbose: bool = False) -> int:
 
     head = '\n== ' + t('Analysis (only when you use a .qmd)') + ' '
     print(head + '=' * max(4, 59 - len(head)))
-    for k in ('quarto', 'R', 'renv', 'r_quarto', 'languageserver', 'r_packages', 'uv'):
+    for k in ('quarto', 'R', 'renv', 'r_quarto', 'languageserver', 'r_packages', 'r_repos', 'uv'):
         if k not in f:
             continue
         ok, detail = f[k]
@@ -501,6 +536,10 @@ def report(verbose: bool = False) -> int:
                          'renv are not affected):'))
         for cmd in dict.fromkeys(rebuild_command(lib, w) for lib, _, _, w in LAST_R_STALE):
             print('    ' + cmd)
+    if LAST_R_REPOS:
+        print('\n  ' + t('To take ready-made packages on Linux, put this in ~/.Rprofile '
+                         '(renv turns it into the binaries for your Ubuntu):'))
+        print(f'    options(repos = c(CRAN = "{PPM_URL}"))')
     if 'typst_default_fonts' in f and not f['typst_default_fonts'][0]:
         print('\n  ' + t('For the default typefaces:') + ' '
               + t(hint('typst_default_fonts')))

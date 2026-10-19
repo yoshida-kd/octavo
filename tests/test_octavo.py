@@ -1765,6 +1765,28 @@ class PreviewContract(unittest.TestCase):
     """
     PREVIEW = ROOT / 'vscode-extension' / 'src' / 'preview.ts'
 
+    def test_both_views_have_the_find_widget(self):
+        """PDF のプレビューも .qmd の HTML の画面も、Ctrl+F で文字列を探せる（tsc では
+        指定が抜けても気づけない）。retainContextWhenHidden が要るので、それも付いていること。"""
+        for name in ('preview.ts', 'qmdPreview.ts'):
+            text = (ROOT / 'vscode-extension' / 'src' / name).read_text(encoding='utf-8')
+            self.assertIn('enableFindWidget: true', text, name)
+            self.assertIn('retainContextWhenHidden: true', text, name)
+
+    def test_the_qmd_view_follows_the_cursor_with_one_page_script(self):
+        """.qmd の HTML の画面は、カーソルに合わせてスクロールする。ページに足すスクリプトは
+        acquireVsCodeApi を1回しか呼べない（2回目は例外）ので、スクロールの記憶と追従は
+        1枚にまとめてある。拡張側が送るメッセージの型と、ページ側が受ける型も同じであること。"""
+        text = (ROOT / 'vscode-extension' / 'src' / 'qmdPreview.ts').read_text(encoding='utf-8')
+        page = text[text.index('const PAGE_SCRIPT'):text.index('export function withPreviewScript')]
+        self.assertEqual(page.count('acquireVsCodeApi()'), 1)
+        self.assertIn("m.type==='sync'", page)
+        self.assertIn("type: 'sync'", text)
+        self.assertIn("'previewFollowCursor'", text)          # PDF と同じ設定
+        body = page[page.index('`') + 1:page.rindex('`')]
+        self.assertNotIn('`', body)                      # String.raw の中に ` や ${ を書かない
+        self.assertNotIn('${', body)
+
     SIDEBAR = ROOT / 'vscode-extension' / 'src' / 'sidebar.ts'
 
     def fields(self, name: str, src=None) -> set:
@@ -3427,6 +3449,74 @@ class MissingRPackages(unittest.TestCase):
     def test_env_installs_what_the_project_uses(self):
         self.assertIn('octavo_missing(".")', envsetup.R_SCRIPT)
         self.assertIn('renv::snapshot', envsetup.MISSING_SCRIPT)
+
+    def test_a_failure_says_to_look_at_compiling_and_shows_the_end_of_the_output(self):
+        """CRAN にあるのに入らないのは、ソースからのコンパイルの失敗が多い。「CRAN にない？」と
+        言わず、Linux では ビルド済み（PPM）かビルド用のツールを案内し、R の出力の終わりを見せる。"""
+        envsetup.LAST_OUTPUT[:] = ['line 1', 'ERROR: compilation failed for package \'igraph\'']
+        with self.render(False), unittest.mock.patch.object(
+                envsetup, 'install_missing', return_value=([], ['quanteda.textplots'])), \
+                unittest.mock.patch.object(analysis.sys, 'platform', 'linux'):
+            report: list = []
+            self.assertFalse(analysis.render_installing(self.cfg, self.u, report))
+        text = '\n'.join(report)
+        self.assertNotIn('not on CRAN?', text)
+        self.assertIn('compiling it from source', text)
+        self.assertIn('libglpk-dev', text)
+        self.assertIn("compilation failed for package 'igraph'", text)
+        # Linux でなければ apt の案内は出ない
+        with self.render(False), unittest.mock.patch.object(
+                envsetup, 'install_missing', return_value=([], ['x'])), \
+                unittest.mock.patch.object(analysis.sys, 'platform', 'darwin'):
+            report = []
+            analysis.render_installing(self.cfg, self.u, report)
+        self.assertNotIn('libglpk-dev', '\n'.join(report))
+
+    @unittest.skipUnless(HAVE_R, 'R が要る')
+    def test_an_unset_cran_means_ready_made_packages_on_linux(self):
+        """repos が未設定のとき、Linux では Posit Package Manager（ビルド済み）、つながらない・
+        Linux でないなら cloud.r-project.org。設定済みの repos はそのまま。"""
+        def choose(prefix: str) -> str:
+            code = prefix + envsetup.R_REPOS + 'cat(octavo_repos()[["CRAN"]], "\\n")\n'
+            with tempfile.NamedTemporaryFile('w', suffix='.R', delete=False, encoding='utf-8') as fh:
+                fh.write(code)
+            try:
+                r = subprocess.run(['Rscript', '--vanilla', fh.name], capture_output=True,
+                                   text=True, encoding='utf-8')
+            finally:
+                os.unlink(fh.name)
+            return r.stdout.strip()
+        up = 'curlGetHeaders <- function(...) structure(character(), status = 200L)\n'
+        down = 'curlGetHeaders <- function(...) stop("offline")\n'
+        self.assertEqual(choose(down), 'https://cloud.r-project.org')
+        self.assertEqual(choose(up + 'options(repos = c(CRAN = "https://example.org/cran"))\n'),
+                         'https://example.org/cran')
+        if sys.platform.startswith('linux'):
+            self.assertEqual(choose(up), 'https://packagemanager.posit.co/cran/latest')
+
+    def test_both_r_scripts_choose_the_source_the_same_way(self):
+        for code in (envsetup.R_FUNCTIONS, envsetup.R_EDITOR_SCRIPT):
+            self.assertIn('octavo_repos()', code)
+            self.assertNotIn('repos <- c(CRAN = "https://cloud.r-project.org")', code)
+        # PPM の URL は renv が Linux 用に書き換えるので、記録（renv.lock）には Mac でも使える形が残る
+        self.assertIn('packagemanager.posit.co/cran/latest', envsetup.R_REPOS)
+        self.assertNotIn('__linux__', envsetup.R_REPOS)
+
+    def test_doctor_notices_a_source_only_cran_on_linux(self):
+        def state(out: str):
+            fake = unittest.mock.Mock(stdout=out, stderr='', returncode=0)
+            with unittest.mock.patch.object(doctor.subprocess, 'run', return_value=fake):
+                return doctor.r_repos_state()
+        ok, _ = state('OCTAVO-REPOS: https://packagemanager.posit.co/cran/latest\n')
+        self.assertTrue(ok)
+        self.assertEqual(doctor.LAST_R_REPOS, [])
+        ok, _ = state('OCTAVO-REPOS: @CRAN@\n')
+        self.assertTrue(ok)
+        ok, detail = state('OCTAVO-REPOS: https://cloud.r-project.org\n')
+        self.assertFalse(ok)
+        self.assertEqual(doctor.LAST_R_REPOS, ['https://cloud.r-project.org'])
+        self.assertIn('cloud.r-project.org', detail)
+        doctor.LAST_R_REPOS.clear()
 
 
 @unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')

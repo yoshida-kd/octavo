@@ -407,11 +407,23 @@ if [ "$WITH_R" = 1 ] && command -v Rscript >/dev/null; then
   # プロジェクトではプロジェクト専用のライブラリしか見えず、プロジェクトごとに「入れますか」と
   # 聞かれ続けるため（拡張機能が r.libPaths にこのライブラリを足す）。octavo/envsetup.py の
   # R_EDITOR_SCRIPT と同じ中身。renv の外で実行する（ホームで）。
-  R_EDITOR='lib <- path.expand(Sys.getenv("R_LIBS_USER"))
+  R_EDITOR='octavo_repos <- function() {
+  repos <- getOption("repos")
+  if (is.null(repos)) repos <- character()
+  cran <- if ("CRAN" %in% names(repos)) unname(repos[["CRAN"]]) else "@CRAN@"
+  if (identical(cran, "@CRAN@")) {
+    ppm <- "https://packagemanager.posit.co/cran/latest"
+    ok <- identical(Sys.info()[["sysname"]], "Linux") && isTRUE(tryCatch(
+      identical(attr(curlGetHeaders(paste0(ppm, "/src/contrib/PACKAGES"), timeout = 10L), "status"), 200L),
+      error = function(e) FALSE))
+    repos[["CRAN"]] <- if (ok) ppm else "https://cloud.r-project.org"
+  }
+  repos
+}
+
+lib <- path.expand(Sys.getenv("R_LIBS_USER"))
 dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-repos <- getOption("repos")
-if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
-  repos <- c(CRAN = "https://cloud.r-project.org")
+repos <- octavo_repos()
 # Ubuntu などで Posit Package Manager を向いているなら、Linux 用のビルド済みを取る（renv が
 # プロジェクトの中でしているのと同じ）。ソースからだと開発用のライブラリ（libuv など）が要る
 os <- if (file.exists("/etc/os-release")) readLines("/etc/os-release", warn = FALSE) else ""

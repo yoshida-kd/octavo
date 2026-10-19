@@ -32,19 +32,37 @@ from .i18n import t
 # Quarto が R の .qmd を render するのに要る（octavo.R 自体は素の R で動く）
 R_NEEDS = ('knitr', 'rmarkdown')
 
-# Rscript に渡す（一時ファイルにして）。repos が未設定（@CRAN@）なら CRAN のクラウドミラー。
-# Linux で setup.sh を通していれば Rprofile.site が Posit Package Manager の
-# ビルド済みパッケージを向いているので、それがそのまま使われる。
+# repos が未設定（@CRAN@）のときの取得先。Linux の CRAN 本家はソースしか配らず、quanteda や
+# igraph のようにコンパイルが要るもの（開発用のライブラリも要る）は、素の Ubuntu や WSL で
+# 入らない。そこで Linux では Posit Package Manager（ビルド済みを配る。renv は
+# この URL を Ubuntu などの Linux 用に自分で書き換える）、つながらなければ・Linux でなければ
+# CRAN のクラウドミラー（Mac・Windows は CRAN がビルド済みを配る）。設定済みの repos は
+# そのまま使う。setup.sh を通していれば Rprofile.site が PPM を向いているので、ここは使われない。
+# R_EDITOR_SCRIPT（setup.sh・setup.ps1 にも同じものがある）と共通。
+R_REPOS = r'''
+octavo_repos <- function() {
+  repos <- getOption("repos")
+  if (is.null(repos)) repos <- character()
+  cran <- if ("CRAN" %in% names(repos)) unname(repos[["CRAN"]]) else "@CRAN@"
+  if (identical(cran, "@CRAN@")) {
+    ppm <- "https://packagemanager.posit.co/cran/latest"
+    ok <- identical(Sys.info()[["sysname"]], "Linux") && isTRUE(tryCatch(
+      identical(attr(curlGetHeaders(paste0(ppm, "/src/contrib/PACKAGES"), timeout = 10L), "status"), 200L),
+      error = function(e) FALSE))
+    repos[["CRAN"]] <- if (ok) ppm else "https://cloud.r-project.org"
+  }
+  repos
+}
+'''
+
+# Rscript に渡す（一時ファイルにして）。
 # 足りないパッケージを探して入れる（R_SCRIPT と MISSING_SCRIPT が使う）。
 #   octavo_missing  渡した場所（.qmd やフォルダ）が library() / pkg:: で使っているのに、
 #                   いまのライブラリ（renv のプロジェクトならその中）にないもの
 #   octavo_install  入れる。まとめて入れて、だめなら1つずつ（CRAN にないものだけが残る）。
 #                   入れたもの・入らなかったものを OCTAVO-INSTALLED: / OCTAVO-FAILED: の行で出す
-R_FUNCTIONS = r'''
-repos <- getOption("repos")
-if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
-  repos <- c(CRAN = "https://cloud.r-project.org")
-options(repos = repos)
+R_FUNCTIONS = R_REPOS + r'''
+options(repos = octavo_repos())
 octavo_missing <- function(paths) {
   deps <- tryCatch(unique(renv::dependencies(paths, quiet = TRUE)$Package),
                    error = function(e) character())
@@ -104,12 +122,10 @@ if (length(ok)) renv::snapshot(prompt = FALSE)
 #                     プロジェクト専用のライブラリしか見ないので、R 拡張機能の r.libPaths で
 #                     このライブラリを足す（そうしないとプロジェクトごとに「入れますか」と聞かれる）
 # ホームで実行する（renv の外。sudo は要らない）。
-R_EDITOR_SCRIPT = r'''
+R_EDITOR_SCRIPT = R_REPOS + r'''
 lib <- path.expand(Sys.getenv("R_LIBS_USER"))
 dir.create(lib, recursive = TRUE, showWarnings = FALSE)
-repos <- getOption("repos")
-if (is.null(repos) || identical(unname(repos["CRAN"]), "@CRAN@"))
-  repos <- c(CRAN = "https://cloud.r-project.org")
+repos <- octavo_repos()
 # Ubuntu などで Posit Package Manager を向いているなら、Linux 用のビルド済みを取る（renv が
 # プロジェクトの中でしているのと同じ）。ソースからだと開発用のライブラリ（libuv など）が要る
 os <- if (file.exists("/etc/os-release")) readLines("/etc/os-release", warn = FALSE) else ""
@@ -235,6 +251,10 @@ def r_env(root: Path) -> bool | None:
         os.unlink(path)
 
 
+# install_missing が最後に出した R の出力（空でない行）。入らなかったときに末尾を見せる
+LAST_OUTPUT: list = []
+
+
 def install_missing(root: Path, qmds: list) -> tuple | None:
     """renv のプロジェクトで、qmds が使っているのに入っていない R のパッケージを入れる。
 
@@ -256,6 +276,7 @@ def install_missing(root: Path, qmds: list) -> tuple | None:
         return None
     finally:
         os.unlink(path)
+    LAST_OUTPUT[:] = [ln for ln in ((r.stdout or '') + '\n' + (r.stderr or '')).splitlines() if ln.strip()]
     return _installed_lines(r.stdout or '')
 
 

@@ -346,9 +346,22 @@ def render_installing(cfg, u: Unit, report: list, on_note=None) -> bool:
     installed, failed = got
     for name in failed:
         report.append(f'{tag("analysis")}{tag("warning")} ' + t(
-            'could not install the R package {pkg} (not on CRAN?). Install it into the '
+            'could not install the R package {pkg}. Install it into the '
             'project yourself, e.g. renv::install("{pkg}") or renv::install("user/repo") '
             'for GitHub, then renv::snapshot()', pkg=name))
+    if failed:
+        # CRAN にあるのに入らないのは、ソースからのコンパイルに失敗したことが多い（Linux の CRAN
+        # 本家はソースしか配らない）。原因は R の出力の終わりにあるので、それも見せる
+        if sys.platform.startswith('linux'):
+            report.append(f'{tag("analysis")}{tag("note")} ' + t(
+                'If the package is on CRAN, compiling it from source probably failed. On Linux, '
+                'take the ready-made packages from Posit Package Manager (octavo doctor tells '
+                'how) or install the build tools: {cmd}',
+                cmd='sudo apt install build-essential gfortran libglpk-dev libxml2-dev'))
+        tail = envsetup.LAST_OUTPUT[-6:]
+        if tail:
+            report.append(f'{tag("analysis")}{tag("note")} ' + t('the end of what R printed:'))
+            report.extend('    ' + ln.strip()[:160] for ln in tail)
     if not installed:
         report.extend(first)
         return False

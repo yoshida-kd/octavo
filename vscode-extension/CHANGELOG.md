@@ -3,6 +3,31 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.6
+
+- **The `.qmd` HTML view follows the cursor**, like the PDF preview: it looks for the start of the
+  line you are on (a line of code inside a chunk, or the text of a paragraph or heading) in the
+  rendered page and scrolls there, falling back to the heading above. Code folded closed by
+  Quarto is skipped, and the page does not move when the spot is already in view. The setting is
+  the same `octavo.previewFollowCursor`.
+- **Search the text of the preview and of a `.qmd`'s HTML view.** Click in the view and press
+  Ctrl+F (Cmd+F on a Mac): VS Code's find box opens for the PDF's text (every page) and for the
+  analysis's HTML. Before, neither view could be searched.
+- **R packages that need compiling now install on a plain Ubuntu / WSL.** When R's package
+  source is not set, Octavo used to take CRAN's own server, which on Linux hands out source only
+  (quanteda, igraph and the like need a compiler and development libraries, which a fresh WSL
+  Ubuntu lacks), so `octavo env` and the automatic install for a failing `.qmd` stopped with
+  "could not install". It now takes Posit Package Manager on Linux (ready-made packages; renv
+  turns the URL into the one for your Ubuntu, and `renv.lock` keeps a URL that works on a Mac too)
+  and falls back to CRAN's cloud mirror when that is unreachable or the system is not Linux. A
+  source you have set yourself is left alone.
+- **`octavo doctor`** says, on Linux, when R's package source is one that compiles everything,
+  with the line to put in `~/.Rprofile`.
+- When an R package cannot be installed, Octavo no longer says only "not on CRAN?": on Linux it
+  points at compiling (ready-made packages from Posit Package Manager, or
+  `sudo apt install build-essential gfortran libglpk-dev libxml2-dev`) and shows the end of R's
+  output.
+
 ## 0.6.5
 
 - **A quick guide** (`/quickstart/`, `/ja/quickstart/` on the web page): install, make a

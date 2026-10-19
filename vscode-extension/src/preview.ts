@@ -96,7 +96,9 @@ class PdfPanel {
                 onStale: (action: 'mark' | 'dismiss') => void) {
         this.panel = vscode.window.createWebviewPanel(
             'octavo.preview', title, { viewColumn: column, preserveFocus: true },
-            { enableScripts: true, retainContextWhenHidden: true,
+            // enableFindWidget: 画面をクリックして Ctrl+F（Mac は Cmd+F）で、PDF の文字（pdf.js の
+            // 文字の層）を探せる。retainContextWhenHidden が要る（付けている）
+            { enableScripts: true, retainContextWhenHidden: true, enableFindWidget: true,
               localResourceRoots: [media] });
         this.panel.webview.html = this.html();
         this.panel.webview.onDidReceiveMessage((m: { type?: string; url?: string }) => {
