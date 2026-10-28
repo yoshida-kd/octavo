@@ -1706,7 +1706,8 @@ class PriorworkHandoff(unittest.TestCase):
         cfg = self.cfg()
         srcs = [str(src) for _, src, _ in cfg.sources()]
         self.assertFalse(any('literature' in s for s in srcs), srcs)
-        self.assertEqual(handoff.inbox(cfg.root), self.inbox)
+        # 実体どうしで比べる（macOS の /var -> /private/var、Windows の短い名前）
+        self.assertEqual(handoff.inbox(cfg.root).resolve(), self.inbox.resolve())
 
     def test_reading_the_manifest(self):
         from octavo import handoff
