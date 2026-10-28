@@ -115,7 +115,11 @@ def collect(cfg, target: str, dest: Path, doc) -> Result:
 
     for src, refs in flattened:
         for rel in refs:
-            take((out_dir / rel).resolve(), t('referenced by {name}', name=src.name))
+            p = (out_dir / rel).resolve()
+            if not p.is_file() and Path(rel).name == f'appendix{backend.ext}' \
+                    and backend.splits_appendix(src.read_text(encoding='utf-8')):
+                continue        # 付録を別の PDF にする体裁: 付録の無い論文なら要らない
+            take(p, t('referenced by {name}', name=src.name))
 
     # -- binary な形式（Word 等）はそのまま入れる --------------------------
     if backend.binary:

@@ -47,8 +47,8 @@ Slides only: a figure or a short question.
 <!-- octavo:example start -->
 ## An example
 
-Following @yamada2020. The survey has {{n_obs}} respondents; @fig-trend shows
-the trend.
+Following @yamada2020.
+The survey has {{n_obs}} respondents; @fig-trend shows the trend.
 
 ![Trend](../assets/figures/trend.png){#fig-trend}
 

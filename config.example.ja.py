@@ -72,7 +72,9 @@ CONFIG = {
     # 'figure_ext': {'typst': '.png'},  # 既定を変えるとき（既定は Word が .png、ほかは .pdf）
 
     # 図・表・式の番号。原稿には番号を書かず {#fig-…} などのラベルで指す（@fig-…）
-    'crossref_numbering': 'section',  # 'section'（節ごと 図2.1）| 'document'（通し 図1）
+    # 'crossref_numbering': None,  # 'section'（節ごと 図2.1）| 'document'（通し 図1、付録は A1）。
+    #                              # None なら論文は通し番号、ほかは節ごと
+    # 'appendix_separate': True,   # 論文の付録を別の PDF に（False なら本文の続きに）
     # 目次。None なら講義ノートのプリントにだけ付く（論文・スライドには付かない）。True / False で全部の文書を揃える
     # 'toc': None,
     # 'toc_depth': 2,                  # 目次に載せる見出しの深さ（講義ノートなら 1 = 回だけ、2 = 回と節）
@@ -197,7 +199,8 @@ CONFIG = {
     # 'beamer_aspectratio': '169',
     # 'beamer_slide_level': 2,         # '## 見出し' が1枚
     # 'beamer_notes': False,           # True で発表者ノートを刷り込む
-    # 'slides_bibliography': False,    # True でスライド末尾に書誌一覧を出す
+    # 'slides_bibliography': None,     # 'slide' | 'off' | 'sheet'（A4 の別紙）| 'both'。
+    #                                  # None なら講義の回ごとのスライドは 'slide'、発表は 'off'
 
     # ================================================================
     # Word

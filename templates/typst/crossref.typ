@@ -5,7 +5,7 @@
 //  main.typ が #import する。A4 プリントとスライドは頭に埋め込む）。
 //  自分の体裁にするなら octavo template copy typst/crossref.typ。
 //
-//    within   true なら節ごと（図2.1・式(2.1)）、false なら通し番号（図1）
+//    within   true なら節ごと（図2.1・式(2.1)）、false なら通し番号（図1。付録は図A1）
 //    section  auto  = 最上位の見出しが節
 //             none  = 節はない（見出しが1段のスライド）
 //             整数  = 節の番号を決め打ち（講義の回ごとのデッキ。プリントと同じ番号にする）
@@ -121,6 +121,8 @@
   counter(heading).update(0)
   octavo-section.update(0)
   set heading(numbering: heading-numbering)
+  // 通し番号の文書では、ここで図表・式を数え直す（A1 から。octavo-crossref-rules が受ける）
+  [#metadata(none) <octavo-appendix-start>]
   body
 }
 
@@ -141,7 +143,10 @@
   }
   let num(n, loc) = {
     let s = sec-at(loc)
-    if s == none { str(n) } else { s + "." + str(n) }
+    if s != none { s + "." + str(n) }
+    // 通し番号の付録は A1, A2, …
+    else if not within and octavo-appendix-state.at(loc) { "A" + str(n) }
+    else { str(n) }
   }
   let ja = lang == "ja"
 
@@ -195,6 +200,16 @@
   // スライドで「#」の直後に本文があると、その「#」は1枚のスライド（2段目）になる。
   // 節としては数えるので、その前に目印が置いてある
   show <octavo-section-step>: it => { new-section(); it }
+  // 付録に入ったら（通し番号のとき）図・表・式・ブロックを 1 から（A1）
+  show <octavo-appendix-start>: it => {
+    if not within {
+      counter(figure.where(kind: image)).update(0)
+      counter(figure.where(kind: table)).update(0)
+      counter(math.equation).update(0)
+      for k in theorem-kinds { counter(figure.where(kind: k)).update(0) }
+    }
+    it
+  }
 
   // ラベルのない別行の数式には番号を付けない（番号を数えた分も戻す）
   show math.equation: it => {
@@ -238,6 +253,21 @@
       else { if ja { "第" + n + "節" } else { "Section " + n } }
     } else { return it }
     link(loc, body)
+  }
+  // 参考文献一覧（pandoc が <refs> の箱に1件ずつの箱で出す）: ぶら下げ字下げ（1行目は左端、
+  // 2行目から 2 字下げ）、左寄せ（両端揃えで URL や長い書名の行の語間が開かないように）、
+  // 項目の間は行間より少し広く（項目の切れ目が見えるように。字の大きさに比例するので、
+  // スライドで小さくすれば詰まる）。
+  // 英文の項目の “ ” は欧文フォントで（和文の文書では和文フォントの全角の引用符になり、前後が開く）
+  show <refs>: it => context {
+    set par(hanging-indent: 2em, first-line-indent: (amount: 0pt, all: true), justify: false)
+    set block(spacing: par.leading + 0.4em)
+    show regex("[“”‘’]"): q => context {
+      let f = text.font
+      let first = if type(f) == array { f.first() } else { f }
+      text(font: if type(first) == dictionary { first.name } else { first }, q)
+    }
+    it
   }
   if preset > 0 { octavo-section.update(preset) }
   body

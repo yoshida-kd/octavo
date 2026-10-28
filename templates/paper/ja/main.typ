@@ -1,82 +1,68 @@
 // =====================================================================
-//  日本語論文テンプレート（Typst）
+//  日本語論文の体裁（Typst）
 //
 //  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ
-//  docs/<名前>/ に置くので、タイトル・著者・体裁を書き換える。組版のたびに
+//  docs/<名前>/ に置くので、表題・著者を書き換える。組版のたびに
 //  build/pdf/<名前>/ へコピーされるので、直すのは docs/ の側。body.typ /
-//  abstract.typ は Octavo が自動生成するので直接編集しない。
+//  abstract.typ / appendix.typ は Octavo が毎回書くので直接編集しない。
 //
-//    octavo build <名前> --to pdf
-//    cd build/pdf/<名前> && typst compile --root ../../.. main.typ
-//    （--root がないと ../../../assets/figures を読めない。octavo build --compile なら自動）
+//  版面・見出し・表題まわりは article.typ（octavo build が毎回書く。jsarticle に
+//  準じた体裁）が決める。雑誌に合わせるなら、下の #show: octavo-article.with(…) の
+//  あとに set / show を足す（例: #set page(margin: 25mm)）か、
+//  octavo template copy paper/article.typ でコピーして直す。
 //
-//  引用の扱いは octavo.config.py の typst_citations で決まる:
+//    octavo build <名前> --compile    # PDF（付録があれば <名前>-appendix.pdf も）
 //
-//    'csl'（既定）   pandoc --citeproc が CSL で解決済みの文字列を body.typ に
-//                   書き込む。書誌一覧も body.typ の末尾に入る。
-//                   -> このファイルの #bibliography(...) は**使わない**
-//    'native'       body.typ に Typst の #cite() が並ぶ。書誌は下の
-//                   #bibliography(...) が組む
+//  付録は既定で別の PDF（appendix_separate: True）。本文の続きに付けるなら、
+//  octavo.config.py か原稿の冒頭に appendix_separate: false と書く。
 //
-//  **注意: LaTeX と違い CJK フォントは同梱されない。**下の font 指定は
-//  コンパイル環境に実際にフォントが入っていることが前提。
-//    - `typst fonts` で一覧を確認
-//    - Linux なら sudo apt install fonts-morisawa-bizud-mincho fonts-noto-cjk
-//      macOS なら brew install --cask font-biz-udmincho
-//      （octavo setup が入れる。BIZ UD がなければ Noto、それもなければ
-//       ヒラギノ（macOS）か游明朝（Windows）に落ちる）
-//    - 手元のフォントを使うなら typst compile --root ../../.. --font-path ../../../fonts main.typ
+//  引用は既定で pandoc --citeproc が CSL で組み、書誌一覧も body.typ の末尾に入る
+//  （typst_citations: 'native' のときだけ、下の #bibliography(...) を使う）。
+//
+//  フォントは article.typ が持つ（BIZ UD明朝 + Libertinus Serif。なければ Noto、
+//  macOS はヒラギノ、Windows は游明朝）。`typst fonts` で入っているものを確かめる。
 // =====================================================================
 
-#set document(title: "論文タイトル", author: "著者名")
-#set page(paper: "a4", margin: 25mm, numbering: "1")
-// 欧文は Libertinus Serif、和文は等幅の BIZ UD明朝（なければ Noto Serif CJK JP、
-// 何も足していなければ macOS はヒラギノ明朝、Windows は游明朝）。
-// covers: "latin-in-cjk" で英字・数字だけを欧文フォントに回し、「」、。などの
-// 約物は和文フォントのまま残す。Octavo の A4 プリントと同じ並び。
-#set text(font: ((name: "Libertinus Serif", covers: "latin-in-cjk"),
-                 "BIZ UDMincho", "Noto Serif CJK JP", "Hiragino Mincho ProN",
-                 "Yu Mincho", "Yu Gothic"),
-          lang: "ja", size: 11pt)
-#set par(justify: true, leading: 0.9em, first-line-indent: 1em)
-#set heading(numbering: "1.1")
-#show figure.caption: set text(size: 9pt)
-
-// 図・表・式の番号（節ごとに 2.1）と、@fig-… の参照の体裁。crossref.typ は
-// octavo build が毎回書く（振り方は octavo.config.py の crossref_numbering）。
+#import "article.typ": octavo-article, octavo-abstract, octavo-part, octavo-paper
 #import "crossref.typ": octavo-crossref, octavo-appendix
-#show: octavo-crossref
-
 // 匿名審査の切り替え。octavo build --anonymous のたびに flags.typ が
-// 書き換わる（#let anonymous = true / false）。
+// 書き換わる（#let anonymous = true / false）
 #import "flags.typ": anonymous
 
-#align(center)[
-  #text(size: 16pt, weight: "bold")[論文タイトル]
-  #v(0.8em)
-  #if anonymous [
-    #text(size: 10pt)[［匿名審査のため著者名を伏せています］]
-  ] else [
-    著者名 \
-    #text(size: 10pt)[所属] \
-    #text(size: 10pt)[#link("mailto:email@example.ac.jp")]
+#let author = [著者名]
+#let affiliation = [所属]
+#let email = "email@example.ac.jp"
+#if anonymous {
+  author = [［匿名審査のため著者名を伏せています］]
+  affiliation = none
+  email = none
+}
+
+// 図・表・式の番号（論文の既定は通し番号: 図1、付録は図A1）と、@fig-… の参照の体裁
+#show: octavo-crossref
+#show: octavo-article.with(
+  title: [論文タイトル],
+  author: author,
+  affiliation: affiliation,
+  email: email,
+  // counts: none,     // 1ページ目の分量（本文の字数・要旨・図表の数）を出さないなら
+)
+
+#if octavo-part == "appendix" [
+  #show: octavo-appendix
+  #include "appendix.typ"
+] else [
+  #octavo-abstract(include "abstract.typ")
+  #include "body.typ"
+  // 付録を本文の続きに付けるとき（appendix_separate: false）
+  #if not octavo-paper.appendix-separate [
+    #pagebreak()
+    #show: octavo-appendix
+    #include "appendix.typ"
   ]
 ]
-#v(1.5em)
-
-#heading(numbering: none)[要旨]
-#include "abstract.typ"
-
-#pagebreak()
-#include "body.typ"
 
 // ---- typst_citations: 'native' のときだけ有効にする -------------------
 // #pagebreak()
 // #bibliography("../../../literature.bib", style: "chicago-author-date",
 //               title: "参考文献")
-
-// 付録があるなら（先に octavo build <名前> --to pdf --appendix）。
-// octavo-appendix から先は節が A, B, …、図表・式が A.1 になる
-// #pagebreak()
-// #show: octavo-appendix
-// #include "appendix.typ"

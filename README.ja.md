@@ -35,11 +35,16 @@
   形で編集する（Excel でもよい）。分析の表と同じように使える。
 - **投稿から採択後まで**: 分量の上限、匿名審査、投稿用の zip、共著者が Word で入れた
   変更履歴の読み取り、投稿した版から変わった数値の一覧、再現用パッケージ。
+- **Zotero の文献、Priorwork の先行研究**: `octavo bib pull` が Zotero のコレクションから
+  `.bib` を取り、`octavo bib tidy` がそれを原稿の引用とそろえる。[Priorwork](https://github.com/yoshida-kd/priorwork)
+  （先行研究のサーベイの道具）の下書きは `literature/priorwork/` に届き、AI アシスタントと一緒に
+  原稿へ取り込める。
 - **VS Code 拡張**: カーソルに合わせて動く PDF のライブプレビュー、上の機能を操作できる
   サイドバー、ボタン1つのセットアップ。
 - **AI アシスタントと使える**: プロジェクトごとの約束事（結果を原稿に手入力しない、`data/raw`
   は書き換えない、など）を `AGENTS.md` に置く。Claude Code・GitHub Copilot・Codex・Antigravity
-  のどれもが読むので、AI アシスタントは最初からその約束を知っている。
+  のどれもが読むので、AI アシスタントは最初からその約束を知っている。自分で決めた文章の
+  ルールとフレーズバンク（`writing/`）も渡せる。
 - Linux・macOS・Windows、英語と日本語。
 
 ## インストール

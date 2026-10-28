@@ -426,8 +426,56 @@ def _watch_targets(cfg, docs) -> list:
     return [p for p in out if p]
 
 
+def analysis_packages(cfg, args) -> int:
+    """R の .qmd が使っているのに入っていないパッケージを調べる（missing）・入れる（install）。
+    拡張機能が .qmd を開いた・保存したときに使う（Quarto の Preview で実行すると、Octavo の
+    自動のインストールが働かないため）。"""
+    import json as _json
+    if not args.names:
+        sys.exit(t('name the .qmd: octavo analysis {action} <qmd>', action=args.action))
+    qmds = [Path(n) if Path(n).is_absolute() else Path.cwd() / n for n in args.names]
+    root = Path(cfg.root)
+    renv = (root / 'renv' / 'activate.R').exists()
+    if args.action == 'missing':
+        got = envsetup.missing_packages(root, qmds)
+        if args.json:
+            print(_json.dumps({'ok': got is not None, 'renv': renv, 'missing': got or []},
+                              ensure_ascii=False))
+        elif got is None:
+            print(t('could not check (is R installed?)'), file=sys.stderr)
+        elif got:
+            print(t('not installed: {pkgs}', pkgs=', '.join(got)))
+        else:
+            print(t('every R package it uses is installed'))
+        return 0 if got is not None else 1
+    if not renv:
+        msg = t('this project has no renv yet: run octavo env first (it installs what the .qmd use)')
+        if args.json:
+            print(_json.dumps({'ok': False, 'error': msg}, ensure_ascii=False))
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+    got = envsetup.install_missing(root, qmds)
+    installed, failed = got if got else ([], [])
+    if args.json:
+        print(_json.dumps({'ok': got is not None and not failed, 'installed': installed,
+                           'failed': failed}, ensure_ascii=False))
+    else:
+        if installed:
+            print(t('installed {pkgs} (recorded in renv.lock)', pkgs=', '.join(installed)))
+        for p in failed:
+            print(t('could not install the R package {pkg}. Install it into the project yourself, '
+                    'e.g. renv::install("{pkg}") or renv::install("user/repo") for GitHub, then '
+                    'renv::snapshot()', pkg=p), file=sys.stderr)
+        if not installed and not failed:
+            print(t('every R package it uses is installed'))
+    return 0 if got is not None and not failed else 1
+
+
 def cmd_analysis(args) -> int:
     cfg = configmod.load(args.config)
+    if args.action in ('missing', 'install'):
+        return analysis_packages(cfg, args)
     if args.json and args.action != 'run':
         import json as _json
         print(_json.dumps(analysismod.status_json(cfg), ensure_ascii=False))
@@ -495,6 +543,151 @@ def cmd_analysis(args) -> int:
         print(('' if stale else '\n') + t(
             '{n} manual {n|one is|ones are} stale. octavo build does not run {n|it|them}: '
             'run {n|it|them} with octavo analysis run', n=manual_stale))
+    return 0
+
+
+def cmd_priorwork(args) -> int:
+    """Priorwork から受け取ったもの（literature/priorwork/）。"""
+    import json as _json
+    from . import confedit
+    from . import handoff
+    cfg = configmod.load(args.config)
+    rows = handoff.read(Path(cfg.root), cfg)
+    if args.action == 'list':
+        if args.json:
+            print(_json.dumps({'inbox': str(handoff.inbox(cfg.root)), 'surveys': rows}, ensure_ascii=False))
+            return 0
+        if not rows:
+            print(t('nothing from Priorwork yet ({dir})', dir=cfg.rel(handoff.inbox(cfg.root))))
+            return 0
+        for r in rows:
+            if 'survey' not in r:
+                print(f"  {cfg.rel(Path(r['json']))}: " + '; '.join(r['warnings']))
+                continue
+            print(f"{r['survey']}  {r['topic']}  ({r['kind']}, {r['written_at']})")
+            print('   ' + cfg.rel(Path(r['text'])))
+            if r['edited']:
+                print('   ' + t('edited by hand since Priorwork wrote it'))
+            if r['marks']:
+                print('   ' + t('{n} {n|paper is|papers are} not in the .bib yet ({k} can be replaced now: '
+                              'octavo priorwork resolve)', n=r['marks'], k=r['resolvable']))
+            if r['collection']:
+                where = {'main': t('the main collection'), 'linked': t('a linked collection')}.get(
+                    r['collection_in']) or t('not linked yet: octavo priorwork link {survey}', survey=r['survey'])
+                print('   ' + t('Zotero: {name} — {where}', name=r['collection'], where=where))
+            for w in r['warnings']:
+                print(f'   {tag("note")} {w}')
+        return 0
+
+    if args.action == 'cards':
+        print(_json.dumps({'cards': handoff.cards(Path(cfg.root), cfg)}, ensure_ascii=False))
+        return 0
+    if args.action in ('ask', 'requests'):
+        ws = handoff.workspace_of(args.workspace)
+        if not handoff.is_workspace(ws):
+            msg = t('no Priorwork workspace: give --workspace (a folder with .priorwork/ in it) or set '
+                    'OCTAVO_PRIORWORK_WORKSPACE')
+            print(_json.dumps({'ok': False, 'error': msg}, ensure_ascii=False) if args.json else msg,
+                  file=sys.stdout if args.json else sys.stderr)
+            return 1
+        if args.action == 'requests':
+            got = handoff.requests(Path(ws), Path(cfg.root))
+            if args.json:
+                print(_json.dumps({'ok': True, 'requests': got}, ensure_ascii=False))
+                return 0
+            for q in got:
+                state = {'open': t('received'), 'done': t('done ({survey})', survey=q.get('survey') or ''),
+                         'declined': t('declined ({why})', why=q.get('note') or '')}.get(q.get('status'), q.get('status'))
+                print(f"  {q['id']}  {q['kind']}  {state}")
+            return 0
+        text = args.text if args.text is not None else sys.stdin.read()
+        if not text.strip():
+            sys.exit(t('the request has no text (--text, or on stdin)'))
+        path = handoff.write_request(Path(ws), Path(cfg.root), args.kind, text.strip(), args.manuscript)
+        if args.json:
+            print(_json.dumps({'ok': True, 'id': path.stem, 'path': str(path)}, ensure_ascii=False))
+        else:
+            print(t('sent the request to Priorwork: {path}', path=path))
+        return 0
+
+    if args.action == 'resolve':
+        keys = handoff.doi_keys(cfg)
+        done_all, left_all, changed = 0, [], []
+        for p in handoff.files_to_resolve(cfg):
+            text = mdlib.read(p)
+            new, done, left = handoff.replace(text, keys)
+            left_all += left
+            if done:
+                done_all += done
+                changed.append((p, done))
+                if not args.dry_run:
+                    p.write_text(new, encoding='utf-8')
+        if args.json:
+            print(_json.dumps({'ok': True, 'replaced': done_all, 'dry_run': args.dry_run,
+                               'files': [{'path': str(p), 'replaced': n} for p, n in changed],
+                               'left': sorted(set(left_all))}, ensure_ascii=False))
+            return 0
+        for p, n in changed:
+            print(f'  {cfg.rel(p)}: ' + t('{n} {n|mark|marks}', n=n))
+        print((t('(dry run — nothing changed)') + ' ' if args.dry_run else '')
+              + t('replaced {n} Priorwork {n|mark|marks} with the .bib keys', n=done_all))
+        if left_all:
+            print(t('not in the .bib yet ({n}): add them to Zotero and octavo bib pull: {marks}',
+                    n=len(set(left_all)), marks=', '.join(sorted(set(left_all)))))
+        return 0
+
+    # link: 添え状の Zotero コレクションを zotero_linked に足す
+    picked = [r for r in rows if 'survey' in r and (not args.survey or r['survey'] == args.survey)]
+    if args.survey and not picked:
+        print(t('no survey called {name} in {dir}', name=args.survey, dir=cfg.rel(handoff.inbox(cfg.root))),
+              file=sys.stderr)
+        return 1
+    linked = list(zoteromod.as_list(cfg['zotero_linked']))
+    added = [r['collection'] for r in picked if r['collection'] and r['collection_in'] is None
+             and r['collection'] not in linked]
+    added = list(dict.fromkeys(added))
+    if args.json:
+        if added and not args.dry_run:
+            confedit.set_value(Path(cfg.source), 'zotero_linked', _json.dumps(linked + added))
+        print(_json.dumps({'ok': True, 'added': added, 'dry_run': args.dry_run}, ensure_ascii=False))
+        return 0
+    if not added:
+        print(t('nothing to link: every survey\'s collection is already the main or a linked one'))
+        return 0
+    if not args.dry_run:
+        try:
+            confedit.set_value(Path(cfg.source), 'zotero_linked', _json.dumps(linked + added))
+        except confedit.EditError as e:
+            print(str(e), file=sys.stderr)
+            return 1
+    print((t('(dry run — nothing changed)') + ' ' if args.dry_run else '')
+          + t('linked: {names}', names=', '.join(added)))
+    return 0
+
+
+def cmd_writing(args) -> int:
+    """文章のルールとフレーズバンクの一覧（AI が書く前に読むもの）。"""
+    from . import writing as writingmod
+    cfg = configmod.load(args.config)
+    got = writingmod.collect(Path(cfg.root))
+    if args.json:
+        import json as _json
+        print(_json.dumps(got, ensure_ascii=False))
+        return 0
+    if not any(got.values()):
+        print(t('no writing rules or phrase bank yet. Put Markdown files in writing/rules/ and '
+                'writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
+        return 0
+    for kind, head in (('rules', t('Writing rules (follow them):')),
+                       ('phrases', t('Phrase bank (prefer these phrasings):'))):
+        if not got[kind]:
+            continue
+        print(head)
+        for f in got[kind]:
+            where = cfg.rel(Path(f['path'])) if f['where'] == 'project' else f['path']
+            info = ', '.join(x for x in (f['lang'], '/'.join(f['applies'])) if x)
+            print(f"  {where}  {f['title']} ({info}) — "
+                  + t('{n} {n|entry|entries}', n=f['entries']))
     return 0
 
 
@@ -715,7 +908,14 @@ def cmd_bib(args) -> int:
             return 1
         print(t('wrote {n} {n|entry|entries} to {path} (from {source})',
                 n=n, path=dest, source=src))
+        from . import handoff
+        k = handoff.resolvable(cfg)
+        if k:
+            print(t('{n} Priorwork {n|mark|marks} can now take {n|its|their} .bib {n|key|keys}: '
+                    'octavo priorwork resolve', n=k))
         return checkmod.run(cfg, show_list=False, show_unused=False)
+    if args.action == 'tidy':
+        return bib_tidy(cfg, args)
     if args.action == 'clean':
         src = Path(cfg['bib_file'])
         out = Path(args.out) if args.out else src.with_name(src.stem + '.clean.bib')
@@ -724,6 +924,73 @@ def cmd_bib(args) -> int:
                 'original is untouched)', n=n, path=p))
         return 0
     return 1
+
+
+def bib_tidy(cfg, args) -> int:
+    """メインの Zotero コレクションを、原稿が引いている文献とぴったり同じにする（既定は計画を出すだけ）。"""
+    import json as _json
+    keys = [k.strip() for k in (args.keys or '').split(',') if k.strip()] or None
+    cited = checkmod.collect(cfg).cited
+    try:
+        plan = zoteromod.tidy_plan(cfg['zotero_collection'], cfg['zotero_linked'], cited)
+    except zoteromod.ZoteroError as e:
+        if args.json:
+            print(_json.dumps({'ok': False, 'error': str(e)}, ensure_ascii=False))
+        else:
+            print(str(e), file=sys.stderr)
+        return 1
+    out = {'ok': True, 'write': bool(cfg['zotero_write']),
+           **{k: plan[k] for k in ('main', 'linked', 'add', 'remove', 'unpinned', 'not_found')}}
+    refused = ''
+    if args.apply:
+        if not cfg['zotero_write']:
+            refused = t("Octavo may not change Zotero in this project. To allow it, set 'zotero_write': True "
+                        'in octavo.config.py')
+        else:
+            done, failed = zoteromod.tidy_apply(plan, keys)
+            out['done'] = done
+            out['failed'] = [{'key': k, 'why': w} for k, w in failed]
+    if args.json:
+        if refused:
+            out.update(ok=False, error=refused)
+        print(_json.dumps(out, ensure_ascii=False))
+        return 1 if refused or out.get('failed') else 0
+
+    print(t('main collection: {path}', path=plan['main']))
+    if plan['linked']:
+        print(t('linked: {paths}', paths=', '.join(plan['linked'])))
+    picked = (lambda x: keys is None or x['key'] in keys)
+    if plan['add']:
+        print('\n' + t('cited but not in the main collection — to add ({n}):', n=len(plan['add'])))
+        for x in plan['add']:
+            print(f"  + {x['key']:<28} {x['title'][:50]}  ← {x['from']}"
+                  + ('  ' + t('(found outside the linked collections)') if x.get('where') == 'library' else '')
+                  + ('' if picked(x) else '  ' + t('(skipped)')))
+    if plan['remove']:
+        print('\n' + t('in the main collection but cited nowhere — to take out ({n}):', n=len(plan['remove'])))
+        for x in plan['remove']:
+            print(f"  - {x['key']:<28} {x['title'][:50]}" + ('' if picked(x) else '  ' + t('(skipped)')))
+    if plan['unpinned']:
+        print('\n' + t('not cited, but the citation key is not pinned, so left alone ({n}):', n=len(plan['unpinned'])))
+        for x in plan['unpinned']:
+            print(f"  ? {x['key']:<28} {x['title'][:50]}")
+    if plan['not_found']:
+        print('\n' + t('cited but nowhere in the Zotero library ({n}): {keys}',
+                        n=len(plan['not_found']), keys=', '.join(plan['not_found'])))
+    if not (plan['add'] or plan['remove']):
+        print('\n' + t('the main collection matches the manuscripts'))
+        return 0
+    if refused:
+        print('\n' + refused, file=sys.stderr)
+        return 1
+    if not args.apply:
+        print('\n' + t('nothing was changed. octavo bib tidy --apply changes Zotero as above '
+                        '(only which collection the entries are in; no entry is deleted)'))
+        return 0
+    for x in out['failed']:
+        print(f"  {tag('failed')} {x['key']}: {x['why']}", file=sys.stderr)
+    print('\n' + t('changed {n} {n|entry|entries} in Zotero. Then: octavo bib pull', n=len(out['done'])))
+    return 1 if out['failed'] else 0
 
 
 def cmd_csl(args) -> int:
@@ -1166,15 +1433,37 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('analysis', help=t('run the analysis (.qmd)')))
     p.add_argument('action', nargs='?', default='status',
-                   choices=['status', 'run', 'mark-fresh'],
+                   choices=['status', 'run', 'mark-fresh', 'missing', 'install'],
                    help=t('status=see whether it is up to date (default) / run=run it / '
-                          'mark-fresh=record the named .qmd as up to date without running it'))
+                          'mark-fresh=record the named .qmd as up to date without running it / '
+                          'missing=list the R packages the named .qmd use but are not installed / '
+                          'install=install them'))
     p.add_argument('names', nargs='*',
                    help=t('with run: only these .qmd (run even if not stale)'))
     p.add_argument('--force', action='store_true',
                    help=t('run it again even if it is not stale'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_analysis)
+
+    p = with_config(sub.add_parser('priorwork', help=t('what came from Priorwork (literature/priorwork/)')))
+    p.add_argument('action', nargs='?', default='list',
+                   choices=['list', 'resolve', 'link', 'cards', 'ask', 'requests'],
+                   help=t('list=what is there (default) / resolve=replace @PRIORWORK:<DOI> with the .bib keys / '
+                          'link=add the surveys\' Zotero collections to zotero_linked / cards=the papers\' cards '
+                          '(JSON) / ask=send a request to the Priorwork workspace / requests=what became of them'))
+    p.add_argument('--workspace', help=t('ask, requests: the Priorwork workspace (default: OCTAVO_PRIORWORK_WORKSPACE)'))
+    p.add_argument('--kind', default='other', choices=['start', 'use-surveys', 'other'],
+                   help=t('ask: start=make a survey from the manuscript / use-surveys=use surveys already there'))
+    p.add_argument('--manuscript', help=t('ask: the manuscript the request is about'))
+    p.add_argument('--text', help=t('ask: the request (default: read from stdin)'))
+    p.add_argument('survey', nargs='?', help=t('link: only this survey'))
+    p.add_argument('--dry-run', action='store_true', help=t('show what would change, change nothing'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
+    p.set_defaults(func=cmd_priorwork)
+
+    p = with_config(sub.add_parser('writing', help=t('the writing rules and phrase bank to follow')))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
+    p.set_defaults(func=cmd_writing)
 
     p = with_config(sub.add_parser('values',
                                    help=t('cross-check {{…}} in the text against assets/values/')))
@@ -1242,7 +1531,7 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_checkbib)
 
     p = with_config(sub.add_parser('bib', help=t('talk to Zotero')))
-    p.add_argument('action', choices=['pull', 'collections', 'clean', 'login'])
+    p.add_argument('action', choices=['pull', 'collections', 'clean', 'login', 'tidy'])
     p.add_argument('--collection', help=t('Zotero collection name (default: zotero_collection in the config, '
                                           'or the whole library)'))
     p.add_argument('--format', default='biblatex', choices=['biblatex', 'bibtex'])
@@ -1253,6 +1542,9 @@ def make_parser() -> argparse.ArgumentParser:
                           'if it answers, else web (auto)'))
     p.add_argument('--user-id', help=t('login: your Zotero user ID (zotero.org/settings/keys)'))
     p.add_argument('--api-key', help=t('login: the API key (better given on stdin)'))
+    p.add_argument('--apply', action='store_true',
+                   help=t('tidy: change Zotero as planned (needs zotero_write: True)'))
+    p.add_argument('--keys', help=t('tidy: only these citation keys (comma-separated)'))
     p.set_defaults(func=cmd_bib)
 
     p = with_config(sub.add_parser('csl', help=t("the journal's style (CSL)")))

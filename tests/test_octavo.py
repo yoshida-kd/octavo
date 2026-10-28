@@ -1114,7 +1114,7 @@ class CheckbibReport(unittest.TestCase):
 class Registry(unittest.TestCase):
     def test_all_backends_present(self):
         self.assertEqual(set(be.ALL),
-                         {'latex', 'typst', 'beamer', 'typst-slides',
+                         {'latex', 'typst', 'beamer', 'typst-slides', 'typst-slides-handout',
                           'typst-notes', 'typst-poster', 'docx'})
 
     def test_resolve_targets(self):
@@ -1464,6 +1464,397 @@ class ZoteroCollectionSetting(unittest.TestCase):
         with unittest.mock.patch('octavo.zotero.collections', lambda source='auto': cols), contextlib.redirect_stdout(out):
             cli.main(['bib', 'collections', '--json'])
         self.assertEqual(json.loads(out.getvalue()), {'ok': True, 'collections': cols})
+
+
+class ZoteroTidy(unittest.TestCase):
+    """`octavo bib tidy`: メインのコレクションを原稿の引用とぴったり同じにする。既定は計画だけ、
+    `zotero_write: True` のときだけ `--apply` で書き換える。書き換えは文献の collections だけ。"""
+
+    COLS = [{'key': 'M', 'data': {'name': 'Paper', 'parentCollection': False}},
+            {'key': 'MS', 'data': {'name': 'Theory', 'parentCollection': 'M'}},
+            {'key': 'S', 'data': {'name': 'Survey', 'parentCollection': False}}]
+
+    @staticmethod
+    def item(key, cite, cols, pinned=True):
+        data = {'key': key, 'version': 7, 'collections': cols, 'title': f'Title {cite}'}
+        if pinned:
+            data['citationKey'] = cite
+        return {'key': key, 'version': 7, 'data': data, 'biblatex': f'@article{{{cite},\n title={{T}}}}'}
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        make_project(self.d / 'p', docs=(('paper', 'mypaper'),), example=False)
+        self.root = self.d / 'p'
+        src = next(self.root.glob('papers/*/paper.md'))
+        src.write_text(src.read_text(encoding='utf-8').replace(
+            '# はじめに {#sec-intro}\n', '# はじめに {#sec-intro}\n\nAs @kept and @wanted [-@nowhere] say, unlike @ghost.\n'),
+            encoding='utf-8')
+        self.items = {'M': [self.item('A', 'kept', ['M']), self.item('B', 'stale', ['M', 'S']),
+                            self.item('C', 'loose', ['M'], pinned=False)],
+                      'MS': [self.item('D', 'kept2', ['MS'])],
+                      'S': [self.item('B', 'stale', ['M', 'S']), self.item('E', 'wanted', ['S'])]}
+        # ライブラリ全体（/items/top）: 関連のコレクションに無い文献も
+        self.items['top'] = [*self.items['M'], *self.items['MS'], *self.items['S'],
+                             self.item('F', 'nowhere', [])]
+        self.patches = []
+        self.reads = []
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def web_get(self, path, params):
+        self.reads.append(path)
+        if path == '/collections':
+            return json.dumps(self.COLS), len(self.COLS)
+        got = self.items.get(path.split('/')[2], [])
+        return json.dumps(got), len(got)
+
+    def run_cli(self, *extra, write=None):
+        from octavo import cli, confedit, zotero
+        cfgp = self.root / 'octavo.config.py'
+        confedit.set_value(cfgp, 'zotero_collection', 'Paper')
+        confedit.set_value(cfgp, 'zotero_linked', 'Survey')
+        if write is not None:
+            confedit.set_value(cfgp, 'zotero_write', str(write))
+        out = io.StringIO()
+        with unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')), \
+                unittest.mock.patch.object(zotero, '_web_get', self.web_get), \
+                unittest.mock.patch.object(zotero, '_web_patch',
+                                           lambda item, version, data: self.patches.append((item, version, data))), \
+                contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = cli.main(['bib', 'tidy', '--json', '-c', str(cfgp), *extra])
+        return code, json.loads(out.getvalue().strip().splitlines()[-1])
+
+    def test_the_plan(self):
+        code, got = self.run_cli()
+        self.assertEqual(code, 0)
+        self.assertEqual(got['main'], 'Paper')
+        self.assertEqual([x['key'] for x in got['add']], ['nowhere', 'wanted'])
+        self.assertEqual([(x['from'], x['where']) for x in got['add']][1], ('Survey', 'linked'))
+        self.assertEqual(got['add'][0]['where'], 'library')                   # 関連に無ければライブラリ全体から
+        self.assertEqual([x['key'] for x in got['remove']], ['kept2', 'stale'])   # 下のコレクションも見る
+        self.assertEqual([x['key'] for x in got['unpinned']], ['loose'])         # 固定していないキーは外さない
+        self.assertEqual(got['not_found'], ['ghost'])
+        self.assertEqual(self.patches, [])
+
+    def test_the_library_is_read_only_when_something_is_left(self):
+        from octavo import zotero
+        with unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')), \
+                unittest.mock.patch.object(zotero, '_web_get', self.web_get):
+            plan = zotero.tidy_plan('Paper', 'Survey', ['kept', 'wanted'])
+        self.assertEqual([x['key'] for x in plan['add']], ['wanted'])
+        self.assertNotIn('/items/top', self.reads)
+
+    def test_apply_needs_zotero_write(self):
+        code, got = self.run_cli('--apply')
+        self.assertEqual(code, 1)
+        self.assertIn('zotero_write', got['error'])
+        self.assertEqual(self.patches, [])
+
+    def test_apply_changes_only_the_collections(self):
+        code, got = self.run_cli('--apply', write=True)
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(got['done']), ['kept2', 'nowhere', 'stale', 'wanted'])
+        self.assertIn(('F', 7, {'collections': ['M']}), self.patches)
+        self.assertIn(('E', 7, {'collections': ['S', 'M']}), self.patches)      # メインに足す
+        self.assertIn(('B', 7, {'collections': ['S']}), self.patches)           # メインから外し、調査には残す
+        self.assertIn(('D', 7, {'collections': []}), self.patches)
+        self.assertTrue(all(set(d) == {'collections'} for _, _, d in self.patches))
+
+    def test_apply_only_the_keys_given(self):
+        code, got = self.run_cli('--apply', '--keys', 'wanted', write=True)
+        self.assertEqual(got['done'], ['wanted'])
+        self.assertEqual([p[0] for p in self.patches], ['E'])
+
+    def test_a_read_only_key_stops_at_once(self):
+        from octavo import zotero
+
+        def refuse(item, version, data):
+            self.patches.append(item)
+            raise zotero.WriteRefused('no write access')
+        cfgp = self.root / 'octavo.config.py'
+        from octavo import confedit
+        confedit.set_value(cfgp, 'zotero_collection', 'Paper')
+        confedit.set_value(cfgp, 'zotero_linked', 'Survey')
+        with unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')), \
+                unittest.mock.patch.object(zotero, '_web_get', self.web_get), \
+                unittest.mock.patch.object(zotero, '_web_patch', refuse):
+            plan = zotero.tidy_plan('Paper', 'Survey', ['kept', 'wanted'])
+            done, failed = zotero.tidy_apply(plan)
+        self.assertEqual((done, len(failed), len(self.patches)), ([], 1, 1))
+
+    def test_checkbib_points_at_tidy_for_a_missing_key(self):
+        from octavo import confedit
+        cfgp = self.root / 'octavo.config.py'
+        (self.root / 'literature.bib').write_text('@article{kept,\n author={A, B}, title={T}, year={2020}}\n',
+                                                  encoding='utf-8')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            check.run(config.load(cfgp))
+        self.assertNotIn('bib tidy', out.getvalue())
+        confedit.set_value(cfgp, 'zotero_collection', 'Paper')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            check.run(config.load(cfgp))
+        self.assertIn('bib tidy', out.getvalue())
+
+    def test_no_main_collection(self):
+        from octavo import zotero
+        with unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')):
+            with self.assertRaises(zotero.ZoteroError):
+                zotero.tidy_plan(None, 'Survey', [])
+
+
+class RPackageCheckCli(unittest.TestCase):
+    """`octavo analysis missing|install <qmd>`: 拡張機能が .qmd を開いた・保存したときに使う。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=())
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def run_cli(self, *args):
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(io.StringIO()):
+            code = cli.main(['analysis', *args, '--json', '-c', str(self.root / 'octavo.config.py')])
+        return code, json.loads(out.getvalue().strip().splitlines()[-1])
+
+    def test_missing_lists_what_the_qmd_uses(self):
+        with unittest.mock.patch.object(envsetup, 'missing_packages', lambda root, q: ['quanteda.textplots']):
+            code, got = self.run_cli('missing', 'analysis/analysis.qmd')
+        self.assertEqual((code, got['ok'], got['missing'], got['renv']), (0, True, ['quanteda.textplots'], False))
+        # 拡張機能（rpackages.ts）が読む欄
+        ts = (ROOT / 'vscode-extension' / 'src' / 'rpackages.ts').read_text(encoding='utf-8')
+        for field in ('ok', 'renv', 'missing', 'installed', 'failed', 'error'):
+            self.assertIn(f'{field}', ts)
+
+    def test_install_needs_renv(self):
+        code, got = self.run_cli('install', 'analysis/analysis.qmd')
+        self.assertEqual(code, 1)
+        self.assertIn('octavo env', got['error'])
+        (self.root / 'renv').mkdir()
+        (self.root / 'renv' / 'activate.R').write_text('', encoding='utf-8')
+        with unittest.mock.patch.object(envsetup, 'install_missing', lambda root, q: (['x'], [])):
+            code, got = self.run_cli('install', 'analysis/analysis.qmd')
+        self.assertEqual((code, got['installed']), (0, ['x']))
+
+
+class WritingRules(unittest.TestCase):
+    """octavo writing: ルール（writing/rules）とフレーズバンク（writing/phrases）の一覧。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=())
+        self.home = self.d / 'conf'
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def put(self, base, rel, text):
+        p = base / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding='utf-8')
+
+    def test_project_files_override_the_users(self):
+        from octavo import writing
+        rule = '---\ntitle: 文体\nlang: ja\napplies: [paper]\n---\n\n## 一文一義\n\n規則: …\n\n## 受け身\n\n規則: …\n'
+        self.put(self.home / 'octavo' / 'writing', 'rules/style.md', '## 古い\n')
+        self.put(self.home / 'octavo' / 'writing', 'phrases/review.md', '## 流れ\n\n- 〈現象〉は…\n')
+        self.put(self.root / 'writing', 'rules/style.md', rule)
+        self.put(self.root / 'writing', 'rules/README.md', '# これは数えない\n')
+        with unittest.mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.home)}):
+            got = writing.collect(self.root)
+        self.assertEqual([(f['title'], f['where'], f['entries'], f['applies']) for f in got['rules']],
+                         [('文体', 'project', 2, ['paper'])])
+        self.assertEqual([(f['where'], f['entries']) for f in got['phrases']], [('user', 1)])
+
+
+class PriorworkHandoff(unittest.TestCase):
+    """Priorwork の受け取り場所（literature/priorwork/）。添え状の見本は tests/handoff.json で、
+    priorwork-dev の tests/fixtures/handoff.json と同じ中身（形を変えるときは版を上げ、両方を直す）。"""
+
+    TEXT = ('# Previous research\n\n@card1994 found no fall, unlike @PRIORWORK:10.1/neum [p. 5] '
+            'and [@{PRIORWORK:10.1002/(sici)1099}].\n')
+
+    def setUp(self):
+        import hashlib
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('paper', 'mypaper'),), legacy=False, example=False)
+        self.inbox = self.root / 'literature' / 'priorwork'
+        self.inbox.mkdir(parents=True)
+        m = json.loads((ROOT / 'tests' / 'handoff.json').read_text(encoding='utf-8'))
+        self.assertEqual((m['format'], m['version']), ('priorwork-handoff', 1))
+        m['sha256'] = hashlib.sha256(self.TEXT.encode('utf-8')).hexdigest()
+        self.manifest = m
+        (self.inbox / m['text']).write_text(self.TEXT, encoding='utf-8')
+        (self.inbox / '20261028_mw.json').write_text(json.dumps(m), encoding='utf-8')
+        (self.root / 'literature.bib').write_text(
+            '@article{card1994,\n title={Minimum Wages}, doi={10.1/card}, year={1994}}\n', encoding='utf-8')
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def cfg(self):
+        return config.load(self.root / 'octavo.config.py')
+
+    def test_the_inbox_is_not_a_manuscript(self):
+        from octavo import handoff
+        (self.inbox / 'notes.md').write_text('# x\n', encoding='utf-8')
+        cfg = self.cfg()
+        srcs = [str(src) for _, src, _ in cfg.sources()]
+        self.assertFalse(any('literature' in s for s in srcs), srcs)
+        self.assertEqual(handoff.inbox(cfg.root), self.inbox)
+
+    def test_reading_the_manifest(self):
+        from octavo import handoff
+        (row,) = handoff.read(self.root, self.cfg())
+        self.assertEqual((row['survey'], row['kind'], row['lang']), ('20261028_mw', 'draft', 'en'))
+        self.assertEqual((row['marks'], row['resolvable'], row['edited']), (2, 0, False))
+        self.assertEqual((row['citations'], row['not_in_bib']), (2, 1))
+        self.assertEqual((row['collection'], row['collection_in']), ('Minimum wages / Survey', None))
+        self.assertEqual(row['warnings'], [])
+        # 手で変えると分かる
+        (self.inbox / '20261028_mw.md').write_text(self.TEXT + 'more\n', encoding='utf-8')
+        self.assertTrue(handoff.read(self.root, self.cfg())[0]['edited'])
+
+    def test_a_newer_version_is_read_with_a_warning(self):
+        from octavo import handoff
+        m = dict(self.manifest, version=2, extra='new')
+        (self.inbox / '20261028_mw.json').write_text(json.dumps(m), encoding='utf-8')
+        (row,) = handoff.read(self.root, self.cfg())
+        self.assertEqual(row['survey'], '20261028_mw')
+        self.assertTrue(row['warnings'])
+
+    def test_resolve_by_doi_and_still_not_edited(self):
+        from octavo import handoff
+        from octavo import cli
+        with open(self.root / 'literature.bib', 'a', encoding='utf-8') as fh:
+            fh.write('\n@article{neumark2007,\n title={MW}, doi={10.1/NEUM}, year={2007}}\n')
+        src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        src.write_text(src.read_text(encoding='utf-8') + '\nAs [@PRIORWORK:10.1/neum] shows.\n', encoding='utf-8')
+        self.assertEqual(handoff.resolvable(self.cfg()), 2)
+        with contextlib.redirect_stdout(io.StringIO()):
+            cli.main(['priorwork', 'resolve', '-c', str(self.root / 'octavo.config.py')])
+        self.assertIn('[@neumark2007]', src.read_text(encoding='utf-8'))
+        text = (self.inbox / '20261028_mw.md').read_text(encoding='utf-8')
+        self.assertIn('unlike @neumark2007 [p. 5]', text)
+        self.assertIn('@{PRIORWORK:10.1002/(sici)1099}', text)         # .bib に無いものは残る
+        (row,) = handoff.read(self.root, self.cfg())
+        self.assertFalse(row['edited'])                                 # 置き換えは手の変更に数えない
+        self.assertEqual(row['marks'], 1)
+
+    def test_link_adds_the_collection_to_zotero_linked(self):
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(['priorwork', 'link', '--json', '-c', str(self.root / 'octavo.config.py')])
+        self.assertEqual(json.loads(out.getvalue())['added'], ['Minimum wages / Survey'])
+        self.assertEqual(self.cfg()['zotero_linked'], 'Minimum wages / Survey')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(['priorwork', 'link', '--json', '-c', str(self.root / 'octavo.config.py')])
+        self.assertEqual(json.loads(out.getvalue())['added'], [])
+
+    def test_the_sidebar_reads_only_fields_the_cli_writes(self):
+        from octavo import handoff
+        ts = (ROOT / 'vscode-extension' / 'src' / 'sidebar.ts').read_text(encoding='utf-8')
+        body = re.search(r'export interface Survey \{(.*?)\n\}', ts, re.S).group(1)
+        fields = set(re.findall(r'(\w+)\??:', body))
+        (row,) = handoff.read(self.root, self.cfg())
+        self.assertLessEqual(fields, set(row), fields - set(row))
+
+    def put_cards(self):
+        cards = (ROOT / 'tests' / 'handoff-cards.json').read_text(encoding='utf-8')
+        self.assertEqual(json.loads(cards)['format'], 'priorwork-cards')
+        (self.inbox / self.manifest['cards']).write_text(cards, encoding='utf-8')
+
+    def test_cards_by_key_and_after_resolve_by_doi(self):
+        from octavo import handoff
+        self.put_cards()
+        got = handoff.cards(self.root, self.cfg())
+        self.assertEqual(got['card1994'][0]['evidence'], 'fulltext')
+        self.assertEqual(got['card1994'][0]['fields']['findings'], 'No fall in employment (p. 792)')
+        self.assertEqual(got['PRIORWORK:10.1/neum'][0]['label'], 'Neumark & Wascher (2007)')
+        with open(self.root / 'literature.bib', 'a', encoding='utf-8') as fh:
+            fh.write('\n@article{neumark2007,\n title={MW}, doi={10.1/NEUM}, year={2007}}\n')
+        got = handoff.cards(self.root, self.cfg())
+        self.assertEqual(got['neumark2007'][0]['survey'], '20261028_mw')     # resolve したあとのキーでも
+        (row,) = handoff.read(self.root, self.cfg())
+        self.assertTrue(row['cards'].endswith('20261028_mw.cards.json'))
+
+    def test_checkbib_notes_papers_not_read_in_full(self):
+        self.put_cards()
+        src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        src.write_text(src.read_text(encoding='utf-8').replace(
+            '# はじめに {#sec-intro}\n', '# はじめに {#sec-intro}\n\nAs @card1994 and @PRIORWORK:10.1/neum.\n'),
+            encoding='utf-8')
+        r = check.collect(self.cfg())
+        self.assertEqual(r.unchecked, [['PRIORWORK:10.1/neum', 'abstract', '20261028_mw']])
+
+    def test_a_request_goes_to_the_workspace_and_its_answer_comes_back(self):
+        from octavo import handoff
+        ws = self.d / 'pw'
+        (ws / '.priorwork').mkdir(parents=True)
+        src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        path = handoff.write_request(ws, self.root, 'start', 'Read it.', src)
+        mine = json.loads(path.read_text(encoding='utf-8'))
+        fixture = json.loads((ROOT / 'tests' / 'request.json').read_text(encoding='utf-8'))
+        self.assertEqual(set(mine), set(fixture))                         # 同じ形（priorwork-request 版 1）
+        self.assertEqual((mine['status'], mine['from'], mine['kind']), ('open', 'octavo', 'start'))
+        self.assertEqual(mine['id'], path.stem)
+        # Priorwork が結果を書き込む
+        mine.update(status='done', survey='20261028_mw', done_at='2026-10-28T13:00:00')
+        path.write_text(json.dumps(mine), encoding='utf-8')
+        (other := dict(fixture)).update(project='/elsewhere')
+        (path.parent / 'x.json').write_text(json.dumps(other), encoding='utf-8')
+        (got,) = handoff.requests(ws, self.root)                          # ほかのプロジェクトの依頼は出さない
+        self.assertEqual((got['status'], got['survey']), ('done', '20261028_mw'))
+        self.assertFalse(handoff.is_workspace(self.d))
+
+    def test_the_extension_reads_only_fields_the_cli_writes(self):
+        from octavo import handoff
+        def fields(ts_file, name):
+            ts = (ROOT / 'vscode-extension' / 'src' / ts_file).read_text(encoding='utf-8')
+            body = re.search(r'export interface ' + name + r' \{(.*?)\n\}', ts, re.S).group(1)
+            return set(re.findall(r'(\w+)\??:', body))
+        self.put_cards()
+        card = handoff.cards(self.root, self.cfg())['card1994'][0]
+        self.assertLessEqual(fields('cards.ts', 'Card'), set(card))
+        ws = self.d / 'pw'
+        (ws / '.priorwork').mkdir(parents=True)
+        handoff.write_request(ws, self.root, 'other', 'x')
+        (q,) = handoff.requests(ws, self.root)
+        self.assertLessEqual(fields('sidebar.ts', 'PriorworkRequest'), set(q))
+
+    def test_checkbib_tells_priorwork_marks_apart(self):
+        src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        src.write_text(src.read_text(encoding='utf-8').replace(        # 参考文献の節より前に
+            '# はじめに {#sec-intro}\n',
+            '# はじめに {#sec-intro}\n\nSee @PRIORWORK:10.1/neum, [@{PRIORWORK:10.1002/(sici)1099}] and @nokey.\n'),
+            encoding='utf-8')
+        r = check.collect(self.cfg())
+        self.assertEqual(sorted(r.priorwork), ['PRIORWORK:10.1/neum', 'PRIORWORK:10.1002/(sici)1099'])
+        self.assertIn('nokey', r.missing)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            check.run(self.cfg())
+        self.assertIn('octavo priorwork resolve', out.getvalue())
+
+
+class CitedKeys(unittest.TestCase):
+    def test_suppress_author_counts_as_a_citation(self):
+        got = md.cited_keys('As [@a; -@b] and [-@c, p. 3], [see -@f], x-@d, me@e.org.\n')
+        self.assertEqual(got, {'a', 'b', 'c', 'f'})
+
+    def test_nocite_in_the_front_matter_reaches_pandoc(self):
+        # 冒頭の front matter は Octavo が取り除くので、nocite: は本文の YAML ブロックに置き直す
+        self.assertEqual(md.nocite_block('---\ntitle: x\nnocite: |\n  @a, @b\n  @c\nauthor: y\n---\nbody'),
+                         '\n\n---\nnocite: "@a, @b, @c"\n---\n')
+        self.assertEqual(md.nocite_block('---\nnocite: "@*"\n---\n'), '\n\n---\nnocite: "@*"\n---\n')
+        self.assertEqual(md.nocite_block('---\ntitle: x\n---\n'), '')
 
 
 class ConfEdit(unittest.TestCase):
@@ -2476,7 +2867,9 @@ class ProjectScaffold(unittest.TestCase):
             # 匿名審査の分岐と、付録を読む行のコメントは両方の言語で同じ形
             self.assertTrue(be.get('typst').uses_anonymous_guard(typ))
             self.assertTrue(be.get('latex').uses_anonymous_guard(tex))
-            self.assertIn('// #include "appendix.typ"', typ)
+            # 付録は article.typ の octavo-part で別の PDF に組む（本文の続きにもできる）
+            self.assertIn('octavo-part == "appendix"', typ)
+            self.assertTrue(be.get('typst').splits_appendix(typ))
             # \newif は \title より前（後ろだと Undefined control sequence）
             self.assertLess(tex.index(r'\newif\ifanonymous'), tex.index(r'\title{'))
 
@@ -3656,6 +4049,89 @@ class DataFingerprint(unittest.TestCase):
 
 
 # =====================================================================
+class SlideBibliography(unittest.TestCase):
+    """slides_bibliography: slide / off / sheet（参考文献だけの A4 の別紙）/ both。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('lecture', 'notes'), ('slides', 'talk')), legacy=False)
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def test_the_defaults_and_the_old_values(self):
+        cfg = config.load(self.root / 'octavo.config.py')
+        self.assertEqual(build.slide_bib_mode(cfg, cfg.document('notes')), 'slide')
+        self.assertEqual(build.slide_bib_mode(cfg, cfg.document('talk')), 'off')
+        for old, new in ((True, 'slide'), (False, 'off'), ('both', 'both')):
+            self.assertEqual(config.slide_bib(old), new)
+
+    def test_none_in_the_front_matter_means_off(self):
+        src = self.root / 'docs' / 'notes' / 'notes.md'
+        text = src.read_text(encoding='utf-8')
+        for value, want in (('none', 'off'), ('sheet', 'sheet'), ('true', 'slide')):
+            got = config.doc_settings(src, text.replace('---\n', f'---\nslides_bibliography: {value}\n', 1))
+            self.assertEqual(got['slides_bibliography'], want)
+        with self.assertRaises(SystemExit):
+            src.write_text(text.replace('---\n', '---\nslides_bibliography: maybe\n', 1), encoding='utf-8')
+            cfg = config.load(self.root / 'octavo.config.py')
+            cfg.for_document(cfg.document('notes'))
+
+    @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+    def test_a_sheet_is_made_beside_the_deck(self):
+        src = self.root / 'docs' / 'notes' / 'notes.md'
+        src.write_text(src.read_text(encoding='utf-8').replace('---\n', '---\nslides_bibliography: sheet\n', 1),
+                       encoding='utf-8')
+        cfg = config.load(self.root / 'octavo.config.py')
+        part = cfg.parts(cfg.document('notes'))[1]                      # 引用のある回
+        r = build.build_one(cfg, part, 'typst-slides', do_compile=True, offline=True)
+        self.assertTrue(r.ok, r.report)
+        sheet = r.compiled.with_name(r.compiled.stem + '-references.pdf')
+        self.assertTrue(sheet.is_file(), r.report)
+        self.assertIn(sheet, r.outputs)
+        deck = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(r.compiled), '-'], capture_output=True,
+                              encoding='utf-8').stdout if shutil.which('pdftotext') else ''
+        if deck:
+            self.assertNotIn('参考文献', deck)                       # デッキには出さない
+        # 別紙をやめたら消える
+        src.write_text(src.read_text(encoding='utf-8').replace('slides_bibliography: sheet', 'slides_bibliography: slide'),
+                       encoding='utf-8')
+        cfg = config.load(self.root / 'octavo.config.py')
+        build.build_one(cfg, cfg.parts(cfg.document('notes'))[1], 'typst-slides', do_compile=True, offline=True)
+        self.assertFalse(sheet.exists())
+
+
+class HandoutSlides(unittest.TestCase):
+    """slides-handout: 配布用のスライド。.screen-only は投影するスライドだけ、.no-screen は配布用に。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('slides', 'talk'),), legacy=False)
+
+    def tearDown(self):
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def test_what_each_deck_keeps(self):
+        text = 'A [answer]{.screen-only}[blank]{.no-screen}.\n\n::: {.slides-only}\nboth\n:::\n'
+        got = {}
+        for b in ('typst-slides', 'typst-slides-handout', 'typst'):
+            keep = Ctx(cfg=None, backend=be.get(b), out_dir=self.d, profile='slides').keep_classes
+            got[b] = md.filter_spans(md.filter_divs(text, keep), keep)
+        self.assertIn('answer', got['typst-slides'])
+        self.assertNotIn('blank', got['typst-slides'])
+        self.assertIn('blank', got['typst-slides-handout'])
+        self.assertNotIn('answer', got['typst-slides-handout'])
+        self.assertIn('both', got['typst-slides-handout'])
+        self.assertNotIn('answer', got['typst'])
+
+    def test_the_handout_deck_has_its_own_folder_and_name(self):
+        cfg = config.load(self.root / 'octavo.config.py')
+        handout = be.get('slides-handout')
+        self.assertEqual(cfg.rel(cfg.out_dir(handout.name)), 'build/slides-handout')
+        self.assertEqual(handout.file_stem('talk'), 'talk-handout')
+        self.assertEqual(handout.file_stem('notes-02', '02'), 'notes-slides-handout-02')
+
+
 class TypstSlides(unittest.TestCase):
     """TeX 無しで組むスライド。pandoc を呼ばない部分。"""
 
@@ -3838,13 +4314,16 @@ class TypstSlides(unittest.TestCase):
         self.assertIn('font: ("Noto Sans CJK JP", )', block)
 
     def test_the_paper_layout_uses_the_same_fonts_as_the_handout(self):
-        """main_ja.typ は手で持つ体裁なので、FONTS と同じ並びを書き写してある。"""
+        """論文のフォントは Octavo が article.typ に書く（FONTS から。main.typ には書かない）。"""
         from octavo.backends.typst import FONTS
         latin, cjk = FONTS['serif']
+        files = dict(be.get('typst').crossref_files(Ctx(cfg=self.cfg, backend=be.get('typst'),
+                                                         out_dir=self.d, profile='paper')))
+        for name in (latin, *cjk):
+            self.assertIn(f'"{name}"', files['article.typ'])
         for lang in ('ja', 'en'):
             text = (ROOT / 'templates' / f'paper/{lang}/main.typ').read_text(encoding='utf-8')
-            for name in (latin, *cjk):
-                self.assertIn(f'"{name}"', text, lang)
+            self.assertNotIn('#set text(font', text)
 
     def test_every_font_list_ends_with_what_a_bare_mac_or_windows_has(self):
         # 何も足していない Mac・Windows でも和文が組めること（ヒラギノ・游書体は最初からある）
@@ -5187,13 +5666,19 @@ class CrossRefs(unittest.TestCase):
         backend = be.get('docx')
         ctx = Ctx(cfg=cfg, backend=backend, out_dir=d / 'out', profile='paper')
         body, known = build.apply_crossrefs(self.SRC, cfg.document('paper'), backend, ctx)
+        # 論文の既定は通し番号
         self.assertIn('## 1. はじめに {#sec-intro}', body)
         self.assertIn('### 2.1　細目', body)
+        self.assertIn('![図1　推移]', body)
+        self.assertIn(': 表1　記述統計 {#tbl-desc}', body)
+        self.assertIn('\\qquad (1) $$', body)
+        self.assertIn('[第2節](#sec-analysis)', body)             # ブックマークへのリンク
+        # crossref_numbering: 'section' なら節ごと
+        cfg._v['crossref_numbering'] = 'section'
+        body, known = build.apply_crossrefs(self.SRC, cfg.document('paper'), backend, ctx)
         self.assertIn('![図1.1　推移]', body)
         self.assertIn(': 表2.1　記述統計 {#tbl-desc}', body)
         self.assertIn('\\qquad (2.1) $$', body)
-        self.assertIn('[第2節](#sec-analysis)', body)             # ブックマークへのリンク
-        self.assertIn('(2.1)', body)
 
     def test_labels_and_link_targets_are_not_counted_as_prose(self):
         text = '## 分析 {#sec-analysis}\n\n![推移](../../assets/figures/trend.png){#fig-trend width=80%}\n'
@@ -5212,10 +5697,8 @@ class CrossRefs(unittest.TestCase):
             build.sibling_crossrefs(cfg, doc, backend, ctx, appendix=False)
             self.assertIn('tbl-definitions', ctx.crossrefs)            # 付録のラベルは知っている
             self.assertEqual('tbl-definitions' in ctx.crossref_local, expect_local, target)
-        # main.typ の付録の読み込みを有効にすると、組版側が参照を張れる
-        main = root / 'papers' / 'paper' / 'main.typ'
-        main.write_text(main.read_text(encoding='utf-8').replace(
-            '// #include "appendix.typ"', '#include "appendix.typ"'), encoding='utf-8')
+        # 付録を本文の続きに付ける（appendix_separate: false）と、組版側が参照を張れる
+        cfg._v['appendix_separate'] = False
         backend = be.get('typst')
         ctx = Ctx(cfg=cfg, backend=backend, out_dir=d / 'o', profile='paper')
         build.sibling_crossrefs(cfg, doc, backend, ctx, appendix=False)
@@ -5279,7 +5762,9 @@ class EndToEnd(unittest.TestCase):
         self.assertIn(r'\begin{equation}', tex)                         # ラベルのある式
         crossref_tex = (self.cfg.out_dir('latex', self.cfg.document('paper'))
                         / 'crossref.tex').read_text(encoding='utf-8')
-        self.assertIn(r'\counterwithin{figure}{section}', crossref_tex)
+        # 論文は通し番号（節で数え直さない）。付録は \appendix から A1
+        self.assertNotIn(r'\counterwithin{figure}{section}', crossref_tex)
+        self.assertIn(r'\renewcommand{\thefigure}{A\arabic{figure}}', crossref_tex)
         self.assertTrue((self.cfg.out_dir('latex', self.cfg.document('paper')) / 'abstract.tex').exists())
 
     def test_latex_has_no_yaml_leak(self):
@@ -6524,7 +7009,8 @@ class OutputsAndDocs(unittest.TestCase):
         cfg = self.cfg()
         rel = {o: cfg.rel(cfg.out_dir(b)) for o, b in config.OUTPUTS.items()}
         self.assertEqual(rel, {'pdf': 'build/pdf', 'word': 'build/word', 'tex': 'build/tex',
-                               'slides': 'build/slides', 'beamer': 'build/beamer',
+                               'slides': 'build/slides', 'slides-handout': 'build/slides-handout',
+                               'beamer': 'build/beamer',
                                'script': 'build/script', 'poster': 'build/poster'})
         self.assertEqual(cfg.rel(cfg.out_dir('typst', cfg.document('mine'))), 'build/pdf/mine')
         # 設定の out_dirs と figure_ext は出力の名前でも形式の名前でも書ける

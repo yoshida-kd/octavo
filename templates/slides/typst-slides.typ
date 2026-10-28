@@ -96,6 +96,9 @@
 // （原稿の @fig-… が指す番号と、キャプションの番号が一致する）。スライドでは
 // キャプションを小さく出す
 #show figure.caption: set text(size: 0.62em, fill: luma(60))
+// 参考文献一覧は小さく、行間を詰めて（1枚に多く入るように。ぶら下げ字下げは crossref.typ）
+#show <refs>: set text(size: 0.6em)
+#show <refs>: set par(leading: 0.45em)
 
 // 見出しの番号（octavo.numbering が none なら振らない）
 #set heading(numbering: octavo.numbering)

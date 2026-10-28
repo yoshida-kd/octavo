@@ -376,8 +376,10 @@ $$ {#eq-model}
   and `_` — Quarto's convention. Japanese may follow directly (`@fig-trendに示す`).
 - `@fig-trend` reads "Figure 2.1" ("図2.1" in a Japanese document), `@eq-model`
   "Equation (2.1)", `@sec-analysis` "Section 2"; `[-@eq-model]` is the number alone.
-- Numbering is by section (Figure 3.2 is the second figure of Section 3);
-  `crossref_numbering: 'document'` numbers straight through.
+- A paper numbers straight through (Figure 1, Figure 2; in the appendix Figure A1, A2); lecture
+  notes, slides and posters number by section (Figure 3.2 is the second figure of Section 3).
+  `crossref_numbering: 'section'` or `'document'` in `octavo.config.py` or at the top of a
+  manuscript chooses either way.
 - Numbered: headings (except `{.unnumbered}`), figures and tables with a caption, and
   equations with a label.
 - A heading `# Title {.appendix}` starts an appendix within the file (A, B, …).
@@ -534,6 +536,7 @@ outputs: [pdf, word]
 | `word` | Word |
 | `tex` | LaTeX (needs TeX; uses the `main.tex` beside the manuscript if there is one) |
 | `slides` | slides |
+| `slides-handout` | the same slides to hand out, without what is marked `.screen-only` (answers) and with what is marked `.no-screen` ([7.1](#71-slides)) |
 | `script` | the speaker script (each page of the deck with its `::: notes`) |
 | `poster` | a poster ([7.3](#73-posters)) |
 | `beamer` | LaTeX slides (needs TeX) |
@@ -586,6 +589,52 @@ Each goes on a line of its own:
 - `\newslide` starts a new slide, titled like the one before with " (cont.)".
   `\newslide{Title}` gives it that title, and `\newslide{}` makes a slide with no title (more
   height for a figure). Outputs other than slides ignore it.
+
+### 3.8 Writing rules and a phrase bank for your AI assistant
+
+Rules on how you write, and a bank of phrasings you trust, can be handed to the AI assistant
+that helps with the prose. They are Markdown files: `writing/rules/*.md` and
+`writing/phrases/*.md` in the project, or in `~/.config/octavo/writing/` for every project (a
+project file of the same name wins). `octavo writing` lists them, and the project's `AGENTS.md`
+tells the assistant to read them before it writes or revises prose, to follow the rules and to
+prefer the phrase bank's phrasings. Octavo only finds them; refining them is yours (in another
+repository, say).
+
+Each file may start with `title`, `lang` (`ja` / `en`) and `applies` (`paper`, `slides`,
+`lecture`, `poster` or `all`); each entry is one `##` heading.
+
+```markdown
+---
+title: Style of a paper
+lang: en
+applies: [paper]
+---
+
+## One claim per sentence
+
+Rule: Put one claim in a sentence.
+Why: The reader need not look for where one claim ends.
+Good: Staff numbers fell. How fast they fell differed between municipalities.
+Bad: Staff numbers fell, but at different speeds across municipalities, which …
+```
+
+```markdown
+---
+title: Introducing previous research
+lang: en
+applies: [paper]
+---
+
+## Showing the course of research
+
+When: opening the section on previous research
+- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
+- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
+```
+
+In a rule, `Rule:` is required and `Why:`, `Good:` and `Bad:` are optional. In the phrase bank,
+the parts in 〈 〉 are the ones to fill in; `When:`, `Note:` and `Source:` are optional. A Japanese
+file uses 規則: / 理由: / 良い例: / 悪い例: and 場面: / 注意: / 出典:.
 
 ---
 
@@ -690,6 +739,12 @@ download.file("https://example.org/survey.csv", out)
 
 - In VS Code the sidebar's **Analysis** section shows each `.qmd` and runs it with one
   button. The preview never runs the analysis; it says when something is out of date.
+- **R packages a `.qmd` uses are installed for you** when Octavo runs it (`octavo build`,
+  `octavo analysis run`). Run from Quarto's own **Preview**, it stops with "there is no package
+  called …" instead; so in VS Code, opening or saving an R `.qmd` checks for packages it uses that
+  are not installed, and offers to install them into the project's renv (`octavo analysis missing
+  <qmd>` / `octavo analysis install <qmd>` from the terminal; `octavo.checkRPackages` turns the
+  check off).
 
 ### 4.4 Python
 
@@ -746,7 +801,7 @@ to `literature.bib`. With Zotero, Better BibTeX's "Keep updated" export keeps it
 the keys stable. **Octavo never edits the `.bib`.**
 
 If Zotero runs on the same machine, `octavo bib pull` can fetch it too. Name the collection to fetch
-from in `octavo.config.py` as `zotero_collection` (**Choose the Zotero Collection** in the VS Code
+from in `octavo.config.py` as `zotero_collection` (**Choose the Main Zotero Collection** in the VS Code
 sidebar picks it from the same tree as in Zotero); without it, the whole library is fetched.
 Collections can be nested, so write the path (`'Research / Make or buy'`). The collections under it
 are fetched too (an entry in more than one is kept once). For several, write a list
@@ -764,14 +819,59 @@ octavo bib pull           # fetch literature.bib from zotero_collection
 octavo bib login --user-id 1234567   # give the web API key (on stdin)
 ```
 
+**Keeping the main collection tidy.** `zotero_collection` is the project's *main* collection: what
+goes into `literature.bib`. Collections that only feed it — one per literature survey, say — are
+*linked* collections, `zotero_linked` (**Choose the Linked Zotero Collections** in the sidebar). They
+never go into the `.bib`. `octavo bib tidy` compares the main collection with what the manuscripts
+cite, and lists the papers cited but not in it (with the linked collection each is in; a paper in none
+of them is looked for in the whole library), and the papers in it that nothing cites. On its own it only shows this plan.
+
+`octavo bib tidy --apply` (or **Tidy the Main Zotero Collection** in the sidebar, where you untick
+what to leave) changes Zotero accordingly, only if the project allows it with `'zotero_write': True`
+in `octavo.config.py`. It changes only which collections an entry is in — adding it to the main
+collection, or taking it out of the main collection and those under it. It never deletes or edits
+an entry: one taken out stays in the library and in its other collections. An entry whose citation
+key is not pinned in Better BibTeX is never taken out (its key in Zotero may differ from the one in
+your `.bib`). Writing goes through the Zotero web API, so the API key needs write access ("Allow write
+access" at zotero.org/settings/keys); a Zotero on this machine sees the change after it syncs. Then
+`octavo bib pull` again.
+
+```bash
+octavo bib tidy                       # the plan: what to add, what to take out
+octavo bib tidy --apply               # do it (needs 'zotero_write': True)
+octavo bib tidy --apply --keys smith2020,doe2019   # only these
+```
+
 **With a literature survey (Priorwork).** If you gather the literature with
 [Priorwork](https://github.com/yoshida-kd/priorwork), right-click the paper in the sidebar → **Ask
 Priorwork for the Literature** to copy a request, and paste it to the agent in the window of your
 Priorwork workspace. Priorwork reads the manuscript (never changing it), gathers the included papers
-in the same Zotero collection, and writes the draft of the literature review with `[@key]` citations.
-Put the included papers in Zotero and `octavo bib pull`, and they are your references.
-For several surveys for one paper, make a collection for each under the project's (`octavo bib pull`
-takes the collections under it too).
+in a Zotero collection of the survey's own, and exports its writing — a draft of the literature
+review, a synthesis, or additions to the manuscript in progress — into the project's
+`literature/priorwork/`: the text (`<survey>.md`, citing with your `.bib`'s keys) and a manifest
+(`<survey>.json`). That folder is an inbox, not a manuscript: nothing is built from it, and Priorwork
+never writes anywhere else in the project.
+
+- **From Priorwork** in the sidebar (or `octavo priorwork`) lists what arrived. **Copy a Request to
+  Take It into the Manuscript** gives you a request for your AI assistant: it reads the text with
+  the manuscript, proposes where each part goes (for additions, from the sentences they quote), and
+  waits for your answer.
+- A paper not in your `.bib` yet is cited as `@PRIORWORK:<its DOI>`. Put it in Zotero,
+  `octavo bib pull`, then `octavo priorwork resolve` replaces the mark with its key (in the
+  manuscripts and in the inbox). `octavo check cites` lists such marks apart from other missing keys.
+- Priorwork also leaves a card for each paper it included (`<survey>.cards.json`). In VS Code,
+  resting the cursor on `[@key]` in the manuscript shows the card: the paper, its question and
+  findings, which survey it is from, and whether Priorwork checked it in the full text or only in
+  the abstract. `octavo check cites` notes the papers you cite that were not read in full.
+- **Sending a request without the clipboard.** Set `octavo.priorworkWorkspace` (or run **Set the
+  Priorwork Workspace…**) to your Priorwork workspace, the folder with `.priorwork/` in it, and **Ask
+  Priorwork for the Literature** writes the request there as a file; you pick it up in the Priorwork
+  window, under **Requests from Octavo** in its sidebar. **From Priorwork** shows what became of it
+  (received, done, declined). From a terminal: `octavo priorwork ask --workspace <folder>` and
+  `octavo priorwork requests`.
+- `octavo priorwork link` adds a survey's Zotero collection to the project's linked collections;
+  once the manuscript cites its papers, `octavo bib tidy --apply` puts them into the main
+  collection. One survey can serve several projects, and one project several surveys.
 
 ```bash
 octavo check cites        # keys cited but missing from the .bib, and problems in the .bib
@@ -818,20 +918,31 @@ the joining of several authors is an approximation of the style's rules, so read
 
 ## 6. Papers: from draft to submission
 
-A paper is `docs/<name>/<name>.md` plus `main.typ`, **the journal layout you keep by hand**
-(title block, fonts, margins). `octavo build` writes the body into `build/pdf/<name>/`
+A paper is `docs/<name>/<name>.md` plus `main.typ`, **the layout you keep by hand** (title,
+authors, and whatever a journal wants). `octavo build` writes the body into `build/pdf/<name>/`
 and `main.typ` typesets it; `--compile` makes the PDF (`build/pdf/<name>/main.pdf`, with a copy
 at `build/pdf/<name>.pdf`).
 
 ```bash
-octavo build example-paper --compile            # PDF
+octavo build example-paper --compile            # PDF (and the appendix's, if there is one)
 octavo build example-paper --to word            # Word
-octavo build example-paper --compile --appendix # with appendix.md
 ```
 
-For an appendix, `octavo new paper <name> --appendix`, then uncomment
-`#show: octavo-appendix` and `#include "appendix.typ"` in `main.typ`. Its sections are A, B, …
-and labels work across both files.
+**The layout** follows LaTeX: jsarticle for a Japanese paper, article (11pt) for an English one
+— the page, the headings, the title block and the abstract. It lives in `article.typ`, which
+`octavo build` writes beside `main.typ` every time, so `main.typ` holds only the title and the
+authors. Page 1 shows the length: the words (English) or characters (Japanese) of the text
+without and with the notes, the abstract's, and the number of figures and tables
+(`counts: none` in `main.typ` hides it). To suit a journal, add `set` / `show` rules after
+`#show: octavo-article.with(…)` in `main.typ`, or copy the layout with
+`octavo template copy paper/article.typ`. A paper made before this keeps its own `main.typ`;
+`octavo template diff paper/ja/main.typ` (or `en`) shows the new one to copy over.
+
+**The appendix** (`octavo new paper <name> --appendix` adds `appendix.md`) is typeset as its own
+PDF, `build/pdf/<name>-appendix.pdf`, whenever there is one. Its sections are A, B, …, its figures
+and tables A1, A2, …, and references between the text and the appendix are written as numbers
+("Table A1"). To put the appendix after the text in one PDF instead, write
+`appendix_separate: false` in `octavo.config.py` or at the top of the manuscript.
 
 ### 6.1 Before you submit
 
@@ -934,12 +1045,24 @@ other outputs are not affected:
 - `{.no-title}` on a slide's heading: a new slide with no title, so a figure gets the room
   (the section name stays in the top-left corner; the handout keeps the heading)
 
+**A deck to hand out.** Add `slides-handout` to `outputs:` and the same slides come out a second
+time in `build/slides-handout/` (`<name>-handout.pdf`), with different contents: what you mark
+`.screen-only` is on the projected deck only, and what you mark `.no-screen` is on the handout
+deck (and in the printed handout) only. `.slides-only` is on both decks.
+
+```markdown
+The sample has [1,523 cases]{.screen-only}[\_\_\_\_\_\_]{.no-screen}.
+```
+
 `::: notes` holds speaker notes: they never appear on the projected deck, and
 `--to script` makes a **speaker script**: each page of the typeset deck, shrunk, with the
 notes written on it underneath (A4, two slides a page). It typesets the deck first, so the
 pictures are exactly what is projected.
-Slide decks show no bibliography unless you set `slides_bibliography: True` and end the
-manuscript with a heading and `::: {#refs}` + `:::`.
+**The references of a deck** are set by `slides_bibliography` (in `octavo.config.py`, or at the top
+of the manuscript for one document): `slide` — a last slide, in small type; `off` — none;
+`sheet` — not on the slides, but an A4 PDF of the deck's references beside it
+(`<deck>-references.pdf`); `both`. Without it, lecture decks get the slide and a talk gets none.
+`true` and `false` from before mean `slide` and `off`.
 
 ### 7.2 Lecture notes
 
@@ -1138,6 +1261,10 @@ octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   some sessio
 octavo documents                                                     the registered manuscripts
 octavo config [--doc NAME] [set KEY VALUE | unset KEY]               show or change settings
 octavo analysis [run [QMD]]                                          is the analysis up to date / run it
+octavo analysis missing|install QMD                                  R packages a .qmd uses but are not installed
+octavo bib pull|tidy|collections|login                               Zotero: fetch the .bib, keep the main collection tidy
+octavo priorwork [resolve|link [SURVEY]] [--dry-run]                 what came from Priorwork (literature/priorwork/)
+octavo writing                                                       the writing rules and phrase bank (for your AI assistant)
 octavo check [--strict] [--anonymous]                                everything before you submit
 octavo check values [--unused] [--diff [ref]]                        cross-check {{...}} against the analysis
 octavo check cites [--list] [--unused]                               citation keys against the .bib
@@ -1165,6 +1292,7 @@ Outputs (in `outputs:` at the top of a manuscript and after `--to`, comma-separa
 |---|---|---|
 | `pdf` | a PDF (the paper layout with `main.typ`, otherwise the built-in one) | Typst |
 | `slides` | slide decks | Typst |
+| `slides-handout` | slide decks to hand out | Typst |
 | `script` | speaker scripts | Typst |
 | `poster` | posters | Typst |
 | `word` | Word | pandoc only |

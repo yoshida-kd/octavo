@@ -54,7 +54,15 @@
   "config.qmdPreview.description": "Octavo のプロジェクトで .qmd を開いたとき、その分析が最後に出力した HTML を横に表示します。これで組み直すことはありません。分析を実行すると、画面は自動で読み直されます。",
   "config.previewFollowCursor.description": "原稿のカーソルの位置に合わせて、PDF プレビュー（と .qmd の HTML の画面）をスクロールします。プレビューだけを自分でスクロールすることもできます。プレビューのツールバーの ⇅ ボタンで、その回だけ切り替えられます。",
   "config.previewCloseWithManuscript.description": "プレビューしている原稿（と付録）のタブをすべて閉じたら、PDF プレビューも閉じます。",
-  "command.chooseZoteroCollection.title": "文献の Zotero のコレクションを選ぶ",
+  "command.chooseZoteroCollection.title": "メインの Zotero コレクション（参考文献）を選ぶ",
   "command.askPriorwork.title": "Priorwork で先行研究を頼む",
-  "command.zoteroLogin.title": "Zotero のウェブ API を使う（API キー）…"
+  "command.zoteroLogin.title": "Zotero のウェブ API を使う（API キー）…",
+  "command.chooseLinkedCollections.title": "関連の Zotero コレクション（調査）を選ぶ",
+  "command.bibTidy.title": "メインの Zotero コレクションを整える (bib tidy)",
+  "config.checkRPackages.description": "Octavo のプロジェクトで R の .qmd を開いた・保存したとき、使っているのに入っていない R のパッケージを確かめ、入れるかどうか尋ねます（プロジェクトの renv に入れます）。Quarto の Preview から実行しても、パッケージは自動では入りません。",
+  "command.priorworkRequest.title": "Priorwork の下書きを原稿に取り込む依頼文をコピー",
+  "command.priorworkResolve.title": "Priorwork の印を .bib のキーに置き換える",
+  "command.priorworkLink.title": "Priorwork のサーベイの Zotero コレクションを関連付ける",
+  "config.priorworkWorkspace.description": "Priorwork のワークスペース（.priorwork/ のあるフォルダ。octavo コマンドから見たパス）。設定すると「Priorwork で先行研究を頼む」は、依頼をコピーする代わりにファイルでそこへ送り、Priorwork のサイドバーから頼めるようにします。",
+  "command.setPriorworkWorkspace.title": "Priorwork のワークスペースを設定…"
 }

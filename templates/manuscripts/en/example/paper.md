@@ -12,9 +12,8 @@ date: 2026-01-01
 # Abstract
 
 <!-- octavo:example start -->
-Write the abstract here. A `# Abstract` section is split off from the body: it
-becomes abstract.typ / abstract.tex for Typst and LaTeX, and the opening section
-in Word.
+Write the abstract here.
+A `# Abstract` section is split off from the body: it becomes abstract.typ / abstract.tex for Typst and LaTeX, and the opening section in Word.
 
 <!-- octavo:example end -->
 
@@ -38,9 +37,9 @@ This paper follows \poscite{yamada2020} framework.
      with `{#fig-…}` `{#tbl-…}` `{#eq-…}` `{#sec-…}` and refer to them by name,
      like `@fig-trend` (typeset as "Figure 2.1", "Section 1"). Until you run the
      analysis these numbers are placeholders, i.e. fake. -->
-As stated in @sec-intro, the sample has {{n_obs}} cases. We estimate @eq-model;
-the coefficient on x is {{coef_x}} (*p* {{p_x}}). @tbl-summary reports
-descriptive statistics and @fig-trend the trend.
+As stated in @sec-intro, the sample has {{n_obs}} cases.
+We estimate @eq-model; the coefficient on x is {{coef_x}} (*p* {{p_x}}).
+@tbl-summary reports descriptive statistics and @fig-trend the trend.
 
 $$
 y_i = \beta_0 + \beta_1 x_i + \varepsilon_i

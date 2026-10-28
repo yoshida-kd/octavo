@@ -151,6 +151,55 @@ item's text); without it pandoc prints the `:::` as text. `octavo check lint` re
 `.xxx-only` mark that matches no output. A number in the prose that is not a result (a grading
 split) is marked `[40%]{.no-lint}` so the hand-typed check skips it.
 
+## One sentence per line
+
+Write manuscripts (`.md`) **one sentence per line**. Never break a line inside a sentence (no
+wrapping at a line length): end the line where the sentence ends and start the next sentence on
+the next line. A blank line separates paragraphs.
+
+- A line break inside a sentence can turn into a stray space in the output (in Japanese
+  especially)
+- With one sentence per line, git diffs and coauthors' comments read sentence by sentence
+- A list item, a table cell and a heading each stay on one line (two sentences in one item go on
+  the same line)
+- When revising a paragraph the user wrote, put only the sentences you change one per line, and
+  leave the wrapping of the other lines alone
+
+## Drafts from Priorwork (literature/priorwork/)
+
+`literature/priorwork/` is where Priorwork, the literature survey tool, delivers its writing; it is
+not a manuscript. Each survey has a text (`<survey>.md`) and a manifest (`<survey>.json`);
+`octavo priorwork` lists them. The manifest's `kind` is `draft` (a draft of the introduction, the
+literature review, …), `synthesis` (a summary of the literature) or `complete` (additions to a
+manuscript in progress: items "### K1 kind — section", each with a "Where" quoting the sentence
+before and after, a "Why", and the text).
+
+When the user asks to bring a Priorwork draft into the manuscript:
+
+- Read the text and the manifest together with the manuscript
+- For `complete`, find each item's place in the manuscript from its "Where" quotation; say so
+  when it is not found or matches several places
+- Propose where and how each part goes, and **wait for the user's answer** before changing the
+  manuscript
+- Use the citations as they are. Never make up or change a key. `@PRIORWORK:…` marks a paper not
+  in the .bib yet: it becomes a key once it is in Zotero, `octavo bib pull` and
+  `octavo priorwork resolve` have run (do not rewrite it by hand)
+- Do not edit the files in the inbox (Priorwork rewrites them; only `octavo priorwork resolve`
+  replaces the marks)
+
+## Writing rules and the phrase bank
+
+Before writing or revising prose in a manuscript, run `octavo writing` and read the files it
+lists. `writing/rules/` holds rules (follow them); `writing/phrases/` is the phrase bank
+(trusted phrasings). The user's own (`~/.config/octavo/writing/`) appear in the same list.
+
+- Follow each rule's Rule. When a sentence does not, propose a fix and name the rule
+- Prefer the phrase bank's phrasings, filling in the parts in 〈 〉 to suit the context; when you
+  need a new phrasing, match the bank's patterns and tone
+- Skip files whose `applies` does not cover this document (paper, slides, …) or whose `lang`
+  differs from the manuscript's
+- Do not edit the rule and phrase files unless asked (the user refines them elsewhere)
+
 ## The examples are marked as examples
 
 By default `octavo init` / `octavo new` write only what you keep using (bare

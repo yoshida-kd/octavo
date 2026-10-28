@@ -365,7 +365,9 @@ $$ {#eq-model}
   直後に日本語を続けてよい（`@fig-trendに示す`）。
 - `@fig-trend` は「図2.1」、`@eq-model` は「式(2.1)」、`@sec-analysis` は「第2節」になる。
   `[-@eq-model]` は番号だけ。
-- 番号は節ごと（第3節の2つ目の図は図3.2）。`crossref_numbering: 'document'` で通し番号。
+- 論文は通し番号（図1、図2。付録は図A1、A2）。講義ノート・スライド・ポスターは節ごと（第3節の
+  2つ目の図は図3.2）。`octavo.config.py` か原稿の冒頭の `crossref_numbering: 'section'` /
+  `'document'` でどちらにもできる。
 - 番号が付くのは、見出し（`{.unnumbered}` を除く）、キャプションのある図と表、ラベルのある式。
 - `# 題 {.appendix}` の見出しから後ろは、同じファイルの中で付録になる（A, B, …）。
 - 存在しないラベルと、2回付けたラベルは `octavo check` が止める。
@@ -517,6 +519,7 @@ outputs: [pdf, word]
 | `word` | Word |
 | `tex` | LaTeX（TeX が要る。原稿の横に `main.tex` があればそれ） |
 | `slides` | スライド |
+| `slides-handout` | 同じスライドの配布用。`.screen-only` の部分（答えなど）を除き、`.no-screen` の部分を入れる（[7.1](#71-スライド)） |
 | `script` | 発表の台本（スライドの各ページと `::: notes`） |
 | `poster` | ポスター（[7.3](#73-ポスター)） |
 | `beamer` | LaTeX のスライド（TeX が要る） |
@@ -568,6 +571,51 @@ word_limit: 8000
 - `\newslide` はそこから新しいスライド。題は直前のスライドの題に「（続き）」が付く。
   `\newslide{題}` はその題で、`\newslide{}` は題のない1枚（図に高さを回せる）。
   スライド以外の出力では何もしない。
+
+### 3.8 AI に渡す文章のルールとフレーズバンク
+
+文章の書き方の決まり（ルール）と、信頼できる言い回しを集めたもの（フレーズバンク）を、文章を
+手伝う AI に渡せる。どちらも Markdown のファイルで、プロジェクトの `writing/rules/*.md` と
+`writing/phrases/*.md`、全部のプロジェクトで使うなら `~/.config/octavo/writing/` に置く（同じ名前
+ならプロジェクトのほうを使う）。`octavo writing` が一覧を出し、プロジェクトの `AGENTS.md` が、
+文章を書く・直す前にそれを読み、ルールに従い、フレーズバンクの表現を優先して使うよう AI に
+指示する。Octavo がするのは見つけることだけで、練り上げるのは利用者（ほかのリポジトリでもよい）。
+
+ファイルの冒頭には `title`・`lang`（`ja` / `en`）・`applies`（`paper`・`slides`・`lecture`・
+`poster`・`all`）を書いてよい。1つの項目を `##` の見出し1つで書く。
+
+```markdown
+---
+title: Style of a paper
+lang: en
+applies: [paper]
+---
+
+## One claim per sentence
+
+Rule: Put one claim in a sentence.
+Why: The reader need not look for where one claim ends.
+Good: Staff numbers fell. How fast they fell differed between municipalities.
+Bad: Staff numbers fell, but at different speeds across municipalities, which …
+```
+
+```markdown
+---
+title: Introducing previous research
+lang: en
+applies: [paper]
+---
+
+## Showing the course of research
+
+When: opening the section on previous research
+- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
+- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
+```
+
+見本は英語のファイル。日本語のファイルでは、Rule: / Why: / Good: / Bad: の代わりに
+「規則:」「理由:」「良い例:」「悪い例:」、When: / Note: / Source: の代わりに「場面:」「注意:」
+「出典:」と書く。ルールでは規則が要り、ほかは任意。フレーズバンクでは、〈 〉の所を差し替えて使う。
 
 ---
 
@@ -668,6 +716,11 @@ download.file("https://example.org/survey.csv", out)
 
 - VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
   プレビューは分析を実行せず、古いものがあれば知らせる。
+- **`.qmd` が使う R のパッケージは、Octavo が実行するとき（`octavo build`、`octavo analysis run`）
+  に自動で入る。**Quarto の **Preview** から実行すると、そうはならず「there is no package called …」
+  で止まる。そこで VS Code では、R の `.qmd` を開いた・保存したときに、使っているのに入っていない
+  パッケージを確かめ、プロジェクトの renv に入れるかどうか尋ねる（端末からは `octavo analysis
+  missing <qmd>` / `octavo analysis install <qmd>`。`octavo.checkRPackages` で止められる）。
 
 ### 4.4 Python で書く
 
@@ -724,7 +777,7 @@ Octavo はファイルを読むだけなので、Julia などの `.qmd` でも�
 
 Zotero を同じマシンで動かしているなら、`octavo bib pull` で取ってくることもできる。どのコレクション
 から取るかは `octavo.config.py` の `zotero_collection` に書いておく（VS Code のサイドバーの
-**Zotero のコレクションを選ぶ** で、Zotero と同じ木の形の一覧から選べる）。書かなければライブラリ全体。
+**メインの Zotero コレクションを選ぶ** で、Zotero と同じ木の形の一覧から選べる）。書かなければライブラリ全体。
 コレクションは入れ子にできるので、パス（`'研究 / Make or buy'`）で書く。そのコレクションの下の
 コレクションの文献もまとめて取る（同じキーの文献は1つにする）。いくつも使うなら並びで書く
 （`['Make or buy', 'サーベイ / 外部委託']`。テーマごとの先行研究を、いくつもの論文で使うときなど）。
@@ -741,13 +794,56 @@ octavo bib pull           # zotero_collection から literature.bib を取って
 octavo bib login --user-id 1234567   # ウェブ API のキーを入れる（キーは標準入力で）
 ```
 
+**メインのコレクションを整える。**`zotero_collection` はプロジェクトの**メイン**のコレクションで、
+`literature.bib` になるもの。メインに文献を送り込むだけのコレクション（サーベイごとのものなど）は
+**関連**のコレクション `zotero_linked` に書く（サイドバーの **関連の Zotero コレクションを選ぶ**）。
+関連のコレクションは `.bib` には入らない。`octavo bib tidy` はメインのコレクションと原稿の引用を
+突き合わせ、引用しているのにメインに無い文献（どの関連のコレクションにあるかも。関連のどれにも無ければ
+ライブラリ全体から探す）と、メインにあるのに
+どこでも引用していない文献を挙げる。これだけなら計画を表示するだけ。
+
+`octavo bib tidy --apply`（サイドバーの **メインの Zotero コレクションを整える** でも同じ。そのままに
+したいもののチェックを外せる）は、プロジェクトが `octavo.config.py` の `'zotero_write': True` で
+許しているときだけ、計画どおりに Zotero を書き換える。変えるのは文献がどのコレクションに入っているか
+だけで、メインのコレクションに追加するか、メインとその下のコレクションから外すかのどちらか。文献の
+削除や編集はしない。外した文献はライブラリとほかのコレクションに残る。Better BibTeX で引用キーを
+固定していない文献は外さない（Zotero 側のキーが `.bib` のキーと違うことがあるため）。書き換えは Zotero
+のウェブ API で行うので、API キーに書き込みの権限が要る（zotero.org/settings/keys の「Allow write
+access」）。この機械で動いている Zotero には、同期のあとで反映される。そのあと `octavo bib pull` する。
+
+```bash
+octavo bib tidy                       # 計画: 何を追加し、何を外すか
+octavo bib tidy --apply               # 実行する（'zotero_write': True が要る）
+octavo bib tidy --apply --keys smith2020,doe2019   # この文献だけ
+```
+
 **先行研究のサーベイ（Priorwork）と。**[Priorwork](https://github.com/yoshida-kd/priorwork) で
 先行研究を集めるなら、サイドバーで論文を右クリック → **Priorwork で先行研究を頼む** で依頼文を
 コピーし、Priorwork のワークスペースのウィンドウでエージェントに貼る。Priorwork は原稿を読み
-（書き換えない）、同じ Zotero のコレクションに採用論文を集め、先行研究の下書きを `[@key]` の
-引用で書き出す。採用論文を Zotero に入れて `octavo bib pull` すれば、そのまま参考文献になる。
-1つの論文にいくつもサーベイを作るときは、プロジェクトのコレクションの下にサーベイごとの
-コレクションを作る（`octavo bib pull` は下のコレクションの文献も取る）。
+（書き換えない）、サーベイ専用の Zotero のコレクションに採用論文を集め、書いたもの（先行研究の
+下書き、文献のまとめ、書きかけの原稿の補い）をプロジェクトの `literature/priorwork/` に書き出す:
+本文（`<survey>.md`。引用は `.bib` のキー）と添え状（`<survey>.json`）。このフォルダは受け取り場所で、
+原稿ではない（組まれない）。Priorwork がプロジェクトのほかの場所に書くことはない。
+
+- サイドバーの「**Priorwork から**」（または `octavo priorwork`）が届いたものを一覧にする。
+  「**原稿に取り込む依頼文をコピー**」で、AI アシスタントへの依頼文ができる。アシスタントは本文を
+  原稿と合わせて読み、どこに入れるかを提案し（補いなら、引用された前後の文から場所を探す）、
+  答えを待つ。
+- `.bib` にまだ無い論文は `@PRIORWORK:<DOI>` と書かれる。Zotero に入れて `octavo bib pull` し、
+  `octavo priorwork resolve` で印をキーに置き換える（原稿と受け取り場所の中）。`octavo check cites` は
+  この印を、ほかの無いキーと分けて出す。
+- Priorwork は、採った論文ごとのカードも置く（`<survey>.cards.json`）。VS Code では、原稿の
+  `[@key]` にカーソルを当てるとカードが出る: 論文、問いと結果、どのサーベイのものか、Priorwork が
+  本文で確かめたか要旨だけか。`octavo check cites` は、引いている論文のうち本文で確かめていない
+  ものを知らせる。
+- **クリップボードを使わずに頼む。**`octavo.priorworkWorkspace` に Priorwork のワークスペース
+  （`.priorwork/` のあるフォルダ）を設定すると（「**Priorwork のワークスペースを設定…**」でも）、
+  「**Priorwork で先行研究を頼む**」は依頼をファイルでそこへ送る。Priorwork のウィンドウのサイドバーの
+  「**Octavo からの依頼**」から頼める。どうなったか（受け付け済み・済み・断られた）は「Priorwork から」
+  に出る。端末からは `octavo priorwork ask --workspace <folder>` と `octavo priorwork requests`。
+- `octavo priorwork link` は、サーベイの Zotero コレクションをプロジェクトの関連のコレクションに
+  足す。原稿がその論文を引けば、`octavo bib tidy --apply` がメインのコレクションに入れる。
+  1つのサーベイをいくつものプロジェクトで、1つのプロジェクトでいくつものサーベイを使ってよい。
 
 ```bash
 octavo check cites        # 本文の引用キーが .bib にあるか、.bib に問題がないか
@@ -792,20 +888,28 @@ Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." 
 
 ## 6. 論文: 下書きから投稿まで
 
-論文は `docs/<name>/<name>.md` と、**手で持つ投稿先の体裁** `main.typ`（タイトル部分・
-書体・余白）の組。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを
-組む。`--compile` で PDF まで作る（`build/pdf/<name>/main.pdf`。同じものを `build/pdf/<name>.pdf`
+論文は `docs/<name>/<name>.md` と、**手で持つ体裁** `main.typ`（表題・著者と、投稿先が求める
+もの）の組。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを組む。
+`--compile` で PDF まで作る（`build/pdf/<name>/main.pdf`。同じものを `build/pdf/<name>.pdf`
 にも置く）。
 
 ```bash
-octavo build example-paper --compile            # PDF
+octavo build example-paper --compile            # PDF（付録があれば付録の PDF も）
 octavo build example-paper --to word            # Word
-octavo build example-paper --compile --appendix # appendix.md も
 ```
 
-付録は `octavo new paper <name> --appendix` で足し、`main.typ` の `#show: octavo-appendix`
-と `#include "appendix.typ"` のコメントを外す。付録の節は A, B, … になり、ラベルは本文と
-付録をまたいで使える。
+**体裁**は LaTeX に準じる。日本語の論文は jsarticle、英語の論文は article（11pt）の版面・見出し・
+表題まわり・要旨。これは `octavo build` が毎回 `main.typ` の横に書く `article.typ` が持つので、
+`main.typ` には表題と著者だけを書く。1ページ目には分量が出る: 本文の字数（英語なら語数）を脚注を
+除いたものと含めたもの、要旨の字数、図と表の数（`main.typ` に `counts: none` と書けば出さない）。
+投稿先に合わせるなら、`main.typ` の `#show: octavo-article.with(…)` のあとに `set` / `show` を
+足すか、`octavo template copy paper/article.typ` でコピーして直す。これより前に作った論文は、
+その `main.typ` のまま組まれる。新しいものは `octavo template diff paper/ja/main.typ` で見て写す。
+
+**付録**（`octavo new paper <name> --appendix` で `appendix.md` を足す）は、あれば毎回、別の PDF
+`build/pdf/<name>-appendix.pdf` に組まれる。付録の節は A, B, …、図表は A1, A2, … になり、本文と
+付録のあいだの参照は番号の文字（「表A1」）で書かれる。本文の続きに付けて1つの PDF にするなら、
+`octavo.config.py` か原稿の冒頭に `appendix_separate: false` と書く。
 
 ### 6.1 投稿の前に
 
@@ -903,10 +1007,24 @@ octavo build example-talk --compile
 - 見出しに `{.no-title}`: 題のない新しいスライドにする。図に高さを回せる（左上の節名は残り、
   プリントの見出しはそのまま）
 
+**配布用のスライド。**`outputs:` に `slides-handout` を足すと、同じスライドがもう一度
+`build/slides-handout/`（`<name>-handout.pdf`）に、中身を変えて出る。`.screen-only` で印を付けた
+ものは投影するスライドにだけ、`.no-screen` で印を付けたものは配布用のスライド（と印刷する
+プリント）にだけ出る。`.slides-only` はどちらのスライドにも出る。
+
+```markdown
+The sample has [1,523 cases]{.screen-only}[\_\_\_\_\_\_]{.no-screen}.
+```
+
 `::: notes` には発表者ノートを書く。投影するスライドには出ず、`--to script` で
 **台本**ができる。組んだスライドの各ページを縮小して並べ、その下にそのページのノートを置く
-（A4 に2枚ずつ）。先にスライドを組むので、絵は投影する画面と同じになる。スライドには書誌一覧を出さない。出すなら
-`slides_bibliography: True` にし、原稿の最後に見出しと `::: {#refs}` + `:::` を置く。
+（A4 に2枚ずつ）。先にスライドを組むので、絵は投影する画面と同じになる。
+
+**スライドの参考文献**は `slides_bibliography`（`octavo.config.py`、1つの文書だけなら原稿の冒頭）で
+決める: `slide` は最後の1枚（小さな字で）、`off` は出さない、`sheet` はスライドには出さず、その
+スライドの参考文献だけの A4 の PDF（`<デッキ>-references.pdf`）を横に作る、`both` は両方。書かなければ、
+講義の回ごとのスライドは `slide`、発表スライドは出さない。前からの `true` / `false` は `slide` /
+`off` と読む。
 
 ### 7.2 講義ノート
 
@@ -1099,6 +1217,10 @@ octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   一部の�
 octavo documents                                                     登録されている原稿
 octavo config [--doc NAME] [set KEY VALUE | unset KEY]               設定を見る・変える
 octavo analysis [run [QMD]]                                          分析が最新か見る・実行する
+octavo analysis missing|install QMD                                  .qmd が使うのに入っていない R のパッケージ
+octavo bib pull|tidy|collections|login                               Zotero: .bib を取る、メインのコレクションを整える
+octavo priorwork [resolve|link [SURVEY]] [--dry-run]                 Priorwork から受け取ったもの（literature/priorwork/）
+octavo writing                                                       文章のルールとフレーズバンク（AI に渡す）
 octavo check [--strict] [--anonymous]                                投稿・配布の前の検査をまとめて
 octavo check values [--unused] [--diff [ref]]                        {{...}} と分析の値を突き合わせる
 octavo check cites [--list] [--unused]                               引用キーと .bib を突き合わせる
@@ -1126,6 +1248,7 @@ octavo migrate [--docs|--syntax|--rules] [--dry-run]                 前から�
 |---|---|---|
 | `pdf` | PDF（`main.typ` があれば論文の体裁、なければ組み込みの体裁） | Typst |
 | `slides` | スライド | Typst |
+| `slides-handout` | 配布用のスライド | Typst |
 | `script` | 台本 | Typst |
 | `poster` | ポスター | Typst |
 | `word` | Word | pandoc だけ |

@@ -42,6 +42,7 @@ class TypstSlidesBackend(TypstBackend):
     always_standalone = True
     is_slides = True
     session_tag = 'slides'
+    makes_reference_sheet = True
     fixed_numbering = True
     select_mark = ('slides_select', 'on-slides', ('slides-only', 'only-slides', 'slide-only'))
     wants_abstract_file = False

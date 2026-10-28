@@ -78,6 +78,31 @@ def _unquote(s: str) -> str:
     return s
 
 
+def nocite_block(md: str) -> str:
+    """冒頭の `nocite:`（本文で引かずに書誌に載せる文献）を、本文に置く YAML ブロックにする。
+
+    冒頭の front matter は Octavo が読んで取り除く（pandoc にはタイトル部分しか渡さない）ので、
+    `nocite:` は書誌に届いていなかった。`nocite: "@a, @b"` の形で本文の末尾に置けば、pandoc が
+    読む（YAML ブロックは文書のどこにあってもよい）。1行でも、`|` で続く行に書いてもよい。無ければ ''。
+    """
+    m = FRONT_MATTER.match(md)
+    if not m:
+        return ''
+    lines = m.group(1).split('\n')
+    for i, line in enumerate(lines):
+        if re.match(r'nocite\s*:', line):
+            text = line.split(':', 1)[1]
+            for more in lines[i + 1:]:
+                if more.strip() and not more[:1].isspace():
+                    break
+                text += ' ' + more
+            keys = re.findall(r'@[\w*][\w:.#$%&+?<>~/-]*', text)
+            if not keys:
+                return ''
+            return '\n\n---\nnocite: "' + ', '.join(k.rstrip('.,;:') for k in keys) + '"\n---\n'
+    return ''
+
+
 def to_yaml_block(meta: dict) -> str:
     """メタデータを pandoc に渡す YAML ブロックにする（standalone 出力用）。"""
     if not meta:
@@ -1000,7 +1025,10 @@ def replace_poscite(md: str, formatter) -> str:
     return POSCITE.sub(lambda m: formatter(m.group(1)), md)
 
 
-CITE_KEY = re.compile(r'(?<![\w.@-])@([\w][\w:.#$%&+?<>~/-]*)')
+# `[-@key]`（著者名を省く引用）の `-` は前に来てよい。語の中の `-@` は引用ではない
+CITE_KEY = re.compile(r'(?:(?<![\w.@-])|(?<=[\[;\s]-))@([\w][\w:.#$%&+?<>~/-]*)')
+# `@{…}` で囲んだキー（Pandoc の書き方。キーに書けない文字を含むとき。Priorwork の DOI の印など）
+BRACED_KEY = re.compile(r'(?:(?<![\w.@-])|(?<=[\[;\s]-))@\{([^}\n]+)\}')
 
 
 def cited_keys(md: str, kinds=None) -> set:
@@ -1016,7 +1044,7 @@ def cited_keys(md: str, kinds=None) -> set:
     # 食われ、ブロックが丸ごと残る
     body = re.sub(r'^```.*?^```', '', body, flags=re.S | re.M)
     body = re.sub(r'`[^`\n]*`', '', body)          # インラインコード内は無視
-    keys = set(CITE_KEY.findall(body)) | set(POSCITE.findall(body))
+    keys = set(CITE_KEY.findall(body)) | set(POSCITE.findall(body)) | set(BRACED_KEY.findall(body))
     # `@fig-…` などは相互参照で、引用ではない（crossref.py）
     return {k.rstrip('.,;:') for k in keys
             if not any(k.startswith(x + '-') for x in kinds)}
@@ -1092,6 +1120,26 @@ def strip_comments(md: str) -> str:
     書かれたコメントまで落ちるが、分量は目安なので許容する。
     """
     return COMMENT.sub('', md)
+
+
+def drop_footnotes(md: str) -> str:
+    """脚注を落とす（本文だけの分量を数えるため）。`[^1]: …`（続きの字下げした行も）、
+    `^[…]`（その場の脚注）、本文の `[^1]`。"""
+    out, skip = [], False
+    for line in md.split('\n'):
+        if re.match(r'\[\^[^\]\s]+\]:', line):
+            skip = True
+            continue
+        if skip and (line.startswith(('    ', '\t')) or not line.strip()):
+            if line.strip():
+                continue
+            skip = False
+        else:
+            skip = False
+        out.append(line)
+    md = '\n'.join(out)
+    md = re.sub(r'\^\[(?:[^\[\]]|\[[^\[\]]*\])*\]', '', md)
+    return re.sub(r'\[\^[^\]\s]+\]', '', md)
 
 
 def _prose(md: str) -> str:

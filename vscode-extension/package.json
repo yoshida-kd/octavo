@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.6.6",
+  "version": "0.6.7",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -222,6 +222,36 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.chooseLinkedCollections",
+        "title": "%command.chooseLinkedCollections.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.bibTidy",
+        "title": "%command.bibTidy.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.priorworkRequest",
+        "title": "%command.priorworkRequest.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.priorworkResolve",
+        "title": "%command.priorworkResolve.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.priorworkLink",
+        "title": "%command.priorworkLink.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.setPriorworkWorkspace",
+        "title": "%command.setPriorworkWorkspace.title%",
+        "category": "Octavo"
+      },
+      {
         "command": "octavo.zoteroLogin",
         "title": "%command.zoteroLogin.title%",
         "category": "Octavo"
@@ -339,6 +369,25 @@
         },
         {
           "command": "octavo.chooseZoteroCollection"
+        },
+        {
+          "command": "octavo.chooseLinkedCollections"
+        },
+        {
+          "command": "octavo.bibTidy"
+        },
+        {
+          "command": "octavo.priorworkRequest",
+          "when": "false"
+        },
+        {
+          "command": "octavo.priorworkResolve"
+        },
+        {
+          "command": "octavo.priorworkLink"
+        },
+        {
+          "command": "octavo.setPriorworkWorkspace"
         },
         {
           "command": "octavo.zoteroLogin"
@@ -486,6 +535,17 @@
           "type": "boolean",
           "default": true,
           "description": "%config.qmdPreview.description%"
+        },
+        "octavo.priorworkWorkspace": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "%config.priorworkWorkspace.description%"
+        },
+        "octavo.checkRPackages": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.checkRPackages.description%"
         },
         "octavo.previewCloseWithManuscript": {
           "type": "boolean",

@@ -3,6 +3,65 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.7
+
+- **A main Zotero collection and linked ones.** `zotero_collection` is the project's main collection
+  (what goes into `literature.bib`); the new `zotero_linked` names collections that only feed it —
+  one per literature survey, say — and never go into the `.bib`. Both are chosen from the sidebar.
+- **`octavo bib tidy` keeps the main collection to what the manuscripts cite.** It lists the papers
+  cited but not in the main collection (and the linked collection each is in — or, for one in none of
+  them, where it is in the whole library) and those in it that nothing cites. With `--apply` — and only when the project sets `'zotero_write': True` — it adds and
+  takes out entries through the Zotero web API (the key needs write access). It changes only which
+  collections an entry is in, never deletes or edits one, and never takes out an entry whose citation
+  key is not pinned. In the sidebar: **Tidy the Main Zotero Collection**, with the plan to untick.
+- **`[-@key]` citations are counted** by `octavo checkbib` / `check` and the editor's diagnostics.
+  A citation that leaves out the author's name was missed, so a missing key there went unreported.
+- The request copied for Priorwork now asks for each survey's own collection, to be linked.
+- **Papers number straight through**: Figure 1, Table 2, Equation (3), and A1, A2, … in the
+  appendix. Lecture notes, slides and posters keep numbering by section (Figure 2.1). A paper
+  that should keep the old numbers: `crossref_numbering: 'section'` in `octavo.config.py` or at
+  the top of the manuscript.
+- **A paper's appendix is its own PDF** (`build/pdf/<name>-appendix.pdf`), typeset whenever there
+  is an `appendix.md` (no `--appendix` needed); references between the two are written as
+  numbers. `appendix_separate: false` puts it after the text instead.
+- **A paper is laid out after LaTeX**: jsarticle for Japanese, article (11pt) for English — the
+  page, headings, title block and abstract — and page 1 shows its length (characters or words,
+  without and with notes, the abstract's, the figures and tables). The layout is `article.typ`,
+  written by `octavo build` every time; a new paper's `main.typ` holds only its title and authors.
+  A paper made before keeps its `main.typ` and looks as before; `octavo template diff
+  paper/ja/main.typ` (or `en`) shows the new one.
+- **Reference lists read better** in papers, handouts and slides: a hanging indent, no stretched
+  spaces, a little room between entries, and English quotation marks in a Latin face in a
+  Japanese document. On slides the list is in small type.
+- **`slides_bibliography` for every deck, per document**: `slide`, `off`, `sheet` (an A4 PDF of
+  the deck's references beside it) or `both`. Lecture decks still get the slide and talks none by
+  default; `true` / `false` keep working.
+- **Slides to hand out** (`slides-handout` in `outputs:`): the same deck without what is marked
+  `.screen-only` and with what is marked `.no-screen`, in `build/slides-handout/`.
+- **R packages for a `.qmd` run from Quarto's Preview**: in VS Code, opening or saving an R
+  `.qmd` checks for packages it uses that are not installed and offers to install them
+  (`octavo analysis missing|install <qmd>`; `octavo.checkRPackages` turns it off).
+- **Writing rules and a phrase bank for your AI assistant**: Markdown files in `writing/rules/`
+  and `writing/phrases/` (or `~/.config/octavo/writing/`), listed by `octavo writing`; the
+  project's `AGENTS.md` asks the assistant to follow them.
+- The project rules ask the AI assistant to write one sentence per line (and the example
+  manuscripts do); `octavo migrate --rules` brings an existing project's AGENTS.md up to date.
+- `nocite:` at the top of a manuscript now reaches the bibliography (it was dropped).
+- **Writing from Priorwork arrives in `literature/priorwork/`** (the text and a manifest). `octavo
+  priorwork` lists it, `octavo priorwork resolve` replaces `@PRIORWORK:<DOI>` with the `.bib` key
+  once the paper is in Zotero and pulled, and `octavo priorwork link` adds the survey's Zotero
+  collection to `zotero_linked`. The sidebar's **From Priorwork** does the same and copies a request
+  for your AI assistant; the project's `AGENTS.md` says how to bring the writing into the manuscript
+  (propose, wait for the answer, keep the citations, never edit the inbox). `octavo check cites`
+  lists Priorwork's marks apart from other missing keys, and `@{…}` citation keys are now counted.
+- **Priorwork's cards on `[@key]`**: resting the cursor on a citation shows the paper's card from
+  the surveys that included it (question, findings, and whether it was checked in the full text);
+  `octavo check cites` notes cited papers not read in full.
+- **Requests to Priorwork without the clipboard**: with `octavo.priorworkWorkspace` set, **Ask
+  Priorwork for the Literature** writes the request into the Priorwork workspace
+  (`.priorwork/requests/`), and **From Priorwork** shows whether it was received, done or declined
+  (`octavo priorwork ask|requests`).
+
 ## 0.6.6
 
 - **The `.qmd` HTML view follows the cursor**, like the PDF preview: it looks for the start of the

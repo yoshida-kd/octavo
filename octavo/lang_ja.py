@@ -26,6 +26,7 @@ MESSAGES: dict = {
     '[clash]': '[衝突]',
     '[conditional]': '[条件付き]',
     '[crossref]': '[相互参照]',
+    '[failed]': '[失敗]',
     '[fatal]': '[致命的]',
     '[figure]': '[図]',
     '[layout]': '[体裁]',
@@ -126,7 +127,127 @@ MESSAGES: dict = {
     'login: the API key (better given on stdin)': 'login: API キー（標準入力で渡すほうがよい）',
     'the Zotero web API refused ({why}). Check the API key and the user ID (octavo bib login)':
         'Zotero のウェブ API に断られました（{why}）。API キーとユーザー ID を確かめてください（octavo bib login）',
-    'Zotero collections of the references': '参考文献の Zotero のコレクション',
+    'the Zotero API key cannot write. At zotero.org/settings/keys, allow "Allow write access" for the key':
+        'Zotero の API キーに書き込みの権限が無い。zotero.org/settings/keys で、そのキーの「Allow write access」を有効にする',
+    'changed in Zotero meanwhile; run octavo bib tidy again':
+        'その間に Zotero 側で変更された。octavo bib tidy をもう一度実行する',
+    'set the main collection first (zotero_collection): octavo bib tidy keeps that one collection in step with the manuscripts':
+        '先にメインのコレクション（zotero_collection）を決めておく。octavo bib tidy は、そのコレクションを原稿の引用と揃える',
+    'octavo bib tidy reads Zotero through the web API: octavo bib login':
+        'octavo bib tidy は Zotero をウェブ API で読む: octavo bib login',
+    "Octavo may not change Zotero in this project. To allow it, set 'zotero_write': True in octavo.config.py":
+        "このプロジェクトでは Octavo に Zotero の書き換えを許していない。許すなら octavo.config.py に 'zotero_write': True を書く",
+    '(found outside the linked collections)': '（関連のコレクションの外で見つけた）',
+    'the library (in no collection)': 'ライブラリ（どのコレクションにも無い）',
+    'cited but nowhere in the Zotero library ({n}): {keys}':
+        '引用しているが、Zotero のライブラリのどこにも無い（{n}件）: {keys}',
+    'octavo bib tidy looks for them in Zotero and adds them to the main collection':
+        'octavo bib tidy で Zotero から探し、メインのコレクションに追加できる',
+    'no writing rules or phrase bank yet. Put Markdown files in writing/rules/ and '
+    'writing/phrases/ (or in {dir} for every project)':
+        '文章のルールもフレーズバンクもまだない。writing/rules/ と writing/phrases/ に Markdown のファイルを置く'
+        '（全部のプロジェクトで使うなら {dir} に）',
+    'Writing rules (follow them):': '文章のルール（従う）:',
+    'Phrase bank (prefer these phrasings):': 'フレーズバンク（この表現を優先して使う）:',
+    'the writing rules and phrase bank to follow': '従う文章のルールとフレーズバンク',
+    'Typst slides (handout)': 'Typst スライド（配布用）',
+    'Appendix as a separate PDF': '付録を別の PDF にする',
+    'Numbers of figures and tables': '図表・式の番号の振り方',
+    'References of the slides': 'スライドの参考文献',
+    'main collection: {path}':
+        'メインのコレクション: {path}',
+    'linked: {names}': '関連付けた: {names}',
+    'linked: {paths}':
+        '関連: {paths}',
+    'cited but not in the main collection — to add ({n}):':
+        '引用しているがメインに無い — 追加する（{n}件）:',
+    'in the main collection but cited nowhere — to take out ({n}):':
+        'メインにあるがどこでも引用していない — 外す（{n}件）:',
+    '(skipped)':
+        '（対象外）',
+    'not cited, but the citation key is not pinned, so left alone ({n}):':
+        '引用していないが、引用キーが固定されていないのでそのままにする（{n}件）:',
+    'the main collection matches the manuscripts':
+        'メインのコレクションは原稿の引用と一致している',
+    'nothing was changed. octavo bib tidy --apply changes Zotero as above (only which collection the entries are in; no entry is deleted)':
+        '何も変更していない。octavo bib tidy --apply で上のとおり Zotero を書き換える（変えるのは文献がどのコレクションに入っているかだけで、文献は消さない）',
+    'changed {n} {n|entry|entries} in Zotero. Then: octavo bib pull':
+        'Zotero の文献を {n} 件書き換えた。続けて: octavo bib pull',
+    'tidy: change Zotero as planned (needs zotero_write: True)':
+        'tidy: 計画どおりに Zotero を書き換える（zotero_write: True が要る）',
+    'tidy: only these citation keys (comma-separated)':
+        'tidy: この引用キーの文献だけ（カンマ区切り）',
+    '[Priorwork]':
+        '[Priorwork]',
+    '{n} {n|paper is|papers are} not in the .bib yet: add {n|it|them} to Zotero, octavo bib pull, then octavo priorwork resolve':
+        '.bib にまだ無い論文が {n} 件: Zotero に入れ、octavo bib pull のあと octavo priorwork resolve',
+    'unreadable: {why}':
+        '読めない: {why}',
+    'a newer format (version {v}): read only what this Octavo knows; update Octavo':
+        '新しい形式（版 {v}）。この Octavo が知っている所だけ読む。Octavo を更新する',
+    'the text {name} is missing':
+        '本文 {name} が無い',
+    'nothing from Priorwork yet ({dir})':
+        'Priorwork から受け取ったものはまだない（{dir}）',
+    'edited by hand since Priorwork wrote it':
+        'Priorwork が書いたあとに手で変えられている',
+    '{n} {n|paper is|papers are} not in the .bib yet ({k} can be replaced now: octavo priorwork resolve)':
+        '.bib にまだ無い論文が {n} 件（いま置き換えられるのは {k} 件: octavo priorwork resolve）',
+    'the main collection':
+        'メインのコレクション',
+    'a linked collection':
+        '関連のコレクション',
+    'not linked yet: octavo priorwork link {survey}':
+        'まだ関連付けていない: octavo priorwork link {survey}',
+    'Zotero: {name} — {where}':
+        'Zotero: {name} — {where}',
+    '{n} {n|mark|marks}':
+        '{n} 件',
+    '(dry run — nothing changed)':
+        '（試しただけで、何も変えていない）',
+    'replaced {n} Priorwork {n|mark|marks} with the .bib keys':
+        'Priorwork の印 {n} 件を .bib のキーに置き換えた',
+    'not in the .bib yet ({n}): add them to Zotero and octavo bib pull: {marks}':
+        '.bib にまだ無いもの（{n} 件）: Zotero に入れて octavo bib pull する: {marks}',
+    'no survey called {name} in {dir}':
+        '{dir} に {name} というサーベイは無い',
+    "nothing to link: every survey's collection is already the main or a linked one":
+        '関連付けるものは無い: どのサーベイのコレクションも、もうメインか関連に入っている',
+    'what came from Priorwork (literature/priorwork/)':
+        'Priorwork から受け取ったもの（literature/priorwork/）',
+    'link: only this survey':
+        'link: このサーベイだけ',
+    'show what would change, change nothing':
+        '何が変わるかを見せるだけで、変えない',
+    '{n} Priorwork {n|mark|marks} can now take {n|its|their} .bib {n|key|keys}: octavo priorwork resolve':
+        'Priorwork の印 {n} 件を、いま .bib のキーに置き換えられる: octavo priorwork resolve',
+    '{n} cited {n|paper was|papers were} checked by Priorwork only against the abstract or not at all — read {n|it|them} before leaning on {n|it|them}:':
+        '引いている論文のうち {n} 件は、Priorwork が要旨でしか（または、まったく）確かめていない — 強く頼る前に読む:',
+    'no Priorwork workspace: give --workspace (a folder with .priorwork/ in it) or set OCTAVO_PRIORWORK_WORKSPACE':
+        'Priorwork のワークスペースが無い: --workspace（.priorwork/ のあるフォルダ）を渡すか、OCTAVO_PRIORWORK_WORKSPACE を設定する',
+    'received':
+        '受け付け済み',
+    'done ({survey})':
+        '済み（{survey}）',
+    'declined ({why})':
+        '断られた（{why}）',
+    'the request has no text (--text, or on stdin)':
+        '依頼の文が無い（--text か、標準入力で）',
+    'sent the request to Priorwork: {path}':
+        'Priorwork に依頼を送った: {path}',
+    "list=what is there (default) / resolve=replace @PRIORWORK:<DOI> with the .bib keys / link=add the surveys' Zotero collections to zotero_linked / cards=the papers' cards (JSON) / ask=send a request to the Priorwork workspace / requests=what became of them":
+        'list=一覧（既定） / resolve=@PRIORWORK:<DOI> を .bib のキーに置き換える / link=サーベイの Zotero コレクションを zotero_linked に足す / cards=論文のカード（JSON） / ask=Priorwork のワークスペースに依頼を送る / requests=依頼がどうなったか',
+    'ask, requests: the Priorwork workspace (default: OCTAVO_PRIORWORK_WORKSPACE)':
+        'ask, requests: Priorwork のワークスペース（既定は OCTAVO_PRIORWORK_WORKSPACE）',
+    'ask: start=make a survey from the manuscript / use-surveys=use surveys already there':
+        'ask: start=原稿からサーベイを作る / use-surveys=あるサーベイを使う',
+    'ask: the manuscript the request is about':
+        'ask: 依頼の対象の原稿',
+    'ask: the request (default: read from stdin)':
+        'ask: 依頼の文（既定は標準入力から読む）',
+    'Main Zotero collection (the .bib)': 'メインの Zotero コレクション（.bib になる）',
+    'Linked Zotero collections (surveys)': '関連の Zotero コレクション（調査など）',
+    'Let octavo bib tidy change the Zotero collection': 'octavo bib tidy に Zotero のコレクションの書き換えを許す',
     'the Zotero web API failed ({why})': 'Zotero のウェブ API が失敗しました（{why}）',
     'saved the Zotero web API key to {path} ({n} {n|collection|collections} found)':
         'Zotero のウェブ API のキーを {path} に保存しました（コレクション {n} 個）',
@@ -482,8 +603,18 @@ MESSAGES: dict = {
     'stale': '古い',
     'status=check against the record (default) / hash=write the record': 'status=記録と食い違わないか（既定） / hash=記録する',
     'status=see whether it is up to date (default) / run=run it / '
-    'mark-fresh=record the named .qmd as up to date without running it':
-        'status=最新かどうか見る（既定） / run=実行する / mark-fresh=名指しした .qmd を、実行せずに最新と記録する',
+    'mark-fresh=record the named .qmd as up to date without running it / '
+    'missing=list the R packages the named .qmd use but are not installed / '
+    'install=install them':
+        'status=最新かどうか見る（既定） / run=実行する / mark-fresh=名指しした .qmd を、実行せずに最新と記録する / '
+        'missing=名指しした .qmd が使っているのに入っていない R のパッケージを挙げる / install=それを入れる',
+    'name the .qmd: octavo analysis {action} <qmd>': '.qmd を名指しする: octavo analysis {action} <qmd>',
+    'could not check (is R installed?)': '調べられなかった（R は入っている？）',
+    'not installed: {pkgs}': '入っていない: {pkgs}',
+    'every R package it uses is installed': '使っている R のパッケージはすべて入っている',
+    'this project has no renv yet: run octavo env first (it installs what the .qmd use)':
+        'このプロジェクトにはまだ renv がない。先に octavo env を実行する（.qmd が使うものも入る）',
+    'installed {pkgs} (recorded in renv.lock)': '{pkgs} を入れた（renv.lock に記録した）',
     'name the .qmd to record as up to date: octavo analysis mark-fresh <qmd>':
         '最新と記録する .qmd を名指しする: octavo analysis mark-fresh <qmd>',
     'recorded as up to date (not run): {unit}': '最新と記録した（実行はしていない）: {unit}',

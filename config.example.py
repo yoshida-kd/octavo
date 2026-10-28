@@ -78,7 +78,9 @@ CONFIG = {
 
     # Figure, table and equation numbers. The manuscript never types them; it
     # labels things ({#fig-…}) and refers to them by name (@fig-…)
-    'crossref_numbering': 'section',  # 'section' (Figure 2.1) | 'document' (Figure 1)
+    # 'crossref_numbering': None,  # 'section' (Figure 2.1) | 'document' (Figure 1; appendix A1).
+    #                              # None: a paper numbers straight through, the rest by section
+    # 'appendix_separate': True,   # a paper's appendix as its own PDF (False: after the text)
     # Table of contents. None: only lecture-note handouts get one (not papers or slides); True / False for every document
     # 'toc': None,
     # 'toc_depth': 2,                  # heading depth listed (lecture notes: 1 = sessions only, 2 = sessions and sections)
@@ -209,7 +211,8 @@ CONFIG = {
     # 'beamer_aspectratio': '169',
     # 'beamer_slide_level': 2,         # '## heading' becomes one slide
     # 'beamer_notes': False,           # True prints speaker notes into the PDF
-    # 'slides_bibliography': False,    # True adds a bibliography slide at the end
+    # 'slides_bibliography': None,     # 'slide' | 'off' | 'sheet' (an A4 PDF) | 'both';
+    #                                  # None: lecture decks 'slide', talks 'off'
 
     # ================================================================
     # Word

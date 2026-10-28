@@ -21,8 +21,8 @@ qr_label: The paper
 # Question
 
 <!-- octavo:example start -->
-@yamada2020 explained from the institutions why policy gathers around government. This
-study makes that countable and asks two things.
+@yamada2020 explained from the institutions why policy gathers around government.
+This study makes that countable and asks two things.
 
 - Does the share of policy made by government change over time?
 - If it does, what moves it?
@@ -46,7 +46,8 @@ $$ {#eq-model}
 # Results {span=2}
 
 <!-- octavo:example start — a figure fits the room left in its cell -->
-The coefficient on x is {{coef_x}} (*p* {{p_x}}). @fig-trend shows the trend.
+The coefficient on x is {{coef_x}} (*p* {{p_x}}).
+@fig-trend shows the trend.
 
 ![Trend](../../assets/figures/trend.png){#fig-trend}
 

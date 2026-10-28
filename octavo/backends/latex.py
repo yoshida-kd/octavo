@@ -238,6 +238,12 @@ def crossref_tex(ctx: Ctx) -> str:
         lines += ['\\counterwithin{figure}{section}',
                   '\\counterwithin{table}{section}',
                   '\\numberwithin{equation}{section}']
+    else:
+        # 通し番号の付録は A1, A2, …（\appendix で数え直す）
+        counters = ['figure', 'table', 'equation'] + appendix_counters(ctx)
+        lines += ['\\makeatletter', '\\g@addto@macro\\appendix{%']
+        lines += [f'  \\setcounter{{{c}}}{{0}}\\renewcommand{{\\the{c}}}{{A\\arabic{{{c}}}}}%' for c in counters]
+        lines += ['}', '\\makeatother']
     lines += theorem_defs(ctx)
     if ctx.standalone:
         # 最初の節の番号（ガイダンスを 0 にする）と、`#` ごとの改ページ
@@ -248,6 +254,17 @@ def crossref_tex(ctx: Ctx) -> str:
             lines += ['\\let\\octavosection\\section',
                       '\\renewcommand{\\section}{\\clearpage\\octavosection}']
     return '\n'.join(lines) + '\n'
+
+
+def appendix_counters(ctx: Ctx) -> list:
+    """番号の付くブロックの、番号を持つ環境（番号の組ごとに最初の1つ）。"""
+    out: list = []
+    seen: set = set()
+    for env in ctx.envs.values():
+        if env.counter and env.counter not in seen:
+            seen.add(env.counter)
+            out.append(env.name)
+    return out
 
 
 def theorem_defs(ctx: Ctx) -> list:

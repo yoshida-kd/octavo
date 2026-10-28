@@ -56,7 +56,9 @@ class Report:
     entries: dict = field(default_factory=dict)        # key -> Entry
     cited: list = field(default_factory=list)           # 重複を除いた引用キー
     cited_by_doc: dict = field(default_factory=dict)    # 原稿の相対パス -> [key, …]
-    missing: list = field(default_factory=list)         # cited だが .bib にない
+    missing: list = field(default_factory=list)         # cited だが .bib にない（Priorwork の印も）
+    priorwork: list = field(default_factory=list)       # そのうち Priorwork の印（PRIORWORK:<DOI>）
+    unchecked: list = field(default_factory=list)       # Priorwork のカードが本文で確かめていない引用 [[key, 確認レベル, サーベイ]]
     suggestions: dict = field(default_factory=dict)     # missing key -> 近いキー
     duplicates: list = field(default_factory=list)      # [[key, key], …]
     problems: list = field(default_factory=list)        # list[Problem]（未承知のみ）
@@ -94,6 +96,10 @@ def collect(cfg) -> Report:
                              title=e.get('title', '')).__dict__
 
     r.missing = sorted(k for k in cited if k not in entries)
+    # Priorwork の下書きの、まだ .bib に無い論文の印。Zotero に入れて pull し、priorwork resolve で直る
+    r.priorwork = [k for k in r.missing if k.startswith('PRIORWORK:')]
+    from . import handoff
+    r.unchecked = [list(x) for x in handoff.unchecked(cfg, cited)]
     r.suggestions = {k: s for k in r.missing if (s := _near(k, entries))}
 
     r.duplicates = [list(p) for p in bibmod.duplicates(entries)]
@@ -159,12 +165,29 @@ def run(cfg, show_list: bool = False, show_unused: bool = False) -> int:
         print(f'  {fname}: ' + t('{n} {n|citation|citations}', n=len(keys)))
     print(t('total (without duplicates): {n}', n=len(r.cited)))
 
-    if r.missing:
+    plain = [k for k in r.missing if k not in r.priorwork]
+    if r.unchecked:
+        # 引いている論文を、Priorwork のサーベイが本文で確かめていない（要旨だけ・未確認）。知らせるだけ
+        print('\n' + tag('note') + ' '
+              + t('{n} cited {n|paper was|papers were} checked by Priorwork only against the abstract or '
+                  'not at all — read {n|it|them} before leaning on {n|it|them}:', n=len(r.unchecked)))
+        for k, ev, survey in r.unchecked:
+            print(f'   {k:<28} {ev}  ({survey})')
+    if r.priorwork:
+        print('\n' + tag('Priorwork') + ' '
+              + t('{n} {n|paper is|papers are} not in the .bib yet: add {n|it|them} to Zotero, '
+                  'octavo bib pull, then octavo priorwork resolve', n=len(r.priorwork)))
+        for k in r.priorwork:
+            print(f'   {k[len("PRIORWORK:"):]}')
+    if plain:
         print('\n' + tag('fatal') + ' '
-              + t('{n} {n|key is|keys are} not in the .bib — {n|it typesets|they typeset} as ??', n=len(r.missing)))
-        for k in r.missing:
+              + t('{n} {n|key is|keys are} not in the .bib — {n|it typesets|they typeset} as ??', n=len(plain)))
+        for k in plain:
             near = r.suggestions.get(k, '')
             print(f'   {k}' + ('   ' + t('did you mean: {key}', key=near) if near else ''))
+        if cfg['zotero_collection']:
+            # Zotero のどこかにあれば、メインのコレクションに入れてから取り直せば直る
+            print('   ' + t('octavo bib tidy looks for them in Zotero and adds them to the main collection'))
 
     if r.duplicates:
         print('\n' + tag('careful') + ' '

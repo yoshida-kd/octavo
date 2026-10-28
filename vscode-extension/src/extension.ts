@@ -17,11 +17,14 @@ import { BibCache } from './bib';
 import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
 import { HandoutManager } from './handouts';
-import { askPriorwork, chooseCollection, currentCollections, login } from './literature';
+import { CardCache, CardHoverProvider } from './cards';
+import { askPriorwork, chooseCollection, choosePriorworkWorkspace, currentCollections, login, priorworkLink,
+         priorworkRequest, priorworkResolve, tidyCollection, whenRequestSent } from './literature';
 import { DocInfo, PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
 import { showProjectForm } from './projectForm';
 import { QmdPreview } from './qmdPreview';
+import { RPackageCheck } from './rpackages';
 import { quietVenvActivation } from './venvActivation';
 import { AddKind, addToProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
@@ -45,6 +48,7 @@ function targetItems(): (vscode.QuickPickItem & { id: string })[] {
     return [
         { id: 'pdf', label: '$(file-pdf) pdf', description: vscode.l10n.t('The PDF (your main.typ beside the manuscript, or the built-in layout)') },
         { id: 'slides', label: '$(device-camera) slides', description: vscode.l10n.t('Slides (one deck per session for lecture notes)') },
+        { id: 'slides-handout', label: '$(device-camera) slides-handout', description: vscode.l10n.t('Slides to hand out: the same deck without .screen-only parts (answers), with .no-screen ones') },
         { id: 'poster', label: '$(layout) poster', description: vscode.l10n.t('A poster (A0 by default; the top-level headings make the cells)') },
         { id: 'script', label: '$(note) script', description: vscode.l10n.t('The speaker script for a deck (A4, with ::: notes)') },
         { id: 'word', label: '$(file-word) word', description: 'Word' },
@@ -56,14 +60,17 @@ function targetItems(): (vscode.QuickPickItem & { id: string })[] {
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('Octavo');
     const cache = new BibCache();
+    const cards = new CardCache();
     const diagnostics = new DiagnosticsManager(cache);
     const valuesCache = new ValuesCache();
     const valueDiagnostics = new ValueDiagnostics(valuesCache);
     const preview = new PreviewManager(context, (line) => output.appendLine(line));
     const qmdPreview = new QmdPreview((line) => output.appendLine(line));
     const handouts = new HandoutManager(preview, (line) => output.appendLine(line));
+    const rPackages = new RPackageCheck((line) => output.appendLine(line));
     const tree = new OctavoTree((line) => output.appendLine(line));
-    context.subscriptions.push(valuesCache, valueDiagnostics, preview, qmdPreview, handouts, tree,
+    whenRequestSent(() => tree.refresh());
+    context.subscriptions.push(valuesCache, valueDiagnostics, preview, qmdPreview, handouts, rPackages, cards, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree),
         TableEditorProvider.register(context));
     // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
@@ -153,6 +160,7 @@ export function activate(context: vscode.ExtensionContext): void {
             { language: 'markdown' }, new CitationCompletionProvider(cache), '@'),
         vscode.languages.registerHoverProvider(
             { language: 'markdown' }, new CitationHoverProvider(cache)),
+        vscode.languages.registerHoverProvider({ language: 'markdown' }, new CardHoverProvider(cards)),
         // `{` を打った時点で候補を出す（2つ目の `{` まで待つと遅い）
         vscode.languages.registerCompletionItemProvider(
             { language: 'markdown' }, new ValueCompletionProvider(valuesCache), '{'),
@@ -477,6 +485,24 @@ export function activate(context: vscode.ExtensionContext): void {
                 await vscode.commands.executeCommand('octavo.bibPull');
             }
         }),
+        vscode.commands.registerCommand('octavo.chooseLinkedCollections', async () => {
+            const chosen = await chooseCollection(() => tree.refresh(), 'zotero_linked');
+            if (chosen === undefined) return;
+            void vscode.window.showInformationMessage(chosen.length
+                ? vscode.l10n.t('Linked collections: {0}. octavo bib tidy looks there for papers the manuscripts cite.', chosen.map((c) => `"${c}"`).join(', '))
+                : vscode.l10n.t('No linked collections.'));
+        }),
+        vscode.commands.registerCommand('octavo.bibTidy', () => tidyCollection(() => tree.refresh())),
+        vscode.commands.registerCommand('octavo.priorworkRequest',
+            (s?: { survey?: string; kind?: string; json: string }) => priorworkRequest(s)),
+        vscode.commands.registerCommand('octavo.priorworkResolve', () => priorworkResolve(() => {
+            tree.refresh();
+            void cache.refresh(true);
+            void cards.refresh();
+        })),
+        vscode.commands.registerCommand('octavo.setPriorworkWorkspace', () => choosePriorworkWorkspace()),
+        vscode.commands.registerCommand('octavo.priorworkLink',
+            (survey?: string) => priorworkLink(typeof survey === 'string' ? survey : undefined, () => tree.refresh())),
         vscode.commands.registerCommand('octavo.zoteroLogin', () => login()),
         vscode.commands.registerCommand('octavo.askPriorwork',
             (node?: { doc?: DocInfo }) => askPriorwork(node?.doc)),

@@ -23,8 +23,9 @@
 `[-@fig-trend]` は番号だけ（「2.1」）。ラベルの名前は ASCII の英数字と `-` `_`
 だけで、それ以外の文字で終わる — だから「@fig-trendに示す」の「に」は名前に入らない。
 
-番号の振り方（`crossref_numbering`）は既定が 'section'（節ごと: 図2.1・式(2.1)）、
-'document' なら通し番号。Typst と LaTeX は組版側に振らせ（体裁はテンプレートの
+番号の振り方（`crossref_numbering`）は、論文の既定が 'document'（通し: 図1・式(1)、付録は図A1）、
+ほかの既定が 'section'（節ごと: 図2.1・式(2.1)）。設定や原稿の冒頭で変えられる。
+Typst と LaTeX は組版側に振らせ（体裁はテンプレートの
 crossref.typ / crossref.tex）、Word は自分では振らないので**ここで数えた番号を
 文字で入れる**。数え方は組版側と同じにしてある: 番号が付くのは、見出し（番号なし
 `{.unnumbered}` / `{-}` を除く）、キャプションのある図、キャプションのある表、
@@ -35,6 +36,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from . import config as configmod
 from .i18n import t, tag
 
 KINDS = ('fig', 'tbl', 'eq', 'sec')
@@ -343,7 +345,7 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
            envs: dict | None = None) -> Numbering:
     """文書の順に数える。
 
-    mode      'section'（節ごと 2.1）か 'document'（通し 1, 2, …）
+    mode      'section'（節ごと 2.1）か 'document'（通し 1, 2, …。付録は A1, A2, …）
     appendix  付録のファイル（最上位の節が A, B, …）。`# 題 {.appendix}` の見出しから
               後ろも付録になる
     section   節の見出しがない部分（講義の回ごとのデッキ）に使う節番号
@@ -372,7 +374,10 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
 
     def fmt(n: int) -> str:
         s = sec_part()
-        return f'{s}.{n}' if s else str(n)
+        if s:
+            return f'{s}.{n}'
+        # 通し番号の文書の付録は A1, A2, …（付録の節が分かれていても続けて数える）
+        return f'A{n}' if appendix and mode != 'section' else str(n)
 
     in_math = False
     for i, line in _lines_outside_code(md):
@@ -405,6 +410,8 @@ def number(md: str, mode: str = 'section', appendix: bool = False,
             if depth == 1 and appendix_heading(m.group('attr')) and not appendix:
                 appendix = True
                 heads = [0] * 7
+                if mode != 'section':
+                    counts = {k: 0 for k in counts}     # 付録は A1 から
             if depth < 1 or unnumbered(m.group('attr')):
                 continue
             heads[depth] += 1
@@ -630,7 +637,8 @@ def collect(cfg) -> dict:
         for src, is_app in files:
             text = mdlib.read(src)
             where = cfg.rel(src)
-            for it in number(text, cfg['crossref_numbering'], appendix=is_app,
+            mode = configmod.numbering(cfg['crossref_numbering'], cfg.document(name).profile)
+            for it in number(text, mode, appendix=is_app,
                              envs=envs).items:
                 if not it.label:
                     continue
@@ -655,7 +663,8 @@ def external_tables(cfg) -> list:
     from . import md as mdlib
     out = []
     for name, src, is_app in cfg.sources():
-        for it in number(mdlib.read(src), cfg['crossref_numbering'], appendix=is_app).items:
+        mode = configmod.numbering(cfg['crossref_numbering'], cfg.document(name).profile)
+        for it in number(mdlib.read(src), mode, appendix=is_app).items:
             if it.external and it.label:
                 out.append((name, src, it.label[len('tbl-'):]))
     return out

@@ -54,7 +54,15 @@
   "config.qmdPreview.description": "When you open a .qmd in an Octavo project, show the HTML it last rendered beside it. Nothing is rendered by this: run the analysis to update it, and the page reloads by itself.",
   "config.previewFollowCursor.description": "Scroll the PDF preview (and the HTML view of a .qmd) to where the cursor is in the manuscript. You can still scroll the preview by itself; the ⇅ button in the preview's toolbar turns this on and off for the session.",
   "config.previewCloseWithManuscript.description": "Close the PDF preview when the manuscript it shows (and its appendix) is no longer open in any editor tab.",
-  "command.chooseZoteroCollection.title": "Choose the Zotero Collection for the References",
+  "command.chooseZoteroCollection.title": "Choose the Main Zotero Collection (the References)",
   "command.askPriorwork.title": "Ask Priorwork for the Literature",
-  "command.zoteroLogin.title": "Use the Zotero Web API (API Key)…"
+  "command.zoteroLogin.title": "Use the Zotero Web API (API Key)…",
+  "command.chooseLinkedCollections.title": "Choose the Linked Zotero Collections (Surveys)",
+  "command.bibTidy.title": "Tidy the Main Zotero Collection (bib tidy)",
+  "config.checkRPackages.description": "When you open or save an R .qmd in an Octavo project, check for R packages it uses that are not installed, and offer to install them (into the project's renv). Running the .qmd from Quarto's Preview does not install them by itself.",
+  "command.priorworkRequest.title": "Copy a Request to Take a Priorwork Draft into the Manuscript",
+  "command.priorworkResolve.title": "Replace the Priorwork Marks with the .bib Keys",
+  "command.priorworkLink.title": "Link the Priorwork Surveys' Zotero Collections",
+  "config.priorworkWorkspace.description": "The Priorwork workspace (the folder with .priorwork/ in it), as the octavo command sees it. When set, \"Ask Priorwork for the Literature\" sends its request there as a file, to be picked up from Priorwork's sidebar, instead of copying it.",
+  "command.setPriorworkWorkspace.title": "Set the Priorwork Workspace…"
 }

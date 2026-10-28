@@ -43,6 +43,7 @@ class TypstNotesBackend(TypstSlidesBackend):
     notes_mark = None
     session_tag = 'notes'       # 講義ノートの回は <文書>-notes-<回>.pdf
     name_suffix = '-notes'      # 1本のスライドの台本は <名前>-notes.pdf（スライドと別の名前）
+    makes_reference_sheet = False   # 台本は参考文献の別紙を作らない（スライドの側が作る）
     # pandoc に渡る前に `::: notes` をこれで囲み直す。中身は Markdown のまま。
     notes_wrap = ('```{=typst}\n' + NOTE_OPEN + '\n```',
                   '```{=typst}\n' + NOTE_CLOSE + '\n```')

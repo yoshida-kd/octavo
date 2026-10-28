@@ -194,8 +194,9 @@ CHECKS = {
         ('citations are resolved', lambda t: 'Smith' in t and '@smith2003' not in t),
         ('the bibliography is there', lambda t: 'Journal of Examples' in t),
         ('the Japanese text is there', lambda t: '山田' in t),
+        # 論文は通し番号（図1・表1・式(1)）
         ('numbers are written in (Word does not number)',
-         lambda t: '図2.1' in t and '表2.1' in t and '(2.1)' in t),
+         lambda t: '図1' in t and '表1' in t and '(1)' in t),
     ],
 }
 

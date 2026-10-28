@@ -42,12 +42,18 @@ references are filled in when it is typeset.
 - **Submission and beyond**: word limits, blind review, a submission zip,
   reading a coauthor's tracked changes in Word, "what moved since I submitted",
   and a replication package.
+- **References from Zotero, literature from Priorwork**: `octavo bib pull` fetches the
+  `.bib` from your Zotero collection and `octavo bib tidy` keeps it to what the
+  manuscripts cite; drafts from [Priorwork](https://github.com/yoshida-kd/priorwork)
+  (a literature survey tool) arrive in `literature/priorwork/`, ready for you and your
+  assistant to bring into the manuscript.
 - **A VS Code extension** with a live PDF preview that follows the cursor, a
   sidebar for everything above, and one-click setup.
 - **Ready for your AI assistant**: every project keeps its working rules in
   `AGENTS.md` — never type a result into the manuscript, `data/raw` is read-only, and
   so on — and Claude Code, GitHub Copilot, Codex and Antigravity all read it, so the
-  assistant knows them from the start.
+  assistant knows them from the start. Your own writing rules and phrase bank
+  (`writing/`) are handed to it too.
 - Linux, macOS and Windows; English and Japanese.
 
 ## Install

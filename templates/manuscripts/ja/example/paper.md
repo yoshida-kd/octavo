@@ -12,8 +12,8 @@ date: 2026-01-01
 # Abstract
 
 <!-- octavo:example ここから -->
-ここに要旨を書く。`# Abstract` か `# 要旨` の節は本文から切り離され、
-Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節になる。
+ここに要旨を書く。
+`# Abstract` か `# 要旨` の節は本文から切り離され、Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節になる。
 
 <!-- octavo:example ここまで -->
 
@@ -23,8 +23,9 @@ Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節�
      `[@キー; @キー2]` で括弧に入る。「山田(2020)の」のように著者名を地の文に
      出すときは \poscite に引用キーを渡し、「の」は後ろに書く（下の1文がその例）。
      書誌は literature.bib（Zotero が正本）から組まれる。 -->
-@yamada2020 は…と論じた。同じ論点は他にもある[@tanaka2019]。本稿は
-\poscite{yamada2020}の枠組みを用いる。
+@yamada2020 は…と論じた。
+同じ論点は他にもある[@tanaka2019]。
+本稿は\poscite{yamada2020}の枠組みを用いる。
 
 <!-- octavo:example ここまで -->
 
@@ -37,9 +38,9 @@ Typst / LaTeX では abstract.typ / abstract.tex に、Word では冒頭の節�
      `@fig-trend` のように名前で指す（組むと「図2.1」「第1節」になる）。
      ラベルには英数字と - _ だけが使えるので、日本語は空けずに続けて書ける（@fig-trendに）。
      分析を実行する前の数字は仮の値（本物ではない）。 -->
-@sec-introで述べたとおり、標本は {{n_obs}} 件である。推定したのは@eq-modelで、
-x の係数は {{coef_x}}（*p* {{p_x}}）だった。記述統計を@tbl-summaryに、推移を
-@fig-trendに示す。
+@sec-introで述べたとおり、標本は {{n_obs}} 件である。
+推定したのは@eq-modelで、x の係数は {{coef_x}}（*p* {{p_x}}）だった。
+記述統計を@tbl-summaryに、推移を@fig-trendに示す。
 
 $$
 y_i = \beta_0 + \beta_1 x_i + \varepsilon_i

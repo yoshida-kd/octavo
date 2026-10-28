@@ -19,12 +19,14 @@ date: 2026-01-01
 - `##` の見出しが1枚のスライドになる（`#` の節名は左上に出る）
 
 ::: notes
-発表者ノート。投影するスライドには出ず、台本（octavo build <name> --to script）に出る。
+発表者ノート。
+投影するスライドには出ず、台本（octavo build <name> --to script）に出る。
 :::
 
 ## 先行研究
 
-@yamada2020 は…と論じた。[@tanaka2019] も参照。
+@yamada2020 は…と論じた。
+[@tanaka2019] も参照。
 
 <!-- octavo:example ここまで -->
 
@@ -33,7 +35,8 @@ date: 2026-01-01
 <!-- octavo:example ここから -->
 ## 結果
 
-標本は {{n_obs}} 件（数値は原稿に書かず、分析から差し込む）。推移は@fig-trend。
+標本は {{n_obs}} 件（数値は原稿に書かず、分析から差し込む）。
+推移は@fig-trend。
 
 ![推移](../assets/figures/trend.png){#fig-trend}
 

@@ -21,7 +21,8 @@ from pathlib import Path
 from . import paths
 from .i18n import t
 
-BACKENDS = ('latex', 'typst', 'beamer', 'typst-slides', 'typst-notes', 'typst-poster', 'docx')
+BACKENDS = ('latex', 'typst', 'beamer', 'typst-slides', 'typst-slides-handout', 'typst-notes', 'typst-poster',
+            'docx')
 PROFILES = ('paper', 'handout', 'slides', 'poster')
 
 # 利用者が選ぶ「出力」の名前 -> 中で使う形式（backend）。原稿の冒頭の `outputs:`、
@@ -31,12 +32,13 @@ OUTPUTS = {
     'word': 'docx',
     'tex': 'latex',
     'slides': 'typst-slides',
+    'slides-handout': 'typst-slides-handout',
     'beamer': 'beamer',
     'script': 'typst-notes',
     'poster': 'typst-poster',
 }
 OUTPUT_OF = {b: o for o, b in OUTPUTS.items()}
-SLIDE_OUTPUTS = ('slides', 'beamer', 'script')
+SLIDE_OUTPUTS = ('slides', 'slides-handout', 'beamer', 'script')
 
 
 def backend_of(name: str) -> str | None:
@@ -72,6 +74,7 @@ DEFAULTS: dict = {
         'typst': 'build/pdf',
         'beamer': 'build/beamer',
         'typst-slides': 'build/slides',
+        'typst-slides-handout': 'build/slides-handout',
         'typst-notes': 'build/script',
         'typst-poster': 'build/poster',
         'docx': 'build/word',
@@ -128,6 +131,12 @@ DEFAULTS: dict = {
     # `octavo bib pull` が .bib を取ってくる Zotero のコレクション（None ならライブラリ全体）。
     # Priorwork（先行研究のサーベイ）も、原稿がこのプロジェクトにあれば同じコレクションを使う
     'zotero_collection': None,
+    # 関連のコレクション（Priorwork の調査ごとなど）。.bib には入れず、`octavo bib tidy` が
+    # 引用したのにメインに無い文献を探す先。名前（パス）か、その並び
+    'zotero_linked': None,
+    # True なら `octavo bib tidy --apply` が Zotero のメインのコレクションを書き換えてよい
+    # （文献の追加と、引用していない文献の除外だけ。文献そのものは消さない）。ウェブ API を使う
+    'zotero_write': False,
     # 雑誌に合わせた書式。CSL スタイル ID（'apa', 'ieee',
     # 'modern-language-association' …）か .csl へのパス。
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。
@@ -144,16 +153,22 @@ DEFAULTS: dict = {
     #（日本語なら「参考文献」、英語なら "References"）。'' なら見出し無し。
     'reference_section_title': None,
     'link_citations': True,        # 引用から書誌一覧へリンクを張る
-    # スライドの末尾に書誌一覧を出すか。既定は出さない（枠に入らないため）。
-    # 出すなら slides.md の末尾に「## 参考文献」と `::: {#refs}\n:::` を置く。
-    'slides_bibliography': False,
+    # スライドの参考文献一覧: 'slide'（最後の1枚）| 'off'（出さない）| 'sheet'（参考文献だけの
+    # A4 の PDF を別に作る。<デッキの名前>-references.pdf）| 'both'。None なら、講義の回ごとの
+    # スライドは 'slide'、発表スライドは 'off'。True / False は 'slide' / 'off' と読む
+    'slides_bibliography': None,
     'poscite_lang': None,          # \poscite の言語。None なら lang
     'typst_citations': 'csl',      # 'csl' | 'native'
     'bib_accepted': {},            # {('key','no page range or DOI'): '理由'}（日本語の文言でも可）
 
     # ---- 言語・語彙 -------------------------------------------------------
     'lang': 'ja',                  # 'ja' | 'en'
-    'crossref_numbering': 'section',   # 図表・式の番号: 'section'（節ごと 2.1）| 'document'（通し）
+    # 図表・式の番号: 'section'（節ごと 2.1）| 'document'（通し 1, 2。付録は A1）。
+    # None なら論文は 'document'、講義ノート・スライドなどは 'section'
+    'crossref_numbering': None,
+    # 論文の付録を別の PDF（<名前>-appendix.pdf）にするか。False なら本文の続きに付ける
+    #（論文の体裁 main.typ が article.typ を使うとき）
+    'appendix_separate': True,
     'east_asian_line_breaks': True,
 
     # ---- 見出し・目次（profile の既定を上書きしたいときだけ）--------------
@@ -291,13 +306,32 @@ DOC_KEYS = ('csl', 'outputs', 'targets', 'sessions', 'toc', 'word_limit', 'char_
             'fontsize', 'pagebreak', 'citations_by_language',
             'japanese_citation_form',
             'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows', 'poster_font',
-            'slides_select', 'poster_select')
+            'slides_select', 'poster_select', 'slides_bibliography', 'crossref_numbering',
+            'appendix_separate')
 JA_FORMS = ('standard', 'fullwidth', 'period')
+SLIDE_BIB = ('slide', 'off', 'sheet', 'both')
+
+
+def numbering(value, profile: str) -> str:
+    """図表・式の番号の振り方（crossref_numbering）。決めていなければ論文は通し番号、ほかは節ごと。"""
+    return value or ('document' if profile == 'paper' else 'section')
+
+
+def slide_bib(value) -> str | None:
+    """slides_bibliography の値をそろえる（True / False は前からの書き方）。読めなければ値のまま。"""
+    if value is True:
+        return 'slide'
+    if value is False:
+        return 'off'
+    if isinstance(value, str):
+        v = value.strip().lower()
+        return {'true': 'slide', 'yes': 'slide', 'false': 'off', 'no': 'off', 'none': 'off'}.get(v, v)
+    return value
 LIST_DOC_KEYS = ('poster_grid', 'poster_rows')
 INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit',
                 'first_section')
 BOOL_DOC_KEYS = ('slides_running_header', 'slides_section_slides',
-                 'citations_by_language', 'sessions', 'toc')
+                 'citations_by_language', 'sessions', 'toc', 'appendix_separate')
 
 
 def doc_setting_typos(src: Path, text: str | None = None) -> list:
@@ -359,7 +393,10 @@ def doc_settings(src: Path, text: str | None = None) -> dict:
             out[k] = [str(x).strip() for x in v]           # [1, 2, 1] の並びはそのまま
             continue
         s = str(v).strip()
-        if s.lower() in ('none', 'null', '~', ''):
+        if k == 'slides_bibliography':
+            # 「none」は「出さない」と読む（ほかの鍵の「無し = プロジェクトの値」と違う）
+            out[k] = slide_bib(s) if s else None
+        elif s.lower() in ('none', 'null', '~', ''):
             out[k] = None
         elif k in INT_DOC_KEYS:
             try:
@@ -675,7 +712,7 @@ class Config:
                        key=k, allowed=allowed, got=repr(v[k])))
         if v['lang'] not in ('ja', 'en'):
             bad('lang', t("'ja' or 'en'"))
-        if v['crossref_numbering'] not in ('section', 'document'):
+        if v['crossref_numbering'] not in (None, 'section', 'document'):
             bad('crossref_numbering', "'section'/'document'")
         if v['typst_citations'] not in ('csl', 'native'):
             bad('typst_citations', t("'csl' or 'native'"))
@@ -686,6 +723,8 @@ class Config:
                 t("a Typst numbering string ('1.' and the like) or None"))
         if not isinstance(v['first_section'], int) or v['first_section'] < 0:
             bad('first_section', t('a whole number, 0 or more'))
+        if v['slides_bibliography'] is not None and slide_bib(v['slides_bibliography']) not in SLIDE_BIB:
+            bad('slides_bibliography', "'" + "'/'".join(SLIDE_BIB) + "'")
         if v['japanese_citation_form'] not in JA_FORMS:
             bad('japanese_citation_form', "'" + "'/'".join(JA_FORMS) + "'")
         for k in ('slides_select', 'poster_select'):

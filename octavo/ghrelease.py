@@ -112,7 +112,7 @@ def assets(results: list, label: str) -> list:
         files = [r.compiled] if r.compiled else []
         files += [Path(o) for o in r.outputs if Path(o).suffix == '.docx']
         picked += [(r, Path(f)) for f in files if Path(f).is_file()]
-    names = [f'{r.doc}-{label}{p.suffix}' for r, p in picked]
+    names = [f'{r.doc}-{label}{"-appendix" if r.appendix else ""}{p.suffix}' for r, p in picked]
     out = []
     for (r, p), name in zip(picked, names):
         if names.count(name) > 1:

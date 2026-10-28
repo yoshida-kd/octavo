@@ -54,6 +54,8 @@ class Ctx:
     report: list = field(default_factory=list)
     shift_headings: int = -1
     anonymous: bool = False                         # 匿名審査用に組むか
+    counts: dict = field(default_factory=dict)      # 論文の1ページ目に出す分量（article.typ）
+    appendix_apart: bool = False                    # 論文の付録を別の PDF に組むか
     # 相互参照: ラベル -> crossref.Item（この原稿と、付録／ほかの回の分も）。
     # local は、この出力の中で組版側が参照を張れるラベル（論文なら本文と付録）
     crossrefs: dict = field(default_factory=dict)
@@ -131,12 +133,13 @@ class Ctx:
         出し分けられないため。
 
             beamer/typst-slides  slides (slide), screen, <形式名>
+            typst-slides-handout slides (slide), <形式名>（配布用。screen は無い）
             latex/typst/docx     print, doc, <形式名>, <profile>
         """
         b = self.backend.name
         # `slide` は `slides` の打ち間違いが多いので、同じ意味に受ける（`.slide-only`）
-        keep = ({'slides', 'slide', 'screen', b} if self.backend.is_slides
-                else {'print', 'doc', b, self.profile})
+        keep = ({'slides', 'slide', b} | ({'screen'} if self.backend.on_screen else set())
+                if self.backend.is_slides else {'print', 'doc', b, self.profile})
         # 出力の名前でも出し分けられる（`.pdf-only` `.word-only` `.script-only`）
         from ..config import OUTPUT_OF
         if b in OUTPUT_OF:
@@ -174,7 +177,8 @@ class Ctx:
         return self.cfg['table_dir'] / f'{name}{ext or self.backend.table_ext}'
 
     def numbering_mode(self) -> str:
-        return self.cfg['crossref_numbering']
+        from ..config import numbering
+        return numbering(self.cfg['crossref_numbering'], self.profile)
 
     @property
     def first_section(self) -> int:
@@ -290,12 +294,25 @@ class Backend:
         """本文の `@fig-…`。既定は番号を文字で書く（組版側が番号を振らない形式）。"""
         return xref.text_of(item, ctx.lang, short)
 
+    # スライドのうち、投影するもの（`.screen-only` を残す）。配布用のスライドは False
+    on_screen = True
+    # slides_bibliography が sheet / both のとき、参考文献だけの A4 の PDF を作るか（投影するスライド）
+    makes_reference_sheet = False
+
     def includes_appendix(self, layout: str) -> bool:
         """体裁のファイル（main.*）が付録を実際に読み込んでいるか（コメント行は数えない）。
 
         読み込んでいれば本文と付録は1つの文書なので、互いの参照を組版側が張れる。
         そうでなければ（Word は本文と付録が別のファイル）番号を文字で書く。"""
         return False
+
+    def splits_appendix(self, layout: str) -> bool:
+        """体裁のファイルが、本文と付録を別々の PDF に組める作りか（Typst の article.typ）。"""
+        return False
+
+    def compiled_pdf(self, ctx: Ctx, path: Path) -> Path:
+        """path を組んだときにできる PDF。"""
+        return path.with_suffix('.pdf')
 
     def crossref_files(self, ctx: Ctx) -> list:
         """main.* 方式のとき out_dir に書く、番号と参照の体裁のファイル [(名前, 中身)]。"""

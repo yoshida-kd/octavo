@@ -37,6 +37,7 @@ class Result:
     next_step: str = ''
     compiled: Path | None = None
     ok: bool = True
+    appendix: bool = False          # 論文の付録を組んだ結果か
 
 
 # ------------------------------------------------------------ 体裁ファイル
@@ -155,6 +156,10 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
             abstract = f'{macros}\n\n{abstract}'
     if ctx.standalone:
         body = mdlib.to_yaml_block(_pandoc_meta(cfg, ctx)) + body
+    # 冒頭の nocite: は上で取り除いた front matter にあるので、本文に置き直す
+    nocite = mdlib.nocite_block(raw)
+    if nocite:
+        body = body.rstrip('\n') + nocite
     return body, abstract
 
 
@@ -365,11 +370,46 @@ def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
         sources.sort(key=lambda x: x[1])          # 本文、付録の順
         items = xref.number(text, mode, appendix=not appendix, envs=envs).labels()
         ctx.crossrefs = items
-        layout = Path(doc.src).parent / backend.main_name if backend.main_name else None
-        if layout and layout.is_file() and backend.includes_appendix(
-                layout.read_text(encoding='utf-8')):
+        layout = _layout_text(doc, backend)
+        # 体裁が付録を読み込んで1つの PDF に組むなら、互いの参照は組版側が張る。付録を別の
+        # PDF にする（appendix_separate）なら、番号を文字で書く
+        if backend.includes_appendix(layout) and not appendix_apart(cfg, doc, backend):
             ctx.crossref_local |= set(items)
     ctx.theorem_blocks = theorems.collect(sources, envs, mode, first)
+
+
+def _layout_text(doc, backend) -> str:
+    """原稿の横の体裁のファイル（main.typ / main.tex）の中身。無ければ ''。"""
+    if not backend.main_name:
+        return ''
+    try:
+        return (Path(doc.src).parent / backend.main_name).read_text(encoding='utf-8')
+    except OSError:
+        return ''
+
+
+def appendix_apart(cfg, doc, backend) -> bool:
+    """論文の付録を別の PDF に組むか。体裁が本文と付録を分けて組める作り（article.typ）で、
+    appendix_separate（既定は True）のとき。"""
+    return bool(backend.splits_appendix(_layout_text(doc, backend)) and cfg['appendix_separate'])
+
+
+def paper_counts(cfg, doc, ctx: Ctx) -> dict:
+    """論文の1ページ目に出す分量。本文は脚注を除いた字数・語数と、脚注を含めたもの
+    （投稿前の点検の数え方）。要旨、図と表の数（付録を除く）。"""
+    _, raw = mdlib.split_front_matter(mdlib.read(Path(doc.src)))
+    raw = mdlib.drop_math_macros(valmod.substitute(raw, ctx.values, cfg))
+    abstract, body = mdlib.split_abstract(mdlib.drop_references(raw))
+    if not doc.derived:
+        body = mdlib.strip_title_block(body)
+    bare = mdlib.drop_footnotes(body)
+    items = xref.number(body, ctx.numbering_mode(), envs=ctx.envs).items
+    return {'chars': mdlib.char_count(bare), 'chars-notes': mdlib.char_count(body),
+            'words': mdlib.word_count(bare)[0], 'words-notes': mdlib.word_count(body)[0],
+            'abstract-chars': mdlib.char_count(abstract) if abstract else 0,
+            'abstract-words': mdlib.word_count(abstract)[0] if abstract else 0,
+            'figures': sum(1 for i in items if i.kind == 'fig'),
+            'tables': sum(1 for i in items if i.kind == 'tbl')}
 
 
 def _pandoc_meta(cfg, ctx: Ctx) -> dict:
@@ -404,7 +444,7 @@ def build_one(cfg, doc, target: str, appendix: bool = False,
 def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                offline: bool, citations: bool, anonymous: bool = False) -> Result:
     backend = be.get(target)
-    res = Result(doc=doc.name, target=target)
+    res = Result(doc=doc.name, target=target, appendix=appendix)
 
     try:
         pandocrun.require(*backend.min_pandoc,
@@ -496,6 +536,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         ctx.say(f'{tag("bib")} ' + t('--no-citations: leaving citations unresolved '
                                     '(for a draft)'))
     cite_args: list = []
+    bib_mode, cites, sheet_keys = 'slide', False, []          # スライドの参考文献の別紙（下で決める）
     if use_citeproc:
         try:
             ctx.csl = cslmod.resolve(cfg['csl'], cfg.root,
@@ -504,18 +545,14 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
             res.ok = False
             res.report.append(f'{tag("stopped")} {e}')
             return res
-        # スライドは既定で書誌一覧を出さない（枠に入りきらないため）。
-        # 出したいときは slides.md の末尾に見出しと `::: {#refs}` を置き、
-        # config の slides_bibliography を True にする。
-        # 回でできていない文書のスライド（発表のデッキ）が対象。講義の回のデッキには出す
-        suppress = ((doc.profile == 'slides'
-                     or (doc.derived and backend.is_slides and not doc.sessions))
-                    and not cfg['slides_bibliography'])
+        # スライドの参考文献一覧（slides_bibliography）。別紙（sheet）にするならデッキには出さない
+        bib_mode = slide_bib_mode(cfg, doc) if backend.is_slides else 'slide'
+        suppress = bib_mode in ('off', 'sheet')
         ref_title = cfg['reference_section_title'] or None
         # 何も引いていなければ書誌の見出しを書き足さない（講義の回のスライドに、空の
         # 「参考文献」の1枚が付いていた）
-        cites = (bool(mdlib.cited_keys(body, xref.kinds_of(ctx.envs)))
-                 or bool(re.search(r'^nocite:', body, re.M)))
+        sheet_keys = sorted(mdlib.cited_keys(body, xref.kinds_of(ctx.envs)))
+        cites = bool(sheet_keys) or bool(re.search(r'^nocite:', body, re.M))
         if ref_title and not suppress and (ctx.shift_headings < 0 or backend.places_bibliography) \
                 and cites \
                 and not re.search(r'\{#refs\}', body):
@@ -570,6 +607,14 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
     backend.check(text, ctx)
     res.outputs.append(out_path)
     ctx.say(f'{tag("wrote")} {out_path}')
+
+    # 論文の体裁（article.typ）に渡す分量と、付録を別の PDF に組むか
+    if doc.profile == 'paper' and not ctx.standalone:
+        ctx.counts = paper_counts(cfg, doc, ctx)
+        ctx.appendix_apart = appendix_apart(cfg, doc, backend)
+        # 付録のない論文にも空の付録を置く（体裁が読み込んでも組めるように。前の付録が残らないように）
+        if not doc.appendix and backend.splits_appendix(_layout_text(doc, backend)):
+            (out_dir / f'appendix{backend.ext}').write_text('', encoding='utf-8')
 
     # main.tex / main.typ に渡すフラグ。**毎回書く**ので、匿名で組んだあと
     # 普通に組み直せば元に戻る（消し忘れで匿名版のまま出す事故を防ぐ）。
@@ -656,18 +701,71 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                     tail = '\n'.join((r.stdout + r.stderr).strip().split('\n')[-25:])
                     res.report.append(f'{tag("typeset")} ' + t('failed:') + '\n' + tail)
                 else:
-                    pdf = out_path.with_suffix('.pdf')
+                    pdf = backend.compiled_pdf(ctx, out_path)
                     res.compiled = pdf if pdf.exists() else None
                     res.report.append(f'{tag("typeset")} '
                                       + t('made {path}', path=res.compiled or out_dir))
                     backend.after_compile(ctx, out_path)       # res.report は ctx.report と同じもの
+                    if backend.makes_reference_sheet and bib_mode in ('sheet', 'both') and cites \
+                            and use_citeproc:
+                        sheet = reference_sheet(cfg, doc, ctx, out_path, sheet_keys, mdlib.nocite_block(raw),
+                                                offline)
+                        # 別紙の組版の報告は、作った・失敗したことだけ
+                        res.report += [line for line in sheet.report
+                                       if line.startswith((tag('typeset'), tag('stopped')))]
+                        if sheet.compiled:
+                            res.outputs.append(sheet.compiled)
+                        elif not sheet.ok:
+                            res.ok = False
+                    elif backend.makes_reference_sheet:
+                        # 別紙をやめたら、前に作った別紙は消す（古いものが配られないように）
+                        for ext in ('.pdf', '.typ'):
+                            out_path.with_name(f'{out_path.stem}-references{ext}').unlink(missing_ok=True)
                     if res.compiled and not ctx.standalone:
                         # 論文は main.pdf（体裁ファイルの名前）。探しやすいように、文書の名前の
                         # 写しを1つ上に置く（build/pdf/<名前>.pdf）
-                        named = out_dir.parent / f'{doc.name}.pdf'
+                        named = out_dir.parent / (f'{doc.name}-appendix.pdf' if appendix
+                                                  else f'{doc.name}.pdf')
                         shutil.copyfile(res.compiled, named)
                         res.outputs.append(named)
     return res
+
+
+def slide_bib_mode(cfg, doc) -> str:
+    """スライドの参考文献一覧の出し方（slides_bibliography）。決めていなければ、講義の回ごとの
+    スライドは 'slide'、発表スライド（回でできていない文書のスライド）は 'off'（枠に入らないため）。"""
+    mode = confmod.slide_bib(cfg['slides_bibliography'])
+    if mode is None:
+        talk = doc.profile == 'slides' or (doc.derived and not doc.sessions)
+        mode = 'off' if talk else 'slide'
+    return mode
+
+
+def reference_sheet(cfg, doc, ctx: Ctx, deck: Path, keys: list, nocite: str, offline: bool) -> Result:
+    """デッキの参考文献だけの A4 の PDF（<デッキの名前>-references.pdf、デッキの隣）。
+
+    デッキで引いた文献を nocite にした小さな原稿を作り、A4 プリントとして組む。
+    """
+    from .config import Document
+    stem = f'{deck.stem}-references'
+    title = cfg['reference_section_title'] or ('参考文献' if ctx.lang == 'ja' else 'References')
+    deck_title = str(ctx.meta.get('title') or '').strip()
+    head = f'{title} — {deck_title}' if deck_title else title
+    # 引いた文献と、デッキの冒頭の nocite: の文献。表紙は付けない（題名・著者を空に）
+    more = re.findall(r'@[\w*][\w:.#$%&+?<>~/-]*', nocite)
+    cite = ', '.join(dict.fromkeys(['@' + k for k in keys] + more))
+    md = (f'---\ntitle: ""\nauthor: ""\ntoc: false\nnocite: "{cite}"\n---\n\n'
+          f'# {head} {{.unnumbered}}\n\n::: {{#refs}}\n:::\n')
+    src = deck.parent / f'{stem}.md'
+    src.write_text(md, encoding='utf-8')
+    sheet = Document(name=stem, src=src, profile='handout', targets=('typst',), out=deck.parent,
+                     meta={'lang': doc.meta.get('lang')} if doc.meta.get('lang') else {})
+    r = build_one(cfg, sheet, 'typst', do_compile=True, offline=offline)
+    try:
+        src.unlink()
+    except OSError:
+        pass
+    return r
 
 
 # ---------------------------------------------------------------- まとめ
@@ -711,6 +809,8 @@ def clear_old_sessions(cfg, doc, tgt: str, built: list) -> list:
         stem = f.name.split('.')[0]          # 台本のページの対応は <名前>.notes.json
         if f.suffix not in ('.typ', '.pdf', '.tex', '.json') or not stem.startswith(doc.name + '-'):
             continue
+        if stem.endswith('-references') and stem[:-len('-references')] in keep:
+            continue                        # そのデッキの参考文献の別紙
         if stem in (keep_json if f.suffix == '.json' else keep) or stem in others or any(stem.startswith(o + '-') for o in others
                                                  if len(o) > len(doc.name)):
             continue
@@ -736,10 +836,12 @@ def run(cfg, doc_names=None, targets=None, appendix: bool = False,
         tgts = targets or list(doc.targets)
         # 講義ノート: プリントは1本のまま、スライドは `#` の回ごとに別々に組む
         parts = cfg.parts(doc) if doc.sessions and doc.part is None else None
-        # main.* 方式は本文と付録を1つの PDF に組むので、付録を書いてから組む
-        with_appendix = bool(appendix and doc.appendix)
-        defer = with_appendix and doc.profile == 'paper'
+        # 論文は付録があれば毎回組む（既定は別の PDF）。ほかの文書は --appendix のときだけ
+        with_appendix = bool(doc.appendix and (appendix or doc.profile == 'paper'))
         for tgt in tgts:
+            # 本文と付録を1つの PDF に組む体裁なら、付録を書いてから組む
+            defer = with_appendix and doc.profile == 'paper' and not appendix_apart(
+                cfg.for_document(doc), doc, be.get(tgt))
             if parts is not None and be.get(tgt).is_slides:
                 if not parts:
                     r = Result(doc=doc.name, target=tgt, ok=False)

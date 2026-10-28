@@ -16,9 +16,10 @@ from .typst import TypstBackend
 from .typst_notes import TypstNotesBackend
 from .typst_poster import TypstPosterBackend
 from .typst_slides import TypstSlidesBackend
+from .typst_slides_handout import TypstSlidesHandoutBackend
 
 REGISTRY = {b.name: b for b in (
-    LatexBackend(), TypstBackend(), BeamerBackend(), TypstSlidesBackend(),
+    LatexBackend(), TypstBackend(), BeamerBackend(), TypstSlidesBackend(), TypstSlidesHandoutBackend(),
     TypstNotesBackend(), TypstPosterBackend(), DocxBackend(),
 )}
 

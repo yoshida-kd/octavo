@@ -20,6 +20,8 @@ function missingKeyPatterns(key: string): RegExp[] {
         new RegExp(String.raw`(?<![\w.@-])@${k}(?!${KEY_CHAR})`, 'g'),
         // \poscite{key}
         new RegExp(String.raw`\\poscite\{${k}\}`, 'g'),
+        // @{key}（キーに書けない文字を含むとき。Priorwork の DOI の印など）
+        new RegExp(String.raw`@\{${k}\}`, 'g'),
     ];
 }
 
@@ -58,7 +60,11 @@ export class DiagnosticsManager implements vscode.Disposable {
         const diags: vscode.Diagnostic[] = [];
         for (const key of report.missing) {
             const suggestion = report.suggestions[key];
-            const message = vscode.l10n.t('Citation key not in the .bib: {0}', key) +
+            // Priorwork の下書きの印（.bib にまだ無い論文）は、ふつうの無いキーと分けて案内する
+            const message = key.startsWith('PRIORWORK:')
+                ? vscode.l10n.t('A paper from Priorwork not in the .bib yet: {0}', key.slice('PRIORWORK:'.length)) + '\n'
+                  + vscode.l10n.t('Put it in Zotero and pull the .bib, then replace the mark (octavo priorwork resolve).')
+                : vscode.l10n.t('Citation key not in the .bib: {0}', key) +
                 (suggestion ? vscode.l10n.t(' (did you mean @{0}?)', suggestion) : '') +
                 '\n' + vscode.l10n.t(
                     '{0} is the source of truth. Add it in Zotero and export again.',

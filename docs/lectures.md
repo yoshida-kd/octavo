@@ -330,7 +330,11 @@ As @fig-trend shows, spending rose. See @yamada2020.
 - A table you make by hand: **Add a table made by hand…** under Analysis in the sidebar opens
   it as a grid.
 - References go in `literature.bib` and are cited as `@key`. A session that cites something
-  gets a references slide at the end; the A4 handout lists them all at the back.
+  gets a references slide at the end, in small type; the A4 handout lists them all at the back.
+  `slides_bibliography: sheet` at the top of the notes puts each session's references on an A4
+  sheet of their own instead (`off` for none, `both` for the slide and the sheet).
+- A deck to hand out: add `slides-handout` to `outputs:`. Mark answers `[…]{.screen-only}` (projected
+  only) and the blanks to fill in `[…]{.no-screen}` (handed out only).
 
 ---
 

@@ -280,6 +280,37 @@ def install_missing(root: Path, qmds: list) -> tuple | None:
     return _installed_lines(r.stdout or '')
 
 
+# 入っていないものを調べるだけ（入れない）。拡張機能が .qmd を開いた・保存したときに呼ぶので、
+# 軽く: ネットワークに触れない（R_FUNCTIONS の repos の確かめは使わない）
+CHECK_SCRIPT = r'''
+deps <- tryCatch(unique(renv::dependencies(c(@@PATHS@@), quiet = TRUE)$Package),
+                 error = function(e) character())
+deps <- deps[nzchar(deps) & deps != "R"]
+cat("\nOCTAVO-MISSING:", setdiff(deps, rownames(utils::installed.packages())), "\n")
+'''
+
+
+def missing_packages(root: Path, qmds: list) -> list | None:
+    """qmds が library() などで使っているのに入っていない R のパッケージ（renv のプロジェクトなら
+    その中を見る）。R がない・調べられないときは None。"""
+    rscript = shutil.which('Rscript')
+    if not rscript:
+        return None
+    paths = ', '.join('"' + Path(q).resolve().as_posix().replace('"', '\\"') + '"' for q in qmds)
+    fd, path = tempfile.mkstemp(prefix='octavo-check-', suffix='.R')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8') as fh:
+            fh.write(CHECK_SCRIPT.replace('@@PATHS@@', paths))
+        r = subprocess.run([rscript, path], cwd=str(root), capture_output=True, text=True,
+                           encoding='utf-8', errors='replace', timeout=120)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    finally:
+        os.unlink(path)
+    m = re.search(r'OCTAVO-MISSING:([^\n]*)', r.stdout or '')
+    return m.group(1).split() if m else None
+
+
 def _installed_lines(out: str) -> tuple:
     """R の OCTAVO-INSTALLED: / OCTAVO-FAILED: の行を読む。renv の進み具合の表示が
     改行なしで前に付くことがある（端末の制御文字）ので、行の途中からでも読む。"""

@@ -162,7 +162,17 @@ class TypstBackend(Backend):
                  '// octavo template copy typst/crossref.typ\n\n'
                  + crossref_template(ctx)
                  + '\n#let octavo-crossref = octavo-crossref-rules.with('
-                 + crossref_args(ctx) + ')\n')]
+                 + crossref_args(ctx) + ')\n'),
+                ('article.typ',
+                 '// octavo build が毎回書き換える。体裁を変えるなら\n'
+                 '// octavo template copy paper/article.typ\n\n'
+                 + paper_meta(ctx) + '\n'
+                 + ctx.template('paper/article.typ').read_text(encoding='utf-8'))]
+
+    def splits_appendix(self, layout: str) -> bool:
+        # article.typ の octavo-part で本文と付録を分けて組む体裁か
+        code = '\n'.join(l.split('//', 1)[0] for l in layout.split('\n'))
+        return 'octavo-part' in code
 
     def fmt_poscite(self, key: str, ctx: Ctx) -> str:
         if self.uses_citeproc(ctx):
@@ -232,7 +242,16 @@ class TypstBackend(Backend):
         return Path(os.path.relpath(common, Path(ctx.out_dir).resolve())).as_posix()
 
     def compile(self, ctx: Ctx, path: Path) -> list:
+        if path.name == 'main.typ' and ctx.appendix and ctx.appendix_apart:
+            # 付録だけの PDF（main.typ の octavo-part が "appendix" を受ける）
+            return ['typst', 'compile', '--root', self.root_arg(ctx), '--input',
+                    'octavo-part=appendix', path.name, 'appendix.pdf']
         return ['typst', 'compile', '--root', self.root_arg(ctx), path.name]
+
+    def compiled_pdf(self, ctx: Ctx, path: Path) -> Path:
+        if path.name == 'main.typ' and ctx.appendix and ctx.appendix_apart:
+            return path.with_name('appendix.pdf')
+        return path.with_suffix('.pdf')
 
     def compile_main(self, ctx: Ctx) -> Path | None:
         main = ctx.out_dir / 'main.typ'
@@ -311,6 +330,19 @@ def typst_escape(s: str) -> str:
 
 
 # ---------------------------------------------------------------- 番号と参照の体裁
+
+def paper_meta(ctx: Ctx) -> str:
+    """論文の体裁（paper/article.typ）に渡す `#let octavo-paper = (…)`。"""
+    c = ctx.counts
+    counts = 'none' if not c else '(' + ', '.join(f'{k}: {v}' for k, v in c.items()) + ')'
+    return ('#let octavo-paper = (\n'
+            f'  lang: "{ctx.lang}",\n'
+            f'  serif: {font_expr(ctx.lang, "serif")},\n'
+            f'  sans: {font_expr(ctx.lang, "sans")},\n'
+            f'  counts: {counts},\n'
+            f'  appendix-separate: {"true" if ctx.cfg["appendix_separate"] else "false"},\n'
+            ')\n')
+
 
 def crossref_template(ctx: Ctx) -> str:
     return ctx.template('typst/crossref.typ').read_text(encoding='utf-8')

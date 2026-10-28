@@ -27,6 +27,14 @@ WSL2 のネットワークモードを mirrored にするか（`.wslconfig` の
 区切りの空白は問わない）で受ける。名前だけでも、ほかに同じ名前が無ければ通る。取ってくるのは
 そのコレクションと、その下のコレクションすべての文献（論文ごとのコレクションを「理論」「方法」の
 ように分けても、まとめて1つの .bib になる）。同じキーの文献は1つにする。
+
+**メインと関連。**`zotero_collection` がメイン（.bib になる）。`zotero_linked` は関連のコレクション
+（Priorwork の調査ごとなど）で、.bib には入れない。`octavo bib tidy` はメインを「原稿が引いている
+文献とぴったり同じ」に保つための計画を立てる: 引いているのにメインに無い文献（関連のどこにあるか）と、
+メインにあるのに引いていない文献。`zotero_write: True` のときだけ `--apply` で Zotero を書き換える。
+書き換えはウェブ API で、**文献のコレクションの所属だけ**（メインに足す・メインから外す）。文献その
+ものは消さず、中身も書き換えない。外した文献はライブラリと、ほかのコレクションに残る。
+キーを固定していない文献は、Zotero が付けるキーと .bib のキーが食い違いうるので、外す候補にしない。
 """
 from __future__ import annotations
 
@@ -326,6 +334,146 @@ def web_bib(collection_key: str | None, fmt: str) -> tuple:
         start += len(chunk)
         if not chunk or start >= total:
             return '\n\n'.join(entries) + ('\n' if entries else ''), unpinned
+
+
+def _web_patch(item_key: str, version: int, data: dict) -> None:
+    """1つの文献を書き換える（ウェブ API）。version が Zotero 側と違えば（その間に変わった）止める。"""
+    key, uid = credentials()
+    url = f'{WEB}/users/{uid}/items/{item_key}'
+    req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), method='PATCH',
+                                 headers={'User-Agent': f'octavo/{__version__}', 'Zotero-API-Key': key,
+                                          'Zotero-API-Version': '3', 'Content-Type': 'application/json',
+                                          'If-Unmodified-Since-Version': str(version)})
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT):
+            return
+    except urllib.error.HTTPError as e:
+        if e.code == 403:
+            raise WriteRefused(t('the Zotero API key cannot write. At zotero.org/settings/keys, allow '
+                                 '"Allow write access" for the key'))
+        if e.code == 412:
+            raise ZoteroError(t('changed in Zotero meanwhile; run octavo bib tidy again'))
+        raise ZoteroError(t('the Zotero web API failed ({why})', why=e))
+    except (urllib.error.URLError, OSError) as e:
+        raise ZoteroError(t('cannot reach the Zotero web API ({why})', why=e))
+
+
+class WriteRefused(ZoteroError):
+    """キーに書き込みの権限が無い。1つで分かるので、残りも試さない。"""
+
+
+def web_items(collection_key: str | None) -> list:
+    """コレクションだけの文献（下のコレクションは含まない）。collection_key が None ならライブラリ全体。
+    [{item, version, collections, cite, pinned, title}]。cite は固定したキー、無ければ Zotero の書き出しのキー。"""
+    out, start = [], 0
+    path = f'/collections/{collection_key}/items/top' if collection_key else '/items/top'
+    while True:
+        text, total = _web_get(path,
+                               {'format': 'json', 'include': 'data,biblatex', 'limit': 100, 'start': start})
+        chunk = json.loads(text)
+        for it in chunk:
+            data = it.get('data') or {}
+            entry = (it.get('biblatex') or '').strip()
+            if not entry.startswith('@'):
+                continue                       # メモ・添付だけのもの
+            stable = _stable_key(data)
+            m = re.match(r'@\w+\s*\{\s*([^,\s]+)', entry)
+            out.append({'item': it.get('key') or data.get('key', ''),
+                        'version': it.get('version') or data.get('version') or 0,
+                        'collections': list(data.get('collections') or []),
+                        'cite': stable or (m.group(1) if m else ''), 'pinned': bool(stable),
+                        'title': data.get('title') or ''})
+        start += len(chunk)
+        if not chunk or start >= total:
+            return out
+
+
+def tidy_plan(main, linked, cited) -> dict:
+    """メインのコレクションを「引いている文献とぴったり同じ」にする計画（Zotero は書き換えない）。
+
+    main / linked は設定の zotero_collection / zotero_linked、cited は原稿が引いているキー。
+    返すもの: add（引いているのにメインに無く、関連にある文献。関連にも無ければライブラリ全体から探す。
+    where は 'linked' か 'library'）、remove（メインにあって引いていない
+    文献。キーを固定したものだけ）、unpinned（メインにあってキーを固定していない文献）、
+    not_found（引いているが、メインにも関連にも無いキー）。
+    """
+    names = as_list(main)
+    if not names:
+        raise ZoteroError(t('set the main collection first (zotero_collection): octavo bib tidy keeps '
+                            'that one collection in step with the manuscripts'))
+    if not all(credentials()):
+        raise ZoteroError(t('octavo bib tidy reads Zotero through the web API: octavo bib login'))
+    cols = tree(web_collections())
+    by_key = {c['key']: c for c in cols}
+    home = resolve(names[0], cols)
+    in_main = _targets(names, cols)
+    main_keys = {c['key'] for c in in_main}
+    in_linked = [c for c in _targets(as_list(linked), cols) if c['key'] not in main_keys]
+
+    main_items: dict = {}                      # 文献の key -> 文献（メインのどこかにある）
+    for c in in_main:
+        for it in web_items(c['key']):
+            main_items.setdefault(it['item'], it)
+    main_cites = {it['cite'] for it in main_items.values()}
+
+    cited = set(cited)
+    add, found = [], set()
+    for c in in_linked:
+        for it in web_items(c['key']):
+            k = it['cite']
+            if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
+                found.add(k)
+                add.append({'key': k, 'item': it['item'], 'version': it['version'],
+                            'collections': it['collections'], 'title': it['title'], 'from': c['path'],
+                            'pinned': it['pinned'], 'where': 'linked'})
+    # 関連にも無ければ、ライブラリ全体から探す（全体を読むので、残っているときだけ）
+    if cited - main_cites - found:
+        for it in web_items(None):
+            k = it['cite']
+            if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
+                found.add(k)
+                paths = [by_key[x]['path'] for x in it['collections'] if x in by_key]
+                add.append({'key': k, 'item': it['item'], 'version': it['version'],
+                            'collections': it['collections'], 'title': it['title'],
+                            'from': ', '.join(paths) or t('the library (in no collection)'),
+                            'pinned': it['pinned'], 'where': 'library'})
+    remove, unpinned = [], []
+    for it in main_items.values():
+        if it['cite'] in cited:
+            continue
+        if not it['pinned']:
+            unpinned.append({'key': it['cite'], 'title': it['title']})
+            continue
+        remove.append({'key': it['cite'], 'item': it['item'], 'version': it['version'],
+                       'collections': it['collections'], 'title': it['title'],
+                       'from': [by_key[k]['path'] for k in it['collections'] if k in main_keys]})
+    not_found = sorted(cited - main_cites - found)
+    return {'main': home['path'], 'main_key': home['key'], 'main_keys': sorted(main_keys),
+            'linked': [c['path'] for c in in_linked],
+            'add': sorted(add, key=lambda x: x['key']), 'remove': sorted(remove, key=lambda x: x['key']),
+            'unpinned': sorted(unpinned, key=lambda x: x['key']), 'not_found': not_found}
+
+
+def tidy_apply(plan: dict, keys=None) -> tuple:
+    """計画どおりに Zotero を書き換える（keys を渡せば、そのキーの文献だけ）。(済んだキー, [(キー, 理由)])。
+    書き換えるのは文献の collections だけ: メインに足す・メインのコレクション（とその下）から外す。"""
+    keys = None if keys is None else set(keys)
+    main_keys = set(plan['main_keys'])
+    done, failed = [], []
+    jobs = [(x, x['collections'] + [plan['main_key']]) for x in plan['add']]
+    jobs += [(x, [k for k in x['collections'] if k not in main_keys]) for x in plan['remove']]
+    for x, collections in jobs:
+        if keys is not None and x['key'] not in keys:
+            continue
+        try:
+            _web_patch(x['item'], x['version'], {'collections': collections})
+            done.append(x['key'])
+        except WriteRefused as e:
+            failed.append((x['key'], str(e)))
+            break
+        except ZoteroError as e:
+            failed.append((x['key'], str(e)))
+    return done, failed
 
 
 # ---------------------------------------------------------------- 入口
