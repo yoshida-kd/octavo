@@ -250,6 +250,9 @@ def project_target(rel: str) -> str:
     Octavo 自身のリポジトリでそれが効いてしまう）、末尾の `.tmpl` は外す
     （`octavo.config.py.tmpl` は `@@DOCUMENTS@@` のせいで Python として読めない）。
     """
+    if rel == 'literature.bib':
+        # 文献は literature/ にまとめる（Priorwork から受け取るもの literature/priorwork/ も同じ下）
+        return 'literature/literature.bib'
     parts = rel.split('/')
     if parts[-1] == 'gitignore':
         parts[-1] = '.gitignore'
@@ -305,6 +308,19 @@ def parse_parts(spec: str) -> dict:
 
 def _lang(value) -> str:
     return 'ja' if value == 'ja' else 'en'
+
+
+def _doc_lang(cfg, kind: str, name: str) -> str | None:
+    """すでにある原稿の冒頭に書いてある lang（ja | en）。なければ None。"""
+    if kind not in KINDS:
+        return None
+    try:
+        src = doc_path(cfg, kind, name)
+        meta, _ = mdlib.split_front_matter(mdlib.read(src))
+    except (OSError, KeyError, SystemExit):
+        return None
+    v = str(meta.get('lang') or '')[:2].lower()
+    return v if v in ('ja', 'en') else None
 
 
 # プロジェクトの約束事（AI に読ませるもの）の正本は AGENTS.md。Claude Code・GitHub Copilot・
@@ -644,7 +660,8 @@ def _new_table(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) 
 
 def new(config: Path, kind: str, name: str, force: bool = False,
         quiet: bool = False, example: bool = False, appendix: bool = False,
-        tex: bool = False, made: list | None = None, engine: str = 'r') -> int:
+        tex: bool = False, made: list | None = None, engine: str = 'r',
+        lang: str | None = None) -> int:
     """原稿・分析・図・表を1本足す。octavo.config.py は書き換えない（init が書いたグロブが拾う）。
 
     既にある原稿の名前なら、ないファイルだけを足す（`--appendix` / `--tex` を後から）。
@@ -671,7 +688,9 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         return 1
     cfg = configmod.load(config)
     root = cfg.root
-    lang = _lang(cfg['lang'])
+    project_lang = _lang(cfg['lang'])
+    # この文書の言語: --lang、なければすでにある原稿の冒頭の lang、なければプロジェクトの
+    lang = _lang(lang) if lang else _doc_lang(cfg, kind, name) or project_lang
     quiet_made = made is not None
     made = made if made is not None else []
 
@@ -723,13 +742,16 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         # ひな型の図のパスは前からの置き場所から見た相対なので、新しい場所から見た相対に
         text = with_front(text, k['front'])
         text = mdlib.rebase_links(text, (root / k['src'].format(name)).parent, src.parent)
+    if lang != project_lang:
+        # プロジェクトと違う言語の文書は、組むときもその言語で組まれるよう冒頭に書く
+        text = with_front(text, [f'lang: {lang}'])
     _write(src, text, force, made, root)
     if appendix:
         ap = render_template(f'{folder}/appendix.md', subs, root)
         if in_docs:
             ap = mdlib.rebase_links(ap, (root / k['appendix'].format(name)).parent, src.parent)
         _write(appendix_path(cfg, kind, name), ap, force, made, root)
-    add_claude_section(root, lang, CLAUDE_SECTION[kind], made)
+    add_claude_section(root, project_lang, CLAUDE_SECTION[kind], made)
 
     # 足した原稿を設定が本当に拾うかを、読み直して確かめる
     cfg = configmod.load(config)

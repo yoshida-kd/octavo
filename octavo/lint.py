@@ -288,6 +288,23 @@ def div_issues(cfg) -> list:
     return out
 
 
+@dataclass
+class WrapIssue:
+    file: str
+    line: int
+    excerpt: str
+
+
+def wrap_issues(cfg) -> list:
+    """文の途中で改行している行（1文1行の約束。octavo fmt で直せる）。"""
+    from . import rewrap
+    out = []
+    for _name, src, _app in cfg.sources():
+        for w in rewrap.wrapped(mdlib.read(src)):
+            out.append(WrapIssue(cfg.rel(src), w.line, w.excerpt))
+    return out
+
+
 def div_issue_text(it: DivIssue) -> str:
     if it.kind == 'literal':
         return t('not read as a block — put a blank line before the opening :::')
@@ -339,11 +356,25 @@ def run(cfg, quiet: bool = False) -> int:
             print(f'    {it.line:>4}: {it.excerpt}   [{div_issue_text(it)}]')
         print()
 
+    wraps = wrap_issues(cfg)
+    if wraps:
+        print(t('{n} {n|line breaks|lines break} in the middle of a sentence (manuscripts are '
+                'one sentence per line — octavo fmt joins them)', n=len(wraps)) + '\n')
+        last = None
+        for w in wraps[:30]:
+            if w.file != last:
+                print(f'  {w.file}')
+                last = w.file
+            print(f'    {w.line:>4}: {w.excerpt}')
+        if len(wraps) > 30:
+            print('    ' + t('… and {n} more', n=len(wraps) - 30))
+        print()
+
     found = collect(cfg)
     if not found:
-        if not quiet and not left and not indents and not divs:
+        if not quiet and not left and not indents and not divs and not wraps:
             print(t('found nothing that looks like a hand-typed result'))
-        return 1 if (left or indents or divs) else 0
+        return 1 if (left or indents or divs or wraps) else 0
 
     print(t('{n} {n|looks like a hand-typed number|look like hand-typed numbers} '
             '(if {n|it is a result, move it|they are results, move them} to '

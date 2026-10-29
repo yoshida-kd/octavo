@@ -14,7 +14,7 @@ assets/           what goes into the manuscripts. **Written by the analysis and 
   tables/         tables (<name>.typ / .tex / .md): the analysis's, and those made from tables/*.csv
 refs/             (make it when needed) material from elsewhere (codebooks, questionnaires, guidelines). kept in git
 notes/            (make it when needed) things you wrote (reading, referee, working notes). never part of the manuscript
-literature.bib    bibliography. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
+literature/       the bibliography (literature.bib; `bib_file`) and what Priorwork delivers. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
 templates/        this project's own versions of Octavo's templates (absent = the bundled ones; octavo template list)
 octavo.config.py  this project's configuration (sources, styling, analysis registration)
 build/            generated output. **nothing here is written by hand; delete it freely**
@@ -67,9 +67,9 @@ Whatever `octavo build` generates (the contents of `build/pdf/`,
 The thing to fix is the manuscript (or the `.qmd`). Nothing under `build/` is
 written by hand, so the whole directory can be deleted (git does not track it).
 
-## The reference manager owns literature.bib
+## The reference manager owns the .bib
 
-`literature.bib` is exported from the reference manager (e.g. Zotero), and the next export
+The `.bib` (`bib_file` in `octavo.config.py`; `literature/literature.bib` in a new project, `literature.bib` in an older one) is exported from the reference manager (e.g. Zotero), and the next export
 **overwrites the file wholesale**, so hand-edits are lost. Fix bibliographic errors there.
 
 - `octavo check cites` — are the cited keys in the `.bib`, and is the `.bib` well-formed
@@ -164,6 +164,10 @@ the next line. A blank line separates paragraphs.
   the same line)
 - When revising a paragraph the user wrote, put only the sentences you change one per line, and
   leave the wrapping of the other lines alone
+- `octavo check lint` lists the lines broken in the middle of a sentence. `octavo fmt` shows how
+  to fix a manuscript that was wrapped (`octavo fmt --apply` writes it; tables, headings, code,
+  `:::` blocks and math are left alone). Run it only when the user asks, and commit first so the
+  rewrite is a change of its own
 
 ## Drafts from Priorwork (literature/priorwork/)
 
@@ -190,8 +194,9 @@ When the user asks to bring a Priorwork draft into the manuscript:
 ## Writing rules and the phrase bank
 
 Before writing or revising prose in a manuscript, run `octavo writing` and read the files it
-lists. `writing/rules/` holds rules (follow them); `writing/phrases/` is the phrase bank
-(trusted phrasings). The user's own (`~/.config/octavo/writing/`) appear in the same list.
+lists. `notes/writing/rules/` holds rules (follow them); `notes/writing/phrases/` is the phrase
+bank (trusted phrasings). The user's own (`~/.config/octavo/writing/`) and a project's older
+`writing/` folder appear in the same list.
 
 - Follow each rule's Rule. When a sentence does not, propose a fix and name the rule
 - Prefer the phrase bank's phrasings, filling in the parts in 〈 〉 to suit the context; when you
@@ -255,7 +260,7 @@ for you to judge.
 # Never
 
 - **Never hand-edit `build/` output.** The thing to fix is always the manuscript.
-- **Never hand-edit `literature.bib`** (fix it in the reference manager).
+- **Never hand-edit the `.bib`** (`literature/literature.bib`) (fix it in the reference manager).
 - Never dump `octavo check lint` findings into `lint_accepted` without checking them.
   That list is only for things you have decided are not results.
 - **Never put a manuscript outside the places `octavo new` uses** (`octavo.config.py` won't pick it up).

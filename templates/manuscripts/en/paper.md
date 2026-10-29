@@ -1,6 +1,7 @@
 ---
 title: Title of the Paper
 author: @@AUTHOR@@
+institute: Affiliation
 ---
 
 # Abstract

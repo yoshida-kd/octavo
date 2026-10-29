@@ -376,37 +376,82 @@ def _align(cols, align):
     return ['r' if number(c) else 'l' for c in cols]
 
 
-def _tex_table(heads, rows, align, notes):
-    head = ' & '.join('\\textbf{' + _tex_escape(h) + '}' for h in heads)
-    body = ' \\\\\n'.join(' & '.join(_tex_escape(c) for c in r) for r in rows)
-    return ('% octavo_helper.py の ov_table() が作ったファイル。手で直さない。\n'
-            '\\begin{tabular}{' + ''.join(align) + '}\n\\toprule\n' + head + ' \\\\\n\\midrule\n'
-            + (body + ' \\\\\n' if rows else '') + '\\bottomrule\n\\end{tabular}\n'
+def _plan(n, groups, indent):
+    """行ごとの (群の見出し or None, 字下げするか)。groups は {見出し: 始まりの行（0 から）}。"""
+    head = [None] * n
+    for label, at in (groups or {}).items():
+        if not isinstance(at, int) or isinstance(at, bool) or not 0 <= at < n:
+            raise ValueError(f'ov_table: groups の行は 0 から {n - 1} の間（{label}: {at}）。'
+                             '見出しは、その行の前に入る')
+        head[at] = str(label)
+    first = min((a for a in (groups or {}).values()), default=n)
+    use = bool(groups) if indent is None else bool(indent)
+    return [(head[i], use and i >= first) for i in range(n)]
+
+
+def _tex_table(heads, rows, align, notes, plan, size):
+    n = len(heads)
+    head = ' & '.join('\\textbf{' + _tex_escape(h) + '}' if h else '' for h in heads)
+    lines = []
+    for r, (grp, ind) in zip(rows, plan):
+        if grp:
+            lines.append(f'\\multicolumn{{{n}}}{{l}}{{\\textbf{{{_tex_escape(grp)}}}}} \\\\')
+        cells = [_tex_escape(c) for c in r]
+        if ind and cells:
+            cells[0] = '\\hspace{1em}' + cells[0]
+        lines.append(' & '.join(cells) + ' \\\\')
+    tab = ('\\begin{tabular}{' + ''.join(align) + '}\n\\toprule\n' + head + ' \\\\\n\\midrule\n'
+           + ''.join(l + '\n' for l in lines) + '\\bottomrule\n\\end{tabular}\n')
+    if size:
+        tab = f'{{\\fontsize{{{size}}}{{{round(size * 1.2, 2)}}}\\selectfont\n' + tab + '}\n'
+    return ('% octavo_helper.py の ov_table() が作ったファイル。手で直さない。\n' + tab
             + (f'\\par\\vspace{{2pt}}\n{{\\footnotesize {_tex_escape(notes)}}}\n' if notes else ''))
 
 
-def _typ_table(heads, rows, align, notes):
+def _typ_table(heads, rows, align, notes, plan, size):
     word = {'l': 'left', 'r': 'right', 'c': 'center'}
-    cell = lambda v: '[' + _typ_escape(v) + ']'
-    head = ', '.join('[*' + _typ_escape(h) + '*]' for h in heads)
-    body = '\n'.join('  ' + ', '.join(cell(c) for c in r) + ',' for r in rows)
+    n = len(heads)
+    # 見出しが空の列（行の名前の列）は [] にする。[**] は Typst が警告する
+    head = ', '.join('[*' + _typ_escape(h) + '*]' if h else '[]' for h in heads)
+    lines = []
+    for r, (grp, ind) in zip(rows, plan):
+        if grp:
+            lines.append(f'  table.cell(colspan: {n}, align: left)[*{_typ_escape(grp)}*],')
+        cells = ['[' + _typ_escape(c) + ']' for c in r]
+        if ind and cells:
+            cells[0] = '[#h(1em)' + cells[0][1:]
+        lines.append('  ' + ', '.join(cells) + ',')
+    note_size = round(size * 0.85, 2) if size else 8
+    # 本文の両端揃えを表のセルに持ち込まない。字の大きさは size（pt）で
     return ('// octavo_helper.py の ov_table() が作ったファイル。手で直さない。\n'
-            '#table(\n'
-            f'  columns: {len(heads)},\n'
+            '#set par(justify: false)\n'
+            + (f'#set text(size: {size}pt)\n' if size else '')
+            + '#table(\n'
+            f'  columns: {n},\n'
             f'  align: ({", ".join(word[a] for a in align)}),\n'
             '  stroke: none,\n  table.hline(),\n'
             f'  {head},\n  table.hline(stroke: 0.5pt),\n'
-            + (body + '\n' if rows else '') + '  table.hline(),\n)\n'
-            + (f'#v(2pt)\n#text(size: 8pt)[{_typ_escape(notes)}]\n' if notes else ''))
+            + ''.join(l + '\n' for l in lines) + '  table.hline(),\n)\n'
+            + (f'#v(2pt)\n#block(width: 100%, align(left, text(size: {note_size}pt)[{_typ_escape(notes)}]))\n'
+               if notes else ''))
 
 
-def _md_table(heads, rows, align, notes):
+def _md_table(heads, rows, align, notes, plan, size):
     esc = lambda v: v.replace('|', '\\|')
     rule = {'l': ':---', 'r': '---:', 'c': ':---:'}
     row = lambda v: '| ' + ' | '.join(esc(c) for c in v) + ' |'
+    lines = []
+    for r, (grp, ind) in zip(rows, plan):
+        # Markdown の表は列をまたげないので、群の見出しは最初の列に太字で書いた行にする
+        if grp:
+            lines.append(row([f'**{grp}**'] + [''] * (len(heads) - 1)))
+        r = list(r)
+        if ind and r:
+            r[0] = '\u00a0\u00a0' + r[0]
+        lines.append(row(r))
     return ('<!-- octavo_helper.py の ov_table() が作ったファイル。手で直さない。 -->\n\n'
             + row(heads) + '\n|' + '|'.join(rule[a] for a in align) + '|\n'
-            + '\n'.join(row(r) for r in rows) + '\n'
+            + '\n'.join(lines) + '\n'
             + (f'\n*{notes}*\n' if notes else ''))
 
 
@@ -414,7 +459,8 @@ _RENDER = {'tex': _tex_table, 'typ': _typ_table, 'md': _md_table}
 
 
 def ov_table(x, name: str, notes: str | None = None, align: str | None = None,
-             digits: int = 3, formats=('tex', 'typ', 'md')):
+             digits: int = 3, formats=('tex', 'typ', 'md'),
+             groups: dict | None = None, indent: bool | None = None, size: float | None = None):
     """表を assets/tables/ に保存する（.tex・.typ・.md。Typst・LaTeX・Word がそれぞれ読む）。
     本文に `: 表題 {#tbl-<name>}` の1行を書けば、Octavo がそこに差し込み、
     @tbl-<name> で参照できる。キャプションは本文が持つ（ここでは付けない）。
@@ -423,8 +469,12 @@ def ov_table(x, name: str, notes: str | None = None, align: str | None = None,
             あるいは {"tex": "…", "typ": "…", "md": "…"}（statsmodels の as_latex() など
             が作った文字列をそのまま渡すとき）
     name    ファイル名（拡張子なし）
-    notes   表の下に小さく出す注
+    notes   表の下に小さく出す注（左揃え）
     align   "lrrr" のように列ごとの寄せを決める。省略なら数値は右
+    groups  群の見出し。{'Demand': 0, 'Hiring': 5} は 0 行目の前に Demand、5 行目の前に
+            Hiring を、列をまたぐ太字の行として入れる
+    indent  群の下の行の見出し（最初の列）を字下げするか。省略なら groups があれば True
+    size    表の字の大きさ（pt。例: 9.5）。省略なら本文と同じ
     """
     d = ov_dir('tables')
     out = []
@@ -441,8 +491,9 @@ def ov_table(x, name: str, notes: str | None = None, align: str | None = None,
     heads, cols = _columns(x)
     rows = _cells(cols, digits)
     al = _align(cols, align)
+    plan = _plan(len(rows), groups, indent)
     for fmt in formats:
         if fmt not in _RENDER:
             raise ValueError(f'ov_table: 不明な形式 {fmt}')
-        out.append(_write(d / f'{name}.{fmt}', _RENDER[fmt](heads, rows, al, notes)))
+        out.append(_write(d / f'{name}.{fmt}', _RENDER[fmt](heads, rows, al, notes, plan, size)))
     return out

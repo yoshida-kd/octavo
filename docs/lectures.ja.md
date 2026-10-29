@@ -377,6 +377,16 @@ The number of civil servants is small.[^count] A short note can go inline.^[Like
 :::
 ```
 
+付録の見出しがファイルのどこにあっても、プリントの並びは**本文、参考文献、付録**になる。
+付録のページ番号は A-1、A-2、… と 1 から振り直され、付録は別の PDF（`<名前>-appendix.pdf`）にも
+なるので、配るプリントには付録が入らない。回ごとの配布資料（`octavo build --sessions`）にも
+入らない。設定は2つ（サイドバーの「この文書の設定」か、原稿の冒頭）:
+
+| 設定 | 働き |
+|---|---|
+| `appendix_separate: false` | 付録を同じ PDF の参考文献の後ろに入れたままにする |
+| `appendix_after_references: false` | 前の並び（本文、付録、参考文献）に戻す |
+
 ---
 
 ## 体裁を変える

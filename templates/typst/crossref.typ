@@ -116,14 +116,28 @@
 
 // 付録に入るところで #show: octavo-appendix（節が A, B, … になり、図表も A.1 になる）。
 // 見出しに番号を振らない文書（番号なしのスライド）は heading-numbering: none で呼ぶ
-#let octavo-appendix(heading-numbering: "A.1", body) = {
+#let octavo-appendix(heading-numbering: "A.1", page-numbers: true, body) = {
   octavo-appendix-state.update(true)
   counter(heading).update(0)
   octavo-section.update(0)
   set heading(numbering: heading-numbering)
-  // 通し番号の文書では、ここで図表・式を数え直す（A1 から。octavo-crossref-rules が受ける）
-  [#metadata(none) <octavo-appendix-start>]
-  body
+  // 付録のページ番号は A-1, A-2, … と 1 から振り直す。付録だけの PDF（octavo-part=appendix）は
+  // 体裁の側（article.typ）が同じ番号にしているので、ここでは何もしない（先頭で改ページしてしまう）
+  let apart = sys.inputs.at("octavo-part", default: "body") == "appendix"
+  let marked(b) = {
+    // 通し番号の文書では、ここで図表・式を数え直す（A1 から。octavo-crossref-rules が受ける）
+    [#metadata(none) <octavo-appendix-start>]
+    // octavo extract と PDF の切り分けが読む、付録の最初の物理ページ
+    context [#metadata((page: here().page())) <octavo-appendix-page>]
+    b
+  }
+  if page-numbers and not apart {
+    set page(numbering: (..n) => "A-" + str(n.pos().first()))
+    counter(page).update(1)
+    marked(body)
+  } else {
+    marked(body)
+  }
 }
 
 // いま組んでいる図・式に決め打ちの番号があれば、その番号（キャプション・式番号が読む）
@@ -159,6 +173,11 @@
   })
   // 事例・論点などのブロック。ほかの図・表は、決め打ちの番号があればキャプションに渡す
   show figure: it => {
+    // キャプションもラベルもない図・表（pandoc が表を figure に包む）は番号を数えない。
+    // figure の見かけを捨てて中身だけにすれば、カウンターも進まない
+    if it.caption == none and not it.has("label") and it.kind in (image, table) {
+      return it.body
+    }
     let fx = fixed-of(it)
     if type(it.kind) != str or it.kind not in theorem-kinds {
       if fx == none { return it }

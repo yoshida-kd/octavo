@@ -396,6 +396,17 @@ the A4 handout):
 :::
 ```
 
+The handout is ordered **text, references, appendix**, wherever the appendix heading stands in
+the file. The appendix's pages are numbered A-1, A-2, … from 1, and it is made as a PDF of its own
+(`<name>-appendix.pdf`), so the handout you give out has no appendix in it. The session handouts
+(`octavo build --sessions`) leave it out too. Two settings, in the sidebar's **Settings for this
+document** or at the top of the manuscript:
+
+| Setting | Does |
+|---|---|
+| `appendix_separate: false` | keep the appendix in the same PDF, after the references |
+| `appendix_after_references: false` | the order before: text, appendix, references |
+
 ---
 
 ## Changing the look

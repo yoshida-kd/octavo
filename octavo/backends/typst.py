@@ -123,7 +123,9 @@ class TypstBackend(Backend):
         brk = '#pagebreak(weak: true)\n' if ctx.is_handout else ''
         # 見出しに番号を振らないスライドでは、付録でも振らない（振ると「0.1」が出る）
         bare = ctx.backend.is_slides and not ctx.cfg['slides_numbering']
-        show = 'octavo-appendix.with(heading-numbering: none)' if bare else 'octavo-appendix'
+        opts = (['heading-numbering: none'] if bare else []) \
+            + (['page-numbers: false'] if ctx.standalone and not ctx.is_handout else [])
+        show = f'octavo-appendix.with({", ".join(opts)})' if opts else 'octavo-appendix'
         return '\n```{=typst}\n' + brk + f'#show: {show}\n```\n'
 
     def fmt_theorem(self, env, item, title: str, body: str, ctx: Ctx) -> str:
@@ -181,8 +183,9 @@ class TypstBackend(Backend):
                 f'(#cite(<{key}>, form: "year"))`{{=typst}}')
 
     def uses_anonymous_guard(self, text: str) -> bool:
+        # 論文の体裁 article.typ を使う main.typ は、著者を原稿から取り、匿名審査では渡さない
         code = '\n'.join(l.split('//', 1)[0] for l in text.split('\n'))
-        return bool(re.search(r'#if\s+anonymous\b', code))
+        return bool(re.search(r'#if\s+anonymous\b', code) or 'octavo-article' in code)
 
     def flags(self, ctx: Ctx) -> tuple:
         return ('flags.typ',
@@ -252,6 +255,11 @@ class TypstBackend(Backend):
         if path.name == 'main.typ' and ctx.appendix and ctx.appendix_apart:
             return path.with_name('appendix.pdf')
         return path.with_suffix('.pdf')
+
+    def after_compile(self, ctx: Ctx, path: Path) -> None:
+        """A4 プリントの付録を別の PDF にする（appendix_separate）。"""
+        if ctx.is_handout and not ctx.appendix:
+            split_appendix(ctx, path)
 
     def compile_main(self, ctx: Ctx) -> Path | None:
         main = ctx.out_dir / 'main.typ'
@@ -329,14 +337,80 @@ def typst_escape(s: str) -> str:
              .replace('@', '\\@').replace('<', '\\<').replace('$', '\\$'))
 
 
+# ---------------------------------------------------------------- 付録を別の PDF に
+
+def split_appendix(ctx: Ctx, typ: Path) -> Path | None:
+    """組んだ A4 プリントを付録の手前で切り、付録を `<名前>-appendix.pdf` に分ける。
+
+    付録（原稿の `{.appendix}` の見出し）は、いつも本文・参考文献の**後ろ**に1冊で
+    組んである。ページ番号は付録のところで A-1 から振り直してあるので、ページで切るだけで
+    どちらの PDF も印字の番号が全体と同じになる（octavo extract と同じ方法）。
+    appendix_separate: false か、付録がなければ切らず、前に切った付録の PDF は消す。
+    """
+    from .. import extract
+    pdf = typ.with_suffix('.pdf')
+    dest = typ.with_name(f'{ctx.doc_name}-appendix.pdf')
+    doc = ctx.document
+    # 付録のファイル（appendix.md）から組んだ <名前>-appendix.pdf を消さない
+    own = not (doc is not None and getattr(doc, 'appendix', None))
+    if not (ctx.has_inline_appendix and ctx.cfg['appendix_separate']
+            and ctx.cfg['appendix_after_references']):
+        if own:
+            dest.unlink(missing_ok=True)
+        return None
+    try:
+        root = TypstBackend.root_arg(ctx)
+        marks = extract._marks(typ, root, 'octavo-appendix-page')
+        end = extract._marks(typ, root, 'octavo-end')
+        if not marks or not end:
+            ctx.say(f'{tag("appendix")} ' + t(
+                'could not find where the appendix starts, so it stays in the same PDF '
+                '(a templates/typst/crossref.typ of your own may need updating)'))
+            return None
+        first, last = int(marks[0]['page']), int(end[-1]['page'])
+        if first <= 1 or first > last:
+            return None
+        extract._run(['typst', 'compile', '--root', root, '--pages', f'{first}-{last}',
+                      typ.name, str(dest.resolve())], typ.parent)
+        extract._run(['typst', 'compile', '--root', root, '--pages', f'1-{first - 1}',
+                      typ.name, str(pdf.resolve())], typ.parent)
+    except extract.ExtractError as e:
+        ctx.say(f'{tag("appendix")} ' + str(e))
+        return None
+    ctx.say(f'{tag("appendix")} ' + t('the appendix is a PDF of its own: {path}', path=dest))
+    return dest
+
+
 # ---------------------------------------------------------------- 番号と参照の体裁
 
 def paper_meta(ctx: Ctx) -> str:
     """論文の体裁（paper/article.typ）に渡す `#let octavo-paper = (…)`。"""
     c = ctx.counts
     counts = 'none' if not c else '(' + ', '.join(f'{k}: {v}' for k, v in c.items()) + ')'
+    # 表題まわりは原稿の冒頭から（main.typ に書き写さなくてよい）。匿名審査では
+    # anonymous_drop_meta に挙げたもの（著者・所属・メール…）を渡さない
+    drop = set(ctx.cfg['anonymous_drop_meta'] or ()) if ctx.anonymous else set()
+
+    def field(*keys) -> str:
+        for k in keys:
+            v = ctx.meta.get(k) if k not in drop else None
+            if isinstance(v, (list, tuple)):
+                v = [x for x in v if str(x).strip()]
+                if v:
+                    return '(' + ''.join(f'[{_content_escape(str(x))}], ' for x in v) + ')'
+            elif v not in (None, ''):
+                return f'[{_content_escape(str(v))}]'
+        return 'none'
+    email = ctx.meta.get('email') if 'email' not in drop else None
     return ('#let octavo-paper = (\n'
             f'  lang: "{ctx.lang}",\n'
+            f'  title: {field("title")},\n'
+            f'  subtitle: {field("subtitle")},\n'
+            f'  author: {field("author")},\n'
+            f'  affiliation: {field("institute", "affiliation")},\n'
+            f'  email: {typst_string(email) if email else "none"},\n'
+            f'  date: {field("date")},\n'
+            f'  anonymous: {"true" if ctx.anonymous else "false"},\n'
             f'  serif: {font_expr(ctx.lang, "serif")},\n'
             f'  sans: {font_expr(ctx.lang, "sans")},\n'
             f'  counts: {counts},\n'

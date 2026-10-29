@@ -36,7 +36,7 @@ def _run(cmd: list, cwd: Path) -> str:
     r = subprocess.run(cmd, cwd=str(cwd), capture_output=True, text=True,
                        encoding='utf-8', errors='replace')
     if r.returncode != 0:
-        tail = '\n'.join((r.stdout + r.stderr).strip().split('\n')[-15:])
+        tail = buildmod.compile_failure(r.stdout + r.stderr, 15)
         raise ExtractError(t('typst failed:') + '\n' + tail)
     return r.stdout
 
@@ -67,6 +67,13 @@ def page_table(typ: Path, root: str, skip=()) -> dict:
         raise ExtractError(t('{file} has no page marks (was it written by octavo build '
                              '--to typst from a lecture handout?)', file=typ.name))
     last = end[-1]['page']
+    # 付録は本文・参考文献の後ろにある（別の PDF にもなる）ので、最後の回には含めない
+    try:
+        app = _marks(typ, root, 'octavo-appendix-page')
+    except ExtractError:
+        app = []
+    if app and 1 < int(app[0]['page']) <= last:
+        last = int(app[0]['page']) - 1
     shown_of: dict = {}
     for m in sessions + body + end:
         shown_of[m['page']] = m.get('shown')
@@ -164,8 +171,36 @@ def run(cfg, name: str, sessions: list | None = None, pages: str | None = None,
         made.append((key, dest))
         report.append(f'{tag("handout")} ' + t('{key}: pages {pages} -> {file}', key=key,
                                                 pages=spec, file=cfg.rel(dest)))
+    # build で付録を別の PDF に分けてあるなら、ここで全体を組み直した PDF を分け直す
+    from .backends import typst as typstmod
+    dcfg = cfg.for_document(doc)
+    if dcfg['appendix_separate'] and dcfg['appendix_after_references'] and _has_appendix(typ, root):
+        sctx = _SplitCtx(dcfg, ctx_dir, doc, report)
+        typstmod.split_appendix(sctx, typ)
     return {'pdf': ctx_dir / f'{doc.name}.pdf', 'table': table_path, 'made': made,
             'sessions': table['sessions'], 'report': report}
+
+
+def _has_appendix(typ: Path, root: str) -> bool:
+    try:
+        return bool(_marks(typ, root, 'octavo-appendix-page'))
+    except ExtractError:
+        return False
+
+
+class _SplitCtx:
+    """typst.split_appendix に要るものだけ。"""
+    has_inline_appendix = True
+
+    def __init__(self, cfg, out_dir: Path, doc, report: list):
+        self.cfg = cfg
+        self.out_dir = out_dir
+        self.document = doc
+        self.doc_name = doc.name
+        self._report = report
+
+    def say(self, line: str) -> None:
+        self._report.append(line)
 
 
 class _Ctx:

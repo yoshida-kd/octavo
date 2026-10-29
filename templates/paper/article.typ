@@ -10,6 +10,11 @@
 //
 //  使える値（octavo-paper）:
 //    lang         "ja" | "en"
+//    title / subtitle / author / affiliation / email / date
+//                 原稿の冒頭の title・subtitle・author・institute（または affiliation）・email・
+//                 date（なければ none。author はいくつもなら並び）。匿名審査（--anonymous）では
+//                 anonymous_drop_meta に挙げたもの（既定は著者・所属・メール）が none になる
+//    anonymous    匿名審査で組んでいるか
 //    serif / sans 本文（明朝）と見出し・太字（ゴシック）のフォントの候補
 //    counts       1ページ目に出す分量（none なら出さない）:
 //                 (chars, chars-notes, words, words-notes, abstract-chars, abstract-words,
@@ -97,6 +102,8 @@
 // 要旨: 小さめの字で、左右を下げる（\small と quotation）
 #let octavo-abstract(body) = {
   if octavo-part == "appendix" { return }
+  // 要旨が空なら見出しも出さない
+  if body == [] or body == [ ] { return }
   set par(first-line-indent: (amount: geometry.indent, all: ja))
   align(center, text(font: if ja { octavo-paper.sans } else { octavo-paper.serif }, weight: "bold",
                      size: 0.9 * size,
@@ -106,13 +113,25 @@
   v(pitch)
 }
 
-#let octavo-article(title: none, author: none, affiliation: none, email: none, date: none,
-                    counts: auto, body) = {
+// main.typ で渡さなかった（auto の）ものは原稿の冒頭から。none なら出さない
+#let octavo-article(title: auto, subtitle: auto, author: auto, affiliation: auto, email: auto,
+                    date: auto, counts: auto, body) = {
+  let pick(v, key) = if v == auto { octavo-paper.at(key, default: none) } else { v }
+  let names(v) = if type(v) == array { v.join(if ja { "、" } else { ", " }) } else { v }
+  let title = pick(title, "title")
+  let subtitle = pick(subtitle, "subtitle")
+  let author = names(pick(author, "author"))
+  let affiliation = names(pick(affiliation, "affiliation"))
+  let email = pick(email, "email")
+  let date = pick(date, "date")
+  if author == none and octavo-paper.at("anonymous", default: false) {
+    author = if ja { [［匿名審査のため著者名を伏せています］] } else { [[Author details removed for blind review]] }
+  }
   set document(title: title) if title != none
   set page(paper: "a4",
            margin: (x: (210mm - geometry.width) / 2, top: geometry.top, bottom: geometry.bottom),
            footer-descent: geometry.footer,
-           numbering: "1")
+           numbering: if octavo-part == "appendix" { (..n) => "A-" + str(n.pos().first()) } else { "1" })
   // 1行の箱を字の大きさちょうどにして、行の間で行送りを決める（和文の行送りが字でぶれない）
   set text(font: octavo-paper.serif, size: size, lang: octavo-paper.lang,
            region: if ja { "JP" } else { "US" }, top-edge: 0.88em, bottom-edge: -0.12em)
@@ -167,6 +186,10 @@
       if title != none {
         text(font: if ja { octavo-paper.sans } else { octavo-paper.serif },
              weight: if ja { "bold" } else { "regular" }, size: 1.728 * size, title)
+      }
+      if subtitle != none and octavo-part != "appendix" {
+        v(0.4 * pitch)
+        text(size: 1.2 * size, subtitle)
       }
       if octavo-part != "appendix" {
         v(1.5 * pitch)

@@ -3,6 +3,56 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.8
+
+- **Less scattered project folders.** A new project keeps its bibliography in `literature/literature.bib`
+  (`bib_file` in `octavo.config.py`), next to `literature/priorwork/` where Priorwork delivers — one
+  folder for everything about the literature. A project from before keeps `literature.bib` at its root
+  and nothing changes for it (move it and edit `bib_file` if you like). Writing rules and the phrase bank
+  go in `notes/writing/rules/` and `notes/writing/phrases/`; an older `writing/` folder is read too, and
+  a file of the same name in `notes/writing/` wins.
+- **Lecture notes: the appendix comes after the references, and is a PDF of its own.** A heading
+  with `{.appendix}` used to put the appendix between the text and the references, with the
+  page numbers running on. Now the handout is text, references, appendix; the appendix's pages
+  are numbered A-1, A-2, … from 1, and it is also made as `<name>-appendix.pdf` (the handout and
+  the per-session handouts leave it out). Papers number the appendix's pages A-1, … too, whether it
+  is a PDF of its own or follows the text. To go back: `appendix_separate: false` keeps it in one
+  PDF, `appendix_after_references: false` restores the old order (text, appendix, references).
+- **`lang` per document.** Write `lang: en` at the top of a manuscript and that document is typeset
+  in English (references read "Section 2", "Table A1"; the citation locale, the reference list's
+  heading and the LaTeX class follow) in a Japanese project, or the other way round.
+  `reference-section-title:` and `csl_locale:` work at the top of a manuscript too.
+  `octavo new paper <name> --lang en` starts from the English templates (and writes `lang:`);
+  adding `--appendix` or `--tex` later follows the manuscript's own `lang`.
+- **`octavo fmt`** puts manuscripts one sentence to a line: it joins lines broken in the middle of a
+  sentence and breaks a Japanese line after each 。 (never inside 「」 or （）, code, tables, math
+  or comments). It shows the changes; `--apply` writes them (git clean, or `--allow-dirty`).
+  `octavo check lint` lists the lines broken mid-sentence.
+- **Tables from the analysis**: `ov_table()` takes `groups` (a bold heading row across the columns,
+  rows under it indented), `indent` and `size` (points); the note is left-aligned; the table no
+  longer inherits the body's justified text; an empty column heading is written `[]` instead of
+  `[**]` (Typst warned "no text within stars" for every table).
+- **Slides count figures and tables straight through** when their sections show no number (a deck
+  with `slides_numbering` unset) unless the document also makes the handout, whose numbers the deck
+  follows. `crossref_numbering: 'section'` brings the old numbers back. A figure or table with
+  neither a caption nor a label is no longer counted.
+- **A failed Typst build shows the `error:` first**, not the end of the output (where warnings
+  about fonts of other systems could hide it).
+- An empty abstract (nothing, or only a comment) no longer prints the "Abstract" heading.
+- **`octavo data track data/raw/<file>`** lets git take a file under `data/` (it adds the `!` lines
+  to `.gitignore`).
+- **Sidebar, From Priorwork**: shown whenever the project is connected (a workspace or a Zotero
+  collection is set), with rows for the Priorwork workspace, the main and linked Zotero
+  collections and the Zotero key, and each survey saying which collection joins it to the project
+  (main, linked or not yet).
+
+- **A paper's title, authors, affiliation, e-mail and date come from the top of the manuscript**
+  (`title:`, `author:`, `institute:`, `email:`, `date:`) instead of being written again in
+  `main.typ`; `--anonymous` leaves out the authors, affiliation and e-mail. A `main.typ` made by
+  0.6.7 that still names them keeps working (what it writes wins); one that shows the placeholders
+  ("Title of the Paper") should lose those lines — or be remade: rename it and
+  `octavo new paper <name>`.
+
 ## 0.6.7
 
 - **A main Zotero collection and linked ones.** `zotero_collection` is the project's main collection

@@ -13,7 +13,7 @@ assets/           原稿に差し込まれるもの。**分析と octavo build �
   tables/         表（<name>.typ / .tex / .md）。分析の表と、tables/*.csv から作った表
 refs/             （必要なら作る）外から来た資料（コードブック・調査票・投稿規定）。git に入れる
 notes/            （必要なら作る）自分が書いたメモ（読書・査読・作業）。原稿には入らない
-literature.bib    書誌。**文献管理ソフト（Zotero など）が正本**（エクスポートするたびに上書きされる）
+literature/       書誌（literature.bib。`bib_file`）と Priorwork から受け取るもの。**文献管理ソフト（Zotero など）が正本**（エクスポートするたびに上書きされる）
 templates/        Octavo のひな型をこのプロジェクト用に差し替えたもの（なければ同梱のものを使う。`octavo template list`）
 octavo.config.py  このプロジェクトの設定（原稿・書式・分析の登録）
 build/            生成物。**手で書くものは1つもない。丸ごと消してよい**
@@ -65,9 +65,9 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 中身）は、**編集しても次の build で消える。**直したいのは原稿（か `.qmd`）のほう。
 `build/` に手で書くファイルは1つもないので、丸ごと消してよい（git にも入らない）。
 
-## literature.bib は文献管理ソフトが正本
+## .bib は文献管理ソフトが正本
 
-`literature.bib` は文献管理ソフト（Zotero など）からエクスポートしたもので、次にエクスポートすると
+`.bib`（`octavo.config.py` の `bib_file`。新しいプロジェクトは `literature/literature.bib`、前からのものは `literature.bib`）は文献管理ソフト（Zotero など）からエクスポートしたもので、次にエクスポートすると
 **丸ごと上書きされる**ので、手で直しても消える。書誌の誤りは文献管理ソフトの側で直す。
 
 - `octavo check cites` — 本文が引いているキーが `.bib` にあるか、書誌が壊れていないか
@@ -154,6 +154,9 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 - 1文1行なら、git の差分や共著者とのやりとりが文の単位で読める
 - 箇条書きの項目・表のセル・見出しは、それぞれ1行のまま（項目の中に文が2つあれば、同じ行に続ける）
 - 利用者が自分で書いた段落を直すときも、直した文だけを1文1行にし、ほかの行の折り返しは変えない
+- `octavo check lint` が、文の途中で改行している行を知らせる。折り返してある原稿は `octavo fmt` で
+  直し方を見せ、`octavo fmt --apply` で書き換える（表・見出し・コード・`:::` の囲み・数式は触らない）。
+  利用者に頼まれたときだけ実行し、先に commit しておく（書き換えが1つの変更になるように）
 
 ## Priorwork の下書き（literature/priorwork/）
 
@@ -175,8 +178,8 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 ## 文章のルールとフレーズバンク
 
 原稿の文章を書く・直す前に `octavo writing` を実行し、挙がったファイルを読む。
-`writing/rules/` はルール（従う）、`writing/phrases/` はフレーズバンク（信頼できる表現）。
-利用者全体のもの（`~/.config/octavo/writing/`）も同じ一覧に出る。
+`notes/writing/rules/` はルール（従う）、`notes/writing/phrases/` はフレーズバンク（信頼できる表現）。
+利用者全体のもの（`~/.config/octavo/writing/`）と、前からの `writing/` も同じ一覧に出る。
 
 - ルールの「規則」に従う。合わない文を見つけたら、直す案と、どのルールかを示す
 - 表現はフレーズバンクのものを優先して使い、〈 〉の所を文脈に合わせて差し替える。新しい言い回しを
@@ -236,7 +239,7 @@ octavo check lint           # 手入力された数値だけを詳しく
 # やらないこと
 
 - **`build/` の生成物を手で書き換えない。**直したいのは常に原稿のほう
-- **`literature.bib` を手で編集しない**（文献管理ソフトの側で直す）
+- **`.bib`（`literature/literature.bib`）を手で編集しない**（文献管理ソフトの側で直す）
 - `octavo check lint` が出した指摘を、確かめずに `lint_accepted` へ流し込まない。
   そこは「結果ではない」と判断したものだけを書く場所
 - **原稿を `octavo new` の置き場所の外に置かない**（`octavo.config.py` が拾わなくなる）

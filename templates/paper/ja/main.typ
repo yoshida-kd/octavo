@@ -2,7 +2,8 @@
 //  日本語論文の体裁（Typst）
 //
 //  **このファイルは手で管理する。**octavo new paper <名前> が原稿と同じ
-//  docs/<名前>/ に置くので、表題・著者を書き換える。組版のたびに
+//  docs/<名前>/ に置く。表題・著者・所属・日付は原稿の冒頭（title・author・institute・
+//  email・date）から取るので、ここには書かなくてよい。組版のたびに
 //  build/pdf/<名前>/ へコピーされるので、直すのは docs/ の側。body.typ /
 //  abstract.typ / appendix.typ は Octavo が毎回書くので直接編集しない。
 //
@@ -25,26 +26,17 @@
 
 #import "article.typ": octavo-article, octavo-abstract, octavo-part, octavo-paper
 #import "crossref.typ": octavo-crossref, octavo-appendix
-// 匿名審査の切り替え。octavo build --anonymous のたびに flags.typ が
-// 書き換わる（#let anonymous = true / false）
+// 匿名審査（octavo build --anonymous）では、article.typ が著者・所属・メールを出さない
+//（伏せるものは octavo.config.py の anonymous_drop_meta）。ほかにも伏せたいものがあれば
+// #if anonymous { … } で分ける（flags.typ は組むたびに書き換わる）
 #import "flags.typ": anonymous
-
-#let author = [著者名]
-#let affiliation = [所属]
-#let email = "email@example.ac.jp"
-#if anonymous {
-  author = [［匿名審査のため著者名を伏せています］]
-  affiliation = none
-  email = none
-}
 
 // 図・表・式の番号（論文の既定は通し番号: 図1、付録は図A1）と、@fig-… の参照の体裁
 #show: octavo-crossref
+// 表題・著者などは原稿の冒頭から。ここに書けば、そちらが優先される
 #show: octavo-article.with(
-  title: [論文タイトル],
-  author: author,
-  affiliation: affiliation,
-  email: email,
+  // title: [投稿先に合わせた短い表題],
+  // author: [著者名],
   // counts: none,     // 1ページ目の分量（本文の字数・要旨・図表の数）を出さないなら
 )
 

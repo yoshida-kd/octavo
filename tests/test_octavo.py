@@ -64,7 +64,12 @@ def make_project(dest: Path, docs=(('paper', 'paper'),), lang: str = 'ja',
     if legacy:
         text = cfg.read_text(encoding='utf-8')
         text = re.sub(r"        'docs': \{\n            'src': 'docs/\*/',\n        \},\n", '', text)
+        # 前からのプロジェクトは書誌がルートの literature.bib
+        text = text.replace("'bib_file': 'literature/literature.bib'", "'bib_file': 'literature.bib'")
         cfg.write_text(text, encoding='utf-8')
+        if (dest / 'literature/literature.bib').is_file():
+            (dest / 'literature/literature.bib').replace(dest / 'literature.bib')
+            (dest / 'literature').rmdir()
     if analysis:
         scaffold.new(cfg, 'analysis', 'analysis', quiet=True, example=example)
     for kind, name in docs:
@@ -451,7 +456,7 @@ class TheoremBlocksBuilt(unittest.TestCase):
             self.assertTrue(r.ok, '\n'.join(r.report))
             return r
         typ = deck().outputs[0].read_text(encoding='utf-8')
-        self.assertIn('#show: octavo-appendix.with(heading-numbering: none)', typ)
+        self.assertIn('#show: octavo-appendix.with(heading-numbering: none, page-numbers: false)', typ)
         if shutil.which('pdftotext'):
             text = subprocess.run(['pdftotext', '-enc', 'UTF-8', str(deck().compiled), '-'],
                                   capture_output=True, text=True, encoding='utf-8').stdout
@@ -459,7 +464,7 @@ class TheoremBlocksBuilt(unittest.TestCase):
             self.assertNotIn('0.1', text)
         self.cfg._v['slides_numbering'] = '1.1'
         typ = deck().outputs[0].read_text(encoding='utf-8')
-        self.assertIn('#show: octavo-appendix\n', typ)
+        self.assertIn('#show: octavo-appendix.with(page-numbers: false)\n', typ)
 
     @unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
     def test_extract_cuts_one_pdf_per_session(self):
@@ -1691,7 +1696,7 @@ class PriorworkHandoff(unittest.TestCase):
         self.manifest = m
         (self.inbox / m['text']).write_text(self.TEXT, encoding='utf-8')
         (self.inbox / '20261028_mw.json').write_text(json.dumps(m), encoding='utf-8')
-        (self.root / 'literature.bib').write_text(
+        (self.root / 'literature' / 'literature.bib').write_text(
             '@article{card1994,\n title={Minimum Wages}, doi={10.1/card}, year={1994}}\n', encoding='utf-8')
 
     def tearDown(self):
@@ -1732,7 +1737,7 @@ class PriorworkHandoff(unittest.TestCase):
     def test_resolve_by_doi_and_still_not_edited(self):
         from octavo import handoff
         from octavo import cli
-        with open(self.root / 'literature.bib', 'a', encoding='utf-8') as fh:
+        with open(self.root / 'literature' / 'literature.bib', 'a', encoding='utf-8') as fh:
             fh.write('\n@article{neumark2007,\n title={MW}, doi={10.1/NEUM}, year={2007}}\n')
         src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
         src.write_text(src.read_text(encoding='utf-8') + '\nAs [@PRIORWORK:10.1/neum] shows.\n', encoding='utf-8')
@@ -1779,7 +1784,7 @@ class PriorworkHandoff(unittest.TestCase):
         self.assertEqual(got['card1994'][0]['evidence'], 'fulltext')
         self.assertEqual(got['card1994'][0]['fields']['findings'], 'No fall in employment (p. 792)')
         self.assertEqual(got['PRIORWORK:10.1/neum'][0]['label'], 'Neumark & Wascher (2007)')
-        with open(self.root / 'literature.bib', 'a', encoding='utf-8') as fh:
+        with open(self.root / 'literature' / 'literature.bib', 'a', encoding='utf-8') as fh:
             fh.write('\n@article{neumark2007,\n title={MW}, doi={10.1/NEUM}, year={2007}}\n')
         got = handoff.cards(self.root, self.cfg())
         self.assertEqual(got['neumark2007'][0]['survey'], '20261028_mw')     # resolve したあとのキーでも
@@ -2741,7 +2746,7 @@ class ProjectScaffold(unittest.TestCase):
     def test_init_makes_the_research_tree_and_no_manuscript(self):
         d = self.d / 'p'
         scaffold.init(d, quiet=True)
-        for rel in ('figures/.gitkeep', 'literature.bib',
+        for rel in ('figures/.gitkeep', 'literature/literature.bib',
                     'octavo.config.py', 'AGENTS.md', 'CLAUDE.md', 'README.md', '.gitignore'):
             self.assertTrue((d / rel).exists(), rel)
         # 分析も原稿も、足すまではない
@@ -2809,7 +2814,7 @@ class ProjectScaffold(unittest.TestCase):
                     'docs/example-paper/appendix.md', 'docs/example-paper/main.typ'):
             self.assertTrue((d / rel).exists(), rel)
         self.assertIn('set.seed', (d / 'analysis/analysis.qmd').read_text(encoding='utf-8'))
-        self.assertIn('@article', (d / 'literature.bib').read_text(encoding='utf-8'))
+        self.assertIn('@article', (d / 'literature' / 'literature.bib').read_text(encoding='utf-8'))
         cfg = config.load(d / 'octavo.config.py')
         self.assertEqual(list(cfg.documents), ['example-paper'])
         # 見本の論文の {{…}} は仮の値ですべて埋まり、見本だと分かる印がある
@@ -2852,13 +2857,32 @@ class ProjectScaffold(unittest.TestCase):
         self.assertFalse((d / 'papers/mypaper/main.tex').exists())
         self.assertFalse((d / 'build').exists())
 
+    def test_the_paper_title_comes_from_the_manuscript(self):
+        from octavo.backends.typst import paper_meta
+        d = make_project(self.d / 'pm', docs=(('paper', 'p'),), lang='en', legacy=False)
+        cfg = config.load(d / 'octavo.config.py')
+        ctx = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=self.d, profile='paper')
+        ctx.meta = {'title': 'A [bracketed] title', 'author': ['Ann Lee', 'Bob Ito'],
+                    'institute': 'Kobe University', 'email': 'ann@example.org'}
+        meta = paper_meta(ctx)
+        self.assertIn('title: [A \\[bracketed\\] title]', meta)
+        self.assertIn('author: ([Ann Lee], [Bob Ito], )', meta)
+        self.assertIn('email: "ann@example.org"', meta)
+        ctx.anonymous = True                                      # 匿名審査では渡さない
+        meta = paper_meta(ctx)
+        self.assertIn('author: none', meta)
+        self.assertIn('affiliation: none', meta)
+        self.assertIn('email: none', meta)
+        self.assertIn('anonymous: true', meta)
+
     def test_layout_templates_follow_the_language(self):
         # 体裁は Typst も LaTeX も言語ごとに別のひな型がある
         ja = make_project(self.d / 'ja2', docs=(('paper', 'p'),), lang='ja')
         en = make_project(self.d / 'en2', docs=(('paper', 'p'),), lang='en')
+        # Typst の体裁は表題を原稿から取るので、言語は説明の文で見分ける
         for d, typ_title, tex_title, avoid in (
-                (ja, '論文タイトル', '論文タイトル', 'Title of the Paper'),
-                (en, 'Title of the Paper', 'Paper Title', '論文タイトル')):
+                (ja, '原稿の冒頭', '論文タイトル', 'top of the'),
+                (en, 'top of the', 'Paper Title', '原稿の冒頭')):
             scaffold.new(d / 'octavo.config.py', 'paper', 'p', tex=True, quiet=True)
             typ = (d / 'papers' / 'p' / 'main.typ').read_text(encoding='utf-8')
             tex = (d / 'papers' / 'p' / 'main.tex').read_text(encoding='utf-8')
@@ -3018,19 +3042,19 @@ class ProjectScaffold(unittest.TestCase):
         """枠だけのプロジェクトに見本の原稿を足すと、見本の値・図表・書誌も入る。"""
         d = self.d / 'bare'
         scaffold.init(d, quiet=True)
-        (d / 'literature.bib').write_text('@book{mine2024, title={Mine}}\n', encoding='utf-8')
+        (d / 'literature' / 'literature.bib').write_text('@book{mine2024, title={Mine}}\n', encoding='utf-8')
         scaffold.new(d / 'octavo.config.py', 'slides', 'deck', quiet=True, example=True)
         cfg = config.load(d / 'octavo.config.py')
         vals, _ = values.load(cfg)
         used = values.referenced((d / 'docs/deck/deck.md').read_text(encoding='utf-8'))
         self.assertEqual(used - set(vals), set())
         self.assertTrue((d / 'assets/figures/trend.png').exists())
-        bib = (d / 'literature.bib').read_text(encoding='utf-8')
+        bib = (d / 'literature' / 'literature.bib').read_text(encoding='utf-8')
         self.assertIn('mine2024', bib)                 # 書誌は上書きせず書き足す
         self.assertIn('yamada2020', bib)
         # 2本目は何も足さない（値も書誌も既にある）
         scaffold.new(d / 'octavo.config.py', 'paper', 'p', quiet=True, example=True)
-        self.assertEqual((d / 'literature.bib').read_text(encoding='utf-8').count('yamada2020'), 1)
+        self.assertEqual((d / 'literature' / 'literature.bib').read_text(encoding='utf-8').count('yamada2020'), 1)
         self.assertEqual(sorted(p.name for p in (d / 'analysis').glob('*.qmd')), ['analysis.qmd'])
         # 自分の analysis.qmd があれば、見本はそれを上書きしない
         d2 = self.d / 'mine'
@@ -7644,7 +7668,7 @@ class LectureRequests(unittest.TestCase):
                                     {'key': 'two', 'page': 10, 'shown': '8'}],
                  'octavo-body': [{'page': 3, 'shown': '1'}],
                  'octavo-end': [{'page': 10, 'shown': '8'}]}
-        with unittest.mock.patch.object(extract, '_marks', lambda typ, root, label: marks[label]):
+        with unittest.mock.patch.object(extract, '_marks', lambda typ, root, label: marks.get(label, [])):
             t = extract.page_table(Path('x.typ'), '.', skip={'two'})
         self.assertEqual([(s['key'], s['first'], s['last']) for s in t['sessions']],
                          [('one', 3, 10)])
@@ -8405,6 +8429,409 @@ class MigrateRules(unittest.TestCase):
             self.assertNotIn('.handout-only', after)
         finally:
             shutil.rmtree(d.parent, ignore_errors=True)
+
+
+# =====================================================================
+class OneSentencePerLine(unittest.TestCase):
+    """原稿の1文1行: 文の途中の改行を見つけ（octavo check lint）、つなぐ（octavo fmt）。"""
+
+    TEXT = ('---\ntitle: x\n---\n\n# 見出し\n\n'
+            '一つ目の文です。二つ目の文で、\n途中で折り返している。「かぎ。の中」は切らない。\n'
+            'English text that is wrapped\nacross lines. Another one.\n\n'
+            '- 項目は長くて\n  続きがある。\n- 次\n\n'
+            '| a | b |\n|---|---|\n| 1 | 2 |\n\n```r\nx <- 1\ny\n```\n\n'
+            '結論である。[@a]\n次の文。\n行末に空白2つ  \n強制改行は残す。\n')
+
+    def test_the_breaks_in_the_middle_of_a_sentence_are_found(self):
+        from octavo import rewrap
+        lines = [w.line for w in rewrap.wrapped(self.TEXT)]
+        self.assertEqual(lines, [7, 9, 12])
+
+    def test_joining_and_splitting(self):
+        from octavo import rewrap
+        out = rewrap.rewrap(self.TEXT)
+        self.assertIn('一つ目の文です。\n二つ目の文で、途中で折り返している。\n「かぎ。の中」は切らない。', out)
+        self.assertIn('English text that is wrapped across lines. Another one.', out)
+        self.assertIn('- 項目は長くて続きがある。\n- 次', out)
+        self.assertIn('```r\nx <- 1\ny\n```', out)                  # コードは触らない
+        self.assertIn('| a | b |\n|---|---|\n| 1 | 2 |', out)         # 表も
+        self.assertIn('結論である。[@a]\n次の文。', out)              # 文末の引用の後ろで切れている
+        self.assertIn('行末に空白2つ  \n強制改行は残す。', out)         # 強制改行はつながない
+        self.assertEqual(rewrap.rewrap(out), out)                    # 2度かけても変わらない
+        self.assertEqual(rewrap.wrapped(out), [])
+
+    def test_no_split_only_joins(self):
+        from octavo import rewrap
+        out = rewrap.rewrap(self.TEXT, split=False)
+        self.assertIn('一つ目の文です。二つ目の文で、途中で折り返している。', out)
+
+    def test_lint_reports_them_and_fmt_rewrites(self):
+        from octavo import cli
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        p = make_project(d / 'p', docs=(('paper', 'pp'),), legacy=False, example=False)
+        src = p / 'docs/pp/pp.md'
+        src.write_text(src.read_text(encoding='utf-8') + '\n本文が長くて、\n折り返している。\n',
+                       encoding='utf-8')
+        cfg = config.load(p / 'octavo.config.py')
+        self.assertEqual(len(lint.wrap_issues(cfg)), 1)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['fmt', '-c', str(p / 'octavo.config.py')])
+        self.assertEqual(code, 0)
+        self.assertIn('--apply', out.getvalue())
+        self.assertIn('折り返している。', src.read_text(encoding='utf-8').split('\n本文が長くて、')[1])
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(['fmt', '--apply', '--allow-dirty', '-c', str(p / 'octavo.config.py')])
+        self.assertEqual(code, 0)
+        self.assertIn('本文が長くて、折り返している。', src.read_text(encoding='utf-8'))
+        self.assertEqual(lint.wrap_issues(config.load(p / 'octavo.config.py')), [])
+
+
+class TableHelperGroups(unittest.TestCase):
+    """ov_table(): 群の見出し・字下げ・左揃えの注・size・空の見出し（Python 版。R 版は AnalysisEndToEnd 側）。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def table(self, **kw):
+        args = ', '.join(f'{k}={v!r}' for k, v in kw.items())
+        r = run_helper(self.d, 'ov_table({"": ["a","b","c"], "x": [1,2,3]}, "g", ' + args + ')')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        return {e: (self.d / f'assets/tables/g.{e}').read_text(encoding='utf-8')
+                for e in ('typ', 'tex', 'md')}
+
+    def test_an_empty_heading_is_not_empty_stars(self):
+        got = self.table()
+        self.assertNotIn('[**]', got['typ'])
+        self.assertIn('[], [*x*]', got['typ'])
+        self.assertIn('#set par(justify: false)', got['typ'])
+
+    def test_groups_span_the_columns_and_indent_the_rows(self):
+        got = self.table(groups={'Demand': 0, 'Hiring': 2}, notes='Note.', size=9.5)
+        self.assertIn('table.cell(colspan: 2, align: left)[*Demand*]', got['typ'])
+        self.assertIn('[#h(1em)a]', got['typ'])
+        self.assertIn('#set text(size: 9.5pt)', got['typ'])
+        self.assertIn('align(left, text(size: 8.07pt)[Note.])', got['typ'])
+        self.assertIn('\\multicolumn{2}{l}{\\textbf{Hiring}}', got['tex'])
+        self.assertIn('\\fontsize{9.5}', got['tex'])
+        self.assertIn('| **Demand** |', got['md'])
+
+    def test_a_group_outside_the_rows_is_refused(self):
+        r = run_helper(self.d, 'ov_table({"": ["a"], "x": [1]}, "g", groups={"G": 5})')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn('groups', r.stderr)
+
+    @unittest.skipUnless(shutil.which('Rscript'), 'R が要る')
+    def test_the_r_helper_writes_the_same_tables(self):
+        r = run_helper(self.d, 'ov_table({"": ["a","b","c"], "x": [1.5,2.0,3.0]}, "g", '
+                               'groups={"Demand": 0, "Hiring": 2}, notes="Note.", size=9.5)')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        rd = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, rd, ignore_errors=True)
+        script = (f'Sys.setenv(OCTAVO_ROOT="{rd}")\n'
+                  f'source("{paths.templates_dir() / "analysis/common/analysis/octavo.R"}")\n'
+                  'df <- data.frame(a = c("a","b","c"), x = c(1.5,2,3), stringsAsFactors = FALSE)\n'
+                  'names(df)[1] <- ""\n'
+                  'ov_table(df, "g", notes = "Note.", groups = c(Demand = 1, Hiring = 3), size = 9.5)\n')
+        r = subprocess.run(['Rscript', '-e', script], capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
+        for e in ('typ', 'tex', 'md'):
+            a = (self.d / f'assets/tables/g.{e}').read_text(encoding='utf-8').split('\n', 1)[1]
+            b = (rd / f'assets/tables/g.{e}').read_text(encoding='utf-8').split('\n', 1)[1]
+            self.assertEqual(a.replace('2.000', '2').replace('3.000', '3').replace('1.500', '1.5'),
+                             b.replace('2.000', '2').replace('3.000', '3').replace('1.500', '1.5'), e)
+
+
+class CompileFailureText(unittest.TestCase):
+    def test_the_error_comes_before_the_warnings(self):
+        out = ('warning: unknown font family: hiragino mincho pron\n  ┌─ main.typ:1:1\n'
+               'error: file not found (searched at appendix.typ)\n  ┌─ main.typ:9:12\n  │\n'
+               '9 │ #include "appendix.typ"\n  │          ^^^^^^^^^^^^^^\n\n'
+               'warning: unknown font family: yu mincho\n')
+        got = build.compile_failure(out)
+        self.assertTrue(got.startswith('error: file not found'))
+        self.assertNotIn('hiragino', got)
+
+    def test_without_an_error_the_tail_and_no_font_warnings(self):
+        out = 'some tex log\n' * 3 + 'warning: unknown font family: x\nlast line'
+        got = build.compile_failure(out)
+        self.assertIn('last line', got)
+        self.assertNotIn('unknown font family', got)
+
+
+class LanguagePerDocument(unittest.TestCase):
+    """lang を原稿の冒頭に書けば、その文書だけ別の言語で組まれる。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def test_the_derived_defaults_follow_the_manuscripts_language(self):
+        p = make_project(self.d / 'p', docs=(('paper', 'pp'),), legacy=False, example=False)
+        src = p / 'docs/pp/pp.md'
+        src.write_text(src.read_text(encoding='utf-8').replace('outputs: [pdf]',
+                                                              'outputs: [pdf]\nlang: en-US\n'
+                                                              'reference-section-title: Works cited'),
+                       encoding='utf-8')
+        cfg = config.load(p / 'octavo.config.py')
+        self.assertEqual(cfg['csl_locale'], 'ja-JP')                    # プロジェクトは日本語
+        view = cfg.for_document(cfg.document('pp'))
+        self.assertEqual(view['lang'], 'en')
+        self.assertEqual(view['csl_locale'], 'en-US')
+        self.assertEqual(view['latex_documentclass'], 'article')
+        self.assertEqual(view['reference_section_title'], 'Works cited')   # 書いたものが勝つ
+
+    def test_a_value_written_in_the_config_is_not_replaced(self):
+        p = make_project(self.d / 'p', docs=(('paper', 'pp'),), legacy=False, example=False)
+        cfgp = p / 'octavo.config.py'
+        cfgp.write_text(cfgp.read_text(encoding='utf-8').replace("CONFIG = {", "CONFIG = {\n    'csl_locale': 'ja-JP',", 1),
+                        encoding='utf-8')
+        src = p / 'docs/pp/pp.md'
+        src.write_text(src.read_text(encoding='utf-8').replace('outputs: [pdf]', 'outputs: [pdf]\nlang: en'),
+                       encoding='utf-8')
+        cfg = config.load(cfgp)
+        self.assertEqual(cfg.for_document(cfg.document('pp'))['csl_locale'], 'ja-JP')
+
+    def test_new_paper_takes_a_language(self):
+        p = make_project(self.d / 'p', docs=(), legacy=False, example=False)
+        cfgp = p / 'octavo.config.py'
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(scaffold.new(cfgp, 'paper', 'enp', lang='en', appendix=True, tex=True), 0)
+        text = (p / 'docs/enp/enp.md').read_text(encoding='utf-8')
+        self.assertIn('lang: en', text)
+        self.assertIn('# Abstract', text)
+        self.assertIn('Additional', (p / 'docs/enp/appendix.md').read_text(encoding='utf-8'))
+        self.assertIn('English paper', (p / 'docs/enp/main.typ').read_text(encoding='utf-8'))
+        self.assertIn('English-primary', (p / 'docs/enp/main.tex').read_text(encoding='utf-8'))
+        # 同じ文書に後から足すときは、原稿の lang で選ぶ（--lang なしでも英語）
+        (p / 'docs/enp/main.tex').unlink()
+        with contextlib.redirect_stdout(io.StringIO()):
+            scaffold.new(cfgp, 'paper', 'enp', tex=True)
+        self.assertIn('English-primary', (p / 'docs/enp/main.tex').read_text(encoding='utf-8'))
+        # プロジェクトと同じ言語なら lang は書き足さない
+        with contextlib.redirect_stdout(io.StringIO()):
+            scaffold.new(cfgp, 'paper', 'jap')
+        self.assertNotIn('lang:', (p / 'docs/jap/jap.md').read_text(encoding='utf-8'))
+
+
+class DataTrack(unittest.TestCase):
+    def test_a_file_under_data_is_let_through_gitignore(self):
+        from octavo import cli
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        p = make_project(d / 'p', docs=(), legacy=False, example=False)
+        (p / 'data/raw/sub').mkdir(parents=True, exist_ok=True)
+        (p / 'data/raw/x.csv').write_text('a,b\n', encoding='utf-8')
+        (p / 'data/raw/sub/y.csv').write_text('c\n', encoding='utf-8')
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = cli.main(['data', 'track', 'data/raw/x.csv', 'data/raw/sub/y.csv',
+                             '-c', str(p / 'octavo.config.py')])
+        self.assertEqual(code, 0)
+        gi = (p / '.gitignore').read_text(encoding='utf-8').split('\n')
+        for want in ('!data/raw/x.csv', '!data/raw/sub/', 'data/raw/sub/*', '!data/raw/sub/y.csv'):
+            self.assertIn(want, gi)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(['data', 'track', 'data/raw/x.csv',
+                                       '-c', str(p / 'octavo.config.py')]), 0)
+        self.assertEqual(gi.count('!data/raw/x.csv'), 1)             # 2度書かない
+        if shutil.which('git'):
+            subprocess.run(['git', 'init', '-q'], cwd=str(p), check=True)
+            for f in ('data/raw/x.csv', 'data/raw/sub/y.csv'):
+                r = subprocess.run(['git', 'check-ignore', '-q', f], cwd=str(p))
+                self.assertEqual(r.returncode, 1, f)             # 除外されていない
+            (p / 'data/raw/z.csv').write_text('z\n', encoding='utf-8')
+            self.assertEqual(subprocess.run(['git', 'check-ignore', '-q', 'data/raw/z.csv'],
+                                            cwd=str(p)).returncode, 0)
+
+    def test_a_file_outside_data_is_refused(self):
+        from octavo import cli
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        p = make_project(d / 'p', docs=(), legacy=False, example=False)
+        (p / 'notes.txt').write_text('x', encoding='utf-8')
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(cli.main(['data', 'track', 'notes.txt',
+                                       '-c', str(p / 'octavo.config.py')]), 1)
+
+
+@unittest.skipUnless(HAVE_PANDOC and shutil.which('typst'), 'pandoc と typst が要る')
+class AppendixAfterReferences(unittest.TestCase):
+    """講義ノートの付録: 本文→参考文献→付録（A-1 から）。別の PDF にもなる。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        self.p = make_project(self.d / 'p', docs=(('lecture', 'lec'),), legacy=False, example=True)
+        self.src = self.p / 'docs/lec/lec.md'
+        self.src.write_text(self.src.read_text(encoding='utf-8')
+                            + '\n# 追加の資料 {.appendix}\n\n付録の本文です [@yamada2020]。\n', encoding='utf-8')
+
+    def build(self, *front):
+        text = self.src.read_text(encoding='utf-8')
+        for line in front:
+            text = text.replace('\noutputs:', f'\n{line}\noutputs:', 1)
+        self.src.write_text(text, encoding='utf-8')
+        cfg = config.load(self.p / 'octavo.config.py')
+        r = build.build_one(cfg, cfg.document('lec'), 'typst', citations=False, offline=True,
+                            do_compile=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        return cfg, r
+
+    def text(self, pdf):
+        return subprocess.run(['pdftotext', '-enc', 'UTF-8', '-layout', str(pdf), '-'],
+                              capture_output=True, text=True, encoding='utf-8').stdout
+
+    def pages(self, pdf):
+        out = subprocess.run(['pdfinfo', str(pdf)], capture_output=True, text=True).stdout
+        return int(re.search(r'Pages:\s+(\d+)', out).group(1))
+
+    @unittest.skipUnless(shutil.which('pdftotext') and shutil.which('pdfinfo'), 'poppler が要る')
+    def test_the_appendix_is_a_pdf_of_its_own_with_its_own_page_numbers(self):
+        cfg, r = self.build()
+        main = r.compiled
+        app = main.with_name('lec-appendix.pdf')
+        self.assertTrue(app.is_file(), r.report)
+        self.assertIn('追加の資料', self.text(app))
+        self.assertNotIn('追加の資料', self.text(main.with_suffix('.pdf')).split('目次')[-1][-400:])
+        self.assertIn('A-1', self.text(app))
+        # 本文のほうは付録を含まない
+        self.assertNotIn('付録の本文です', self.text(main))
+
+    @unittest.skipUnless(shutil.which('pdftotext'), 'poppler が要る')
+    def test_one_pdf_when_not_separate(self):
+        cfg, r = self.build('appendix_separate: false')
+        self.assertFalse(r.compiled.with_name('lec-appendix.pdf').exists())
+        text = self.text(r.compiled)
+        self.assertIn('付録の本文です', text)
+        self.assertIn('A-1', text)
+
+    def body_of(self, r):
+        typ = r.outputs[0].read_text(encoding='utf-8')
+        return typ[typ.index('#show: octavo-crossref-rules.with('):]
+
+    def test_the_old_order_is_kept_by_a_setting(self):
+        self.src.write_text(self.src.read_text(encoding='utf-8').replace(
+            '\noutputs:', '\nappendix_after_references: false\noutputs:', 1), encoding='utf-8')
+        cfg = config.load(self.p / 'octavo.config.py')
+        r = build.build_one(cfg, cfg.document('lec'), 'typst', citations=True, offline=True)
+        body = self.body_of(r)
+        self.assertLess(body.index('#show: octavo-appendix'), body.index('<refs>'))
+        self.assertFalse(r.compiled)
+
+    def test_the_references_are_placed_before_the_appendix(self):
+        cfg = config.load(self.p / 'octavo.config.py')
+        r = build.build_one(cfg, cfg.document('lec'), 'typst', citations=True, offline=True)
+        body = self.body_of(r)
+        self.assertLess(body.index('<refs>'), body.index('#show: octavo-appendix'))
+        self.assertEqual(body.count('<refs>'), 1)             # 末尾に2つ目を作らない
+
+    def test_no_references_heading_when_nothing_is_cited(self):
+        self.src.write_text(re.sub(r'\[?@\w+\]?', 'x', self.src.read_text(encoding='utf-8')),
+                            encoding='utf-8')
+        cfg = config.load(self.p / 'octavo.config.py')
+        r = build.build_one(cfg, cfg.document('lec'), 'typst', citations=True, offline=True)
+        self.assertNotIn('<refs>', self.body_of(r))
+
+
+class SlideNumbering(unittest.TestCase):
+    """スライドは節の番号を出さないので、図表は通し番号（プリントも作るなら、その番号に合わせる）。"""
+
+    def make(self, outputs):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        p = make_project(d / 'p', docs=(('slides', 'talk'),), legacy=False, example=False)
+        src = p / 'docs/talk/talk.md'
+        text = src.read_text(encoding='utf-8').replace('outputs: [slides]', f'outputs: [{outputs}]')
+        src.write_text(text, encoding='utf-8')
+        return config.load(p / 'octavo.config.py')
+
+    def test_a_deck_alone_counts_straight_through(self):
+        cfg = self.make('slides')
+        doc = cfg.document('talk')
+        ctx = Ctx(cfg=cfg, backend=be.get('typst-slides'), out_dir=Path('.'), profile=doc.profile,
+                  document=doc)
+        self.assertEqual(ctx.numbering_mode(), 'document')
+
+    def test_numbers_set_in_the_config_win(self):
+        cfg = self.make('slides')
+        cfg._v['crossref_numbering'] = 'section'
+        doc = cfg.document('talk')
+        ctx = Ctx(cfg=cfg, backend=be.get('typst-slides'), out_dir=Path('.'), profile=doc.profile,
+                  document=doc)
+        self.assertEqual(ctx.numbering_mode(), 'section')
+
+    def test_numbered_slides_keep_the_old_default(self):
+        cfg = self.make('slides')
+        cfg._v['slides_numbering'] = '1.1'
+        doc = cfg.document('talk')
+        ctx = Ctx(cfg=cfg, backend=be.get('typst-slides'), out_dir=Path('.'), profile=doc.profile,
+                  document=doc)
+        self.assertEqual(ctx.numbering_mode(), 'section')
+
+    def test_the_crossref_rules_skip_captionless_figures(self):
+        text = (paths.templates_dir() / 'typst/crossref.typ').read_text(encoding='utf-8')
+        self.assertIn('it.caption == none and not it.has("label")', text)
+
+
+class PriorworkConnection(unittest.TestCase):
+    def test_the_json_says_which_collections_connect_the_project(self):
+        from octavo import cli
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        p = make_project(d / 'p', docs=(), legacy=False, example=False)
+        cfgp = p / 'octavo.config.py'
+        cfgp.write_text(cfgp.read_text(encoding='utf-8').replace(
+            "CONFIG = {", "CONFIG = {\n    'zotero_collection': 'Main',\n    'zotero_linked': ['A', 'B'],", 1),
+            encoding='utf-8')
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), unittest.mock.patch.dict(
+                os.environ, {'HOME': str(d), 'ZOTERO_API_KEY': '', 'ZOTERO_USER_ID': ''}):
+            cli.main(['priorwork', '--json', '-c', str(cfgp)])
+        got = json.loads(out.getvalue())['connection']
+        self.assertEqual(got['main'], ['Main'])
+        self.assertEqual(got['linked'], ['A', 'B'])
+        self.assertFalse(got['zotero_key'])
+        self.assertFalse(got['inbox_exists'])
+
+
+class TidierProject(unittest.TestCase):
+    """文献は literature/ にまとめる。writing は notes/writing/（前からの writing/ も読む）。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+
+    def test_a_new_project_keeps_the_bib_in_literature(self):
+        scaffold.init(self.d / 'p', quiet=True)
+        self.assertTrue((self.d / 'p/literature/literature.bib').is_file())
+        self.assertFalse((self.d / 'p/literature.bib').exists())
+        cfg = config.load(self.d / 'p/octavo.config.py')
+        self.assertEqual(Path(cfg['bib_file']).relative_to(cfg.root).as_posix(), 'literature/literature.bib')
+
+    def test_an_older_project_keeps_working_with_the_bib_at_the_root(self):
+        p = make_project(self.d / 'p', docs=(), example=False)           # legacy: ルートの literature.bib
+        (p / 'octavo.config.py').write_text(
+            (p / 'octavo.config.py').read_text(encoding='utf-8').replace("    'bib_file': 'literature.bib',      #", "    #"),
+            encoding='utf-8')
+        cfg = config.load(p / 'octavo.config.py')
+        self.assertEqual(Path(cfg['bib_file']), (p / 'literature.bib').resolve())    # 既定のまま
+
+    def test_writing_in_notes_wins_over_the_older_folder(self):
+        from octavo import writing
+        root = self.d / 'p'
+        for where, text in (('writing', '## old\n'), ('notes/writing', '## new\n## more\n')):
+            f = root / where / 'rules' / 'style.md'
+            f.parent.mkdir(parents=True)
+            f.write_text(text, encoding='utf-8')
+        (root / 'writing/rules/legacy.md').write_text('## only old\n', encoding='utf-8')
+        with unittest.mock.patch.object(writing, 'user_dir', lambda: self.d / 'nowhere'):
+            got = writing.collect(root)['rules']
+        by = {Path(r['path']).name: r for r in got}
+        self.assertEqual(set(by), {'style.md', 'legacy.md'})
+        self.assertEqual(by['style.md']['entries'], 2)                    # notes/writing/ のほう
+        self.assertIn('notes', by['style.md']['path'])
 
 
 if __name__ == '__main__':

@@ -367,5 +367,19 @@
   "Request": "依頼",
   "done ({0})": "済み（{0}）",
   "declined ({0})": "断られた（{0}）",
-  "received": "受け付け済み"
+  "received": "受け付け済み",
+  "Priorwork workspace: not set": "Priorwork のワークスペース: 未設定です",
+  "click to choose": "クリックして選びます",
+  "Requests go to the Priorwork workspace you choose here; until then they are copied to the clipboard": "依頼は、ここで選んだ Priorwork のワークスペースへ送られます。選ぶまではクリップボードにコピーされます",
+  "Priorwork workspace": "Priorwork のワークスペース",
+  "{0} has no .priorwork/ folder — is it a Priorwork workspace?": "{0} に .priorwork/ フォルダがありません。Priorwork のワークスペースでしょうか",
+  "Main Zotero collection (the .bib)": "主の Zotero コレクション（.bib）",
+  "not set": "未設定",
+  "Zotero web API key: not set": "Zotero のウェブ API キー: 未設定です",
+  "needed when Zotero is not running on this machine": "Zotero がこのマシンで動いていないときに必要です",
+  "main collection": "主のコレクション",
+  "linked collection": "紐づけたコレクション",
+  "not linked": "まだ紐づいていません",
+  "no workspace set": "ワークスペース未設定",
+  "Not connected to a Priorwork workspace yet": "Priorwork のワークスペースにはまだつながっていません"
 }

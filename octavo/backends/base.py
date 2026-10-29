@@ -56,6 +56,7 @@ class Ctx:
     anonymous: bool = False                         # 匿名審査用に組むか
     counts: dict = field(default_factory=dict)      # 論文の1ページ目に出す分量（article.typ）
     appendix_apart: bool = False                    # 論文の付録を別の PDF に組むか
+    has_inline_appendix: bool = False               # 原稿の中に `{.appendix}` の見出しがあるか
     # 相互参照: ラベル -> crossref.Item（この原稿と、付録／ほかの回の分も）。
     # local は、この出力の中で組版側が参照を張れるラベル（論文なら本文と付録）
     crossrefs: dict = field(default_factory=dict)
@@ -178,6 +179,13 @@ class Ctx:
 
     def numbering_mode(self) -> str:
         from ..config import numbering
+        if not self.cfg['crossref_numbering'] and self.backend.is_slides \
+                and not self.cfg['slides_numbering']:
+            # 節の見出しに番号を出さないスライドで「図4.1」と出ても、4 が何か聞き手に分からない。
+            # プリントも作る文書は、プリントの番号に合わせる（そちらは節ごと）
+            from ..build import fixes_numbers
+            if self.document is None or not fixes_numbers(self.document, self.backend):
+                return 'document'
         return numbering(self.cfg['crossref_numbering'], self.profile)
 
     @property

@@ -233,6 +233,7 @@ octavo new analysis model --engine python   # the same, written in Python (bring
 octavo new paper example-paper      # docs/example-paper/: example-paper.md and the layout main.typ
 octavo new paper example-paper --appendix   # add appendix.md (to an existing paper too)
 octavo new paper example-paper --tex        # add main.tex for LaTeX (to an existing paper too)
+octavo new paper english-paper --lang en    # a paper in English inside a Japanese project (or the other way round)
 octavo new slides example-talk      # docs/example-talk/example-talk.md
 octavo new lecture example-lecture  # docs/example-lecture/example-lecture.md
 octavo new poster example-poster    # docs/example-poster/example-poster.md
@@ -256,7 +257,8 @@ the same kind of document. What a document makes is decided at the top of the ma
 ```
 study/
   octavo.config.py   the project's settings
-  literature.bib     the bibliography, exported from your reference manager
+  literature/        literature.bib (the bibliography, exported from your reference manager) and,
+                     in priorwork/, what Priorwork delivers
   AGENTS.md          the project's working rules for AI assistants (Claude Code, GitHub Copilot, Codex, Antigravity read it)
   CLAUDE.md          one line that points Claude Code at AGENTS.md
   README.md          a few lines for you to finish
@@ -379,7 +381,10 @@ $$ {#eq-model}
 - A paper numbers straight through (Figure 1, Figure 2; in the appendix Figure A1, A2); lecture
   notes, slides and posters number by section (Figure 3.2 is the second figure of Section 3).
   `crossref_numbering: 'section'` or `'document'` in `octavo.config.py` or at the top of a
-  manuscript chooses either way.
+  manuscript chooses either way. A deck of slides whose sections show no number counts straight
+  through too (a "Figure 4.1" would leave the audience asking what 4 is), unless the same
+  document also makes the A4 handout: then the deck uses the handout's numbers.
+- A figure or table with no caption and no label is not numbered or counted.
 - Numbered: headings (except `{.unnumbered}`), figures and tables with a caption, and
   equations with a label.
 - A heading `# Title {.appendix}` starts an appendix within the file (A, B, …).
@@ -511,7 +516,10 @@ A short table can be a Markdown table in the manuscript. Two other kinds are pla
 caption line alone — `: Caption {#tbl-name}` with no table next to it:
 
 - **From the analysis**: `ov_table(tab, "summary")` writes `assets/tables/summary.*`;
-  the manuscript has `: Descriptive statistics {#tbl-summary}`.
+  the manuscript has `: Descriptive statistics {#tbl-summary}`. `groups = c(Demand = 1, Hiring = 6)`
+  puts a bold heading row across the columns before rows 1 and 6 (in Python, `{'Demand': 0,
+  'Hiring': 5}`, counting from 0) and indents the rows under it; `size = 9.5` sets the type size
+  in points; the note under the table is left-aligned.
 - **Made by hand**: `octavo new table compare` writes `tables/compare.csv`; fill it in (in
   VS Code with **Edit as a Table**, or in Excel) and write `: The two schemes {#tbl-compare}`.
   The first row is the heading; an empty heading cell to the right of a filled one is merged
@@ -593,9 +601,9 @@ Each goes on a line of its own:
 ### 3.8 Writing rules and a phrase bank for your AI assistant
 
 Rules on how you write, and a bank of phrasings you trust, can be handed to the AI assistant
-that helps with the prose. They are Markdown files: `writing/rules/*.md` and
-`writing/phrases/*.md` in the project, or in `~/.config/octavo/writing/` for every project (a
-project file of the same name wins). `octavo writing` lists them, and the project's `AGENTS.md`
+that helps with the prose. They are Markdown files: `notes/writing/rules/*.md` and
+`notes/writing/phrases/*.md` in the project (an older `writing/` folder is read too), or in
+`~/.config/octavo/writing/` for every project (a project file of the same name wins). `octavo writing` lists them, and the project's `AGENTS.md`
 tells the assistant to read them before it writes or revises prose, to follow the rules and to
 prefer the phrase bank's phrasings. Octavo only finds them; refining them is yours (in another
 repository, say).
@@ -662,7 +670,8 @@ A new `.qmd` already loads its helper: `octavo.R` for R, `octavo_helper.py` for 
 
 - `ov_figure(x, name, width, height)` takes a ggplot or a function that draws; it writes the
   `.pdf` and the `.png`.
-- `ov_table(x, name, notes, align)` takes a data frame; the caption belongs to the manuscript.
+- `ov_table(x, name, notes, align, groups, indent, size)` takes a data frame; the caption belongs
+  to the manuscript.
 - `ov_pval(p)` formats a p-value (`.023`, `< .001`).
 - `ov_palette(3)` gives colours that stay distinct for every kind of colour vision;
   `ov_tint(col, 0.6)` lightens one for an area with text on it; `ov_scale_colour_cud()` /
@@ -797,7 +806,8 @@ Octavo only reads files, so a Julia or other `.qmd` works if it writes
 ## 5. Citations
 
 Export your library from your reference manager (Zotero or any other) as BibTeX or BibLaTeX
-to `literature.bib`. With Zotero, Better BibTeX's "Keep updated" export keeps it current and
+to `literature/literature.bib` (older projects keep it at `literature.bib`; `bib_file` in
+`octavo.config.py` says which). With Zotero, Better BibTeX's "Keep updated" export keeps it current and
 the keys stable. **Octavo never edits the `.bib`.**
 
 If Zotero runs on the same machine, `octavo bib pull` can fetch it too. Name the collection to fetch
@@ -815,7 +825,7 @@ those Better BibTeX pinned (Zotero's Citation Key), so pin the keys in Better Bi
 
 ```bash
 octavo bib collections    # the collections in Zotero
-octavo bib pull           # fetch literature.bib from zotero_collection
+octavo bib pull           # fetch the .bib (bib_file) from zotero_collection
 octavo bib login --user-id 1234567   # give the web API key (on stdin)
 ```
 
@@ -918,8 +928,10 @@ the joining of several authors is an approximation of the style's rules, so read
 
 ## 6. Papers: from draft to submission
 
-A paper is `docs/<name>/<name>.md` plus `main.typ`, **the layout you keep by hand** (title,
-authors, and whatever a journal wants). `octavo build` writes the body into `build/pdf/<name>/`
+A paper is `docs/<name>/<name>.md` plus `main.typ`, **the layout you keep by hand** (whatever a
+journal wants). The title, authors, affiliation, e-mail and date come from the top of the
+manuscript (`title:`, `author:`, `institute:`, `email:`, `date:`); `--anonymous` leaves out the
+authors, affiliation and e-mail. `octavo build` writes the body into `build/pdf/<name>/`
 and `main.typ` typesets it; `--compile` makes the PDF (`build/pdf/<name>/main.pdf`, with a copy
 at `build/pdf/<name>.pdf`).
 
@@ -930,19 +942,22 @@ octavo build example-paper --to word            # Word
 
 **The layout** follows LaTeX: jsarticle for a Japanese paper, article (11pt) for an English one
 — the page, the headings, the title block and the abstract. It lives in `article.typ`, which
-`octavo build` writes beside `main.typ` every time, so `main.typ` holds only the title and the
-authors. Page 1 shows the length: the words (English) or characters (Japanese) of the text
+`octavo build` writes beside `main.typ` every time, so `main.typ` stays nearly empty (writing
+`title:` or `author:` in its `octavo-article.with(…)` overrides the manuscript's). Page 1 shows the length: the words (English) or characters (Japanese) of the text
 without and with the notes, the abstract's, and the number of figures and tables
 (`counts: none` in `main.typ` hides it). To suit a journal, add `set` / `show` rules after
 `#show: octavo-article.with(…)` in `main.typ`, or copy the layout with
-`octavo template copy paper/article.typ`. A paper made before this keeps its own `main.typ`;
-`octavo template diff paper/ja/main.typ` (or `en`) shows the new one to copy over.
+`octavo template copy paper/article.typ`. A paper made before this keeps its own `main.typ` and
+looks as before. To move it to the new layout, rename `main.typ` (to `main.typ.old`, say) and run
+`octavo new paper <name>`: it adds the new `main.typ` and leaves the manuscript alone. Anything
+you had added for a journal goes after `#show: octavo-article.with(…)`.
 
 **The appendix** (`octavo new paper <name> --appendix` adds `appendix.md`) is typeset as its own
 PDF, `build/pdf/<name>-appendix.pdf`, whenever there is one. Its sections are A, B, …, its figures
 and tables A1, A2, …, and references between the text and the appendix are written as numbers
 ("Table A1"). To put the appendix after the text in one PDF instead, write
-`appendix_separate: false` in `octavo.config.py` or at the top of the manuscript.
+`appendix_separate: false` in `octavo.config.py` or at the top of the manuscript. Either way the
+appendix's pages are numbered A-1, A-2, … from 1.
 
 ### 6.1 Before you submit
 
@@ -992,7 +1007,8 @@ octavo bundle example-paper    # submission-example-paper.zip: the files, flatte
 - **Revisions**: `octavo check values --diff example-paper-v1-submitted` shows which numbers moved
   since that version.
 - **Data**: `octavo data hash` records a fingerprint of `data/`; `octavo data status` says
-  whether anything changed since.
+  whether anything changed since. `data/raw/` and `data/derived/` are kept out of git; for data
+  you typed in by hand, `octavo data track data/raw/<file>` lets git take that one file.
 - **Replication package**: `octavo bundle --replication` collects the analysis, the values,
   the figures and tables, the config and the fingerprints (raw data only with
   `--with-raw-data`).
@@ -1268,14 +1284,16 @@ octavo writing                                                       the writing
 octavo check [--strict] [--anonymous]                                everything before you submit
 octavo check values [--unused] [--diff [ref]]                        cross-check {{...}} against the analysis
 octavo check cites [--list] [--unused]                               citation keys against the .bib
-octavo check lint                                                    results typed into the text, nested lists out of line
+octavo check lint                                                    results typed into the text, nested lists out of line, lines broken mid-sentence
+octavo fmt [name] [--apply]                                          put the manuscripts one sentence to a line (shows the change; --apply writes it)
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
 octavo review returned.docx                                          a coauthor's tracked changes
 octavo release <document> <label>                                    tag, and the PDF to a GitHub Release
 octavo data hash|status                                              fingerprints of data/
+octavo data track <file>                                             let git take a file under data/
 octavo csl get|list|which [ID]                                       citation styles
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--example] [--engine r|python] [--env]
+octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]                       templates (copy word: a Word style file to edit)
 octavo env                                                           the project's R and Python packages (.venv, renv)
 octavo setup [--with-tex] [--check] [--r-editor]                     install or update the tools

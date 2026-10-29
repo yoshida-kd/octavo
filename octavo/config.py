@@ -169,6 +169,7 @@ DEFAULTS: dict = {
     # 論文の付録を別の PDF（<名前>-appendix.pdf）にするか。False なら本文の続きに付ける
     #（論文の体裁 main.typ が article.typ を使うとき）
     'appendix_separate': True,
+    'appendix_after_references': True,   # 講義ノートの付録を参考文献の後ろに（False で前に）
     'east_asian_line_breaks': True,
 
     # ---- 見出し・目次（profile の既定を上書きしたいときだけ）--------------
@@ -307,9 +308,22 @@ DOC_KEYS = ('csl', 'outputs', 'targets', 'sessions', 'toc', 'word_limit', 'char_
             'japanese_citation_form',
             'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows', 'poster_font',
             'slides_select', 'poster_select', 'slides_bibliography', 'crossref_numbering',
-            'appendix_separate')
+            'appendix_separate', 'appendix_after_references', 'lang', 'csl_locale',
+            'reference_section_title')
 JA_FORMS = ('standard', 'fullwidth', 'period')
 SLIDE_BIB = ('slide', 'off', 'sheet', 'both')
+
+
+LANG_DERIVED = ('latex_documentclass', 'csl_locale', 'reference_section_title')
+
+
+def lang_defaults(lang: str, keys) -> dict:
+    """言語（ja | en）から決まる既定値。"""
+    ja = lang == 'ja'
+    table = {'latex_documentclass': 'ltjsarticle' if ja else 'article',
+             'csl_locale': 'ja-JP' if ja else 'en-US',
+             'reference_section_title': '参考文献' if ja else 'References'}
+    return {k: table[k] for k in keys}
 
 
 def numbering(value, profile: str) -> str:
@@ -331,7 +345,8 @@ LIST_DOC_KEYS = ('poster_grid', 'poster_rows')
 INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit',
                 'first_section')
 BOOL_DOC_KEYS = ('slides_running_header', 'slides_section_slides',
-                 'citations_by_language', 'sessions', 'toc', 'appendix_separate')
+                 'citations_by_language', 'sessions', 'toc', 'appendix_separate',
+                 'appendix_after_references')
 
 
 def doc_setting_typos(src: Path, text: str | None = None) -> list:
@@ -373,6 +388,9 @@ def doc_settings(src: Path, text: str | None = None) -> dict:
             return {}
     meta, _ = mdlib.split_front_matter(text)
     meta = renamed(meta)
+    # `reference-section-title:` のようにハイフンで書いてもよい（pandoc の鍵の書き方）
+    meta = {**{(k.replace('-', '_') if k.replace('-', '_') in DOC_KEYS else k): v
+               for k, v in meta.items()}}
     out: dict = {}
     for k in DOC_KEYS:
         if k not in meta:
@@ -393,6 +411,11 @@ def doc_settings(src: Path, text: str | None = None) -> dict:
             out[k] = [str(x).strip() for x in v]           # [1, 2, 1] の並びはそのまま
             continue
         s = str(v).strip()
+        if k == 'lang':
+            # `en-US` や `ja_JP` も言語の頭 2 字で読む。ja / en 以外は pandoc の鍵として残るだけ
+            if s[:2].lower() in ('ja', 'en'):
+                out[k] = s[:2].lower()
+            continue
         if k == 'slides_bibliography':
             # 「none」は「出さない」と読む（ほかの鍵の「無し = プロジェクトの値」と違う）
             out[k] = slide_bib(s) if s else None
@@ -498,12 +521,9 @@ class Config:
                 v[k] = (root / v[k]).resolve()
         v['out_dirs'] = {k: (root / p).resolve() for k, p in v['out_dirs'].items()}
 
-        if v['latex_documentclass'] is None:
-            v['latex_documentclass'] = 'ltjsarticle' if v['lang'] == 'ja' else 'article'
-        if v['csl_locale'] is None:
-            v['csl_locale'] = 'ja-JP' if v['lang'] == 'ja' else 'en-US'
-        if v['reference_section_title'] is None:
-            v['reference_section_title'] = '参考文献' if v['lang'] == 'ja' else 'References'
+        # 言語から決まる値のうち、設定に書いていないもの（原稿ごとに lang を変えたとき決め直す）
+        self._derived = frozenset(k for k in LANG_DERIVED if v[k] is None)
+        v.update(lang_defaults(v['lang'], self._derived))
 
         self._v = v
         self._validate()
@@ -530,6 +550,9 @@ class Config:
         own = doc_settings(doc.src)
         view = copy.copy(self)
         view._v = {**self._v, **own}
+        if 'lang' in own and own['lang']:
+            # 原稿の言語に合わせて、プロジェクトの設定に書いていない派生値を決め直す
+            view._v.update(lang_defaults(own['lang'], self._derived - set(own)))
         view.doc_explicit = frozenset(own)
         try:
             view._validate()

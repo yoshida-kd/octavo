@@ -6,7 +6,8 @@
 
 置き場所は2つ。同じ名前のファイルがあればプロジェクトのほうを使う:
 
-  1. プロジェクト   <プロジェクト>/writing/
+  1. プロジェクト   <プロジェクト>/notes/writing/
+                    （前からの <プロジェクト>/writing/ も読む。同じ名前なら notes/ のほう）
   2. 自分の全部     $XDG_CONFIG_HOME/octavo/writing/（既定 ~/.config/octavo/writing/）
 
 その下に rules/*.md（ルール）と phrases/*.md（フレーズバンク）。どちらも Markdown で、
@@ -41,7 +42,9 @@ def files(root: Path) -> dict:
     out: dict = {}
     for kind in KINDS:
         found: dict = {}
-        for where, base in (('user', user_dir()), ('project', Path(root) / 'writing')):
+        # 後ろのものが前のものを上書きする: 自分の全部 < 前からの writing/ < notes/writing/
+        for where, base in (('user', user_dir()), ('project', Path(root) / 'writing'),
+                            ('project', Path(root) / 'notes' / 'writing')):
             d = base / kind
             if d.is_dir():
                 for p in sorted(d.glob('*.md')):

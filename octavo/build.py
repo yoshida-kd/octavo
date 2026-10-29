@@ -109,6 +109,9 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
     abstract = ''
     if ctx.profile_opt('abstract'):
         abstract, body = mdlib.split_abstract(body)
+        # コメントだけの要旨は空と同じ（見出しだけが出るのを防ぐ）
+        if not mdlib.strip_comments(abstract).strip():
+            abstract = ''
     if doc.profile == 'paper' and not doc.derived:
         # 旧来の論文だけ: 最初の見出しより前と、1つだけの `# 題` を捨てる。
         # docs/<名前>/ の文書は題を冒頭の title: にだけ書く約束なので、見出しはすべて本文
@@ -179,8 +182,9 @@ def handout_numbers(cfg, doc, ctx: Ctx) -> dict:
     body = xref.autolabel(body, ctx.envs)
     keep = {'print', 'doc', 'typst', 'pdf', doc.profile} | ({'anonymous'} if ctx.anonymous else set())
     body = mdlib.filter_divs(body, keep)
-    return xref.number(body, ctx.numbering_mode(), start=ctx.first_section,
-                       envs=ctx.envs).labels()
+    # プリントの番号なので、デッキ自身の数え方（ctx.numbering_mode()）ではなく文書の既定で数える
+    return xref.number(body, confmod.numbering(cfg['crossref_numbering'], doc.profile),
+                       start=ctx.first_section, envs=ctx.envs).labels()
 
 
 def marked_only(cfg, backend) -> tuple | None:
@@ -290,7 +294,9 @@ def apply_crossrefs(body: str, doc, backend, ctx: Ctx) -> tuple:
         if h and not appendix_started and xref.appendix_heading(h.group('attr')):
             # `# 論点・事例集 {.appendix}` — ここから付録（A, B, …）
             appendix_started = True
-            lines[i] = backend.fmt_appendix_start(ctx) + '\n' + lines[i]
+            ctx.has_inline_appendix = True
+            lines[i] = (references_before_appendix(body, h, backend, ctx)
+                        + backend.fmt_appendix_start(ctx) + '\n' + lines[i])
     for start, open_, close, kind in groups:
         lines[close] = backend.fmt_figure_note('close', kind, ctx)
         lines[open_] = backend.fmt_figure_note('middle', kind, ctx)
@@ -323,6 +329,28 @@ def _number_in_text(line: str, it, ctx: Ctx) -> str:
                       lambda m: m.group(1) + xref.caption_head('tbl', it.number, ctx.lang),
                       line, count=1)
     return line
+
+
+def references_before_appendix(body: str, heading, backend, ctx: Ctx) -> str:
+    """講義ノートの付録（`{.appendix}` の見出し）の手前に置く、参考文献の見出しと置き場所。
+
+    付録を参考文献の後ろに置くため（appendix_after_references）。置き場所を自分で書くので、
+    pandoc は末尾に書誌を足さない。何も引いていない・引用を解決しない組み方・原稿が
+    すでに `{#refs}` を持つときは何も足さない。
+    """
+    if not (ctx.is_handout and ctx.cfg['appendix_after_references']):
+        return ''
+    opts = ctx.build_opts
+    if not opts.get('citations', True) or ctx.backend.name == 'typst' \
+            and ctx.cfg['typst_citations'] == 'native':
+        return ''
+    if re.search(r'\{#refs\}', body):
+        return ''
+    cites = bool(mdlib.cited_keys(body, xref.kinds_of(ctx.envs))) or bool(ctx.meta.get('nocite'))
+    if not cites:
+        return ''
+    title = ctx.cfg['reference_section_title']
+    return f"{heading.group('hash')} {title} {{.unnumbered}}\n\n::: {{#refs}}\n:::\n\n"
 
 
 def sibling_crossrefs(cfg, doc, backend, ctx: Ctx, appendix: bool) -> None:
@@ -698,7 +726,7 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                                    text=True, encoding='utf-8', errors='replace')
                 if r.returncode != 0:
                     res.ok = False
-                    tail = '\n'.join((r.stdout + r.stderr).strip().split('\n')[-25:])
+                    tail = compile_failure(r.stdout + r.stderr)
                     res.report.append(f'{tag("typeset")} ' + t('failed:') + '\n' + tail)
                 else:
                     pdf = backend.compiled_pdf(ctx, out_path)
@@ -729,6 +757,28 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
                         shutil.copyfile(res.compiled, named)
                         res.outputs.append(named)
     return res
+
+
+def compile_failure(output: str, limit: int = 25) -> str:
+    """組版が失敗したときに見せる分。`error:` で始まる塊（その後ろの `warning:` までの
+    行）を先に出す。末尾だけを切ると、本当のエラーが長い警告の前に隠れて見えない。
+    `error:` がなければ（TeX などの出力）従来どおり末尾。"""
+    lines = output.strip().split('\n')
+    blocks, cur = [], None
+    for line in lines:
+        if line.startswith('error:'):
+            cur = [line]
+            blocks.append(cur)
+        elif line.startswith('warning:'):
+            cur = None
+        elif cur is not None:
+            cur.append(line)
+    if not blocks:
+        # 他の OS のフォント（Hiragino など）の警告は Linux では毎回出て、本題を埋める
+        kept = [l for l in lines if not l.startswith('warning: unknown font family')]
+        return '\n'.join((kept or lines)[-limit:])
+    out = '\n'.join('\n'.join(b).rstrip() for b in blocks)
+    return '\n'.join(out.split('\n')[:limit * 2])
 
 
 def slide_bib_mode(cfg, doc) -> str:

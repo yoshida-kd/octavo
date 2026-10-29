@@ -54,10 +54,12 @@ USAGE_LINES = (
     ('octavo check values', 'cross-check {{…}} against assets/values/'),
     ('octavo check values --diff [ref]', 'what moved since last time (or a git version)'),
     ('octavo check lint', 'find results typed into the manuscript'),
+    ('octavo fmt [name] [--apply]', 'put the manuscripts one sentence to a line'),
     ('octavo check', 'check everything before submitting'),
     ('octavo bundle [paper name]', 'repackage it for a submission system'),
     ('octavo review returned.docx', "list a coauthor's tracked changes"),
     ('octavo data hash|status', 'record / check the data fingerprints'),
+    ('octavo data track data/raw/x.csv', 'let git take a file under data/ (it is ignored by default)'),
     ('octavo check cites', 'cross-check citation keys against the .bib'),
     ('octavo bib pull --collection X', 'fetch the .bib from Zotero'),
     ('octavo csl get apa', "fetch a journal's style (CSL)"),
@@ -555,7 +557,14 @@ def cmd_priorwork(args) -> int:
     rows = handoff.read(Path(cfg.root), cfg)
     if args.action == 'list':
         if args.json:
-            print(_json.dumps({'inbox': str(handoff.inbox(cfg.root)), 'surveys': rows}, ensure_ascii=False))
+            # connection: どの Zotero コレクションでこのプロジェクトと Priorwork がつながるか
+            # （キーそのものは出さない。あるかどうかだけ）
+            conn = {'main': handoff._names(cfg['zotero_collection']),
+                    'linked': handoff._names(cfg['zotero_linked']),
+                    'zotero_key': bool(zoteromod.credentials()[0]),
+                    'inbox_exists': handoff.inbox(cfg.root).is_dir()}
+            print(_json.dumps({'inbox': str(handoff.inbox(cfg.root)), 'surveys': rows,
+                               'connection': conn}, ensure_ascii=False))
             return 0
         if not rows:
             print(t('nothing from Priorwork yet ({dir})', dir=cfg.rel(handoff.inbox(cfg.root))))
@@ -675,8 +684,8 @@ def cmd_writing(args) -> int:
         print(_json.dumps(got, ensure_ascii=False))
         return 0
     if not any(got.values()):
-        print(t('no writing rules or phrase bank yet. Put Markdown files in writing/rules/ and '
-                'writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
+        print(t('no writing rules or phrase bank yet. Put Markdown files in notes/writing/rules/ and '
+                'notes/writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
         return 0
     for kind, head in (('rules', t('Writing rules (follow them):')),
                        ('phrases', t('Phrase bank (prefer these phrasings):'))):
@@ -809,6 +818,54 @@ def cmd_lint(args) -> int:
     return lintmod.run(cfg)
 
 
+def cmd_fmt(args) -> int:
+    """原稿を1文1行に直す。既定は差分を見せるだけ、--apply で書く。"""
+    import difflib
+    from . import rewrap
+    from .relocate import _git
+    from .syntax import write_like
+    cfg = configmod.load(args.config)
+    names = set(args.names or [])
+    if names:
+        unknown = names - {n for n, _p, _a in cfg.sources()}
+        if unknown:
+            print(t('no document {names}', names=', '.join(sorted(unknown))), file=sys.stderr)
+            return 2
+    todo = []
+    for name, src, _app in cfg.sources():
+        if names and name not in names:
+            continue
+        old = mdlib.read(src)
+        new = rewrap.rewrap(old, split=not args.no_split)
+        if new != old:
+            todo.append((src, old, new))
+    if not todo:
+        print(t('every manuscript is already one sentence to a line'))
+        return 0
+    for src, old, new in todo:
+        rel = cfg.rel(src)
+        print('\n'.join(difflib.unified_diff(old.split('\n'), new.split('\n'), rel, rel + ' (fmt)',
+                                             lineterm='', n=0)))
+    if not args.apply:
+        print('\n' + t('nothing was changed (add --apply to rewrite {n} {n|file|files})',
+                       n=len(todo)))
+        return 0
+    root = Path(cfg.root)
+    in_git = _git(root, 'rev-parse', '--is-inside-work-tree').returncode == 0
+    if in_git and not args.allow_dirty:
+        dirty = _git(root, 'status', '--porcelain', '--', *[str(s) for s, _o, _n in todo]).stdout.strip()
+        if dirty:
+            print(t('there are uncommitted changes in the manuscripts — commit them first, so '
+                    'the rewrite is a change of its own') + '\n' + dirty + '\n\n'
+                  + t('(or add --allow-dirty to rewrite them as they are)'))
+            return 1
+    for src, old, new in todo:
+        write_like(Path(src), new, Path(src).read_bytes())
+    print(t('rewrote {n} {n|file|files} — git diff shows the change, git checkout undoes it',
+            n=len(todo)))
+    return 0
+
+
 def cmd_check(args) -> int:
     # 1つの検査だけ: octavo check values|cites|lint（前からの octavo values / checkbib / lint と同じ）
     part = getattr(args, 'part', None)
@@ -852,7 +909,7 @@ def cmd_review(args) -> int:
 
 def cmd_data(args) -> int:
     cfg = configmod.load(args.config)
-    return dataset.run(cfg, args.action)
+    return dataset.run(cfg, args.action, args.files)
 
 
 def cmd_checkbib(args) -> int:
@@ -1151,7 +1208,7 @@ def _env_after(config: Path) -> int:
 
 def cmd_new(args) -> int:
     kw = dict(force=args.force, example=args.example, appendix=args.appendix, tex=args.tex,
-              engine=args.engine)
+              engine=args.engine, lang=args.lang)
     if not args.json:
         rc = scaffold.new(Path(args.config), args.kind, args.name, **kw)
         if rc == 0 and args.env and args.kind == 'analysis':
@@ -1478,6 +1535,17 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_lint)
 
+    p = with_config(sub.add_parser('fmt', help=t('put the manuscripts one sentence to a line')))
+    p.add_argument('names', nargs='*', help=t('document names (default: every manuscript)'))
+    p.add_argument('--apply', action='store_true',
+                   help=t('rewrite the files (without it, only the changes are shown)'))
+    p.add_argument('--no-split', action='store_true',
+                   help=t('only join lines broken mid-sentence; do not break a Japanese line '
+                          'after each 。'))
+    p.add_argument('--allow-dirty', action='store_true',
+                   help=t('go ahead even with uncommitted changes'))
+    p.set_defaults(func=cmd_fmt)
+
     p = with_config(sub.add_parser('check', help=t('check everything before submitting')))
     p.add_argument('part', nargs='?', choices=['values', 'cites', 'lint'],
                    help=t('just one of the checks: values ({{…}} against the analysis), cites '
@@ -1519,8 +1587,9 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('data', help=t('data fingerprints')))
     p.add_argument('action', nargs='?', default='status',
-                   choices=['status', 'hash'],
-                   help=t('status=check against the record (default) / hash=write the record'))
+                   choices=['status', 'hash', 'track'],
+                   help=t('status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv)'))
+    p.add_argument('files', nargs='*', help=t('track: the files to put in git'))
     p.set_defaults(func=cmd_data)
 
     p = with_config(sub.add_parser('checkbib', help=t('cross-check citation keys against the .bib')))
@@ -1616,6 +1685,8 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('paper: add appendix.md as well (also to an existing paper)'))
     p.add_argument('--tex', action='store_true',
                    help=t('paper: add main.tex as well, for LaTeX (also to an existing paper)'))
+    p.add_argument('--lang', choices=('ja', 'en'), default=None,
+                   help=t("the language this document is written in (default: the manuscript's own lang, else the project's); it picks the template, and a different one is written to the manuscript's front matter"))
     p.add_argument('--engine', choices=scaffold.ENGINES, default='r',
                    help=t('analysis: the language of the .qmd — r (default) or python (brings octavo_helper.py and what Quarto needs to run Python)'))
     p.add_argument('--env', action='store_true',

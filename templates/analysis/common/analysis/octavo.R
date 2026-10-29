@@ -377,31 +377,84 @@ ov_align <- function(x, align) {
   vapply(x, function(col) if (is.numeric(col)) "r" else "l", character(1))
 }
 
+# 群の見出し: c(Demand = 1, Hiring = 6) は「1 行目の前に Demand、6 行目の前に Hiring」。
+# list(Demand = 1, ...) でもよい。返すのは list(at = 行番号, label = 見出し)
+ov_groups <- function(groups, n) {
+  if (is.null(groups) || length(groups) == 0L) return(NULL)
+  at <- as.integer(unlist(groups))
+  lab <- names(groups)
+  if (is.null(lab) || any(!nzchar(lab))) {
+    stop("ov_table: groups は c(見出し = 始まりの行) の形にする（例: c(Demand = 1, Hiring = 6)）")
+  }
+  if (any(is.na(at)) || any(at < 1L) || any(at > n)) {
+    stop("ov_table: groups の行は 1 から ", n, " の間（見出しは、その行の前に入る）")
+  }
+  o <- order(at)
+  list(at = at[o], label = lab[o])
+}
+
+# 行ごとの「群の見出し」と「字下げするか」。i 行目の前に見出しがあれば、その文字
+ov_row_plan <- function(n, grp, indent) {
+  head <- rep(NA_character_, n)
+  if (!is.null(grp)) head[grp$at] <- grp$label
+  if (is.null(indent)) indent <- !is.null(grp)
+  # 最初の群より前の行は字下げしない
+  inside <- if (is.null(grp)) rep(FALSE, n) else seq_len(n) >= min(grp$at)
+  list(head = head, indent = isTRUE(indent) & inside)
+}
+
 # 表の**中身だけ**を書く。キャプションとラベル（#tbl-<名前>）は原稿の
 # `: 表題 {#tbl-<名前>}` が持ち、Octavo が組むときに包む。
-ov_tex_table <- function(cells, align, notes) {
-  head_row <- paste(paste0("\\textbf{", ov_tex_escape(colnames(cells)), "}"),
+ov_tex_table <- function(cells, align, notes, plan, size) {
+  nc <- ncol(cells)
+  cn <- colnames(cells)
+  head_row <- paste(ifelse(nzchar(cn), paste0("\\textbf{", ov_tex_escape(cn), "}"), ""),
                     collapse = " & ")
-  body <- apply(cells, 1, function(r) paste(ov_tex_escape(r), collapse = " & "))
-  paste0(
-    "% octavo.R の ov_table() が作ったファイル。手で直さない。\n",
+  rows <- character(0)
+  for (i in seq_len(nrow(cells))) {
+    if (!is.na(plan$head[i])) {
+      rows <- c(rows, paste0("\\multicolumn{", nc, "}{l}{\\textbf{",
+                             ov_tex_escape(plan$head[i]), "}} \\\\"))
+    }
+    r <- ov_tex_escape(cells[i, ])
+    if (plan$indent[i]) r[1] <- paste0("\\hspace{1em}", r[1])
+    rows <- c(rows, paste0(paste(r, collapse = " & "), " \\\\"))
+  }
+  tab <- paste0(
     "\\begin{tabular}{", paste(align, collapse = ""), "}\n",
     "\\toprule\n", head_row, " \\\\\n\\midrule\n",
-    paste(body, collapse = " \\\\\n"), " \\\\\n",
-    "\\bottomrule\n\\end{tabular}\n",
+    paste(rows, collapse = "\n"), "\n",
+    "\\bottomrule\n\\end{tabular}\n")
+  if (!is.null(size)) tab <- paste0("{\\fontsize{", size, "}{", round(size * 1.2, 2),
+                                    "}\\selectfont\n", tab, "}\n")
+  paste0(
+    "% octavo.R の ov_table() が作ったファイル。手で直さない。\n", tab,
     if (!is.null(notes)) {
       paste0("\\par\\vspace{2pt}\n{\\footnotesize ", ov_tex_escape(notes), "}\n")
     } else "")
 }
 
-ov_typ_table <- function(cells, align, notes) {
+ov_typ_table <- function(cells, align, notes, plan, size) {
+  nc <- ncol(cells)
   typ_align <- c(l = "left", r = "right", c = "center")[align]
   cell <- function(v) paste0("[", ov_typ_escape(v), "]")
-  head_row <- paste(paste0("[*", ov_typ_escape(colnames(cells)), "*]"), collapse = ", ")
-  body <- apply(cells, 1, function(r) paste0("  ", paste(vapply(r, cell, ""), collapse = ", "), ","))
+  cn <- colnames(cells)
+  # 見出しが空の列（行の名前の列）は [] にする。[**] は Typst が警告する
+  head_row <- paste(ifelse(nzchar(cn), paste0("[*", ov_typ_escape(cn), "*]"), "[]"),
+                    collapse = ", ")
+  body <- character(0)
+  for (i in seq_len(nrow(cells))) {
+    if (!is.na(plan$head[i])) {
+      body <- c(body, paste0("  table.cell(colspan: ", nc, ", align: left)[*",
+                             ov_typ_escape(plan$head[i]), "*],"))
+    }
+    r <- vapply(cells[i, ], cell, "")
+    if (plan$indent[i]) r[1] <- sub("^\\[", "[#h(1em)", r[1])
+    body <- c(body, paste0("  ", paste(r, collapse = ", "), ","))
+  }
   tbl <- paste0(
     "#table(\n",
-    "  columns: ", ncol(cells), ",\n",
+    "  columns: ", nc, ",\n",
     "  align: (", paste(typ_align, collapse = ", "), "),\n",
     "  stroke: none,\n",
     "  table.hline(),\n",
@@ -410,22 +463,37 @@ ov_typ_table <- function(cells, align, notes) {
     paste(body, collapse = "\n"), "\n",
     "  table.hline(),\n",
     ")\n")
+  # 本文の両端揃えを表のセルに持ち込まない。字の大きさは size（pt）で
   paste0(
     "// octavo.R の ov_table() が作ったファイル。手で直さない。\n",
+    "#set par(justify: false)\n",
+    if (!is.null(size)) paste0("#set text(size: ", size, "pt)\n") else "",
     tbl,
-    if (!is.null(notes)) paste0("#v(2pt)\n#text(size: 8pt)[", ov_typ_escape(notes), "]\n") else "")
+    if (!is.null(notes)) {
+      paste0("#v(2pt)\n#block(width: 100%, align(left, text(size: ",
+             if (is.null(size)) 8 else round(size * 0.85, 2), "pt)[", ov_typ_escape(notes), "]))\n")
+    } else "")
 }
 
-# Word 用（Octavo が本文の表として入れる）。セルの | は打ち消す
-ov_md_table <- function(cells, align, notes) {
+# Word 用（Octavo が本文の表として入れる）。セルの | は打ち消す。
+# Markdown の表は列をまたげないので、群の見出しは最初の列に太字で書いた行にする
+ov_md_table <- function(cells, align, notes, plan, size) {
+  nc <- ncol(cells)
   esc <- function(v) gsub("|", "\\|", v, fixed = TRUE)
   rule <- c(l = ":---", r = "---:", c = ":---:")[align]
   row <- function(v) paste0("| ", paste(esc(v), collapse = " | "), " |")
+  rows <- character(0)
+  for (i in seq_len(nrow(cells))) {
+    if (!is.na(plan$head[i])) rows <- c(rows, row(c(paste0("**", plan$head[i], "**"), rep("", nc - 1L))))
+    r <- cells[i, ]
+    if (plan$indent[i]) r[1] <- paste0("\u00a0\u00a0", r[1])
+    rows <- c(rows, row(r))
+  }
   paste0(
     "<!-- octavo.R の ov_table() が作ったファイル。手で直さない。 -->\n\n",
     row(colnames(cells)), "\n",
     "|", paste(rule, collapse = "|"), "|\n",
-    paste(apply(cells, 1, row), collapse = "\n"), "\n",
+    paste(rows, collapse = "\n"), "\n",
     if (!is.null(notes)) paste0("\n*", notes, "*\n") else "")
 }
 
@@ -436,10 +504,15 @@ ov_md_table <- function(cells, align, notes) {
 #' @param x       data.frame / matrix、あるいは list(tex = "…", typ = "…", md = "…")
 #'                （modelsummary 等が作った文字列をそのまま渡すとき）
 #' @param name    ファイル名（拡張子なし）
-#' @param notes   表の下に小さく出す注
+#' @param notes   表の下に小さく出す注（左揃え）
 #' @param align   "lrrr" のように列ごとの寄せを決める。省略なら数値は右
+#' @param groups  群の見出し。c(Demand = 1, Hiring = 6) は 1 行目の前に Demand、6 行目の前に
+#'                Hiring を、列をまたぐ太字の行として入れる
+#' @param indent  群の下の行の見出し（最初の列）を字下げするか。省略なら groups があれば TRUE
+#' @param size    表の字の大きさ（pt。例: 9.5）。省略なら本文と同じ
 ov_table <- function(x, name, notes = NULL, align = NULL,
-                     digits = 3, formats = c("tex", "typ", "md")) {
+                     digits = 3, formats = c("tex", "typ", "md"),
+                     groups = NULL, indent = NULL, size = NULL) {
   dir <- ov_dir("tables")
   out <- character(0)
 
@@ -464,14 +537,15 @@ ov_table <- function(x, name, notes = NULL, align = NULL,
 
   cells <- ov_cells(x, digits)
   al <- ov_align(x, align)
+  plan <- ov_row_plan(nrow(cells), ov_groups(groups, nrow(cells)), indent)
   for (fmt in formats) {
     path <- file.path(dir, paste0(name, ".", fmt))
     txt <- if (fmt == "tex") {
-      ov_tex_table(cells, al, notes)
+      ov_tex_table(cells, al, notes, plan, size)
     } else if (fmt == "typ") {
-      ov_typ_table(cells, al, notes)
+      ov_typ_table(cells, al, notes, plan, size)
     } else if (fmt == "md") {
-      ov_md_table(cells, al, notes)
+      ov_md_table(cells, al, notes, plan, size)
     } else {
       stop("ov_table: 不明な形式 ", fmt)
     }

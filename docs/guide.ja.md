@@ -231,6 +231,7 @@ octavo new analysis model --engine python   # 同じものを Python で書く�
 octavo new paper example-paper      # docs/example-paper/: example-paper.md と体裁の main.typ
 octavo new paper example-paper --appendix   # 付録 appendix.md を足す（既にある論文にも）
 octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
+octavo new paper english-paper --lang en    # 日本語のプロジェクトの中の英語の論文（逆も）
 octavo new slides example-talk      # docs/example-talk/example-talk.md
 octavo new lecture example-lecture  # docs/example-lecture/example-lecture.md
 octavo new poster example-poster    # docs/example-poster/example-poster.md
@@ -251,7 +252,8 @@ octavo new table compare            # tables/compare.csv（手で作る表）
 ```
 study/
   octavo.config.py   このプロジェクトの設定
-  literature.bib     書誌（文献管理ソフトからエクスポートする）
+  literature/        literature.bib（書誌。文献管理ソフトからエクスポートする）と、
+                     priorwork/（Priorwork から受け取るもの）
   AGENTS.md          このプロジェクトの約束（AI アシスタント向け。Claude Code・GitHub Copilot・Codex・Antigravity が読む）
   CLAUDE.md          Claude Code に AGENTS.md を読ませるだけの1行
   README.md          自分で書き足す数行
@@ -367,7 +369,10 @@ $$ {#eq-model}
   `[-@eq-model]` は番号だけ。
 - 論文は通し番号（図1、図2。付録は図A1、A2）。講義ノート・スライド・ポスターは節ごと（第3節の
   2つ目の図は図3.2）。`octavo.config.py` か原稿の冒頭の `crossref_numbering: 'section'` /
-  `'document'` でどちらにもできる。
+  `'document'` でどちらにもできる。節の見出しに番号を出さないスライドも通し番号になる
+  （「図4.1」と出ても、聞き手には 4 が何か分からないため）。ただし同じ文書が A4 のプリントも作る
+  ときは、スライドもプリントの番号に合わせる。
+- キャプションもラベルもない図・表は、番号を付けず、数えもしない。
 - 番号が付くのは、見出し（`{.unnumbered}` を除く）、キャプションのある図と表、ラベルのある式。
 - `# 題 {.appendix}` の見出しから後ろは、同じファイルの中で付録になる（A, B, …）。
 - 存在しないラベルと、2回付けたラベルは `octavo check` が止める。
@@ -494,7 +499,10 @@ PDF が重くなる。どこから来た画像か、使ってよいかは、デ�
 `: 表題 {#tbl-名前}`）で置く:
 
 - **分析が作る表**: `ov_table(tab, "summary")` が `assets/tables/summary.*` を書き、原稿には
-  `: 記述統計 {#tbl-summary}`。
+  `: 記述統計 {#tbl-summary}`。`groups = c(Demand = 1, Hiring = 6)` で、1 行目と 6 行目の前に、
+  列をまたぐ太字の見出し行が入り、その下の行の見出しは字下げされる（Python は `{'Demand': 0,
+  'Hiring': 5}` と 0 から数える）。`size = 9.5` で表の字の大きさ（pt）が決まり、表の下の注は
+  左揃えになる。
 - **手で作る表**: `octavo new table compare` が `tables/compare.csv` を置く。VS Code の
   「表として編集」か Excel で埋め、原稿には `: 2つの制度 {#tbl-compare}`。1行目が見出しで、
   中身のある見出しのセルの右隣を空にすると結合する（Excel が結合したセルを書き出す形）。
@@ -575,9 +583,9 @@ word_limit: 8000
 ### 3.8 AI に渡す文章のルールとフレーズバンク
 
 文章の書き方の決まり（ルール）と、信頼できる言い回しを集めたもの（フレーズバンク）を、文章を
-手伝う AI に渡せる。どちらも Markdown のファイルで、プロジェクトの `writing/rules/*.md` と
-`writing/phrases/*.md`、全部のプロジェクトで使うなら `~/.config/octavo/writing/` に置く（同じ名前
-ならプロジェクトのほうを使う）。`octavo writing` が一覧を出し、プロジェクトの `AGENTS.md` が、
+手伝う AI に渡せる。どちらも Markdown のファイルで、プロジェクトの `notes/writing/rules/*.md` と
+`notes/writing/phrases/*.md`（前からの `writing/` も読む）、全部のプロジェクトで使うなら
+`~/.config/octavo/writing/` に置く（同じ名前ならプロジェクトのほうを使う）。`octavo writing` が一覧を出し、プロジェクトの `AGENTS.md` が、
 文章を書く・直す前にそれを読み、ルールに従い、フレーズバンクの表現を優先して使うよう AI に
 指示する。Octavo がするのは見つけることだけで、練り上げるのは利用者（ほかのリポジトリでもよい）。
 
@@ -641,7 +649,8 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
 | 表 | `ov_table(tab, "summary")` | `: 記述統計 {#tbl-summary}` |
 
 - `ov_figure(x, name, width, height)` は ggplot か、描く関数を受け取り、`.pdf` と `.png` を書く。
-- `ov_table(x, name, notes, align)` は data.frame を受け取る。表題は原稿が持つ。
+- `ov_table(x, name, notes, align, groups, indent, size)` は data.frame を受け取る。表題は原稿が
+  持つ。
 - `ov_pval(p)` は p 値を慣例の形にする（`.023`、`< .001`）。
 - `ov_palette(3)` は色覚の違いがあっても見分けやすい色を返す。`ov_tint(col, 0.6)` は文字を
   載せる面のために色を白に寄せる。ggplot2 なら `ov_scale_colour_cud()` /
@@ -771,7 +780,8 @@ Octavo はファイルを読むだけなので、Julia などの `.qmd` でも�
 
 ## 5. 文献
 
-文献管理ソフト（Zotero など）から BibTeX か BibLaTeX で `literature.bib` にエクスポート
+文献管理ソフト（Zotero など）から BibTeX か BibLaTeX で `literature/literature.bib` にエクスポート（前からのプロジェクトは `literature.bib`。
+`octavo.config.py` の `bib_file` が決める）
 する。Zotero なら Better BibTeX の「Keep updated」で自動的にエクスポートすると、ファイルが最新に
 保たれ、キーも変わらない。**Octavo は `.bib` を書き換えない。**
 
@@ -790,7 +800,7 @@ Better BibTeX が固定したもの（Zotero の Citation Key）を使うので�
 
 ```bash
 octavo bib collections    # Zotero のコレクションの一覧
-octavo bib pull           # zotero_collection から literature.bib を取ってくる
+octavo bib pull           # zotero_collection から .bib（bib_file）を取ってくる
 octavo bib login --user-id 1234567   # ウェブ API のキーを入れる（キーは標準入力で）
 ```
 
@@ -888,8 +898,9 @@ Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." 
 
 ## 6. 論文: 下書きから投稿まで
 
-論文は `docs/<name>/<name>.md` と、**手で持つ体裁** `main.typ`（表題・著者と、投稿先が求める
-もの）の組。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを組む。
+論文は `docs/<name>/<name>.md` と、**手で持つ体裁** `main.typ`（投稿先が求めるもの）の組。
+表題・著者・所属・メール・日付は原稿の冒頭（`title:`・`author:`・`institute:`・`email:`・`date:`）
+から取る。`--anonymous` では著者・所属・メールを出さない。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを組む。
 `--compile` で PDF まで作る（`build/pdf/<name>/main.pdf`。同じものを `build/pdf/<name>.pdf`
 にも置く）。
 
@@ -900,16 +911,20 @@ octavo build example-paper --to word            # Word
 
 **体裁**は LaTeX に準じる。日本語の論文は jsarticle、英語の論文は article（11pt）の版面・見出し・
 表題まわり・要旨。これは `octavo build` が毎回 `main.typ` の横に書く `article.typ` が持つので、
-`main.typ` には表題と著者だけを書く。1ページ目には分量が出る: 本文の字数（英語なら語数）を脚注を
+`main.typ` はほとんど空のままでよい（その `octavo-article.with(…)` に `title:` や `author:` を書けば、
+原稿の値より優先される）。1ページ目には分量が出る: 本文の字数（英語なら語数）を脚注を
 除いたものと含めたもの、要旨の字数、図と表の数（`main.typ` に `counts: none` と書けば出さない）。
 投稿先に合わせるなら、`main.typ` の `#show: octavo-article.with(…)` のあとに `set` / `show` を
 足すか、`octavo template copy paper/article.typ` でコピーして直す。これより前に作った論文は、
-その `main.typ` のまま組まれる。新しいものは `octavo template diff paper/ja/main.typ` で見て写す。
+その `main.typ` のまま、前と同じ見た目で組まれる。新しい体裁にするには、`main.typ` の名前を
+変えて（`main.typ.old` など）`octavo new paper <name>` を実行する。新しい `main.typ` だけが足され、
+原稿はそのまま残る。投稿先に合わせて足していたものは `#show: octavo-article.with(…)` のあとに写す。
 
 **付録**（`octavo new paper <name> --appendix` で `appendix.md` を足す）は、あれば毎回、別の PDF
 `build/pdf/<name>-appendix.pdf` に組まれる。付録の節は A, B, …、図表は A1, A2, … になり、本文と
 付録のあいだの参照は番号の文字（「表A1」）で書かれる。本文の続きに付けて1つの PDF にするなら、
-`octavo.config.py` か原稿の冒頭に `appendix_separate: false` と書く。
+`octavo.config.py` か原稿の冒頭に `appendix_separate: false` と書く。どちらでも、付録のページ番号は
+A-1、A-2、… と 1 から振り直される。
 
 ### 6.1 投稿の前に
 
@@ -956,7 +971,8 @@ octavo bundle example-paper    # submission-example-paper.zip（ファイルを1
   PDF を GitHub Release に置く（`gh` コマンドが要る）。
 - **改訂**: `octavo check values --diff example-paper-v1-submitted` で、その版から動いた数値が分かる。
 - **データ**: `octavo data hash` が `data/` のハッシュ値を記録し、`octavo data status` が
-  そのあと変わったかを見る。
+  そのあと変わったかを見る。`data/raw/` と `data/derived/` は git に入らない。手で写し取った
+  データは、`octavo data track data/raw/<ファイル>` でそのファイルだけ git に入れられる。
 - **再現用パッケージ**: `octavo bundle --replication` が、分析・値・図表・設定・ハッシュ値を
   まとめる（原データは `--with-raw-data` のときだけ）。
 
@@ -1224,14 +1240,16 @@ octavo writing                                                       文章の�
 octavo check [--strict] [--anonymous]                                投稿・配布の前の検査をまとめて
 octavo check values [--unused] [--diff [ref]]                        {{...}} と分析の値を突き合わせる
 octavo check cites [--list] [--unused]                               引用キーと .bib を突き合わせる
-octavo check lint                                                    手入力の数値と、字下げの揃っていない入れ子の箇条書き
+octavo check lint                                                    手入力の数値、字下げの揃っていない入れ子の箇条書き、文の途中の改行
+octavo fmt [name] [--apply]                                          原稿を1文1行にそろえる（変更を見せる。--apply で書き換える）
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
 octavo review returned.docx                                          共著者の変更履歴
 octavo release <document> <label>                                    タグを打ち、PDF を GitHub Release へ
 octavo data hash|status                                              data/ のハッシュ値
+octavo data track <file>                                             data/ の中のファイルを git に入れる
 octavo csl get|list|which [ID]                                       引用の書式
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--example] [--engine r|python] [--env]
+octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--engine r|python] [--env]
 octavo template list|copy|diff [name] [--user]                       テンプレート（copy word で Word のスタイルのファイル）
 octavo env                                                           このプロジェクトの R と Python のパッケージ（.venv と renv）
 octavo setup [--with-tex] [--check] [--r-editor]                     ツールを入れる・更新する

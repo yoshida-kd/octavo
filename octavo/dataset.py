@@ -18,6 +18,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -133,7 +135,71 @@ def compare(cfg) -> list:
 
 # ---------------------------------------------------------------- 表示
 
-def run(cfg, action: str = 'status') -> int:
+def track(cfg, files: list) -> int:
+    """手で写し取ったデータなど、data/raw・data/derived の中のファイルを git に入れる。
+
+    プロジェクトの .gitignore は data/raw/* と data/derived/* を除外している。ファイルを
+    指して `!<パス>` を足す（深いところは、親のフォルダも除外から外す）。
+    """
+    import subprocess
+    root = Path(cfg.root)
+    gi = root / '.gitignore'
+    if not files:
+        print(t('usage: octavo data track data/raw/<file> …'), file=sys.stderr)
+        return 2
+    lines = gi.read_text(encoding='utf-8').split('\n') if gi.is_file() else []
+    added, failed = [], 0
+    for f in files:
+        p = Path(f)
+        full = (p if p.is_absolute() else Path.cwd() / p).resolve()
+        if not full.is_file():
+            full = (root / f).resolve()
+        try:
+            rel = full.relative_to(root.resolve()).as_posix()
+        except ValueError:
+            print(t('{path} is not inside the project', path=f), file=sys.stderr)
+            failed += 1
+            continue
+        parts = rel.split('/')
+        if not (len(parts) >= 3 and parts[0] == 'data' and parts[1] in ('raw', 'derived')):
+            print(t('{path} is not under data/raw or data/derived (only those are ignored)',
+                    path=rel), file=sys.stderr)
+            failed += 1
+            continue
+        if not full.is_file():
+            print(t('no such file: {path}', path=rel), file=sys.stderr)
+            failed += 1
+            continue
+        want = []
+        for depth in range(3, len(parts)):
+            d = '/'.join(parts[:depth])
+            want += [f'!{d}/', f'{d}/*']        # 親のフォルダを除外から外し、中は改めて除外
+        want.append(f'!{rel}')
+        for w in want:
+            if w not in lines:
+                # 除外の行（data/raw/* など）の後ろ、ほかの「!」の並びの終わりに入れる
+                at = max([i for i, l in enumerate(lines) if l.startswith(('data/raw', 'data/derived', '!data/'))]
+                         or [len(lines) - 1]) + 1
+                lines.insert(at, w)
+                added.append(w)
+    if added:
+        gi.write_text('\n'.join(lines).rstrip('\n') + '\n', encoding='utf-8')
+        print(t('added to .gitignore:') + '\n' + '\n'.join(f'  {w}' for w in added))
+    else:
+        print(t('.gitignore already lets these through'))
+    if shutil.which('git') and (root / '.git').exists():
+        for f in files:
+            full = (Path(f) if Path(f).is_absolute() else root / f)
+            r = subprocess.run(['git', 'check-ignore', '-q', str(full)], cwd=str(root))
+            if r.returncode == 0:
+                print(t('{path} is still ignored — check .gitignore', path=f), file=sys.stderr)
+                failed += 1
+    return 1 if failed else 0
+
+
+def run(cfg, action: str = 'status', files: list | None = None) -> int:
+    if action == 'track':
+        return track(cfg, files or [])
     if action == 'hash':
         n, p = write(cfg)
         print(t('Recorded fingerprints for {n} {n|file|files} in {path}', n=n, path=p))

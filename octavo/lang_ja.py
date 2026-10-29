@@ -31,6 +31,7 @@ MESSAGES: dict = {
     '[figure]': '[図]',
     '[layout]': '[体裁]',
     '[length]': '[分量]',
+    '[appendix]': '[付録]',
     '[missing]': '[欠落]',
     '[note]': '[注意]',
     '[placeholder]': '[仮の値]',
@@ -143,9 +144,9 @@ MESSAGES: dict = {
         '引用しているが、Zotero のライブラリのどこにも無い（{n}件）: {keys}',
     'octavo bib tidy looks for them in Zotero and adds them to the main collection':
         'octavo bib tidy で Zotero から探し、メインのコレクションに追加できる',
-    'no writing rules or phrase bank yet. Put Markdown files in writing/rules/ and '
-    'writing/phrases/ (or in {dir} for every project)':
-        '文章のルールもフレーズバンクもまだない。writing/rules/ と writing/phrases/ に Markdown のファイルを置く'
+    'no writing rules or phrase bank yet. Put Markdown files in notes/writing/rules/ and '
+    'notes/writing/phrases/ (or in {dir} for every project)':
+        '文章のルールもフレーズバンクもまだない。notes/writing/rules/ と notes/writing/phrases/ に Markdown のファイルを置く'
         '（全部のプロジェクトで使うなら {dir} に）',
     'Writing rules (follow them):': '文章のルール（従う）:',
     'Phrase bank (prefer these phrasings):': 'フレーズバンク（この表現を優先して使う）:',
@@ -601,7 +602,6 @@ MESSAGES: dict = {
     'something changed, rebuilding': '変わったので作り直す',
     'something is missing, clashing, or not anonymised. Fix what is above before submitting': '欠落・衝突・匿名化の漏れがある。上を見て直してから投稿する',
     'stale': '古い',
-    'status=check against the record (default) / hash=write the record': 'status=記録と食い違わないか（既定） / hash=記録する',
     'status=see whether it is up to date (default) / run=run it / '
     'mark-fresh=record the named .qmd as up to date without running it / '
     'missing=list the R packages the named .qmd use but are not installed / '
@@ -1139,4 +1139,30 @@ MESSAGES: dict = {
     'Japanese name without a comma (the given name is read as the family name)': '日本語の名前に読点がない（名が姓として読まれる）',
     'the slides are placed as pictures': 'スライドが絵として置かれている',
     'If renv::status() says "out-of-sync" only for packages the code does not use (MASS or boot, which come with R, or ones you stopped using), that is harmless: nothing is missing.': 'renv::status() が「out-of-sync」と言っても、それがコードで使っていないパッケージ（R に付いてくる MASS や boot、使わなくなったもの）だけなら無害。足りないものはない。',
+    '{n} {n|line breaks|lines break} in the middle of a sentence (manuscripts are one sentence per line — octavo fmt joins them)': '文の途中で改行している行が {n} 行ある（原稿は1文1行。octavo fmt でつなげる）',
+    '… and {n} more': '… ほか {n} 行',
+    'put the manuscripts one sentence to a line': '原稿を1文1行にそろえる',
+    'document names (default: every manuscript)': '文書の名前（省略すると、すべての原稿）',
+    'rewrite the files (without it, only the changes are shown)': 'ファイルを書き換える（付けなければ、変更を見せるだけ）',
+    'only join lines broken mid-sentence; do not break a Japanese line after each 。': '文の途中の改行をつなぐだけにする（和文を「。」ごとに改行しない）',
+    'no document {names}': '{names} という文書はない',
+    'every manuscript is already one sentence to a line': 'どの原稿もすでに1文1行になっている',
+    'nothing was changed (add --apply to rewrite {n} {n|file|files})': '何も変えていない（--apply を付けると {n} 個のファイルを書き換える）',
+    '(or add --allow-dirty to rewrite them as they are)': '（このまま書き換えるなら --allow-dirty を付ける）',
+    'rewrote {n} {n|file|files} — git diff shows the change, git checkout undoes it': '{n} 個のファイルを書き換えた。git diff で変更が見え、git checkout で戻せる',
+    'Heading of the reference list': '参考文献一覧の見出し',
+    "the language this document is written in (default: the manuscript's own lang, else the project's); it picks the template, and a different one is written to the manuscript's front matter": '文書を書く言語（省略すると、原稿の冒頭の lang、なければプロジェクトの言語）。ひな型がこれで決まり、プロジェクトと違うときは原稿の冒頭に書く',
+    'Appendix after the reference list': '付録を参考文献一覧の後ろに置く',
+    'could not find where the appendix starts, so it stays in the same PDF (a templates/typst/crossref.typ of your own may need updating)': '付録の始まりが見つからなかったので、同じ PDF に入れたままにした（自分で用意した templates/typst/crossref.typ は更新が要るかもしれない）',
+    'the appendix is a PDF of its own: {path}': '付録は別の PDF にした: {path}',
+    'usage: octavo data track data/raw/<file> …': '使い方: octavo data track data/raw/<ファイル> …',
+    '{path} is not inside the project': '{path} はプロジェクトの外にある',
+    '{path} is not under data/raw or data/derived (only those are ignored)': '{path} は data/raw でも data/derived でもない（除外しているのはそこだけ）',
+    'no such file: {path}': 'そのファイルはない: {path}',
+    'added to .gitignore:': '.gitignore に足した:',
+    '.gitignore already lets these through': '.gitignore はすでにこれらを通している',
+    '{path} is still ignored — check .gitignore': '{path} はまだ除外されている。.gitignore を確かめる',
+    'status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv)': 'status=記録と照らす（既定）/ hash=記録を書く / track=data/ の中のファイルを git に入れる（octavo data track data/raw/x.csv）',
+    'track: the files to put in git': 'track: git に入れるファイル',
+    'let git take a file under data/ (it is ignored by default)': 'data/ の中のファイルを git に入れる（既定では除外されている）',
 }

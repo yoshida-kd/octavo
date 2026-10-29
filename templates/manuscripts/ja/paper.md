@@ -1,6 +1,7 @@
 ---
 title: 論文のタイトル
 author: @@AUTHOR@@
+institute: 所属
 ---
 
 # Abstract

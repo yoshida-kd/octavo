@@ -60,7 +60,8 @@ CSL_CHOICES = ('chicago-author-date', 'apa', 'american-political-science-associa
 
 # 画面に出す設定。**並びもこの順で出る。**
 KNOBS = (
-    Knob('lang', 'document', 'choice', 'Language of the documents', ('ja', 'en')),
+    Knob('lang', 'document', 'choice', 'Language of the documents', ('ja', 'en'), docs=ALL_DOCS),
+    Knob('reference_section_title', 'document', 'text', 'Heading of the reference list', docs=ALL_DOCS),
     Knob('csl', 'document', 'suggest', 'Citation style (CSL)', CSL_CHOICES, docs=ALL_DOCS),
     Knob('zotero_collection', 'document', 'collections', 'Main Zotero collection (the .bib)'),
     Knob('zotero_linked', 'document', 'collections', 'Linked Zotero collections (surveys)'),
@@ -71,7 +72,8 @@ KNOBS = (
          docs=ALL_DOCS, project=False),
     Knob('slides_select', 'slides', 'choice', 'What goes on the slides', ('all', 'marked'),
          docs=SLIDE_DOCS + ('paper',), project=False),
-    Knob('appendix_separate', 'document', 'bool', 'Appendix as a separate PDF', docs=('paper',)),
+    Knob('appendix_separate', 'document', 'bool', 'Appendix as a separate PDF', docs=('paper', 'handout')),
+    Knob('appendix_after_references', 'document', 'bool', 'Appendix after the reference list', docs=('handout',)),
     Knob('crossref_numbering', 'document', 'choice', 'Numbers of figures and tables',
          (None, 'document', 'section'), docs=ALL_DOCS),
     Knob('slides_bibliography', 'slides', 'choice', 'References of the slides',
