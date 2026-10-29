@@ -8530,8 +8530,9 @@ class TableHelperGroups(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + r.stderr)
         rd = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, rd, ignore_errors=True)
-        script = (f'Sys.setenv(OCTAVO_ROOT="{rd}")\n'
-                  f'source("{paths.templates_dir() / "analysis/common/analysis/octavo.R"}")\n'
+        # R の文字列に Windows のパス（\\U…）をそのまま入れると読めない。区切りは / にする
+        script = (f'Sys.setenv(OCTAVO_ROOT="{rd.as_posix()}")\n'
+                  f'source("{(paths.templates_dir() / "analysis/common/analysis/octavo.R").as_posix()}")\n'
                   'df <- data.frame(a = c("a","b","c"), x = c(1.5,2,3), stringsAsFactors = FALSE)\n'
                   'names(df)[1] <- ""\n'
                   'ov_table(df, "g", notes = "Note.", groups = c(Demand = 1, Hiring = 3), size = 9.5)\n')
