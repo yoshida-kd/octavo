@@ -269,7 +269,12 @@ def collect() -> dict:
             cmd='octavo setup --r-editor'))
         if sys.platform.startswith('linux'):
             f['r_repos'] = r_repos_state()
+        # apt で入れるシステムのライブラリは Linux だけ。OS は doctor 自身の判定で見る
+        # （macOS・Windows では調べず、apt の行も出さない）
+        if not is_macos() and not is_windows():
             f['r_syslibs'] = r_syslibs_state()
+        else:
+            LAST_R_SYSLIBS.clear()
         stale = stale_r_libraries()
         LAST_R_STALE[:] = stale
         n = sum(r[1] for r in stale)
