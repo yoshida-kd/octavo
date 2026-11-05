@@ -37,7 +37,7 @@ Remote-SSH や WSL のウィンドウなら、その先のマシンに入る。�
 更新したら、`octavo` コマンドもそれに合わせて更新される）。TeX は入れない。LaTeX と
 Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex`）。ターミナルから
 インストールする方法も含めた全体像は
-[Octavo の手引き](https://yoshida-kd.github.io/octavo/ja/guide/#1-インストール) を参照。
+[Octavo の手引き](https://yoshida-kd.github.io/octavo/ja/install/) を参照。
 
 ## 始め方
 

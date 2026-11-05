@@ -288,6 +288,38 @@ def _env(cfg) -> dict:
 RENDERED = ('.pdf', '.docx', '.html', '.pptx', '.odt', '.epub', '.rtf')
 
 
+# R のパッケージが読み込むシステムのライブラリ（Linux）。Posit Package Manager の
+# ビルド済みパッケージはこれらとつないであり、パッケージは入っても、ライブラリが
+# なければ「cannot open shared object file」で読み込めない。
+# (共有ライブラリの名前の頭, apt のパッケージ, 使う R のパッケージ)
+R_SYSLIBS = (
+    ('libglpk.so', 'libglpk-dev', 'igraph (quanteda.textplots, tidygraph, …)'),
+)
+
+SHARED_OBJECT = re.compile(r'(lib[\w+.-]+?\.so[.\d]*): cannot open shared object file')
+
+
+def syslib_notes(output: str) -> list:
+    """R の出力に「共有ライブラリが見つからない」があれば、その直し方の行を返す。"""
+    names = list(dict.fromkeys(SHARED_OBJECT.findall(output or '')))
+    if not names or not sys.platform.startswith('linux'):
+        return []
+    out = []
+    for so in names:
+        apt = next((a for head, a, _ in R_SYSLIBS if so.startswith(head)), None)
+        if apt:
+            out.append(f'{tag("analysis")}{tag("note")} ' + t(
+                'R could not load {lib}, a system library an R package needs. Install it '
+                'with: {cmd} (octavo setup installs it too)',
+                lib=so, cmd=f'sudo apt install {apt}'))
+        else:
+            out.append(f'{tag("analysis")}{tag("note")} ' + t(
+                'R could not load {lib}, a system library an R package needs. Install the '
+                'apt package that has it (apt-file search {lib} names it; the -dev one '
+                'brings it too)', lib=so))
+    return out
+
+
 def render(cfg, u: Unit, report: list) -> bool:
     cmd = [quarto_exe(), 'render', str(u.src)]
     if cfg['analysis_to']:
@@ -309,6 +341,7 @@ def render(cfg, u: Unit, report: list) -> bool:
             ((r.stdout or '') + (r.stderr or '')).strip().split('\n')[-25:])
         report.append(f'{tag("analysis")} ' + t('failed: {unit}', unit=key(cfg, u))
                       + '\n' + tail)
+        report.extend(syslib_notes((r.stdout or '') + (r.stderr or '')))
         return False
     report.append(f'{tag("analysis")} ' + t('ran {unit} ({secs}s)',
                                              unit=key(cfg, u), secs=f'{took:.1f}'))

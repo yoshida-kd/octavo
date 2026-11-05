@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.6.8",
+  "version": "0.6.9",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -227,6 +227,27 @@
         "category": "Octavo"
       },
       {
+        "command": "octavo.writingShow",
+        "title": "%command.writingShow.title%",
+        "category": "Octavo",
+        "icon": "$(whole-word)"
+      },
+      {
+        "command": "octavo.choosePacks",
+        "title": "%command.choosePacks.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.writingItemOff",
+        "title": "%command.writingItemOff.title%",
+        "category": "Octavo"
+      },
+      {
+        "command": "octavo.writingItemOn",
+        "title": "%command.writingItemOn.title%",
+        "category": "Octavo"
+      },
+      {
         "command": "octavo.bibTidy",
         "title": "%command.bibTidy.title%",
         "category": "Octavo"
@@ -298,13 +319,18 @@
         { "command": "octavo.addAppendix", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@1" },
         { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" },
         { "command": "octavo.askPriorwork", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@3" },
-        { "command": "octavo.extract", "when": "view == octavo.project && viewItem == octavo.doc.lecture", "group": "octavo@1" }
+        { "command": "octavo.extract", "when": "view == octavo.project && viewItem == octavo.doc.lecture", "group": "octavo@1" },
+        { "command": "octavo.writingItemOff", "when": "view == octavo.project && viewItem == octavo.writingItem", "group": "octavo@1" },
+        { "command": "octavo.writingItemOn", "when": "view == octavo.project && viewItem == octavo.writingItemOff", "group": "octavo@1" }
       ],
       "commandPalette": [
         { "command": "octavo.editSetting", "when": "false" },
         { "command": "octavo.editTable", "when": "resourceExtname == .csv" },
         { "command": "octavo.previewDoc", "when": "false" },
         { "command": "octavo.buildDoc", "when": "false" },
+        { "command": "octavo.writingShow", "when": "octavo.hasConfig && editorLangId == markdown" },
+        { "command": "octavo.writingItemOff", "when": "false" },
+        { "command": "octavo.writingItemOn", "when": "false" },
         {
           "command": "octavo.build"
         },
@@ -411,6 +437,11 @@
         }
       ],
       "editor/context": [
+        {
+          "command": "octavo.writingShow",
+          "when": "octavo.hasConfig && editorLangId == markdown",
+          "group": "octavo"
+        },
         {
           "command": "octavo.insertCitation",
           "when": "editorLangId == markdown",

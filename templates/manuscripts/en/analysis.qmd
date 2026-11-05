@@ -20,10 +20,10 @@ execute:
 ```{r}
 #| label: setup
 #| include: false
-# Load octavo.R from this same analysis/ folder. When octavo build runs this,
-# OCTAVO_ROOT is set, so it is found wherever it runs from.
-root <- Sys.getenv("OCTAVO_ROOT", unset = "")
-source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+# Load octavo.R from this same analysis/ folder. Rendering runs in analysis/,
+# running a chunk on its own (Run Cell and the like) runs in the project folder,
+# so look in both.
+source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
 ```
 
 ```{r}

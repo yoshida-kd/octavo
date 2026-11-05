@@ -38,6 +38,11 @@ def example_config(lang: str = 'en') -> Path:
     return _pick('config.example.ja.py' if lang == 'ja' else 'config.example.py')
 
 
+def reference_doc(lang: str = 'en') -> Path:
+    """AI 向けのリファレンス（`docs/reference.md` / `docs/reference.ja.md`）。wheel にも入る。"""
+    return _pick('docs/reference.ja.md' if lang == 'ja' else 'docs/reference.md')
+
+
 def is_clone() -> bool:
     """clone したリポジトリから動いているか（wheel にも setup.sh は入るので、
     `bin/octavo` と一緒にあるかで見分ける）。"""

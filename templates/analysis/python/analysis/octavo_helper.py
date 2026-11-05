@@ -76,13 +76,19 @@ def ov_dir(kind: str = 'values') -> Path:
     return d
 
 
-def _values_file() -> Path:
+def _values_file() -> Path | None:
     """値の書き出し先。既定は「この .qmd と同じ名前の .json」。1本の .qmd が
-    1つのファイルを持つので、複数の分析が同じファイルを取り合わない。"""
+    1つのファイルを持つので、複数の分析が同じファイルを取り合わない。
+
+    Quarto を通さずに実行した（セルだけを実行した）ときは、どの .qmd か分からないので
+    None を返し、値は書かない。別の名前のファイルに書くと、本来の値と同じ名前で並び、
+    試しに実行した値が本文に入ってしまう。"""
     name = os.environ.get('OCTAVO_VALUES_NAME')
     if not name:
         doc = os.environ.get('QUARTO_DOCUMENT_FILE')  # Quarto が .qmd のファイル名を渡す
-        name = Path(doc).stem if doc else 'values'
+        if not doc:
+            return None
+        name = Path(doc).stem
     return ov_dir('values') / f'{name}.json'
 
 
@@ -136,6 +142,10 @@ def ov_value(name: str, x, fmt: str | None = None, note: str | None = None):
         raise ValueError(f'ov_value: name は英字か _ で始め、英数字・_ ・. だけを使う（{name!r}）')
     v = _scalar(x, name)
     path = _values_file()
+    if path is None:
+        print(f'ov_value: {name} = {v} (not recorded: this cell was run on its own; render the '
+              f'.qmd to record it / セルだけを実行したので記録しません。.qmd を実行すると記録されます)')
+        return x
     store = _store.setdefault(str(path), {})
     item: dict = {'value': v}
     if fmt is not None:

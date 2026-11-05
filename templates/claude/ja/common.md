@@ -177,14 +177,20 @@ octavo new table compare                   # tables/compare.csv（手で作る�
 
 ## 文章のルールとフレーズバンク
 
-原稿の文章を書く・直す前に `octavo writing` を実行し、挙がったファイルを読む。
-`notes/writing/rules/` はルール（従う）、`notes/writing/phrases/` はフレーズバンク（信頼できる表現）。
-利用者全体のもの（`~/.config/octavo/writing/`）と、前からの `writing/` も同じ一覧に出る。
+原稿の文章を書く・直す前に
+
+    octavo writing --file <ファイル> --line <書いている行> --print
+
+を実行し、出てきたものに従う（`--for <文書> --section <節>` で節を名指ししてもよい。節は abstract・
+introduction・literature・theory・design・results・discussion・conclusion・appendix と、パックが足したもの）。
+出てくるのは、その原稿が使うパック（設定の `writing`、原稿の冒頭の `writing:`）を一般的なものから
+順に重ねたもので、ほかの種類の文書・ほかの言語・ほかの節のファイルと、使わない項目（`writing_off`）は
+除いてある。別の節に移ったら、もう一度実行する。
 
 - ルールの「規則」に従う。合わない文を見つけたら、直す案と、どのルールかを示す
+- 2つの項目がぶつかったら、出力で後に出るほうが勝つ（より具体的なパック）
 - 表現はフレーズバンクのものを優先して使い、〈 〉の所を文脈に合わせて差し替える。新しい言い回しを
   作るときは、フレーズバンクの型と調子に合わせる
-- `applies` が今の文書（論文・スライドなど）に当たらないファイル、`lang` が原稿の言語と違うものは使わない
 - ルールとフレーズバンクのファイルは、頼まれない限り書き換えない（利用者が別に練っている）
 
 ## 見本は、見本だと分かるようにしてある
@@ -254,4 +260,16 @@ octavo doctor       # pandoc / LaTeX / Typst / Quarto / R が揃っているか
 octavo selftest     # 引用が実際にどう組まれるかを実物で見る
 ```
 
-`octavo` コマンド自体の仕様は Octavo の手引きを見る: https://yoshida-kd.github.io/octavo/ja/guide/
+# Octavo の仕組みを調べる
+
+推測せずに、Octavo のリファレンスで調べる。Octavo に同梱されていて、入っている版に合っている。
+
+```bash
+octavo docs                     # 節の一覧
+octavo docs 3.8                 # 番号か見出しの言葉で1つの節
+octavo docs --search outputs    # その言葉が出てくる節すべて
+```
+
+同じ文章が https://yoshida-kd.github.io/octavo/ja/reference/ にもある。利用者は VS Code で
+作業している。Octavo にボタンのないこと（匿名の版、投稿用のまとめ、テンプレートの変更など）は、
+これらのコマンドで行うよう頼まれる。

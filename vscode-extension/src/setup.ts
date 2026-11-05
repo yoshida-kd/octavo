@@ -28,6 +28,13 @@ export interface REditor {
     library: string | null;
 }
 
+/** doctor --json の analysis のキーを、「足りないもの」の一覧に出す名前にする。 */
+function analysisLabel(key: string): string {
+    // セットアップ（setup.sh）が apt で入れる、R のパッケージが読み込むライブラリ（libglpk など）
+    if (key === 'r_syslibs') { return vscode.l10n.t('system libraries for R packages'); }
+    return key;
+}
+
 /**
  * CLI が古くて、渡した引数やコマンドを知らないとき（argparse のエラー）の説明。
  * 拡張機能が先に新しくなると起きる。生のエラーを見せても何が起きたか分からないので言い換える。
@@ -98,7 +105,7 @@ export class SetupManager {
                 return { kind: 'outdated', have: report.version, clone: report.clone ?? undefined };
             }
             const lacks = [...report.missing,
-                ...Object.entries(report.analysis).filter(([, ok]) => !ok).map(([k]) => k)];
+                ...Object.entries(report.analysis).filter(([, ok]) => !ok).map(([k]) => analysisLabel(k))];
             return lacks.length ? { kind: 'incomplete', report, lacks } : { kind: 'ok', report };
         } catch {
             // --json に対応していない古い octavo か、octavo そのものがない

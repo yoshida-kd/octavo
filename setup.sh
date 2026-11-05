@@ -356,9 +356,12 @@ if [ "$WITH_R" = 1 ]; then
     msg "Ubuntu ではないので、このディストリの r-base を入れる" "not Ubuntu, so this distribution's r-base is used"
   fi
   RPKGS=(r-base r-base-dev)
+  # libglpk-dev: Posit Package Manager の igraph（quanteda.textplots などが使う）は
+  # GLPK を使うようにビルドされていて、読み込むときに libglpk.so.40 が要る。
+  # ないと、igraph は入っても読み込めない（doctor の「システムのライブラリ」の行）
   for p in libcurl4-openssl-dev libssl-dev libxml2-dev libfontconfig1-dev \
            libharfbuzz-dev libfribidi-dev libfreetype-dev libpng-dev libtiff-dev libjpeg-dev \
-           libuv1-dev; do
+           libuv1-dev libglpk-dev; do
     apt-cache show "$p" >/dev/null 2>&1 && RPKGS+=("$p")
   done
   info "${RPKGS[*]}"

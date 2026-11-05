@@ -4,345 +4,159 @@
 
 **計量社会科学スターターパック**
 
-Octavo は、Markdown で書いた原稿から論文・配布資料・スライドを作る。Typst（PDF まで）と
-Word、TeX があれば LaTeX と Beamer にも出せる。引用は1つの `.bib` から、数値・図・表は
-Quarto の分析から入る。この手引きは使い方の全体で、短い紹介は
-[README](https://github.com/yoshida-kd/octavo/blob/main/README.ja.md) にある。
+Octavo は、Markdown で書いた原稿から論文・配布資料・スライド・ポスターを作る。引用は
+1つの `.bib` から、数値・図・表は Quarto の分析から入る。この手引きは **VS Code で**
+使う人のためのもので、出てくるのはすべて、ボタン・メニュー・原稿に書くもののどれか。
+
+- まだ入れていなければ: [Octavo のインストール](https://yoshida-kd.github.io/octavo/ja/install/)
+- 急ぐなら: [クイックガイド](https://yoshida-kd.github.io/octavo/ja/quickstart/)
+- 講義ノート: [講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)
+- そのほかのすべて（コマンドと設定の全部）は、AI アシスタント向けに書いた
+  [リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/)にある。この手引きに
+  ボタンのないことは、AI アシスタントに頼む。
+
 [English guide](https://yoshida-kd.github.io/octavo/guide/)
 
 ---
 
-## 1. インストール
+## 1. 画面のあらまし
 
-Octavo 本体のほかに、いくつかのツールを使う: **pandoc**（変換）、**Typst**（PDF に組む）、
-**Quarto** と **R**（分析）、**書体**、**uv**（`octavo` コマンドを入れる）。セットアップを
-1回すれば全部入る。使っている環境を選ぶ:
+### 1.1 サイドバー
 
-| 使っているもの | 読むところ |
+左端の Octavo のアイコンでサイドバーが開く。5つの欄がある:
+
+| 欄 | 中身 |
 |---|---|
-| Ubuntu などの Debian 系 Linux（手元の PC でも、SSH でつなぐサーバーでも） | [Linux](#11-linux) |
-| Mac | [macOS](#12-macos) |
-| Windows | [Windows](#13-windows)（WSL を使う方法がおすすめ。Windows で直接も可） |
+| **原稿** | すべての原稿。それぞれに「**プレビュー**」と「**PDF まで組版する**」のボタン。開くと、回（講義ノート）、付録、「**この文書の設定**」、「**文章のルール**」が出る |
+| **分析** | すべての `.qmd`。最新・古い・手動の印と、実行する ▶。「**古いものを実行**」と「**分析（.qmd）を追加…**」 |
+| **ツール** | 要る順に: ツールを入れる、環境を診断する、このプロジェクトの分析環境を用意する、分析を実行する、文献を検査する、「**投稿前に検査する**」 |
+| **Priorwork から** | 先行研究のサーベイから何か届いたときだけ（[5.5](#55-先行研究のサーベイpriorworkと)） |
+| **設定** | プロジェクトの既定。たたんである |
 
-どの環境でも、やり方は2通りある。**VS Code で**（拡張機能を入れてボタンを押す）か、
-**ターミナルで**（コマンド4つ）。入るものは同じ。LaTeX は含まれない（なくてよい。
-[LaTeX を使うなら](#16-latex-を使うなら)を参照）。
+サイドバーの上の **＋** で、原稿・分析・図・表を足す。論文を右クリックすると、
+「**付録を追加**」「**LaTeX 用の main.tex を追加**」「**Priorwork で先行研究を頼む**」が出る。
 
-### 1.1 Linux
+### 1.2 プレビュー
 
-Octavo は Ubuntu 24.04 で確かめている。Debian やほかの版の Ubuntu でも動く（その
-ディストリビューションにない書体は Noto で代わりに組む）。`sudo` を使える利用者で行う。
+原稿を開き、エディターの右上の **PDF** のボタンを押す。横に PDF が開き、保存するたびに
+組み直される。
 
-**VS Code で**
+- カーソルのある所までスクロールする（ツールバーの ⇅ で切れる）。プレビューだけを自分で
+  スクロールしてもよい。
+- 文字を選べ、リンクをたどれ、☰ でしおりが出る。PDF の中をクリックして Ctrl+F（Mac では
+  ⌘F）で検索できる。
+- スライドと講義ノートでは、右上の**画面**のボタンで3列目を選ぶ: カーソルのある回の
+  スライド、台本、表示しない。
+- プレビューは分析を実行しない。古いものがあると、PDF の上の帯がそう言い、実行のボタンを出す。
+- 原稿を閉じるとプレビューも閉じる。
 
-1. 手元の PC に [VS Code](https://code.visualstudio.com/) を入れる。
-   *サーバーで Octavo を動かす場合*は、**Remote - SSH** 拡張機能も入れ、サーバーにつなぐ
-   （**Remote-SSH: Connect to Host…**）。以下はすべてサーバーの上で行われる。
-2. **Octavo** 拡張機能を入れる（拡張機能の画面で「Octavo」を検索。発行元は yoshida-kd）。
-   Remote-SSH でつないでいるときは、**Install in SSH: …** を押してサーバー側に入れる。
-3. フォルダーを開く。拡張機能がツールの有無を確かめ、**セットアップ**を勧めてくるので押す。
-   ターミナルが開き、パスワード（`sudo` 用）を1回聞いてから全部を入れる。初回は時間が
-   かかる（大きいのは R と書体）。
-4. 終わると拡張機能がもう一度確かめる。何も言われなければ完了。
+### 1.3 AI アシスタントに任せられること
 
-**ターミナルで**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # uv
-source ~/.local/bin/env                           # このターミナルで uv を使えるようにする（新しく開き直してもよい）
-uv tool install octavo-kit                        # octavo コマンド
-octavo setup                                      # pandoc・Typst・Quarto・書体・R・renv（パスワードを聞かれる）
-octavo doctor                                     # すべて ok になっていれば完了
-```
-
-`octavo setup` は、R が最新版になるよう CRAN の配布元を登録し、R のパッケージの取得先を
-Posit Package Manager にする。プロジェクトの renv は、そこからコンパイルなしの出来合いで
-パッケージを入れる。R を別の方法で入れた場合も、取得先を自分で決めていなければ、Octavo が入れる
-パッケージ（`octavo env` と、失敗した `.qmd` が使う R のパッケージ）は同じ所から取る。R がすべての
-パッケージをソースからコンパイルする設定のときは、`octavo doctor` がそう知らせ（遅く、ビルド用の
-ツールも要る）、`~/.Rprofile` に書く行を案内する。
-
-### 1.2 macOS
-
-**先に Homebrew を入れる。**Octavo はほかのものを Homebrew で入れる。ターミナルを開き、
-[brew.sh](https://brew.sh) にある1行を実行する:
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-最後に表示される指示に従い（Apple シリコンの Mac では Homebrew を `PATH` に足すよう
-言われる）、ターミナルを新しく開き直す。
-
-**VS Code で**
-
-1. [VS Code](https://code.visualstudio.com/) と **Octavo** 拡張機能を入れる。
-2. フォルダーを開き、拡張機能が勧める**セットアップ**を押す。ターミナルが開き、Homebrew で
-   全部を入れる（R と Quarto でパスワードを聞かれることがある）。
-3. そのあと拡張機能が `octavo` を見つけられないと言う場合は、VS Code を完全に終了して
-   （⌘Q）起動し直す（新しいコマンドができる前に起動していたため）。
-
-**ターミナルで**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # uv
-source ~/.local/bin/env                           # このターミナルで uv を使えるようにする（新しく開き直してもよい）
-uv tool install octavo-kit                        # octavo コマンド
-octavo setup                                      # pandoc・Typst・Quarto・書体・R・renv（Homebrew で）
-octavo doctor                                     # すべて ok になっていれば完了
-```
-
-R は CRAN の配布するもの（Homebrew の `r` cask）なので、CRAN のパッケージがそのまま入る。
-
-### 1.3 Windows
-
-方法は2つある。**WSL を使う方法をすすめる。**Octavo は Linux を第一に作って確かめて
-いて、WSL なら Windows の中でそれをそのまま使える。Windows で直接使うのは、WSL が
-使えないときだけにする。
-
-#### 1.3.1 WSL を使う（おすすめ）
-
-1. WSL を入れる。PowerShell を*管理者として*開き（スタートボタンを右クリック →
-   *ターミナル（管理者）*、Windows 10 では *Windows PowerShell（管理者）*）、次を実行する:
-
-   ```powershell
-   wsl --install
-   ```
-
-   再起動を求められたら再起動する。そのあと Ubuntu が起動し、利用者名とパスワードを
-   決めるよう求めてくる。パスワードはセットアップで聞かれるので覚えておく。
-2. Windows に [VS Code](https://code.visualstudio.com/) を入れ、**WSL** 拡張機能を入れる。
-3. VS Code の左下から **WSL: Connect to WSL** でつなぎ、Ubuntu の*中の*フォルダーを開く
-   （たとえば `/home/<ユーザー名>`）。
-4. **Octavo** 拡張機能を入れる。
-5. Octavo 拡張機能が勧める**セットアップ**を押し、Ubuntu のパスワードを入れる。
-   ここから先は [Linux](#11-linux) と同じ。
-
-ターミナルで行う場合は、スタートメニューから *Ubuntu* を開き、
-[Linux の「ターミナルで」](#11-linux)の手順に従う。
-
-<details class="fold">
-<summary><h4 id="132-windows-で直接使うwsl-なし">1.3.2 Windows で直接使う（WSL なし）</h4></summary>
-
-[winget](https://learn.microsoft.com/ja-jp/windows/package-manager/winget/) を使う。
-Windows 11 と最近の Windows 10 に入っている（`winget` が見つからなければ、Microsoft Store
-から *アプリ インストーラー* を入れる）。管理者の権限は要らない。LaTeX は Windows では
-入れない（使うなら MiKTeX を自分で入れる）。
-
-**VS Code で:** [VS Code](https://code.visualstudio.com/) と **Octavo** 拡張機能を入れ、
-フォルダーを開いて**セットアップ**を押す。WSL のない PC では、拡張機能は Windows の
-ツールを使う。終わったら、新しいコマンドが見えるように VS Code を起動し直す。
-
-**ターミナルで:** PowerShell を（管理者でなく）開き、次を実行する:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # uv
-```
-
-PowerShell を閉じて新しく開き直し（`uv` が見つかるように）、続ける:
-
-```powershell
-uv tool install octavo-kit    # octavo コマンド
-octavo setup                  # pandoc・Typst・Quarto・書体・R・renv（winget で）
-```
-
-もう一度 PowerShell を開き直して確かめる:
-
-```powershell
-octavo doctor                 # すべて ok になっていれば完了
-```
-
-</details>
-
-どの環境でも同じように動くプロジェクトにするための習慣が2つある。パスは `/` で書く
-（`../assets/figures/trend.png`）。ファイル名の大文字・小文字は原稿の書き方とそろえる
-（Windows は `Trend.png` と `trend.png` を区別しないが、Linux は区別する）。
-
-### 1.4 動くか確かめる
-
-```bash
-octavo doctor       # 何が入っているか。足りないものには入れ方が付く
-octavo selftest     # 小さな見本を組み、引用が実際にどう組まれたかを表示する
-```
-
-`octavo doctor` はツールごとに ok・不足・注意（あるとよいもの）を出す。`octavo selftest` は、
-英語と日本語の文献・表・図・相互参照を含む見本を一時フォルダーで組み、引用が実際にどう
-組まれたかを表示する。機械ごとに1回実行して、目で確かめる。
-
-### 1.5 更新する
-
-```bash
-uv tool upgrade octavo-kit    # 最新の octavo
-octavo setup                  # それが使うツール（何度実行してもよい。入っているものは飛ばす）
-```
-
-VS Code では、拡張機能を更新し、Octavo のサイドバーの「**ツール**」→「**ツールを
-インストール・更新する**」を実行する。
-
-### 1.6 LaTeX を使うなら
-
-ここまでで入るのは Typst で PDF を作る一式で、LaTeX が要るのは `latex` と `beamer` の形式
-だけ。Linux では `octavo setup --with-tex` で TeX Live を足す（数 GB）。Mac は
-[MacTeX](https://www.tug.org/mactex/)、Windows は [MiKTeX](https://miktex.org/) を入れる。
-`octavo doctor` は TeX を別に扱い、なくても「不足」には数えない。
-
-### 1.7 表示の言語
-
-メッセージは英語で出る。システムが日本語なら日本語で出る。`export OCTAVO_LANG=ja`
-（または `en`）で選べる。これはメッセージの言語だけで、プロジェクトを*何語で書くか*は
-その `octavo.config.py` の `lang`（`octavo init --lang ja|en`）で決まる。VS Code の拡張機能は
-VS Code の表示言語に従う。
+どのプロジェクトにも作業の決まりを書いた `AGENTS.md` があり、Claude Code・GitHub Copilot・
+Codex・Antigravity はそれを自分で読む。アシスタントは Octavo のリファレンスの調べ方も
+知っているので、この手引きが「AI アシスタントに頼む」と書いている所は、ふつうの言葉で
+頼めばよい。「査読用に匿名の版を作って」「投稿用にまとめて」「投稿してから変わった数値を
+見せて」。詳しくは [10](#10-ai-アシスタントと使う)。
 
 ---
 
-## 2. 最初のプロジェクト
+## 2. プロジェクト
 
-> **VS Code なら**、ここに書いたことはコマンドを打たずにできる。まだプロジェクトでないフォルダ
-> では Octavo のサイドバーが「**新しいプロジェクト**」を出す（場所・言語・最初に置くもの・見本。
-> 分析を選ぶと環境まで整える）。原稿・分析・図・表は、あとからサイドバーの **+** で追加する。
-> 下のコマンドは、そのボタンが実行しているものである。[10. VS Code](#10-vs-code) も参照。
+### 2.1 まず見本を試す
 
-### 2.1 まず見本を動かす
+VS Code で空のフォルダーを開く。Octavo のサイドバーが「**新しいプロジェクトを作成**」を
+勧めるので押し、すべての部分を選んで「**見本で埋める**」に印を付ける。仮のデータの分析と、
+それを使う論文・スライド・講義ノート・ポスターができ、そのあと分析の環境も整う（初回は
+数分かかる）。論文を開いて **PDF** のボタンを押す。
 
-```bash
-octavo init demo --all --example
-cd demo
-octavo env                    # このプロジェクトの分析の環境（.venv と renv）
-octavo build --compile        # 分析を実行してから、全部を PDF まで組む
-```
+### 2.2 自分のプロジェクトを作る
 
-架空のデータの分析と、それを使う論文・スライド・講義ノートの入ったプロジェクトができる。
-PDF は `build/` にできる。
+「**新しいプロジェクトを作成**」は1つの画面:
 
-### 2.2 自分のプロジェクトを始める
+- **場所**: 新しいフォルダーに、または開いているフォルダーに。
+- **書く言語**: 日本語か英語。テンプレート、見出しの言葉（「図」か "Figure"）、文献の
+  形を決める。もう一方の言語の原稿はあとから足せる。
+- **最初に置くもの**: 分析（R か Python）、論文、スライド、講義ノート、ポスター。
+  いま要るものだけを選ぶ。どれもあとから足せる。
+- **見本で埋める**か、見出しだけから始めるか。
 
-`octavo init` はプロジェクトの枠だけを作る。ほかはすべて `octavo new` で足し、どれもいくつでも
-置ける:
+### 2.3 プロジェクトに足す
 
-```bash
-octavo init study --with analysis,paper   # 枠と、分析と、論文
-cd study
-octavo env                                # このプロジェクトの分析環境（.venv と renv）
-```
+サイドバーの上の **＋**（または「原稿」の下の「**原稿を追加…**」、「分析」の下の「**分析（.qmd）を追加…**」）が、
+何を足すかと名前を聞く:
 
-```bash
-octavo new analysis model           # analysis/model.qmd（初回は octavo.R と data/ も）
-octavo new analysis model --engine python   # 同じものを Python で書く（octavo_helper.py を置く）
-octavo new paper example-paper      # docs/example-paper/: example-paper.md と体裁の main.typ
-octavo new paper example-paper --appendix   # 付録 appendix.md を足す（既にある論文にも）
-octavo new paper example-paper --tex        # LaTeX 用の main.tex を足す（既にある論文にも）
-octavo new paper english-paper --lang en    # 日本語のプロジェクトの中の英語の論文（逆も）
-octavo new slides example-talk      # docs/example-talk/example-talk.md
-octavo new lecture example-lecture  # docs/example-lecture/example-lecture.md
-octavo new poster example-poster    # docs/example-poster/example-poster.md
-octavo new figure dag               # figures/dag.typ（Typst で描く図）
-octavo new table compare            # tables/compare.csv（手で作る表）
-```
+| 足すもの | 書くファイル |
+|---|---|
+| 論文 | `docs/<name>/<name>.md` と、体裁の `main.typ` |
+| 発表スライド | `docs/<name>/<name>.md` |
+| 講義ノート | `docs/<name>/<name>.md` |
+| ポスター | `docs/<name>/<name>.md` |
+| R の分析／Python の分析 | `analysis/<name>.qmd`（1本目は補助と `data/` も） |
+| Typst で描く図 | `figures/<name>.typ` |
+| 手で作る表 | `tables/<name>.csv`（表として開く） |
 
-`init --with` にも同じ部品を書ける（`--with lecture`、`--with analysis,slides=talk`。`--all`
-で全種類。`--engine python` で分析を Python にする）。`--example` を付けると、見出しだけの骨組みの代わりに書き方の見本が入る。`init` や `new analysis` に `--env` を付けると、分析の環境も同じ手順で整える。
+原稿が何を作るかは原稿の冒頭に書き、いつでも変えられる（[3.6](#36-何を作るかと文書ごとの設定)）。
+何を足しても、`octavo.config.py` を書き換える必要はない。
 
-**1つの文書は `docs/<name>/<name>.md`。**付録（`appendix.md`）や論文の体裁（`main.typ`）も同じ
-フォルダーに置く。文書は名前で指す: `octavo build example-paper`。`paper`・`slides`・`lecture` は
-ひな型の違いで、どれも同じ「文書」になる。何を作るかは原稿の冒頭で決める
-（[3.6](#36-何を作るかと文書ごとの設定)）。
-
-### 2.3 プロジェクトの中身
+### 2.4 プロジェクトの中身
 
 ```
 study/
-  octavo.config.py   このプロジェクトの設定
-  literature/        literature.bib（書誌。文献管理ソフトからエクスポートする）と、
-                     priorwork/（Priorwork から受け取るもの）
-  AGENTS.md          このプロジェクトの約束（AI アシスタント向け。Claude Code・GitHub Copilot・Codex・Antigravity が読む）
-  CLAUDE.md          Claude Code に AGENTS.md を読ませるだけの1行
-  README.md          自分で書き足す数行
-  docs/<name>/       <name>.md（原稿）と、あれば appendix.md・main.typ（投稿先の体裁）
-  analysis/          .qmd と補助（R なら octavo.R、Python なら octavo_helper.py）
-  data/raw/          入手したままのデータ（git に入らない。data/raw/README.md に出所を書く）
-  data/derived/      分析が作ったデータ（git に入らない）
-  figures/           自分で作る図: Typst で描く <name>.typ、写真など
+  octavo.config.py   プロジェクトの設定
+  literature/        literature.bib（文献管理ソフトからエクスポートした文献）と、
+                     priorwork/ に Priorwork が届けたもの
+  AGENTS.md          AI アシスタント向けのプロジェクトの決まり
+  CLAUDE.md          Claude Code に AGENTS.md を読ませる1行
+  README.md          自分で仕上げる数行
+  docs/<name>/       <name>.md（原稿）と、あれば appendix.md と main.typ（投稿先の体裁）
+  analysis/          .qmd と補助（octavo.R、Python なら octavo_helper.py）
+  data/raw/          入手したままのデータ（git に入れない。data/raw/README.md に説明を書く）
+  data/derived/      分析が作ったデータ（git に入れない）
+  figures/           自分で作る図: Typst で描くもの（<name>.typ）、写真
   tables/            自分で作る表（<name>.csv）
-  assets/            分析と octavo build が書くもの。手で直さない
-    values/          {{…}} の数値
-    figures/         図（.pdf と .png）
-    tables/          表（.typ・.tex・.md）
-  build/             出力。出力ごとのフォルダー（pdf/・slides/・script/・word/・tex/・handouts/）。丸ごと消しても作り直せる
+  assets/            分析と Octavo が書くもの。手で直さない
+  build/             出力。出力ごとのフォルダー（pdf/、slides/、word/、…）。消してよい
 ```
 
-`octavo.config.py` はこれらのフォルダーの原稿と分析を最初から拾うので、足すたびに書き換える
-必要はない。
+フォルダーの決まり: **自分で作るもの**（`docs/`、`analysis/`、`figures/`、`tables/`、
+`data/raw/`）と、**作られるもの**（`assets/`、`build/`、`data/derived/`）を分けている。
+後者は直さず、それを作る元を直す。
 
-**前の版で作ったプロジェクト**は、原稿が `papers/<name>/paper.md`・`slides/<name>.md`・
-`lectures/<name>.md` にある。そのままで今までどおり組める。`docs/` に揃えるなら
-`octavo migrate --docs`（`--dry-run` で何をするかだけ見る）。原稿を移し、図のパスと冒頭の
-`outputs` / `sessions` を書き、設定に `docs/*/` を足す。文書の名前は変わらない。`octavo check`
-も、移せる原稿があれば知らせる。
+### 2.5 見本には印がある
 
-さらに次の2つで今の形に揃う。どちらも `--dry-run` で変わるところだけを見られ、コミット
-してあるプロジェクトで動く（そのまま進めるなら `--allow-dirty`）。
+「**見本で埋める**」で書いたものには印がある: 原稿の中のコメント、仮の数値の印、×の付いた
+箱の図。「**投稿前に検査する**」が残りを数え、数値が仮のままのプロジェクトは通さない（分析を
+1度も実行していないと、PDF に仮の数値が載ってしまう）。中身を置き換えたら、印も一緒に消す。
 
-- `octavo migrate --syntax` は、原稿の前からの書き方（`::: {.session}`・`::: {.slide}`・
-  `.handout-only`）を `\session{…}`・`\newslide`・`.no-slides` に書き換える。書き換えの前と後で
-  文書を組み、**出力がすべて同じときだけ**書き換えを残す。`.no-slides` にすると意味が変わる
-  文書（プリントの体裁でない文書や、ポスターも作る文書）の `.handout-only` はそのままにする。
-- `octavo migrate --rules` は、`AGENTS.md` の Octavo の節（`<!-- octavo:section … -->` から次の節
-  まで）を今の版に差し替え、違いを見せる。その節の中に書き足したところも差し替わる。最初の節
-  より前は残る。
+### 2.6 前の版で作ったプロジェクト
 
-### 2.4 分析の環境
-
-R や Quarto などのツールは機械に1回入れる。**分析で使うパッケージはプロジェクトごとに持つ**:
-
-```bash
-octavo env    # .venv（uv）に requirements.txt を、renv に knitr・rmarkdown と .qmd が使うものを入れる
-```
-
-分析がすべて Python のプロジェクトには renv は作らない。VS Code では自分で実行しなくてよい。**最初の分析を追加したとき**（分析を入れてプロジェクトを作ったとき）に、続けて環境を整え、進み具合は通知に出る。
-
-**`.qmd` が使う R のパッケージは自動で入る**（よそから持ち込んだ `.qmd` も）。`octavo env` は、
-プロジェクトの中の `library(x)` や `x::f()` が使っていて、まだ入っていないパッケージをすべて入れる。
-R の `.qmd` が実行の途中で失敗したときも、その `.qmd` が使っていて足りないものを入れ、もう1回
-実行する。どちらも足したものを `renv.lock` に記録する。入るのは CRAN の最新版で、CRAN にない
-もの（GitHub・Bioconductor）は、名前と自分で入れるコマンドを示す。
-
-`requirements.txt` にパッケージを足したらもう一度実行する。R で `install.packages()` したら
-`renv::snapshot()` を実行する。git に入るのは記録（`requirements.txt`・`renv.lock`）だけで、
-共著者は同じコマンドで同じ環境を作れる。
-
-- `renv::status()` が「out-of-sync」と言っても、それがコードで使っていないパッケージ（R に付いて
-  くる MASS や boot、使わなくなったもの）だけなら無害。足りないものはない。
-- プロジェクトの外で Quarto が R の `.qmd` を組むには、knitr と rmarkdown が要る。`octavo setup`
-  がそれらを（VS Code の R 拡張機能用の `languageserver` も）自分の R のライブラリに入れる。
-  古い R のパッケージを消したあとなどは、`octavo setup --r-editor` でそれだけを入れ直せる。
-
-### 2.5 見本の見分け方
-
-`--example` が書くものには印がある。`octavo:example` のコメント、値の `_placeholder`、枠と ×
-だけの図。`octavo check` が残りを数える。中身を置き換えたら印も消す。**仮の値は
-`octavo check` で「致命的」になる。**分析を1度も実行していなくても `{{…}}` は全部
-解決してしまい、仮の数字の入った PDF ができるため。
+そのまま前と同じように組める。原稿の置き場・書き方・`AGENTS.md` を今の形にできるときは、
+「**投稿前に検査する**」がそう言う。AI アシスタントに頼めば直す。先に何を変えるかを示し、
+書き方の書き換えは、すべての出力が前と同じになるときだけ残す。
 
 ---
 
-## 3. 原稿を書く
+## 3. 原稿の書き方
 
-| 何を | 書き方 |
+| 何を | どう書くか |
 |---|---|
-| 見出し | `# 分析 {#sec-analysis}`。`#` が一番上の節（`##` から始めても組める）。番号は書かない。ラベルで参照できる |
-| 要旨 | `# 要旨` の節 |
-| 引用 | `@key`、`[@key; @key2]`、所有格は `\poscite{key}`（「山田・田中(2020)」） |
-| 分析の数値 | `{{n_obs}}`、`{{coef_x:.2f}}`（§4） |
-| 図 | `![推移](../../assets/figures/trend.png){#fig-trend}` |
-| 表 | Markdown の表のすぐ下に `: 表題 {#tbl-desc}`。分析の表と `tables/` の表は表題の行だけ |
+| 見出し | `# Analysis {#sec-analysis}`（`#` がいちばん上の節。番号は書かない。ラベルで参照できる） |
+| 要旨 | `# Abstract` の節 |
+| 引用 | `@key`、`[@key; @key2]`、所有格は `\poscite{key}`（「山田・田中(2020)の」） |
+| 分析の数値 | `{{n_obs}}`、`{{coef_x:.2f}}`（4章） |
+| 図 | `![Trend](../../assets/figures/trend.png){#fig-trend}` |
+| 表 | Markdown の表のすぐ下に `: Caption {#tbl-desc}`。分析や `tables/` の表はキャプションの行だけ |
 | 式 | `$$ … $$ {#eq-model}` |
-| 参照 | `@fig-trend` →「図2.1」 |
-| 題・著者・日付 | 冒頭の YAML（front matter） |
+| 参照 | `@fig-trend` → 「図2.1」 |
+| 題・著者・日付 | 冒頭の `---` の間 |
 
-### 3.1 番号ではなくラベルで指す
+`@` と打つと引用キーの候補が、`{{` と打つと分析の値の候補が出る。`.bib` にないキーは、
+保存すると波線が付く。
 
-番号は**原稿に書かない**。見出しにも、キャプションにも、地の文にも。ラベルを付けて名前で
-指せば、番号は組むときに振られる。節を足したり動かしたりしても、参照を直す必要はない。
+### 3.1 番号でなくラベルで参照する
+
+番号は**書かない**。見出しにも、キャプションにも、本文にも。ラベルを付けて名前で参照すれば、
+番号は組むときに付くので、節を足したり動かしたりしても参照を直す必要がない。
 
 ```markdown
 # Analysis {#sec-analysis}
@@ -363,21 +177,17 @@ y_i = \beta_0 + \beta_1 x_i + \varepsilon_i
 $$ {#eq-model}
 ```
 
-- ラベルは `fig-`・`tbl-`・`eq-`・`sec-` で始め、英数字と `-`・`_` で続ける（Quarto と同じ）。
-  直後に日本語を続けてよい（`@fig-trendに示す`）。
-- `@fig-trend` は「図2.1」、`@eq-model` は「式(2.1)」、`@sec-analysis` は「第2節」になる。
-  `[-@eq-model]` は番号だけ。
-- 論文は通し番号（図1、図2。付録は図A1、A2）。講義ノート・スライド・ポスターは節ごと（第3節の
-  2つ目の図は図3.2）。`octavo.config.py` か原稿の冒頭の `crossref_numbering: 'section'` /
-  `'document'` でどちらにもできる。節の見出しに番号を出さないスライドも通し番号になる
-  （「図4.1」と出ても、聞き手には 4 が何か分からないため）。ただし同じ文書が A4 のプリントも作る
-  ときは、スライドもプリントの番号に合わせる。
-- キャプションもラベルもない図・表は、番号を付けず、数えもしない。
-- 番号が付くのは、見出し（`{.unnumbered}` を除く）、キャプションのある図と表、ラベルのある式。
-- `# 題 {.appendix}` の見出しから後ろは、同じファイルの中で付録になる（A, B, …）。
-- 存在しないラベルと、2回付けたラベルは `octavo check` が止める。
+- ラベルは `fig-`・`tbl-`・`eq-`・`sec-` で始め、英数字・`-`・`_` を続ける。すぐ後ろに
+  日本語を続けてよい（`@fig-trendに示す`）。
+- `@fig-trend` は「図2.1」（英語の文書では "Figure 2.1"）、`@eq-model` は「式(2.1)」、
+  `@sec-analysis` は「第2節」になる。`[-@eq-model]` は番号だけ。
+- 論文は通し番号（図1、図2。付録は図A1）、講義ノート・スライド・ポスターは節ごと（図3.2 は
+  第3節の2つ目の図）。「**この文書の設定**」で変えられる。
+- 番号が付くもの: 見出し（`{.unnumbered}` を除く）、キャプションのある図と表、ラベルのある式。
+- `# Title {.appendix}` の見出しから、ファイルの中で付録になる（A、B、…）。
+- 無いラベル・二重のラベルがあると、「**投稿前に検査する**」が止める。
 
-### 3.2 事例・論点など、番号の付くブロック
+### 3.2 事例・論点など番号の付くブロック
 
 ```markdown
 ::: {.question #question-why title="Why is government the main actor?"}
@@ -395,28 +205,17 @@ Unnumbered blocks need no label.
 :::
 ```
 
-- 種類: `case` 事例・`question` 論点（2つで通し番号: 事例1.1、論点1.2）、
-  `aside` 余談・`nb` 注意・`memo` 付記（番号なし）、`theorem` 定理・`lemma` 補題・`proposition` 命題・
-  `corollary` 系・`definition` 定義・`example` 例（別の通し番号）、`remark` 注（番号なし）。
-  図と同じく節ごとに振る。
-- ラベルの頭は種類の名前（`#question-why`）。`@question-why` は「論点1.2」になる。
-- **ブロックは1か所に書く。**`restate` は同じブロックを番号付きで再掲し（番号を押すと元の
-  ブロックへ飛ぶ）、`list-of` は指定した種類のブロックを本文ごと並べる（`.titles` を足すと番号・題・
-  ページだけ。`.list-of` だけなら番号のある種類すべて）。
-- どの形式でも同じ見た目（見出し語は太字、本文は立体。Word では段落スタイル `Theorem`）。
-  見出し語を変える・種類を足すなら `theorem_envs`:
-
-```python
-'theorem_envs': {
-    'case': 'Example case',
-    'claim': {'name': {'ja': '主張', 'en': 'Claim'}, 'counter': 'case'},
-    'hint': {'name': 'Hint', 'numbered': False},
-},
-```
+- 種類: `case`（事例）・`question`（論点）は1つの通し番号（事例1.1、論点1.2）、`aside`（余談）・
+  `nb`（注意）・`memo`（付記）は番号なし。`theorem`・`lemma`・`proposition`・`corollary`・
+  `definition`・`example` はもう1つの通し番号、`remark` は番号なし。
+- ラベルは種類から始める（`#question-why`）。`@question-why` は「論点1.2」になる。
+- **ブロックは1度だけ書く。**`restate` はほかの所で番号付きでもう一度示し、`list-of` は指定した
+  種類をすべて並べる（`.titles` を足すと番号・題・ページだけ）。
+- 種類の名前を変えたり足したりするには、AI アシスタントに頼む（設定は `theorem_envs`）。
 
 ### 3.3 数式
 
-ドル記号で囲んで LaTeX の書き方で書く。Typst の数式、Word の数式になり、LaTeX ではそのまま。
+ドル記号の間に LaTeX の書き方で書く。Typst の数式、Word の数式になり、LaTeX ではそのまま。
 
 ```markdown
 The estimate is $\hat\beta = {{coef_x:.3f}}$, with $y_i \sim \mathcal{N}(\mu, \sigma^2)$.
@@ -429,30 +228,20 @@ y_i &= \beta_0 + \beta_1 x_i + \varepsilon_i \\
 $$
 ```
 
-- 文中の `$x$` はドルの内側に空白を入れない。ドル記号そのものは `\$`。
-- 別行の数式はそれだけの行に書き、前後を空行にする。複数行は `align` ではなく `aligned`。
-- 1行の `\newcommand{\E}{\mathbb{E}}` を原稿のどこかに書けば、どの形式でも使える。
-  演算子は `\newcommand{\Cov}{\operatorname{Cov}}` と書く。
-- 桁区切りのある値は数式の外に置く（`$N$ = {{n_obs}}`）。中に置くとカンマが区切りとして
-  組まれる。
+- 行の中の `$x$` は、ドルの内側に空白を入れない。ドル記号そのものは `\$`。
+- 別行立ての式は前後に空行を置いて単独の行に。複数行は `align` でなく `aligned`。
+- 原稿のどこかに1行で書いた `\newcommand{\E}{\mathbb{E}}` は、全体で使える。
+- 桁区切りのある値は数式の外に置く（`$N$ = {{n_obs}}`）。
 
 ### 3.4 図
 
-原稿には `.png` を、原稿から見た相対パスで書く（論文なら `../../assets/figures/`、
-スライドと講義ノートなら `../assets/figures/`）。出力ごとに Octavo が使うファイルを選ぶ:
+原稿には `.png` を、原稿からの相対パスで書く（`docs/<name>/` の原稿からは
+`../../assets/figures/`）。PDF には横にある鮮明な `.pdf` が、Word には `.png` が入る。分析は
+両方を書く。図の後ろの `{width=60%}` で幅を決める。
 
-| 出力 | 使うファイル | なぜ |
-|---|---|---|
-| Typst（論文・プリント・スライド）と LaTeX | `.pdf` | ベクターなので拡大しても粗くならず、図の中の文字も選べる |
-| Word | `.png` | Word は PDF の図を貼れない |
-| エディタのプレビュー | `.png` | |
-
-`ov_figure()` と Typst で描いた図は両方を書く。既定の幅は `figure_width`、図ごとには
-`{width=60%}` で決める。
-
-**図表の出典・注**は、図（表なら表題の行）のすぐ後の `::: {.figure-note}` に書く。中身は
-ふつうの Markdown で、リンクも脚注も書ける。図表と一緒に小さい字で組まれ、同じページに
-置かれ、図表の題には入らない。スライドでは注の分だけ図が縮む。題にも脚注を付けられる:
+**図や表の下の出典・注**は、そのすぐ後（表ならキャプションの行の後）の `::: {.figure-note}`
+に書く。小さな字で同じページに入り、キャプションには含まれない。スライドでは、そのぶん図が
+小さくなる。
 
 ```markdown
 ![Officials by level of government[^src]](../assets/figures/staff.png){#fig-staff}
@@ -465,18 +254,15 @@ Source: National Personnel Authority, *Annual Report 2025*.[^checked]
 [^checked]: Retrieved 1 October 2026.
 ```
 
-**自分で撮った写真など、手元の画像**（写真・画面の写し）は、Typst の図の元と同じ
-`figures/` に置き、そこから直接貼る。`.jpg` も `.png` もどの出力でも使える。Octavo は
-縮めないので、大きな写真は先に縮めておく（長い辺が 2,000 ピクセルほどで足りる）。そのままだと
-PDF が重くなる。どこから来た画像か、使ってよいかは、データの `data/raw/README.md` と同じく
-`figures/README.md` に1行書いておくとよい。
+**手元の写真や画像**は `figures/` に置き、そこから貼る。Octavo は縮めないので、大きな写真は
+先に小さくしておく（長い辺が 2,000 ピクセルほどあれば十分）。
 
 ```markdown
 ![The council chamber](../figures/chamber.jpg){#fig-chamber width=70%}
 ```
 
-**Typst で図を描く（TikZ の代わり）。**`octavo new figure dag` が、箱と矢印を描く小さな
-`diagram()` 付きの `figures/dag.typ` を置く:
+**Typst で描く図（TikZ の代わり）。**「**＋**」→「**Typst で描く図**」が、箱と矢印を描く
+小さな道具の付いた `figures/<name>.typ` を書く:
 
 ```typst
 #diagram(
@@ -489,30 +275,24 @@ PDF が重くなる。どこから来た画像か、使ってよいかは、デ�
 )
 ```
 
-`octavo build` が `.typ` の変更を見て `assets/figures/dag.pdf` と `.png` に描き、原稿からは
-ほかの図と同じように貼る。Typst で描けるものは何でも使える。複数の図で共有する部品は
-`figures/_parts.typ` に置き、`json("/assets/values/analysis.json")` で分析の数値も使える。
+組むたびに `assets/figures/` に描かれ、ほかの図と同じように貼れる。Typst で描けるものなら
+何でもよく、言葉で説明すれば AI アシスタントが描く。
 
 ### 3.5 表
 
-短い表は原稿に Markdown の表で書いてよい。ほかの2種類は、表題の行だけ（隣に表のない
-`: 表題 {#tbl-名前}`）で置く:
+短い表は原稿の中の Markdown の表でよい。ほかの2種類は、キャプションの行だけ（隣に表のない
+`: Caption {#tbl-name}`）で置く:
 
-- **分析が作る表**: `ov_table(tab, "summary")` が `assets/tables/summary.*` を書き、原稿には
-  `: 記述統計 {#tbl-summary}`。`groups = c(Demand = 1, Hiring = 6)` で、1 行目と 6 行目の前に、
-  列をまたぐ太字の見出し行が入り、その下の行の見出しは字下げされる（Python は `{'Demand': 0,
-  'Hiring': 5}` と 0 から数える）。`size = 9.5` で表の字の大きさ（pt）が決まり、表の下の注は
-  左揃えになる。
-- **手で作る表**: `octavo new table compare` が `tables/compare.csv` を置く。VS Code の
-  「表として編集」か Excel で埋め、原稿には `: 2つの制度 {#tbl-compare}`。1行目が見出しで、
-  中身のある見出しのセルの右隣を空にすると結合する（Excel が結合したセルを書き出す形）。
-  そのときは2行目も見出しになる。数だけの列は右寄せ、長い文の列は折り返す。ファイルは
-  UTF-8（Shift_JIS も読める）。Windows の Excel では *データ → テキストまたは CSV から*
-  で開く。
+- **分析から**: `.qmd` に `ov_table(tab, "summary")`、原稿に
+  `: Descriptive statistics {#tbl-summary}`（[4.2](#42-数値図表を渡す)）。
+- **手で作る**: 「**＋**」→「**手で作る表**」で表の画面が開く（`tables/` や `data/` の `.csv`
+  の上の「**表として編集**」でも）。1行目が見出し。中身のある見出しの右のセルを空けると結合し、
+  そのとき2行目も見出しになる。数字の列は右寄せ、長い文の列は折り返す。Excel でも開ける
+  （Windows では「データ → テキストまたは CSV から」で）。
 
 ### 3.6 何を作るかと文書ごとの設定
 
-**何を作るかは、原稿の冒頭の `outputs:` で決める。**書かなければ `pdf`。
+**文書が何を作るかは、原稿の冒頭の `outputs:`。**書かなければ PDF。
 
 ```markdown
 ---
@@ -521,51 +301,27 @@ outputs: [pdf, word]
 ---
 ```
 
-| 出力 | できるもの |
+| 出力 | 作るもの |
 |---|---|
-| `pdf` | PDF。体裁は、原稿の横に `main.typ` があればそれ（論文）、なければ Octavo の組み込みのもの（A4。表紙・目次） |
+| `pdf` | PDF。原稿の横に `main.typ` があれば論文の体裁、なければ A4 のプリントの体裁（表紙と目次付き） |
 | `word` | Word |
-| `tex` | LaTeX（TeX が要る。原稿の横に `main.tex` があればそれ） |
 | `slides` | スライド |
-| `slides-handout` | 同じスライドの配布用。`.screen-only` の部分（答えなど）を除き、`.no-screen` の部分を入れる（[7.1](#71-スライド)） |
-| `script` | 発表の台本（スライドの各ページと `::: notes`） |
-| `poster` | ポスター（[7.3](#73-ポスター)） |
-| `beamer` | LaTeX のスライド（TeX が要る） |
+| `slides-handout` | 配るための同じスライド（[7.1](#71-スライド)） |
+| `script` | 台本（スライドごとに `::: notes` を付けたもの） |
+| `poster` | ポスター（[7.2](#72-ポスター)） |
+| `tex`、`beamer` | LaTeX、LaTeX のスライド（TeX が要る） |
 
-**何回分かの授業でできている原稿は `sessions: true`** と書く。`#` 見出し1つ（か `\session{…}`
-の区切り1つ）が1回分になり、スライドと台本は回ごとに別のファイルになる（[7.2](#72-講義ノート)）。
-区切りを書いた原稿は、書かなくても回でできているものとする。
+**授業の回でできた原稿には `sessions: true` と書く**（[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)を参照）。
+題は `title:` に書き、`# 題` の見出しは書かない（`#` の見出しは節）。
 
-題は冒頭の `title:` に書く。本文に `# 題` は書かない（`#` の見出しは節になる）。
-
-**そのほかの設定**も、投稿先や発表ごとに変わるものは原稿の冒頭に書けば、その文書にだけ効く:
-
-```markdown
----
-title: Title of the Paper
-csl: apa
-word_limit: 8000
----
-```
-
-| キー | 対象 | 何か |
-|---|---|---|
-| `outputs`・`sessions` | すべて | 何を作るか・回でできているか（上） |
-| `csl` | すべて | 引用の書式 |
-| `japanese_citation_form`・`citations_by_language` | すべて | 日本語の文献の組み方（§5） |
-| `word_limit`・`char_limit`・`abstract_word_limit`・`abstract_char_limit` | すべて | 投稿規定の上限（`octavo check`） |
-| `slides_*` | スライド | スライドの体裁（§7） |
-| `slides_select`・`poster_select` | スライド・ポスター | `marked` で、印（`.on-slides`・`.on-poster`）の所だけを出す（§7） |
-| `date_format` | すべて | 日付の出し方 |
-| `toc` | 組み込みの体裁の PDF | 目次（既定は `sessions` があればあり） |
-| `first_section`・`pagebreak`・`font`・`fontsize` | 組み込みの体裁の PDF | 番号の始まり・改ページ・書体（§7） |
-
-`octavo config --doc <name>` で一覧し、`set` / `unset` でその1行を書き換える。VS Code では
-サイドバーの各原稿の下の「**この文書の設定**」。
+サイドバーで各原稿の下にある「**この文書の設定**」で、投稿先や発表ごとに変わる設定を変える:
+引用の書式、語数・字数の上限、スライドとポスターの見た目、プリントの体裁、番号の付け方。
+選んだ値は原稿の冒頭に1行で書かれ、その原稿だけに効く。書いていないものはプロジェクトの
+「**設定**」に従う。
 
 ### 3.7 改ページとスライドの区切り
 
-どちらも、その行に1つだけ書く:
+どれも単独の行に書く:
 
 ```markdown
 \newpage
@@ -575,62 +331,23 @@ word_limit: 8000
 \newslide{Another title}
 ```
 
-- `\newpage` は改ページ（PDF・Word・LaTeX）。スライドでは何もしない。
-- `\newslide` はそこから新しいスライド。題は直前のスライドの題に「（続き）」が付く。
-  `\newslide{題}` はその題で、`\newslide{}` は題のない1枚（図に高さを回せる）。
-  スライド以外の出力では何もしない。
+- `\newpage` は改ページ（PDF・Word・LaTeX）。スライドは無視する。
+- `\newslide` は新しいスライドを始め、題は前のスライドの題に「（続き）」を付けたもの。
+  `\newslide{題}` ならその題、`\newslide{}` なら題のないスライド（図の場所が広くなる）。
+  スライド以外は無視する。
 
-### 3.8 AI に渡す文章のルールとフレーズバンク
+### 3.8 1行に1文
 
-文章の書き方の決まり（ルール）と、信頼できる言い回しを集めたもの（フレーズバンク）を、文章を
-手伝う AI に渡せる。どちらも Markdown のファイルで、プロジェクトの `notes/writing/rules/*.md` と
-`notes/writing/phrases/*.md`（前からの `writing/` も読む）、全部のプロジェクトで使うなら
-`~/.config/octavo/writing/` に置く（同じ名前ならプロジェクトのほうを使う）。`octavo writing` が一覧を出し、プロジェクトの `AGENTS.md` が、
-文章を書く・直す前にそれを読み、ルールに従い、フレーズバンクの表現を優先して使うよう AI に
-指示する。Octavo がするのは見つけることだけで、練り上げるのは利用者（ほかのリポジトリでもよい）。
-
-ファイルの冒頭には `title`・`lang`（`ja` / `en`）・`applies`（`paper`・`slides`・`lecture`・
-`poster`・`all`）を書いてよい。1つの項目を `##` の見出し1つで書く。
-
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
-
-## One claim per sentence
-
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-Good: Staff numbers fell. How fast they fell differed between municipalities.
-Bad: Staff numbers fell, but at different speeds across municipalities, which …
-```
-
-```markdown
----
-title: Introducing previous research
-lang: en
-applies: [paper]
----
-
-## Showing the course of research
-
-When: opening the section on previous research
-- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
-- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
-```
-
-見本は英語のファイル。日本語のファイルでは、Rule: / Why: / Good: / Bad: の代わりに
-「規則:」「理由:」「良い例:」「悪い例:」、When: / Note: / Source: の代わりに「場面:」「注意:」
-「出典:」と書く。ルールでは規則が要り、ほかは任意。フレーズバンクでは、〈 〉の所を差し替えて使う。
+文は1つずつ行を分けて書く。git で文ごとの変更が見え、AI アシスタントも隣の文に触れずに
+1文を直せる。文の途中で改行した行は「**投稿前に検査する**」が示し、原稿全体をまとめて直すのは
+AI アシスタントに頼める。
 
 ---
 
 ## 4. 分析
 
 **原稿には結果を書かない。**数値・図・表は分析（`.qmd`）が作り、組むたびに取り込まれる。
-推定をやり直しても、本文が古い結果のまま残ることはない。
+推定をやり直したのに本文が前の結果のまま、ということが起きない。
 
 ```
 analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
@@ -638,73 +355,61 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      本文の {{…}}
                              assets/tables/*           表
 ```
 
-### 4.1 数値・図・表を渡す
+### 4.1 分析を足す
 
-新しい `.qmd` は、最初から補助（R なら `octavo.R`、Python なら `octavo_helper.py`。下を参照）を読み込んでいる。論文に出すものを登録する:
+サイドバーの「分析」の下の「**分析（.qmd）を追加…**」が、R か Python かと名前を聞き、
+`analysis/<name>.qmd` を書いて開く。1本目の分析は、プロジェクトの**分析環境**も整える。
+プロジェクト専用の R と Python のパッケージ（renv と `.venv`）で、`renv.lock` と
+`requirements.txt` に記録されるので、共著者も同じものを使える。あとでやり直すには
+「**ツール**」→「**このプロジェクトの分析環境を用意する**」（`requirements.txt` に
+パッケージを足したときなど）。
+
+`.qmd` を開くと、それが最後に出力した HTML が横に出て、カーソルを追う。分析を実行したときに
+新しくなり、開いたり保存したりしただけでは組み直さない。
+
+### 4.2 数値・図・表を渡す
+
+新しい `.qmd` は、最初から補助を読み込んでいる。論文に出すものを登録する:
 
 | 何を | 分析で | 原稿で |
 |---|---|---|
 | 数値 | `ov_value("n_obs", nrow(d))` | `{{n_obs}}` |
-| 図 | `ov_figure(p, "trend")` | `![推移](../../assets/figures/trend.png){#fig-trend}` |
-| 表 | `ov_table(tab, "summary")` | `: 記述統計 {#tbl-summary}` |
+| 図 | `ov_figure(p, "trend")` | `![Trend](../../assets/figures/trend.png){#fig-trend}` |
+| 表 | `ov_table(tab, "summary")` | `: Descriptive statistics {#tbl-summary}` |
 
-- `ov_figure(x, name, width, height)` は ggplot か、描く関数を受け取り、`.pdf` と `.png` を書く。
-- `ov_table(x, name, notes, align, groups, indent, size)` は data.frame を受け取る。表題は原稿が
-  持つ。
-- `ov_pval(p)` は p 値を慣例の形にする（`.023`、`< .001`）。
-- `ov_palette(3)` は色覚の違いがあっても見分けやすい色を返す。`ov_tint(col, 0.6)` は文字を
-  載せる面のために色を白に寄せる。ggplot2 なら `ov_scale_colour_cud()` /
-  `ov_scale_fill_cud()`。
+- `ov_figure(p, name)` は ggplot（か描く関数）を受け取り、`.pdf` と `.png` を書く。
+  `ov_table(tab, name)` はデータフレームを受け取る。キャプションは原稿のもの。
+- `ov_pval(p)` は p 値を整える（`.023`、`< .001`）。`ov_palette(3)` は、どの色覚でも
+  見分けられる色を返す。
+- チャンクだけを実行（Run Cell）したときの `ov_value()` は、値を表示するだけで記録しない。
+  原稿の数値が変わるのは、`.qmd` 全体を実行したときだけ。
+- よそから持ってきた `.qmd` は、この行で補助を読み込む（新しい `.qmd` にも同じ行がある。
+  Render のときにも、チャンクだけを実行するときにも動く）:
 
-新しい `.qmd` の冒頭は、そのまま1つの HTML で配れる形になっている。著者は
-`octavo.config.py` の `meta` から（`affiliation` と `email` も書いてあれば入る）、日付・目次・
-節番号付き。
+```r
+source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
+```
 
-### 4.2 数値の出方
+### 4.3 数値の見え方
 
-| 値 | 例 | 出方 |
+| 値 | 例 | 表示 |
 |---|---|---|
 | 整数 | `nrow(d)` | `1,523` |
-| 小数 | `coef(m)[["x"]]` | `0.342`（既定は小数3桁） |
-| 文字列 | `ov_pval(p)` | そのまま |
+| 小数 | `coef(m)[["x"]]` | `0.342`（既定で3桁） |
+| 文字 | `ov_pval(p)` | そのまま |
 
-書式は原稿の `{{coef_x:.2f}}` か、`ov_value(..., fmt = ".2f")` で決める。値のない名前は
-`{{name}}` のまま出力に残り、そう知らされる。
+原稿の `{{coef_x:.2f}}` で書式を選ぶ。値のない名前は PDF に `{{name}}` のまま残り、知らされる。
 
-### 4.3 分析が実行されるとき
+### 4.4 分析が実行されるとき
 
-`octavo build` は、`.qmd` か、それが使うファイルが前回から変わっていれば実行する。
-見るのは中身なので、git でブランチを切り替えて戻した・clone し直しただけでは古くならない。
-
-```bash
-octavo analysis              # どれが古いか
-octavo analysis run          # 古いものを実行する
-octavo build --no-analysis   # 何も実行せずに組む
-octavo check values --diff   # 前回の実行で本文のどの数値が変わったか
-octavo analysis mark-fresh analysis/00-fetch.qmd   # 実行せずに最新と記録する
-```
-
-- Quarto がなければ警告して先に進む。分析が失敗したら組むのを止める（古い数値のまま組んで
-  しまうため）。
-- `.qmd` がいくつあってもよい。それぞれが `assets/values/<名前>.json` を書き、原稿からは
-  全部の値が見える。前の分析の結果を次の分析が使うなら、順に並べる:
-
-```python
-'analysis': [
-    {'src': 'analysis/01-clean.qmd', 'manual': True},       # 時間がかかるので octavo analysis run のときだけ実行
-    {'src': 'analysis/02-model.qmd', 'deps': ['data/derived/*']},
-],
-```
-
-- 同じことを `.qmd` の冒頭の `octavo:` の下に書いてもよい。設定の `analysis/*.qmd` は
-  そのままにできる: `manual: true`（`octavo analysis run` のときだけ実行）と `deps`（ほかに
-  見張るファイル）。設定にその `.qmd` を個別に書いてあれば、そちらが優先。
-- **原データをネットから取得する処理**（API、ダウンロード、データを取得する R パッケージ）は、
-  手で実行する別の `.qmd` にする: `analysis/00-fetch-<取得元>.qmd` に `manual: true`。
-  `data/raw/` にもうあるファイルは上書きせず、取得を飛ばすようにする（エラーで止めると、
-  実行が失敗の扱いになる）。取得元と取得日は `data/raw/README.md` に書く（`data/raw/` を
-  git に入れないなら、残る記録はそれだけ）。`knitr::knit_exit()` を呼ぶと、`.qmd` はそこで
-  正常に終わる。同じチャンクの残りは実行されてしまうので、それだけのチャンクに置く。
+- **組むと**、`.qmd` か、それが使うファイルが前回から変わっていれば実行する。見るのは中身で、
+  git のブランチを切り替えて戻っても古くはならない。
+- **プレビュー**は実行しない。古いものがあると PDF の上の帯がそう言い、「**分析を実行**」と
+  「**最新と記録する**」（使うものが変わっていないとわかっているとき）を出す。
+- サイドバーの「**分析**」に `.qmd` が並ぶ。▶ で1つ、「**古いものを実行**」ですべて。開いている
+  `.qmd` では、エディターの右上にも ▶ がある。
+- **時間のかかる段階**（データの整形や、ウェブからの取得）は別の `.qmd` にして手動の印を付ける。
+  組んでも実行されず、自分で実行したときだけ動く。冒頭に書く:
 
 ````markdown
 ---
@@ -723,224 +428,143 @@ download.file("https://example.org/survey.csv", out)
 ```
 ````
 
-- VS Code ではサイドバーの「**分析**」に `.qmd` ごとの状態が出て、ボタンで実行できる。
-  プレビューは分析を実行せず、古いものがあれば知らせる。
-- **`.qmd` が使う R のパッケージは、Octavo が実行するとき（`octavo build`、`octavo analysis run`）
-  に自動で入る。**Quarto の **Preview** から実行すると、そうはならず「there is no package called …」
-  で止まる。そこで VS Code では、R の `.qmd` を開いた・保存したときに、使っているのに入っていない
-  パッケージを確かめ、プロジェクトの renv に入れるかどうか尋ねる（端末からは `octavo analysis
-  missing <qmd>` / `octavo analysis install <qmd>`。`octavo.checkRPackages` で止められる）。
+  ファイルがすでにあれば取得を飛ばすようにし、どこからいつ取ったかを `data/raw/README.md` に
+  書く。`data/raw/` は git に入らないので、それが唯一の記録になる。
+- 分析が失敗すると、組むのを止める。そうしないと古い数値のまま組んでしまう。
 
-### 4.4 Python で書く
+### 4.5 R のパッケージ
 
-`--engine python` を付ける（VS Code では「**Python の分析**」を選ぶ）と、`.qmd` が Python で
-書かれる。`analysis/octavo_helper.py` を読み込み、これが同じ名前の関数で同じファイルを書くので、
-原稿の書き方は R のときと変わらない:
+**`.qmd` が使う R のパッケージは自動で入る。**よそから持ってきた `.qmd` でも同じ。R の `.qmd`
+を開いたり保存したりすると、使っているのに入っていないパッケージを確かめて、入れるかどうかを
+尋ねる。サイドバーから実行したときは自分で入れる。入れたものはプロジェクトの環境に入り、
+`renv.lock` に記録される。CRAN にないもの（GitHub、Bioconductor）は、名前と入れ方を示す
+（AI アシスタントに頼んでもよい）。
+
+### 4.6 Python
+
+「**Python の分析**」を選ぶと、`.qmd` は Python で書かれ、同じ関数が同じ名前で使える。
+原稿は R のときとまったく同じに書く:
 
 ```python
 ov_value("n_obs", len(d))              # {{n_obs}}
 ov_value("coef_x", model.params["x"])
-ov_figure(fig, "trend")                # matplotlib の Figure（plotnine の ggplot、描く関数でもよい）
-ov_table(tab, "summary")               # pandas の DataFrame（辞書、リストのリストでもよい）
+ov_figure(fig, "trend")                # matplotlib の Figure
+ov_table(tab, "summary")               # pandas の DataFrame
 ```
 
-- `int`（NumPy の整数も）は `1,523`、`float` は `0.342` と出る。R と同じ。
-- `ov_palette()`・`ov_tint()`・`ov_pval()` もある。補助は標準ライブラリだけで動き、matplotlib と
-  pandas は、図や DataFrame を渡したときだけ使う。
-- `requirements.txt` に Quarto が Python を動かすのに要るもの（`ipykernel`・`nbformat`・
-  `nbclient`・`pyyaml`）が入り、`octavo env` が `.venv` に入れる。`octavo analysis run` はその
-  `.venv` を自分で使う。R と Python の `.qmd` は1つのプロジェクトに同居できる。
+R と Python の `.qmd` を1つのプロジェクトに置いてよい。
 
-### 4.5 `.qmd` だけで使う
+### 4.7 .qmd だけで使う
 
-原稿のないプロジェクトでもよい。Quarto だけで書くレポートや課題は、分析と同じく `analysis/` に
-置けば（補助の関数を使っていなくてよい）、環境（`octavo env`）と実行（`octavo analysis run`、
-VS Code なら ▶）を Octavo が受け持つ。出力（HTML・PDF・Word）は Quarto のいつもどおり
-`.qmd` の隣にできる。PDF を見るには Quarto 拡張機能の **Preview** を使う。原稿がなくても、`.qmd` があれば `octavo check` と `octavo build` は問題にしない。
-
-Quarto で日本語の PDF（`format: typst`）を作ると、書体はその機械にある日本語の書体任せになる。
-原稿と同じ書体にするなら、`.qmd` の冒頭で指定する:
-
-```yaml
-format:
-  typst:
-    papersize: a4
-    include-in-header:
-      text: |
-        #set text(font: ((name: "Libertinus Serif", covers: "latin-in-cjk"), "BIZ UDMincho", "Noto Serif CJK JP"))
-```
-
-### 4.6 他の言語
-
-Octavo はファイルを読むだけなので、Julia などの `.qmd` でも、`{"name": value}` を
-`assets/values/<好きな名前>.json` に、図を `.pdf` と `.png` で `assets/figures/` に、表を
-`assets/tables/` に書けば同じように使える。
+原稿がなくてもよい。Quarto だけで書くレポートや課題も `analysis/` に置けば、Octavo が環境を
+整え、実行する（▶）。出力は Quarto のいつもどおり `.qmd` の横にできる。PDF を見るには Quarto
+拡張機能の **Preview** を使う。
 
 ---
 
 ## 5. 文献
 
-文献管理ソフト（Zotero など）から BibTeX か BibLaTeX で `literature/literature.bib` にエクスポート（前からのプロジェクトは `literature.bib`。
-`octavo.config.py` の `bib_file` が決める）
-する。Zotero なら Better BibTeX の「Keep updated」で自動的にエクスポートすると、ファイルが最新に
-保たれ、キーも変わらない。**Octavo は `.bib` を書き換えない。**
+### 5.1 文献の一覧
 
-Zotero を同じマシンで動かしているなら、`octavo bib pull` で取ってくることもできる。どのコレクション
-から取るかは `octavo.config.py` の `zotero_collection` に書いておく（VS Code のサイドバーの
-**メインの Zotero コレクションを選ぶ** で、Zotero と同じ木の形の一覧から選べる）。書かなければライブラリ全体。
-コレクションは入れ子にできるので、パス（`'研究 / Make or buy'`）で書く。そのコレクションの下の
-コレクションの文献もまとめて取る（同じキーの文献は1つにする）。いくつも使うなら並びで書く
-（`['Make or buy', 'サーベイ / 外部委託']`。テーマごとの先行研究を、いくつもの論文で使うときなど）。
+文献管理ソフト（Zotero でもほかでも）から、BibTeX か BibLaTeX で `literature/literature.bib`
+にエクスポートする。Zotero なら Better BibTeX の「自動更新」でエクスポートしておけば、いつも
+新しく、キーも変わらない。**Octavo は `.bib` を書き換えない。**「**ツール**」→「**文献を検査する**」
+が、引用しているのに `.bib` にないキーと、欠けのある項目を見つける。
 
-Zotero が手元で動いていない（SSH でつないだサーバーなど）なら、Zotero のウェブ API で読む。
-API キー（<https://www.zotero.org/settings/keys> で作る。ライブラリを読めれば足りる）とユーザー ID を、
-一度だけ `octavo bib login` で入れる（サイドバーの **Zotero のウェブ API を使う（API キー）…** でも同じ）。
-キーはプロジェクトではなく `~/.config/octavo/zotero.env` に保存する。ウェブ API では、引用キーは
-Better BibTeX が固定したもの（Zotero の Citation Key）を使うので、Better BibTeX でキーを固定しておく。
+### 5.2 引用の書式
 
-```bash
-octavo bib collections    # Zotero のコレクションの一覧
-octavo bib pull           # zotero_collection から .bib（bib_file）を取ってくる
-octavo bib login --user-id 1234567   # ウェブ API のキーを入れる（キーは標準入力で）
-```
+「**設定**」→「**引用の書式（CSL）**」（1つの論文だけなら「**この文書の設定**」）でよく使う書式が
+選べ、ほかのものは <https://www.zotero.org/styles> の ID を打ち込む。すべての出力に同時に効く。
 
-**メインのコレクションを整える。**`zotero_collection` はプロジェクトの**メイン**のコレクションで、
-`literature.bib` になるもの。メインに文献を送り込むだけのコレクション（サーベイごとのものなど）は
-**関連**のコレクション `zotero_linked` に書く（サイドバーの **関連の Zotero コレクションを選ぶ**）。
-関連のコレクションは `.bib` には入らない。`octavo bib tidy` はメインのコレクションと原稿の引用を
-突き合わせ、引用しているのにメインに無い文献（どの関連のコレクションにあるかも。関連のどれにも無ければ
-ライブラリ全体から探す）と、メインにあるのに
-どこでも引用していない文献を挙げる。これだけなら計画を表示するだけ。
+`\poscite{key}` は所有格の引用（「山田・田中(2020)」。後ろの「の」は自分で書く）。複数の著者の
+つなぎ方は書式の規則の近似なので、1度読んで確かめる。
 
-`octavo bib tidy --apply`（サイドバーの **メインの Zotero コレクションを整える** でも同じ。そのままに
-したいもののチェックを外せる）は、プロジェクトが `octavo.config.py` の `'zotero_write': True` で
-許しているときだけ、計画どおりに Zotero を書き換える。変えるのは文献がどのコレクションに入っているか
-だけで、メインのコレクションに追加するか、メインとその下のコレクションから外すかのどちらか。文献の
-削除や編集はしない。外した文献はライブラリとほかのコレクションに残る。Better BibTeX で引用キーを
-固定していない文献は外さない（Zotero 側のキーが `.bib` のキーと違うことがあるため）。書き換えは Zotero
-のウェブ API で行うので、API キーに書き込みの権限が要る（zotero.org/settings/keys の「Allow write
-access」）。この機械で動いている Zotero には、同期のあとで反映される。そのあと `octavo bib pull` する。
+文献一覧は最後に入る。論文の最後の節の `# References` は場所を示すだけ。ほかの場所に置くには、
+そこに `::: {#refs}` と `:::` を書く。
 
-```bash
-octavo bib tidy                       # 計画: 何を追加し、何を外すか
-octavo bib tidy --apply               # 実行する（'zotero_write': True が要る）
-octavo bib tidy --apply --keys smith2020,doe2019   # この文献だけ
-```
+### 5.3 日本語と英語の文献が混じるとき
 
-**先行研究のサーベイ（Priorwork）と。**[Priorwork](https://github.com/yoshida-kd/priorwork) で
-先行研究を集めるなら、サイドバーで論文を右クリック → **Priorwork で先行研究を頼む** で依頼文を
-コピーし、Priorwork のワークスペースのウィンドウでエージェントに貼る。Priorwork は原稿を読み
-（書き換えない）、サーベイ専用の Zotero のコレクションに採用論文を集め、書いたもの（先行研究の
-下書き、文献のまとめ、書きかけの原稿の補い）をプロジェクトの `literature/priorwork/` に書き出す:
-本文（`<survey>.md`。引用は `.bib` のキー）と添え状（`<survey>.json`）。このフォルダは受け取り場所で、
-原稿ではない（組まれない）。Priorwork がプロジェクトのほかの場所に書くことはない。
+日本語の文書では、英語の文献と本文の引用は選んだ書式に従い、`.bib` で `langid = {japanese}`
+の付いた文献は、書式によらず1つの日本語の形になる。「**設定**」→「**日本語の文献の形**」で選ぶ:
 
-- サイドバーの「**Priorwork から**」（または `octavo priorwork`）が届いたものを一覧にする。
-  「**原稿に取り込む依頼文をコピー**」で、AI アシスタントへの依頼文ができる。アシスタントは本文を
-  原稿と合わせて読み、どこに入れるかを提案し（補いなら、引用された前後の文から場所を探す）、
-  答えを待つ。
-- `.bib` にまだ無い論文は `@PRIORWORK:<DOI>` と書かれる。Zotero に入れて `octavo bib pull` し、
-  `octavo priorwork resolve` で印をキーに置き換える（原稿と受け取り場所の中）。`octavo check cites` は
-  この印を、ほかの無いキーと分けて出す。
-- Priorwork は、採った論文ごとのカードも置く（`<survey>.cards.json`）。VS Code では、原稿の
-  `[@key]` にカーソルを当てるとカードが出る: 論文、問いと結果、どのサーベイのものか、Priorwork が
-  本文で確かめたか要旨だけか。`octavo check cites` は、引いている論文のうち本文で確かめていない
-  ものを知らせる。
-- **クリップボードを使わずに頼む。**`octavo.priorworkWorkspace` に Priorwork のワークスペース
-  （`.priorwork/` のあるフォルダ）を設定すると（「**Priorwork のワークスペースを設定…**」でも）、
-  「**Priorwork で先行研究を頼む**」は依頼をファイルでそこへ送る。Priorwork のウィンドウのサイドバーの
-  「**Octavo からの依頼**」から頼める。どうなったか（受け付け済み・済み・断られた）は「Priorwork から」
-  に出る。端末からは `octavo priorwork ask --workspace <folder>` と `octavo priorwork requests`。
-- `octavo priorwork link` は、サーベイの Zotero コレクションをプロジェクトの関連のコレクションに
-  足す。原稿がその論文を引けば、`octavo bib tidy --apply` がメインのコレクションに入れる。
-  1つのサーベイをいくつものプロジェクトで、1つのプロジェクトでいくつものサーベイを使ってよい。
-
-```bash
-octavo check cites        # 本文の引用キーが .bib にあるか、.bib に問題がないか
-octavo csl get apa        # 投稿先の書式を取得する
-```
-
-書式は `octavo.config.py` の1行（`'csl': 'apa'`）で、全部の形式に効く。スタイルの ID は
-<https://www.zotero.org/styles> で探せる。
-
-**日本語と英語の文献を1つの書誌に。**日本語の文書では、英語の文献と本文中の引用は選んだ
-書式どおりに、`.bib` で `langid = {japanese}` とした文献は書式によらず1つの日本語の形で組む:
-
-```
-Smith et al. (2003), (山田・田中 2020), 佐藤ほか (2018)
-
-Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." Journal of Examples 4: 1–10.
-山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12(3): 1–20.
-```
-
-日本語の文献の形は `japanese_citation_form` で選ぶ（プロジェクトの設定か原稿の冒頭。VS Code では
-その文書の設定）:
-
-| 値 | 日本語の文献の形 |
+| 選ぶもの | 日本語の文献の見え方 |
 |---|---|
-| `'standard'`（既定） | 山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20. |
-| `'fullwidth'` | 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。 |
-| `'period'` | 山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。 |
+| 標準（既定） | 山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20. |
+| 全角 | 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。 |
+| ピリオド | 山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。 |
 
-`'fullwidth'` は『年報行政研究』に載った論文の文献一覧に多い形、`'period'` は『年報政治学』の
-著者・年方式の論文に見られる形にならった。どちらの雑誌も投稿規程で文献の書き方は決めて
-いないので、投稿先に指示があればそれに従う。`citations_by_language: False` にすると、書誌全体を
-`csl_locale` の言語で組む。
+全角は年報行政研究の論文によく見られる形、ピリオドは年報政治学の著者・年方式の論文の形に
+倣っている。どちらの雑誌も規程で形を決めてはいないので、投稿先に指示があればそれに従う。
 
-文献の一覧は最後に置かれる。論文の最後の節の `# 参考文献` は、その置き場所の印にすぎない
-（下に書いたものは一覧に置き換わる）。講義ノートの中で読書案内を並べた同じ名前の見出しは、
-書いたとおりに残る。一覧を別の場所に置くには、そこに `::: {#refs}` と `:::` を書く。
+### 5.4 Zotero
 
-`\poscite{key}` は所有格の引用（「山田・田中(2020)」「Smith and Taylor's (2003)」）。
-著者が多いときのつなぎ方は書式の決まりの近似なので、1度出力を確かめる。
+Zotero が同じ機械で動いていれば:
+
+- 「**設定**」→「**メインの Zotero コレクション（.bib になる）**」で、`.bib` を取ってくる
+  コレクションを Zotero と同じ木から選ぶ（その下のコレクションも入る）。
+- 「**ツール**」→「**Zotero から文献を取得する**」で取ってくる。
+
+Zotero がこの機械で動いていないとき（SSH でつなぐサーバーなど）は、「**Zotero のウェブ API を
+使う（API キー）…**」で、<https://www.zotero.org/settings/keys> の API キーを1度入れる。キーは
+プロジェクトでなく自分の設定に置かれる。ウェブ経由でも同じキーになるよう、Better BibTeX で
+引用キーを固定しておく。
+
+**メインのコレクションを整える。**論文に材料を出すだけのコレクション（先行研究のサーベイごとの
+ものなど）は**関連のコレクション**にする（「**関連の Zotero コレクションを選ぶ**」）。これは `.bib`
+には入らない。「**メインの Zotero コレクションを整える**」は、メインのコレクションと原稿が引用して
+いるものを比べ、足すもの（引用していて、関連のコレクションかライブラリにあるもの）と外すもの
+（入っているのにどこにも引用していないもの）を、印を付けられる一覧で示す。残すものの印を外して
+決める。変えるのは項目がどのコレクションにあるかだけで、項目を消したり直したりはしない。設定の
+「**octavo bib tidy に Zotero のコレクションの書き換えを許す**」と、書き込みのできるキーが要る
+（ボタンが尋ねる）。
+
+### 5.5 先行研究のサーベイ（Priorwork）と
+
+文献を [Priorwork](https://yoshida-kd.github.io/priorwork/ja/) で集めるなら:
+
+1. 論文を右クリック →「**Priorwork で先行研究を頼む**」。依頼文がコピーされるので、Priorwork の
+   ウィンドウのエージェントに貼る（「**Priorwork から**」で Priorwork のワークスペースを1度
+   設定すれば、依頼はファイルでそこへ送られる）。
+2. Priorwork は原稿を読み（書き換えない）、採用した論文をサーベイ専用の Zotero のコレクションに
+   集め、書いたもの（下書き、まとめ、書きかけの原稿への補い）を `literature/priorwork/` に届ける。
+3. サイドバーの「**Priorwork から**」に届いたものが出る。「**原稿に取り込む依頼文をコピー**」で、
+   AI アシスタントへの依頼文ができる。アシスタントは届いたものを原稿と合わせて読み、どこに入れるかを
+   提案して、答えを待つ。
+4. まだ `.bib` にない論文は `@PRIORWORK:<DOI>` で引用されている。Zotero に入れて取得し直し、
+   「**印を .bib のキーに置き換える**」。
+
+引用の上にカーソルを置くと、Priorwork のその論文のカードが出る。問いと知見、本文まで読んだか
+要旨だけかがわかる。
 
 ---
 
 ## 6. 論文: 下書きから投稿まで
 
-論文は `docs/<name>/<name>.md` と、**手で持つ体裁** `main.typ`（投稿先が求めるもの）の組。
-表題・著者・所属・メール・日付は原稿の冒頭（`title:`・`author:`・`institute:`・`email:`・`date:`）
-から取る。`--anonymous` では著者・所属・メールを出さない。`octavo build` が本文を `build/pdf/<name>/` に書き、`main.typ` がそれを組む。
-`--compile` で PDF まで作る（`build/pdf/<name>/main.pdf`。同じものを `build/pdf/<name>.pdf`
-にも置く）。
+論文は `docs/<name>/<name>.md` と、**自分で持つ体裁**の `main.typ`（投稿先に合わせる）。題・
+著者・所属・メールアドレス・日付は原稿の冒頭（`title:`、`author:`、`institute:`、`email:`、
+`date:`）から入る。
 
-```bash
-octavo build example-paper --compile            # PDF（付録があれば付録の PDF も）
-octavo build example-paper --to word            # Word
-```
+**体裁**は LaTeX に倣っている。日本語の論文は jsarticle、英語の論文は article（11pt）。1ページ目に
+分量が出る: 注を除いた・含めた本文の字数（英語なら語数）、要旨の分量、図と表の数。投稿先に合わせる
+（余白、書体、独自のタイトル部分）には、`main.typ` の変更を AI アシスタントに頼む。
 
-**体裁**は LaTeX に準じる。日本語の論文は jsarticle、英語の論文は article（11pt）の版面・見出し・
-表題まわり・要旨。これは `octavo build` が毎回 `main.typ` の横に書く `article.typ` が持つので、
-`main.typ` はほとんど空のままでよい（その `octavo-article.with(…)` に `title:` や `author:` を書けば、
-原稿の値より優先される）。1ページ目には分量が出る: 本文の字数（英語なら語数）を脚注を
-除いたものと含めたもの、要旨の字数、図と表の数（`main.typ` に `counts: none` と書けば出さない）。
-投稿先に合わせるなら、`main.typ` の `#show: octavo-article.with(…)` のあとに `set` / `show` を
-足すか、`octavo template copy paper/article.typ` でコピーして直す。これより前に作った論文は、
-その `main.typ` のまま、前と同じ見た目で組まれる。新しい体裁にするには、`main.typ` の名前を
-変えて（`main.typ.old` など）`octavo new paper <name>` を実行する。新しい `main.typ` だけが足され、
-原稿はそのまま残る。投稿先に合わせて足していたものは `#show: octavo-article.with(…)` のあとに写す。
+**付録**（論文を右クリック →「**付録を追加**」）は、あれば論文の PDF の横に別の PDF として組まれる。
+節は A、B、…、図表は A1、A2、…、ページは A-1、A-2、…。「**この文書の設定**」で、本文の後ろに
+続けた1つの PDF にもできる。
 
-**付録**（`octavo new paper <name> --appendix` で `appendix.md` を足す）は、あれば毎回、別の PDF
-`build/pdf/<name>-appendix.pdf` に組まれる。付録の節は A, B, …、図表は A1, A2, … になり、本文と
-付録のあいだの参照は番号の文字（「表A1」）で書かれる。本文の続きに付けて1つの PDF にするなら、
-`octavo.config.py` か原稿の冒頭に `appendix_separate: false` と書く。どちらでも、付録のページ番号は
-A-1、A-2、… と 1 から振り直される。
+### 6.1 投稿する前に
 
-### 6.1 投稿の前に
+「**ツール**」→「**投稿前に検査する**」が、1度にすべてを見る: 図や表のファイルがないもの、
+解決しない `{{…}}`、仮の値、古い分析、引用キー、ラベル、ひな型の残り、本文に手入力した結果、
+書いたとおりに読まれないブロック、投稿の分量の上限。上限は「**この文書の設定**」で決める
+（語数、日本語の雑誌なら字数、要旨の分）。
 
-```bash
-octavo check           # 検査をまとめて。致命的な問題があれば終了コードが 0 以外になる
-octavo check lint      # 手入力の数値と、字下げの揃っていない入れ子の箇条書き
-```
+結果でない数字（成績の配分や年など）は、`[40%]{.no-lint}` と書けば「手入力した結果」の検査から
+外れる。
 
-`octavo check` が見るもの: 図と表のファイルの欠け、解決しない `{{…}}`、仮の値、古い分析、
-引用キーと `.bib`、ラベル、見本の残り、書いたとおりに読まれない `:::` の囲み、投稿規定の分量、
-データのハッシュ値。結果でない数値（成績の配分、年など）を手入力の数値の検査から外すには、
-本文で `[40%]{.no-lint}`、段落ごとなら `::: {.no-lint}` … `:::` で囲むか、前後の文字ごと
-`lint_accepted` に書く（`'中間レポート40%'`）。分量の上限は
-設定か原稿の冒頭に書く（`word_limit: 8000`、日本語の雑誌なら `char_limit`）。
+### 6.2 匿名の査読
 
-### 6.2 匿名審査
+自分がわかる所に印を付ける:
 
 ```markdown
 ::: {.no-anonymous}
@@ -948,60 +572,35 @@ Acknowledgements: this research was funded by ...
 :::
 ```
 
-```bash
-octavo build example-paper --anonymous
-octavo bundle example-paper --anonymous   # 投稿用のファイルに自分の名前が残っていないか確かめる
-```
+そのうえで、匿名の版（と投稿用のまとめ）を AI アシスタントに頼む。印の部分、著者、所属、
+メールアドレスが除かれ、まとめたファイルに名前が残っていないかも確かめる。次のふつうのビルドで
+すべて元に戻る。
 
-`--anonymous` は `.no-anonymous` のブロックを落とし（`.anonymous-only` は残し）、タイトル
-部分から著者を外し、`main.typ` のタイトル部分を切り替える。次にふつうに組めば全部元に戻る。
+### 6.3 送った後
 
-### 6.3 投稿先に出すファイルをまとめる
+どれも AI アシスタントに頼む（それぞれアシスタントの知っているコマンド1つ）。
 
-```bash
-octavo bundle example-paper    # submission-example-paper.zip（ファイルを1つのフォルダーにまとめたもの）
-```
-
-### 6.4 送ったあと
-
-- **共著者の Word での直し**: `octavo review returned.docx` が変更履歴とコメントを一覧に
-  する。反映は自分で原稿に行う（Word のファイルには数値が文字で入っているので、
-  原稿に戻す変換はしない）。
-- **送った版を残す**: `octavo release example-paper v1-submitted` がその時点にタグを打ち、
-  PDF を GitHub Release に置く（`gh` コマンドが要る）。
-- **改訂**: `octavo check values --diff example-paper-v1-submitted` で、その版から動いた数値が分かる。
-- **データ**: `octavo data hash` が `data/` のハッシュ値を記録し、`octavo data status` が
-  そのあと変わったかを見る。`data/raw/` と `data/derived/` は git に入らない。手で写し取った
-  データは、`octavo data track data/raw/<ファイル>` でそのファイルだけ git に入れられる。
-- **再現用パッケージ**: `octavo bundle --replication` が、分析・値・図表・設定・ハッシュ値を
-  まとめる（原データは `--with-raw-data` のときだけ）。
+- **投稿システム向けにまとめる**: ファイルを1つのフォルダーか zip にまとめる。
+- **共著者の Word での直し**: 変更履歴とコメントの一覧。直しは原稿に自分で入れる（Word の
+  ファイルは数値が手入力の文字になっているので、原稿に戻すことはしない）。
+- **送った版を残す**: git のタグと、GitHub Release に PDF。
+- **改訂**: 送った版から動いた数値。
+- **データ**: `data/` の中身の記録と、それから変わったかどうか。
+- **再現用パッケージ**: 分析・値・図と表・設定・データの記録（生データは言ったときだけ）。
 
 ---
 
-## 7. スライド・講義ノート・ポスター
+## 7. スライドとポスター
+
+講義ノート（1つのファイルから A4 のプリントと回ごとのスライド）には専用のページがある:
+[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)。
 
 ### 7.1 スライド
 
-スライドだけの文書（`outputs: [slides]`）は、`#` と `##` があれば `#` が節、`##` が1枚のスライド。見出しが1段なら
-その見出しが1枚ずつ。タイトルスライドは冒頭の YAML から作る。図はスライドの残りの高さに
-収まるように置かれる。
-
-```bash
-octavo build example-talk --compile
-```
-
-| キー | 既定 | 何か |
-|---|---|---|
-| `slides_aspect` | `'16-9'` | または `'4-3'` |
-| `slides_accent` | `'#0e2f92'` | アクセントカラー。`None` で黒一色 |
-| `slides_numbering` | `None` | 見出しの番号（`'1.'`、`'1.1'`） |
-| `slides_section_slides` | `False` | `#` の節ごとに扉のスライドを作る |
-| `slides_running_header` | `True` | 左上にいまの節を出す |
-| `slides_font` | BIZ UDゴシック + Inter | 書体 |
-
-前の名前（`typst_slides_aspect` など）で書いてあっても読む。
-
-**スライドの区切りと題**は原稿で決められる。A4 プリントなどほかの出力には影響しない:
+`outputs: [slides]` の原稿で、`#` と `##` の見出しがあれば `#` が節、`##` が1枚。1階層だけなら
+見出しごとに1枚。タイトルスライドは原稿の冒頭から作り、図はスライドの残りの場所に合わせる。
+「**この文書の設定**」で、縦横比、アクセントカラー、見出しの番号、節ごとの区切りのスライド、
+左上の節の名前を決める。
 
 ```markdown
 ## A long heading for the handout {slide-title="Short title"}
@@ -1013,126 +612,30 @@ octavo build example-talk --compile
 \newslide{Another title}
 ```
 
-- `\newslide` で、そこから新しいスライドにする。題は直前のスライドの題に「（続き）」を付けたもの。
-  `\newslide{題}` はその題、`\newslide{}` は題のない1枚（[3.7](#37-改ページとスライドの区切り)）。
-  前からの `::: {.slide title="…"}` + `:::` も同じ意味
-- 見出しに `{.same-slide}`: 新しいスライドにせず、いまのスライドに太字の小見出しとして続ける
-- `{slide-title="…"}`: スライドでだけ見出しの題を差し替える（回の `#` 見出しなら、その回の
-  スライドの題になる）
+- `{slide-title="…"}` は、スライドの上だけ見出しの題を替える。
+- `{.same-slide}` は、見出しを今のスライドに太字で置く。
+- 見出しの `{.no-title}` は、題を出さない新しいスライドにして、図の場所を空ける。
+- 入りきらないスライドは「題（続き）」の新しいスライドに続き、組むときにそう知らせる。区切りたい
+  所に `\newslide` を入れてもよい。
 
-- 見出しに `{.no-title}`: 題のない新しいスライドにする。図に高さを回せる（左上の節名は残り、
-  プリントの見出しはそのまま）
+`::: notes` は話すことのメモ。スライドには出ず、**台本**だけに出る（`outputs:` に `script` を
+足すか、プレビューの3列目に選ぶ）。台本は、投影するとおりのスライドを縮め、その下にメモを付けたもの。
 
-**配布用のスライド。**`outputs:` に `slides-handout` を足すと、同じスライドがもう一度
-`build/slides-handout/`（`<name>-handout.pdf`）に、中身を変えて出る。`.screen-only` で印を付けた
-ものは投影するスライドにだけ、`.no-screen` で印を付けたものは配布用のスライド（と印刷する
-プリント）にだけ出る。`.slides-only` はどちらのスライドにも出る。
+**配るためのスライド。**`outputs:` に `slides-handout` を足すと、同じスライドがもう1つできる。
+`.screen-only` を付けたものは投影するスライドだけに、`.no-screen` を付けたものは配るスライド
+だけに入る。
 
 ```markdown
 The sample has [1,523 cases]{.screen-only}[\_\_\_\_\_\_]{.no-screen}.
 ```
 
-`::: notes` には発表者ノートを書く。投影するスライドには出ず、`--to script` で
-**台本**ができる。組んだスライドの各ページを縮小して並べ、その下にそのページのノートを置く
-（A4 に2枚ずつ）。先にスライドを組むので、絵は投影する画面と同じになる。
+**スライドの文献**: 「**この文書の設定**」→「**スライドの参考文献**」で、小さな字の最後の1枚、
+なし、スライドの文献を載せた A4 の別紙、その両方から選ぶ。
 
-**スライドの参考文献**は `slides_bibliography`（`octavo.config.py`、1つの文書だけなら原稿の冒頭）で
-決める: `slide` は最後の1枚（小さな字で）、`off` は出さない、`sheet` はスライドには出さず、その
-スライドの参考文献だけの A4 の PDF（`<デッキ>-references.pdf`）を横に作る、`both` は両方。書かなければ、
-講義の回ごとのスライドは `slide`、発表スライドは出さない。前からの `true` / `false` は `slide` /
-`off` と読む。
+### 7.2 ポスター
 
-### 7.2 講義ノート
-
-VS Code での作り方と書き方は、[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)に1ページでまとめてある。
-ここは要点だけ。
-
-冒頭に `outputs: [pdf, slides]` と `sessions: true` を書いた1本（`octavo new lecture` が書く）から、
-**全回をまとめた A4 プリント**と**回ごとのスライド**ができる:
-
-```bash
-octavo build example-lecture --to pdf --compile      # A4 プリント
-octavo build example-lecture --to slides --compile   # 回ごとのスライド
-octavo build example-lecture-03 --to slides          # 1回分だけ
-```
-
-区切りを書いていなければ、**`#` 見出しが1回分**で、その中の `##` が節、`###` がスライド
-1枚（回の中が `##` だけなら `##` が1枚）。デッキの名前を固定したい回は見出しに id を付ける（`# 第2回 {#second}` → `octavo build example-lecture-second`、`example-lecture-slides-second.pdf`）。
-付けなければ出てきた順に `-01`, `-02`, …。
-
-**回の区切りを自分で書く。**1回が `#` 1つに収まらないときは、各回の頭に区切りを書く。
-区切りがあれば区切りが回を決め、見出しは自由に使える:
-
-```markdown
-\session{Session 3: policy and government} {#third subtitle="Public policy" date="2026-10-14"}
-```
-
-`\session{…}` の中がその回の題、`{…}` には `#id`（回の名前）・`subtitle`・`date`・`author`・
-`institute` を書ける（どれも省ける。題を省くなら `\session{}`）。題・副題・日付はその回の
-タイトルスライドに出る（題がなければ回の最初の見出しが題になる）。前からの
-`::: {.session #third title="…"}` + `:::` も同じ意味。デッキの図・表・式・事例などの番号はプリントと同じ（プリントだけの図や、スライドに拾わなかった図があっても、番号はプリントのまま）。どの段が1枚のスライドになるかは講義ノート
-全体で決まる（ふつうは `###`）ので、区切りを足しても変わらない。
-
-**出し分け。**条件付きブロックで、どの出力に入れるかを決める:
-
-```markdown
-::: {.no-slides}
-Fill-in-the-blank space and detailed footnotes: handout only.
-:::
-
-::: {.slides-only}
-Figures and short prompts: slides only.
-:::
-```
-
-| 印 | 残る出力 |
-|---|---|
-| `.no-slides` | スライドと台本以外。「プリントだけ」はふつうこれ |
-| `.slides-only` | スライド・台本 |
-| `.pdf-only` | PDF だけ（A4 プリント・論文。Word・LaTeX には出ない） |
-| `.word-only` | Word |
-| `.print-only` | 紙に出るもの（PDF・Word・LaTeX） |
-
-前からの `.handout-only` も使える。講義ノートでは `.no-slides` と同じ意味。
-
-**一部だけをスライドにする。**冒頭に `slides_select: marked` と書くと、スライドには `.on-slides`
-の印の所（`::: {.on-slides}` の囲み、見出しに `{.on-slides}` を付けた節、行の中の
-`[…]{.on-slides}`）と、その上の見出しだけが出る。印のない所はプリントにだけ出る。拾わなかった
-図などへの参照はプリントでの番号を文字で書き、印のない回はスライドを作らない。
-
-**回ごとの PDF。**1回分ずつ配るなら:
-
-```bash
-octavo build example-lecture --sessions             # 回ごとに build/handouts/example-lecture-<id>.pdf
-octavo extract example-lecture --session third      # 1回分（カンマ区切りで複数なら1つの PDF）
-octavo extract example-lecture --pages 12-19        # 印字のページ番号で
-octavo extract example-lecture --session third --cover   # 表紙と目次を前に付ける
-```
-
-プリント全体を1回だけ組み、各回のページを切り出すので、ページ番号・目次・番号はすべて全体の
-まま。回の頭は必ず新しいページから始まる。ターミナルでは `octavo build <name> --sessions` で
-組むときに一緒に作る（付けなければ回ごとの PDF は作り直されない）。VS Code では、サイドバーで講義
-ノートを開いた中の「**回ごとの配布資料を作る**」で作れるほか、区切りのある講義ノートを保存する
-たびに裏で作り直される（設定の `octavo.updateHandoutsOnSave` で止められる）。
-
-**A4 プリントの体裁。**表紙は独立した1ページ、目次は i, ii, … のページ、本文は 1 ページ
-から。組み方は日本語 LaTeX の jsarticle にならう（11pt、ゆったりした行送り、段落の頭は
-1字下げ）。本文の書体は BIZ UDゴシック。プロジェクトの設定か、講義ノートの冒頭で変えられる:
-
-| キー | 既定 | 何か |
-|---|---|---|
-| `first_section` | `1` | `0` にするとガイダンスが「0」になる（図は「0.1」） |
-| `pagebreak` | `'session'` | 回ごとに改ページ。`'section'` は `#` ごと、`None` は区切りでだけ |
-| `font` | BIZ UDゴシック + Inter | 本文の書体 |
-| `fontsize` | `'11pt'` | 文字の大きさ |
-| `toc` | `true` | 目次（回のない文書では `false`） |
-| `date_format` | `'%Y年%-m月%-d日'`（英語は `'%B %-d, %Y'`） | `date:` の出し方。`date: today` は組んだ日 |
-
-### 7.3 ポスター
-
-学会のポスター発表用。冒頭に `outputs: [poster]` と書いた原稿（`octavo new poster <name>` が書く）
-から、1枚の PDF（`build/poster/<name>.pdf`）を組む。既定は **A0 縦**で、**一番上の段の見出し
-（`#`）1つが1マス**になり、2列×3行の格子に左上から順に入る。
+ポスター発表のために。`outputs: [poster]` の原稿（「**＋**」→「**ポスター**」）が1つの PDF になる。
+既定は **A0 の縦**で、**`#` の見出しごとに1つのマス**になり、2×3 の格子を左上から埋める。
 
 ```markdown
 ---
@@ -1158,158 +661,111 @@ poster_rows: [2, 1]
 
 | 書き方 | 意味 |
 |---|---|
-| 見出しの後ろの `{span=2}` / `{rows=2}` | 2列ぶん / 2行ぶんのマス |
-| `{cell="3,2"}` | 3列目の2行目に置く（1 から数える。ほかのマスは空いている所へ順に） |
-| `poster_size` | `a0`（既定）・`a1`・`a2`・`b0`・`b1`（日本の B 列）、または `1189x841mm` のような寸法 |
-| `poster_orientation` | `portrait`（縦、既定）か `landscape`（横） |
-| `poster_grid` / `poster_rows` | 格子（列×行、既定 `2x3`）と、行の高さの比（既定は均等） |
-| `logo` / `qr` / `qr_label` | 題の帯の左のロゴ（いくつでも）、右の QR コード（URL から作る）とその下の文字 |
+| 見出しの後ろの `{span=2}` / `{rows=2}` | 2列分の幅 / 2行分の高さのマス |
+| `{cell="3,2"}` | 3列目・2行目に置く |
+| `logo` / `qr` / `qr_label` | 題の帯の左にロゴ、右に QR コード（URL から作る） |
 
-論文の原稿からポスターも作るなら、`outputs: [pdf, poster]` と `poster_select: marked` と書き、
-ポスターに載せる所に `.on-poster` の印を付ける（スライドの `.on-slides` と同じ書き方）。
-
-文字の大きさと余白は判型に合わせて伸び縮みする。図はマスの残りの高さに収まる。引いた文献は
-最後のマス（`# References`）に入る。**マスに入りきらない中身は、組むと「はみ出し」と
-知らせる**（PDF でもそのマスの右下に赤い印が付く）。文を削るか、マスを大きくする。色は
-`slides_accent`、書体は `poster_font`。体裁は `octavo template copy poster/typst-poster.typ` で
-変えられる。
+「**この文書の設定**」で判型（A0〜A2、B0、B1）、向き、格子を決める。行の高さは冒頭の
+`poster_rows`。マスに入りきらないものは組むときに知らせ、PDF に赤で示すので、削るかマスを
+大きくする。論文からポスターも作るには、`outputs: [pdf, poster]` と書き、ポスターに載せるものに
+`.on-poster` を付ける（講義ノートの `.on-slides` と同じ書き方）。
 
 ---
 
-## 8. 自分用にする
+## 8. AI アシスタントのための文章のルール
 
-### 8.1 テンプレート
+自分の書き方の決まりと、信頼できる言い回しの表現集を、文章を手伝う AI アシスタントに渡せる。
+**パック**にまとめた Markdown のファイルで、`rules/` と `phrases/` のあるフォルダーを、すべての
+プロジェクト用なら `~/.config/octavo/writing/` に、そのプロジェクト用なら `notes/writing/` に置く。
+アシスタントは原稿のある部分を書いたり直したりする前に、その部分のルールと表現を読み、それに従う。
 
-Octavo が組むときに使うもの — A4 プリントとスライドの体裁、論文の `main.typ`、`octavo new`
-が書く原稿、`octavo init` が書くプロジェクト — はどれも差し替えられるファイル。コピーして
-直せば、以後はそちらが使われる:
+```markdown
+---
+title: Style of a paper
+lang: en
+applies: [paper]
+---
 
-```bash
-octavo template list                              # どのテンプレートを、どこから使っているか
-octavo template copy slides/typst-slides.typ      # このプロジェクトの templates/ へ
-octavo template copy paper/en/main.typ --user     # ~/.config/octavo/templates/ へ（全部のプロジェクトで）
-octavo template diff slides/typst-slides.typ      # Octavo を更新したあと: 元のほうで何が変わったか
+## One claim per sentence
+
+Rule: Put one claim in a sentence.
+Why: The reader need not look for where one claim ends.
+Good: Staff numbers fell. How fast they fell differed between municipalities.
+Bad: Staff numbers fell, but at different speeds across municipalities, which …
 ```
 
-| テンプレート | 差し替えると |
-|---|---|
-| `slides/typst-slides.typ`・`slides/typst-notes.typ` | スライドと台本の見た目が変わる |
-| `poster/typst-poster.typ` | ポスターの見た目が変わる |
-| `handout/handout.typ` | 講義ノートの A4 プリントが変わる |
-| `paper/<lang>/main.typ` | 新しい論文がいつもの体裁で始まる |
-| `manuscripts/<lang>/*.md` | 新しい原稿が自分の骨組みで始まる |
-| `typst/crossref.typ` | 番号と参照の見た目が変わる |
-| `citations/japanese.lua` | 書誌の日本語文献の形が変わる |
+```markdown
+---
+title: Introducing previous research
+lang: en
+section: literature
+---
 
-### 8.2 Word のスタイル
+## Showing the course of research
 
-```bash
-octavo template copy word          # templates/word/reference.docx（--user で全部のプロジェクトに）
+When: opening the section on previous research
+- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
+- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
 ```
 
-できたファイルを Word で開いてスタイル（`Heading 1`・`Body Text`・`Theorem` など）を直して
-保存すると、以後の Word の出力はこれで組まれる。設定の `docx_reference` に別の .docx を書けば、
-そちらが優先する（前からの `octavo reference-docx` も使える）。
-
-### 8.3 書体
-
-| | 和文 | 欧文 |
-|---|---|---|
-| 論文 | BIZ UD明朝 | Libertinus Serif |
-| 講義ノートの A4 プリント・スライド | BIZ UDゴシック | Inter |
-
-`octavo setup` が入れる。ない機械では Noto CJK か、その OS にある書体（Mac はヒラギノ、
-Windows は游ゴシック）で組む。足りないものは `octavo doctor` に出る。変えるなら
-`font`・`slides_font`、論文は `main.typ`。
+- 項目は `##` の見出しごと。ルールでは `Rule:` が必須で、`Why:`・`Good:`・`Bad:` は任意。
+  表現集では 〈 〉 の所を埋める。日本語のファイルでは 規則: / 理由: / 良い例: / 悪い例: と
+  場面: / 注意: / 出典: を使う。
+- `section:` のあるファイルは原稿のその部分（`abstract`、`introduction`、`literature`、`theory`、
+  `design`、`results`、`discussion`、`conclusion`、`appendix`）でだけ、ないファイルはいつも読まれる。
+- サイドバーの各原稿に「**文章のルール**」がある。その原稿が使うパック、そのファイルと項目
+  （右クリックでその原稿では使わないことにできる）、「**パックを選ぶ…**」（一般的なものから。
+  食い違えば後のものが勝つ）、「**カーソルの所のルールを見る**」（エディターの右クリックにもある）。
+  最後のものは、アシスタントがそこで読むもの。
 
 ---
 
-## 9. コマンド一覧
+## 9. 自分に合わせる
 
-```
-octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions] [--no-analysis] [--anonymous]
-octavo watch [documents...] [--to outputs]                           保存のたびに組み直す
-octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   一部の回やページだけを1つの PDF に
-octavo documents                                                     登録されている原稿
-octavo config [--doc NAME] [set KEY VALUE | unset KEY]               設定を見る・変える
-octavo analysis [run [QMD]]                                          分析が最新か見る・実行する
-octavo analysis missing|install QMD                                  .qmd が使うのに入っていない R のパッケージ
-octavo bib pull|tidy|collections|login                               Zotero: .bib を取る、メインのコレクションを整える
-octavo priorwork [resolve|link [SURVEY]] [--dry-run]                 Priorwork から受け取ったもの（literature/priorwork/）
-octavo writing                                                       文章のルールとフレーズバンク（AI に渡す）
-octavo check [--strict] [--anonymous]                                投稿・配布の前の検査をまとめて
-octavo check values [--unused] [--diff [ref]]                        {{...}} と分析の値を突き合わせる
-octavo check cites [--list] [--unused]                               引用キーと .bib を突き合わせる
-octavo check lint                                                    手入力の数値、字下げの揃っていない入れ子の箇条書き、文の途中の改行
-octavo fmt [name] [--apply]                                          原稿を1文1行にそろえる（変更を見せる。--apply で書き換える）
-octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
-octavo review returned.docx                                          共著者の変更履歴
-octavo release <document> <label>                                    タグを打ち、PDF を GitHub Release へ
-octavo data hash|status                                              data/ のハッシュ値
-octavo data track <file>                                             data/ の中のファイルを git に入れる
-octavo csl get|list|which [ID]                                       引用の書式
-octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--engine r|python] [--env]
-octavo template list|copy|diff [name] [--user]                       テンプレート（copy word で Word のスタイルのファイル）
-octavo env                                                           このプロジェクトの R と Python のパッケージ（.venv と renv）
-octavo setup [--with-tex] [--check] [--r-editor]                     ツールを入れる・更新する
-octavo doctor                                                        何が入っているか
-octavo selftest                                                      見本を最後まで組んでみる
-octavo outline [documents...]                                        見出しの構成
-octavo targets                                                       出力の一覧
-octavo migrate [--docs|--syntax|--rules] [--dry-run]                 前からのプロジェクトを今の形に（原稿を docs/ へ・書き方・AGENTS.md）
-```
-
-出力（原稿の冒頭の `outputs:` と `--to` に、カンマ区切りで。`--to all` で全部）:
-
-| 出力 | 作るもの | 要るもの |
-|---|---|---|
-| `pdf` | PDF（`main.typ` があれば論文の体裁、なければ組み込みの体裁） | Typst |
-| `slides` | スライド | Typst |
-| `slides-handout` | 配布用のスライド | Typst |
-| `script` | 台本 | Typst |
-| `poster` | ポスター | Typst |
-| `word` | Word | pandoc だけ |
-| `tex` | LaTeX（`main.tex` があれば論文の体裁） | TeX |
-| `beamer` | スライド | TeX |
-
-前の形式の名前（`typst`・`typst-slides`・`typst-notes`・`docx`・`latex`）も同じ意味に受ける。
+- よく変えるものは、「**設定**」（プロジェクトの既定）と「**この文書の設定**」にある。設定を
+  クリックして変える。塗りつぶしの点は書いてあるもの、白抜きは既定のまま。
+- **見た目のすべて**（スライド、プリント、論文の体裁、番号と参照の書き方、新しい文書が始まる
+  原稿）は、置き換えのできるテンプレートから作っている。そのプロジェクトだけにも、自分のすべての
+  プロジェクトにもできる。テンプレートのコピーと、言葉で伝えたとおりの変更を AI アシスタントに
+  頼む。Octavo を更新した後に、元のテンプレートで変わった所を見せてもらうこともできる。
+- **Word のスタイル**: Word のスタイル用のファイルを AI アシスタントに頼み、Word で開いて
+  スタイル（`見出し 1`、`本文` など）を直して保存する。以後の Word の出力がそれを使う。
+- **書体**: 論文は BIZ UD明朝と Libertinus Serif、プリントとスライドは BIZ UDゴシックと Inter で
+  組む。セットアップが入れる。プリントの書体は「**この文書の設定**」→「**本文の書体**」で変え、
+  ほかは AI アシスタントに頼む。
 
 ---
 
-## 10. VS Code
+## 10. AI アシスタントと使う
 
-[Octavo 拡張機能](https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo)を
-入れると、ここまでのことがボタンでできる:
+プロジェクトの `AGENTS.md` には決まり（原稿に結果を手入力しない、`data/raw` と生成物を直さない、
+`.bib` を直さない）が書いてあり、Claude Code・GitHub Copilot・Codex・Antigravity が読む。Octavo の
+[リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/)は Octavo 自体に同梱されているので、
+アシスタントは入っている版のコマンドと設定を調べられる。漏れたものは「**投稿前に検査する**」が
+見つける。
 
-- **セットアップ**でツールを入れる（§1）。サイドバーの「**ツール**」から、分析環境の準備・
-  分析の実行・検査もできる。
-- **プレビュー**: 原稿の隣に PDF を出し、保存のたびに組み直す。講義ノートなら3列目に、
-  カーソルのある回のスライド（か台本）が出る。文字を選べ、リンクをたどれ、☰ でしおりを開ける。PDF をクリックして Ctrl+F（Mac は Cmd+F）を押すと文字列を探せる。`.qmd` の HTML の画面も同じように探せる。
-- **新しいプロジェクト**は1つの画面で決める: 場所・名前・言語・最初に置くもの（R か Python の分析、論文、スライド、講義ノート）・見本で埋めるか。分析を選ぶと、続けて環境まで整える。まだプロジェクトでないフォルダでは、サイドバーが最初にこれを勧める。
-- 拡張機能は **Quarto**・**R**・**Python** の拡張機能も一緒に入れる（拡張機能パック。どれも個別に外せる）。R 拡張機能は補完などに R の `languageserver` パッケージを使うが、renv のプロジェクトではプロジェクトごとに「入れますか」と聞いてくる。Octavo は一度だけ、自分の R のライブラリに入れて R 拡張機能の設定 `r.libPaths` に足すことを勧める（ターミナルなら `octavo setup --r-editor`。`octavo setup` も入れる）。
-- サイドバーには原稿（とその設定）・分析・ツールが並ぶ。論文を開くと付録を足せ、
-  回の区切りのある講義ノートを開くと回ごとの配布資料を作れる（保存のたびにも作り直される）。
-- プレビューは、原稿のカーソルの位置までスクロールする（プレビューだけを自分でスクロールすることもできる。ツールバーの ⇅ ボタンか、設定 `octavo.previewFollowCursor` で止められる）。
-- Octavo のプロジェクトで `.qmd` を開くと、最後に出力された HTML（同じフォルダの `<名前>.html`）を隣の列に出し、分析を実行し直すと読み直す。`.qmd` のカーソルの位置へスクロールし（PDF と同じ設定 `octavo.previewFollowCursor`）、Ctrl+F で文字列も探せる。開く・保存するだけでは何も出力しない。Quarto 拡張機能の **Preview** を動かしているあいだは、こちらは閉じて出さない（設定 `octavo.qmdPreview` で全部止められる）。
-- R の分析と `.venv` の両方があるプロジェクトでは、Python 拡張機能が新しいターミナルに `.venv` の activate を打ち込まないようにする（R のターミナルでは `unexpected symbol` のエラーになるため）。一度だけ知らせ、**元に戻す**こともできる。自分でその設定を書いていれば触らない。
-- 引用（`@`）と分析の値（`{{`）の補完と検査。
-- `tables/` と `data/` の `.csv` は、タイトルバーの「**表として編集**」のボタンで表の形にして編集できる。
+頼み方の例（ふつうの言葉でよい）:
 
-フォルダーのある場所で `octavo` を実行する。手元でも、WSL でも、Remote-SSH でつないだ
-サーバーでも。
+- 「`data/raw/survey.csv` の分析を書いて、数値を結果の節に入れて」
+- 「外れ値を除いたモデルで頑健性の節を足して」
+- 「匿名の版と投稿用のまとめを作って」
+- 「投稿してから論文の中で変わった数値は？」
+- 「Priorwork の下書きを先行研究の節に取り込んで」
+- 「因果の図を Typst で描いて。Z が X と Y に、X が Y に効く」
+- 「スライドを 4:3 にして、アクセントカラーを深緑に」
 
 ---
 
 ## 11. 自分の機械で確かめること
 
-テストは Linux・macOS・Windows で全形式を pandoc と Typst で組み、見本の分析を Quarto で（R でも
-Python でも）実行している。テストでは分からないこと:
+Octavo のテストは、Linux・macOS・Windows ですべての出力を組み、見本の分析を Quarto で R と Python
+の両方で実行している。テストに見えないもの:
 
-- **自分の書式で引用がどう組まれるか** — `octavo selftest` を実行して読む。
-- **書体** — 最初の PDF を目で見る。足りない書体は `octavo doctor` に出る。
-- **LaTeX** — LaTeX の出力を組むテストはない。最初の LaTeX / Beamer の PDF を確かめる。
-- **自分の R の環境** — 見本は動く。自分のパッケージは自分で確かめる。
+- **自分の書式での引用の見え方**: コマンドパレットから「**Octavo: 引用の出力を確認する**」を
+  実行して読む。
+- **書体**: 最初の PDF を見る。「**ツール**」→「**環境を診断する**」が足りない書体を示す。
+- **LaTeX**: LaTeX の出力を組むテストはない。最初の LaTeX や Beamer の PDF を確かめる。
+- **自分の R の環境**: 見本は動く。自分のパッケージは自分で確かめる。
 
-おかしいと思ったら、`octavo doctor` の出力を添えて [issue](https://github.com/yoshida-kd/octavo/issues)
-を開いてほしい。
+おかしなところがあれば、「**環境を診断する**」の表示を添えて
+[issue](https://github.com/yoshida-kd/octavo/issues) を開いてほしい。

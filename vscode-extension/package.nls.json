@@ -64,5 +64,9 @@
   "command.priorworkResolve.title": "Replace the Priorwork Marks with the .bib Keys",
   "command.priorworkLink.title": "Link the Priorwork Surveys' Zotero Collections",
   "config.priorworkWorkspace.description": "The Priorwork workspace (the folder with .priorwork/ in it), as the octavo command sees it. When set, \"Ask Priorwork for the Literature\" sends its request there as a file, to be picked up from Priorwork's sidebar, instead of copying it.",
-  "command.setPriorworkWorkspace.title": "Set the Priorwork Workspace…"
+  "command.setPriorworkWorkspace.title": "Set the Priorwork Workspace…",
+  "command.writingShow.title": "Show the Writing Rules for Where the Cursor Is",
+  "command.choosePacks.title": "Choose the Writing Rule Packs",
+  "command.writingItemOff.title": "Turn Off for This Manuscript",
+  "command.writingItemOn.title": "Turn Back On for This Manuscript"
 }

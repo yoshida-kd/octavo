@@ -11,9 +11,11 @@ From **one Markdown file**, lecture notes give you:
 | A handout per session | the A4 handout cut by session, keeping the page numbers of the whole | `build/handouts/<name>-<session>.pdf` |
 | Speaker script (if you want one) | the slides on A4 with your notes underneath | `build/script/<name>-notes-<session>.pdf` |
 
-Everything can be done in VS Code. This page assumes VS Code; the commands are
-[at the end](#from-the-command-line). For installing, and for anything beyond lecture notes
-(papers, the analysis), see the [guide](https://yoshida-kd.github.io/octavo/guide/).
+Everything can be done in VS Code, and this page assumes it. For installing, see
+[Installing Octavo](https://yoshida-kd.github.io/octavo/install/); for anything beyond lecture
+notes (papers, the analysis), the [guide](https://yoshida-kd.github.io/octavo/guide/); for every
+command and setting, the [reference](https://yoshida-kd.github.io/octavo/reference/) (written
+for AI assistants).
 
 ---
 
@@ -97,8 +99,7 @@ heading an id:
 # Session 2: Government {#government}
 ```
 
-The second deck is then `<name>-government` (`octavo build <name>-government`; its PDF is
-`<name>-slides-government.pdf`).
+The second deck is then `<name>-government` (its PDF is `<name>-slides-government.pdf`).
 
 ### With session markers
 
@@ -171,7 +172,7 @@ A `\newslide` with no title takes the previous slide's title plus " (cont.)". Th
 `::: {.slide title="…"}` + `:::` means the same. The new
 slide gets a heading at the slide level (normally `###`).
 
-A slide with more than fits goes on over a new slide titled "Title (cont.)", and `octavo build`
+A slide with more than fits goes on over a new slide titled "Title (cont.)", and the build
 says so; put a `\newslide` where you want it to break instead. An untitled slide that does not
 fit is only reported.
 
@@ -226,7 +227,7 @@ block and prints the `:::`. For a few words, `[…]{.no-slides}` works inside a 
 - Grading: [midterm and final]{.no-slides}[see the handout]{.slides-only}.
 ```
 
-**Check before submitting** (or `octavo check lint`) points out a `:::` that will not be read as a
+**Check before submitting** points out a `:::` that will not be read as a
 block, and a mark that matches no output (a misspelt `.handouts-only`, say), which would
 otherwise vanish from both without a word.
 
@@ -399,7 +400,7 @@ the A4 handout):
 The handout is ordered **text, references, appendix**, wherever the appendix heading stands in
 the file. The appendix's pages are numbered A-1, A-2, … from 1, and it is made as a PDF of its own
 (`<name>-appendix.pdf`), so the handout you give out has no appendix in it. The session handouts
-(`octavo build --sessions`) leave it out too. Two settings, in the sidebar's **Settings for this
+leave it out too. Two settings, in the sidebar's **Settings for this
 document** or at the top of the manuscript:
 
 | Setting | Does |
@@ -474,22 +475,3 @@ indented by one character).
 | a URL | `<https://…>`, or `[words](https://…)` on some words |
 | a footnote | `[^name]` and `[^name]: text` (in the same session), or `^[text]` in place |
 | an appendix | `# Title {.appendix}` |
-
----
-
-## From the command line
-
-Whatever VS Code does can also be done with commands:
-
-```bash
-octavo new lecture public-policy                          # docs/public-policy/public-policy.md
-octavo build public-policy --to pdf --compile             # A4 handout
-octavo build public-policy --to slides --compile          # one deck per session
-octavo build public-policy-week3 --to slides              # one session only
-octavo build public-policy-week3 --to script              # its speaker script
-octavo build public-policy --sessions                     # build/handouts/, one PDF per session
-octavo extract public-policy --session week3 --cover      # one session, with the cover and contents
-octavo check                                              # before handing out
-```
-
-On the command line, the per-session handouts are remade only with `--sessions`.

@@ -193,16 +193,21 @@ When the user asks to bring a Priorwork draft into the manuscript:
 
 ## Writing rules and the phrase bank
 
-Before writing or revising prose in a manuscript, run `octavo writing` and read the files it
-lists. `notes/writing/rules/` holds rules (follow them); `notes/writing/phrases/` is the phrase
-bank (trusted phrasings). The user's own (`~/.config/octavo/writing/`) and a project's older
-`writing/` folder appear in the same list.
+Before writing or revising prose in a manuscript, run
+
+    octavo writing --file <the file> --line <the line you are working on> --print
+
+and follow what it prints (`--for <document> --section <section>` names the section instead;
+the sections are abstract, introduction, literature, theory, design, results, discussion,
+conclusion, appendix and any a pack adds). It gives the packs the manuscript uses (setting
+`writing`, or `writing:` at the top of the manuscript), general first, with the files for
+other kinds of document, other languages and other sections, and the items turned off
+(`writing_off`), already left out. Run it again when you move on to another section.
 
 - Follow each rule's Rule. When a sentence does not, propose a fix and name the rule
+- Where two items disagree, the later one in the output wins (it is the more specific pack)
 - Prefer the phrase bank's phrasings, filling in the parts in 〈 〉 to suit the context; when you
   need a new phrasing, match the bank's patterns and tone
-- Skip files whose `applies` does not cover this document (paper, slides, …) or whose `lang`
-  differs from the manuscript's
 - Do not edit the rule and phrase files unless asked (the user refines them elsewhere)
 
 ## The examples are marked as examples
@@ -275,4 +280,17 @@ octavo doctor       # is pandoc / LaTeX / Typst / Quarto / R present?
 octavo selftest     # see how citations actually typeset, on real output
 ```
 
-For the `octavo` command itself, see Octavo's guide: https://yoshida-kd.github.io/octavo/guide/
+# Looking up how Octavo works
+
+Look things up in Octavo's reference rather than guessing: it comes with Octavo and matches the
+installed version.
+
+```bash
+octavo docs                     # the list of sections
+octavo docs 3.8                 # one section, by number or by words from its heading
+octavo docs --search outputs    # every section that mentions a word
+```
+
+The same text is at https://yoshida-kd.github.io/octavo/reference/. The user works in VS Code;
+what Octavo has no button for (an anonymous version, a package for a journal, a template to
+change), they will ask you to do with these commands.

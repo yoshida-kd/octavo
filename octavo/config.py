@@ -137,6 +137,13 @@ DEFAULTS: dict = {
     # True なら `octavo bib tidy --apply` が Zotero のメインのコレクションを書き換えてよい
     # （文献の追加と、引用していない文献の除外だけ。文献そのものは消さない）。ウェブ API を使う
     'zotero_write': False,
+
+    # ---- 文章のルール（octavo writing）----------------------------------------
+    # 使うパック（~/.config/octavo/writing/<名前>/ か notes/writing/<名前>/）を、一般的なものから
+    # 順に。後ろが勝つ。None なら見つかったパックを全部。原稿の冒頭の `writing:` がその原稿では勝つ
+    'writing': None,
+    # 使わない項目（'パック/ファイル#見出し'）かファイル（'パック/ファイル'）。原稿の冒頭の分と合わせる
+    'writing_off': [],
     # 雑誌に合わせた書式。CSL スタイル ID（'apa', 'ieee',
     # 'modern-language-association' …）か .csl へのパス。
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。
@@ -309,7 +316,7 @@ DOC_KEYS = ('csl', 'outputs', 'targets', 'sessions', 'toc', 'word_limit', 'char_
             'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows', 'poster_font',
             'slides_select', 'poster_select', 'slides_bibliography', 'crossref_numbering',
             'appendix_separate', 'appendix_after_references', 'lang', 'csl_locale',
-            'reference_section_title')
+            'reference_section_title', 'writing', 'writing_off')
 JA_FORMS = ('standard', 'fullwidth', 'period')
 SLIDE_BIB = ('slide', 'off', 'sheet', 'both')
 
@@ -406,6 +413,14 @@ def doc_settings(src: Path, text: str | None = None) -> dict:
                            file=src, key=k, bad=', '.join(bad) or '[]')
                          + '\n  ' + t('available: {names}', names=', '.join(OUTPUTS)))
             out[k] = tuple(dict.fromkeys(backend_of(x) for x in v))
+            continue
+        if k in ('writing', 'writing_off'):
+            # パックの名前・項目の並び。1つなら文字列でもよい。`writing: none` は「全部」
+            items = [str(x).strip() for x in ([v] if isinstance(v, str) else v) if str(x).strip()]
+            if k == 'writing' and [x.lower() for x in items] in ([], ['none'], ['null'], ['~']):
+                out[k] = None
+            else:
+                out[k] = [x for x in items if x.lower() not in ('none', 'null', '~')]
             continue
         if k in LIST_DOC_KEYS and isinstance(v, (list, tuple)):
             out[k] = [str(x).strip() for x in v]           # [1, 2, 1] の並びはそのまま

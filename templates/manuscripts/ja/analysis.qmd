@@ -20,10 +20,9 @@ execute:
 ```{r}
 #| label: setup
 #| include: false
-# 同じ analysis/ にある octavo.R を読む。octavo build から呼ばれたときは
-# OCTAVO_ROOT が入っているので、どこから実行しても当たる。
-root <- Sys.getenv("OCTAVO_ROOT", unset = "")
-source(if (nzchar(root)) file.path(root, "analysis", "octavo.R") else "octavo.R")
+# 同じ analysis/ にある octavo.R を読む。Render のときの作業フォルダは analysis/、
+# チャンクだけを実行するとき（Run Cell など）はプロジェクトの直下なので、両方を探す。
+source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
 ```
 
 ```{r}

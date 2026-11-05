@@ -4,262 +4,112 @@
 
 **The quantitative social science starter pack**
 
-Octavo turns Markdown manuscripts into papers, handouts and slides — Typst (to PDF), Word,
-and, if you have TeX, LaTeX and Beamer — with the citations from one `.bib` file and the
-numbers, figures and tables from your Quarto analysis. This guide is the manual; the
-[README](https://github.com/yoshida-kd/octavo#readme) is the short introduction.
+Octavo turns Markdown manuscripts into papers, handouts, slides and posters, with the
+citations from one `.bib` file and the numbers, figures and tables from your Quarto analysis.
+This guide is for people who use it **in VS Code**: everything here is a button, a menu or
+something you write in the manuscript.
+
+- Not installed yet? [Installing Octavo](https://yoshida-kd.github.io/octavo/install/).
+- In a hurry? The [quick guide](https://yoshida-kd.github.io/octavo/quickstart/).
+- Lecture notes: [Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/).
+- Everything else — every command and every setting — is in the
+  [reference](https://yoshida-kd.github.io/octavo/reference/), written for your AI assistant.
+  Anything this guide does not give a button for, ask the assistant.
+
 [日本語の手引き](https://yoshida-kd.github.io/octavo/ja/guide/)
 
 ---
 
-## 1. Install
+## 1. Around the screen
 
-Octavo needs a few tools besides itself: **pandoc** (conversion), **Typst** (typesetting to
-PDF), **Quarto** and **R** (the analysis), the **fonts**, and **uv** (which installs the
-`octavo` command). One setup installs all of them. Pick your system:
+### 1.1 The sidebar
 
-| You use | Read |
+The Octavo icon on the far left opens the sidebar. It has five sections:
+
+| Section | What is in it |
 |---|---|
-| Ubuntu or another Debian-like Linux — a PC, or a server you reach over SSH | [Linux](#11-linux) |
-| A Mac | [macOS](#12-macos) |
-| Windows | [Windows](#13-windows) — WSL (recommended) or Windows itself |
+| **Manuscripts** | every manuscript, with a **Preview** and a **Build to PDF** button on each; open one to see its sessions (lecture notes), its appendix, **Settings for this document** and **Writing rules** |
+| **Analysis** | every `.qmd`, marked up to date, out of date or manual, with ▶ to run it; **Run the stale ones** and **Add an analysis** |
+| **Tools** | in the order you need them: install the tools, check the environment, set up the project's analysis environment, run the analysis, check the bibliography, **Check before submitting** |
+| **From Priorwork** | only when a literature survey has delivered something ([5.5](#55-with-a-literature-survey-priorwork)) |
+| **Settings** | the project's defaults, folded |
 
-On every system there are two ways to do it: **with VS Code** (install the extension and
-press one button) or **from a terminal** (four commands). They install the same things.
-LaTeX is not included — it is optional (see [LaTeX, if you want it](#16-latex-if-you-want-it)).
+The **+** at the top of the sidebar adds a manuscript, an analysis, a figure or a table. A
+right-click on a paper offers **Add an appendix**, **Add main.tex (LaTeX)** and **Ask Priorwork
+for the Literature**.
 
-### 1.1 Linux
+### 1.2 The preview
 
-Ubuntu 24.04 is what Octavo is tested on; Debian and other Ubuntu versions work too (a font
-the distribution doesn't package is replaced by Noto). You need a user who can use `sudo`.
+Open a manuscript and press the **PDF** button at the top right of the editor. The PDF opens
+beside it and is rebuilt every time you save.
 
-**With VS Code**
+- It scrolls to where your cursor is (the ⇅ button in its toolbar turns that off). You can
+  still scroll it on its own.
+- Text can be selected, links followed, and ☰ lists the bookmarks. Click in the PDF and press
+  Ctrl+F (⌘F on a Mac) to search it.
+- For slides and lecture notes, the **screen** button at the top right picks a third column:
+  the deck for the session the cursor is in, the speaker script, or nothing.
+- The preview never runs the analysis. When something is out of date, a bar above the PDF
+  says so, with a button to run it.
+- It closes when you close the manuscript.
 
-1. Install [VS Code](https://code.visualstudio.com/) on the computer you work at.
-   *If Octavo is to run on a server*, also install the **Remote - SSH** extension and
-   connect to the server (**Remote-SSH: Connect to Host…**); everything below then happens
-   on the server.
-2. Install the **Octavo** extension (search "Octavo" in the Extensions view, publisher
-   yoshida-kd). Over Remote-SSH, click **Install in SSH: …** so it lands on the server.
-3. Open a folder. The extension checks the tools and offers **Set up**. Press it: a
-   terminal opens, asks for your password once (for `sudo`), and installs everything.
-   It takes a while the first time (R and the fonts are the large part).
-4. When it finishes, the extension checks again. Nothing to report means you are done.
+### 1.3 What your AI assistant does for you
 
-**From a terminal**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # uv
-source ~/.local/bin/env                           # put uv on PATH in this terminal (or open a new one)
-uv tool install octavo-kit                        # the octavo command
-octavo setup                                      # pandoc, Typst, Quarto, fonts, R, renv (asks for your password)
-octavo doctor                                     # everything should read ok
-```
-
-`octavo setup` adds CRAN's repository so that R is the latest release, and points R at
-Posit Package Manager, from which a project's renv installs packages as ready-made binaries
-instead of compiling them. If you installed R some other way, Octavo's own installs (`octavo env`,
-and the R packages a failing `.qmd` needs) take the packages from there too as long as you have
-not chosen another source; `octavo doctor` says when R compiles everything from source (slow, and
-it needs build tools) and gives the line to put in `~/.Rprofile`.
-
-### 1.2 macOS
-
-**First install Homebrew**, which Octavo uses to install everything else. Open Terminal and
-run the one line from [brew.sh](https://brew.sh):
-
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-```
-
-Follow what it prints at the end (on Apple Silicon it asks you to add Homebrew to your
-`PATH`), then open a new Terminal window.
-
-**With VS Code**
-
-1. Install [VS Code](https://code.visualstudio.com/) and the **Octavo** extension.
-2. Open a folder and press **Set up** when the extension offers it. A terminal opens and
-   installs everything through Homebrew (your password may be asked for R and Quarto).
-3. If the extension says it cannot find `octavo` afterwards, quit VS Code completely
-   (⌘Q) and start it again — it was started before the new command existed.
-
-**From a terminal**
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # uv
-source ~/.local/bin/env                           # put uv on PATH in this terminal (or open a new one)
-uv tool install octavo-kit                        # the octavo command
-octavo setup                                      # pandoc, Typst, Quarto, fonts, R, renv (with Homebrew)
-octavo doctor                                     # everything should read ok
-```
-
-R is CRAN's own build (Homebrew's `r` cask), so CRAN's binary packages work.
-
-### 1.3 Windows
-
-There are two ways. **WSL is recommended**: Octavo is developed and tested on Linux first,
-and WSL gives you exactly that inside Windows. Use Windows itself only if you cannot use WSL.
-
-#### 1.3.1 Windows with WSL (recommended)
-
-1. Install WSL. Open PowerShell *as administrator* (right-click the Start button →
-   *Terminal (Admin)*, or *Windows PowerShell (Admin)* on Windows 10) and run:
-
-   ```powershell
-   wsl --install
-   ```
-
-   Restart when it asks. Ubuntu then starts and asks you to choose a user name and password
-   — remember the password, the setup asks for it.
-2. Install [VS Code](https://code.visualstudio.com/) on Windows, then the **WSL** extension.
-3. In VS Code, **WSL: Connect to WSL** (bottom-left corner). Open a folder *inside* Ubuntu
-   (for example `/home/<user name>`).
-4. Install the **Octavo** extension.
-5. The Octavo extension offers **Set up**; press it and enter the Ubuntu password. From
-   here on it is the [Linux](#11-linux) setup.
-
-From a terminal instead: open *Ubuntu* from the Start menu and follow
-[Linux → From a terminal](#11-linux).
-
-<details class="fold">
-<summary><h4 id="132-windows-itself-without-wsl">1.3.2 Windows itself (without WSL)</h4></summary>
-
-This uses [winget](https://learn.microsoft.com/windows/package-manager/winget/), which comes
-with Windows 11 and current Windows 10 (if `winget` is not found, install *App Installer*
-from the Microsoft Store). No administrator rights are needed. LaTeX is not
-installed on Windows (install MiKTeX yourself if you need it).
-
-**With VS Code:** install [VS Code](https://code.visualstudio.com/) and the **Octavo**
-extension, open a folder, and press **Set up**. On a PC without WSL the extension uses
-Windows' own tools. When it has finished, restart VS Code so it sees the new commands.
-
-**From a terminal:** open PowerShell (not as administrator) and run:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"   # uv
-```
-
-Close PowerShell and open a new one (so it finds `uv`), then:
-
-```powershell
-uv tool install octavo-kit    # the octavo command
-octavo setup                  # pandoc, Typst, Quarto, fonts, R, renv (with winget)
-```
-
-Open a new PowerShell once more and check:
-
-```powershell
-octavo doctor                 # everything should read ok
-```
-
-</details>
-
-Two habits keep a project working on every system: write paths with `/`
-(`../assets/figures/trend.png`), and keep the upper and lower case of file names exactly as
-the manuscript writes them — Windows does not tell `Trend.png` from `trend.png`, Linux does.
-
-### 1.4 Check that it works
-
-```bash
-octavo doctor       # what is installed; anything missing comes with the command that installs it
-octavo selftest     # typesets a small sample and prints the citations as they come out
-```
-
-`octavo doctor` marks each tool ok, missing, or a note (nice to have). `octavo selftest`
-builds a sample with English and Japanese references, a table, a figure and
-cross-references in a temporary folder and shows how the citations came out — run it once
-per machine and read it.
-
-### 1.5 Updating
-
-```bash
-uv tool upgrade octavo-kit    # the newest octavo
-octavo setup                  # the tools it expects (safe to run again: what is there is skipped)
-```
-
-In VS Code, update the extension and run **Tools → Install or Update the Tools** in the
-Octavo sidebar.
-
-### 1.6 LaTeX, if you want it
-
-Everything above makes PDFs through Typst; LaTeX is only needed for the `latex` and
-`beamer` formats. On Linux, `octavo setup --with-tex` adds TeX Live (several GB). On a Mac,
-install [MacTeX](https://www.tug.org/mactex/); on Windows, [MiKTeX](https://miktex.org/).
-`octavo doctor` lists TeX separately and does not count it as missing.
-
-### 1.7 The language Octavo speaks
-
-Messages come out in English, or in Japanese when your system is set to Japanese.
-`export OCTAVO_LANG=ja` (or `en`) chooses. This is only the language of the messages; the
-language a project is *written* in is `lang` in its `octavo.config.py`
-(`octavo init --lang ja|en`). The VS Code extension follows VS Code's language.
+Every project has an `AGENTS.md` with its working rules, and Claude Code, GitHub Copilot, Codex
+and Antigravity read it by themselves. The assistant also knows how to look things up in
+Octavo's reference, so when this guide says "ask your AI assistant", you can say it in your own
+words: *"make the anonymous version for review"*, *"package the paper for the journal"*, *"show
+me which numbers changed since I submitted"*. More in [10](#10-working-with-an-ai-assistant).
 
 ---
 
-## 2. Your first project
-
-> **In VS Code** you can do all of this without typing a command: the Octavo sidebar offers
-> **New project** in a folder that is not a project yet (where, the language, the parts, the
-> examples — an analysis also gets its environment set up), and its **+** adds manuscripts,
-> analyses, figures and tables later. The commands below are what those buttons run; see
-> [10. VS Code](#10-vs-code).
+## 2. Projects
 
 ### 2.1 Try the example first
 
-```bash
-octavo init demo --all --example
-cd demo
-octavo env                    # the project's analysis environment (.venv and renv)
-octavo build --compile        # runs the analysis, then typesets everything to PDF
-```
-
-This makes a project with an analysis of made-up data, a paper, a slide deck and lecture
-notes that use it. The PDFs land in `build/`.
+Open an empty folder in VS Code. The Octavo sidebar offers **New project**; press it, choose
+every part and tick **Fill them with examples**. You get an analysis of made-up data, a paper,
+a slide deck, lecture notes and a poster that use it, and the analysis environment is set up
+right after (the first time takes a few minutes). Open the paper and press the **PDF** button.
 
 ### 2.2 Start your own
 
-`octavo init` makes the frame of a project; everything else is added with `octavo new`,
-as many of each as you like:
+**New project** is one screen:
 
-```bash
-octavo init study --with analysis,paper   # the frame, an analysis and a paper
-cd study
-octavo env                                # the project's analysis environment (.venv and renv)
-```
+- **Where**: in a new folder, or in the open folder.
+- **Language of the writing**: Japanese or English. It chooses the templates, the headings
+  ("Figure" or 「図」) and the citation forms. A manuscript in the other language can be added
+  later.
+- **What to start with**: an analysis (in R or Python), a paper, slides, lecture notes, a
+  poster. Pick only what you need now; anything can be added later.
+- **Fill them with examples**, or start from bare headings.
 
-```bash
-octavo new analysis model           # analysis/model.qmd (the first also brings octavo.R and data/)
-octavo new analysis model --engine python   # the same, written in Python (brings octavo_helper.py)
-octavo new paper example-paper      # docs/example-paper/: example-paper.md and the layout main.typ
-octavo new paper example-paper --appendix   # add appendix.md (to an existing paper too)
-octavo new paper example-paper --tex        # add main.tex for LaTeX (to an existing paper too)
-octavo new paper english-paper --lang en    # a paper in English inside a Japanese project (or the other way round)
-octavo new slides example-talk      # docs/example-talk/example-talk.md
-octavo new lecture example-lecture  # docs/example-lecture/example-lecture.md
-octavo new poster example-poster    # docs/example-poster/example-poster.md
-octavo new figure dag               # figures/dag.typ, a figure drawn in Typst
-octavo new table compare            # tables/compare.csv, a table you make by hand
-```
+### 2.3 Adding to a project
 
-`init --with` takes the same parts (`--with lecture`, `--with analysis,slides=talk`; `--all`
-for every kind; `--engine python` makes the analysis one in Python), and `--example` fills the
-parts with worked examples instead of bare headings. Add `--env` to `init` or `new analysis`
-to set up the analysis environment in the same step.
+The **+** at the top of the sidebar (or **Add a manuscript…** under Manuscripts, **Add an
+analysis** under Analysis) asks what to add and its name:
 
-**A document is `docs/<name>/<name>.md`.** Its appendix (`appendix.md`) and a paper's layout
-(`main.typ`) sit in the same folder. A document is referred to by its name:
-`octavo build example-paper`. `paper`, `slides` and `lecture` are different templates; each makes
-the same kind of document. What a document makes is decided at the top of the manuscript
-([3.6](#36-what-it-makes-and-settings-for-one-document)).
+| Add | It writes |
+|---|---|
+| Paper | `docs/<name>/<name>.md` and `main.typ`, the layout |
+| Talk slides | `docs/<name>/<name>.md` |
+| Lecture notes | `docs/<name>/<name>.md` |
+| Poster | `docs/<name>/<name>.md` |
+| Analysis in R / in Python | `analysis/<name>.qmd` (the first also brings the helper and `data/`) |
+| Figure drawn in Typst | `figures/<name>.typ` |
+| Table made by hand | `tables/<name>.csv`, opened as a grid |
 
-### 2.3 What is in a project
+What a manuscript makes is written at its top, and can be changed at any time ([3.6](#36-what-it-makes-and-settings-for-one-document)).
+Whatever you add, nothing in `octavo.config.py` needs editing.
+
+### 2.4 What is in a project
 
 ```
 study/
   octavo.config.py   the project's settings
   literature/        literature.bib (the bibliography, exported from your reference manager) and,
                      in priorwork/, what Priorwork delivers
-  AGENTS.md          the project's working rules for AI assistants (Claude Code, GitHub Copilot, Codex, Antigravity read it)
+  AGENTS.md          the project's working rules for AI assistants
   CLAUDE.md          one line that points Claude Code at AGENTS.md
   README.md          a few lines for you to finish
   docs/<name>/       <name>.md (the manuscript), and appendix.md and main.typ (the journal layout) if any
@@ -268,70 +118,28 @@ study/
   data/derived/      data the analysis made (not in git)
   figures/           figures you make: drawn in Typst (<name>.typ), photos
   tables/            tables you make (<name>.csv)
-  assets/            what the analysis and octavo build write — never edited by hand
-    values/          the numbers behind {{…}}
-    figures/         figures (.pdf and .png)
-    tables/          tables (.typ, .tex, .md)
-  build/             the output, a folder per output (pdf/, slides/, script/, word/, tex/, handouts/); everything here can be deleted and rebuilt
+  assets/            what the analysis and Octavo write — never edited by hand
+  build/             the output, a folder per output (pdf/, slides/, word/, …); can be deleted
 ```
 
-`octavo.config.py` already finds every manuscript and analysis in these folders, so adding
-one never means editing it.
-
-**A project made with an earlier version** keeps its manuscripts in `papers/<name>/paper.md`,
-`slides/<name>.md` and `lectures/<name>.md`, and builds as before. To move them into `docs/`,
-run `octavo migrate --docs` (`--dry-run` shows what it would do): it moves the manuscripts,
-fixes the figure paths, writes `outputs` / `sessions` at the top and adds `docs/*/` to the
-config. The document names stay the same. `octavo check` also says when there is something to move.
-
-Two more steps bring such a project fully up to date; both take `--dry-run` to show what they
-would change, and work on a committed project (`--allow-dirty` to go ahead anyway):
-
-- `octavo migrate --syntax` rewrites the older notation in the manuscripts — `::: {.session}`,
-  `::: {.slide}` and `.handout-only` — into `\session{…}`, `\newslide` and `.no-slides`. It
-  builds every document before and after and keeps the rewrite only if **every output is the same**.
-  `.handout-only` is left as it is where `.no-slides` would mean something else (a document that
-  is not in the handout layout, or one that also makes a poster).
-- `octavo migrate --rules` replaces Octavo's sections of `AGENTS.md` (from `<!-- octavo:section … -->`
-  to the next one) with the current versions, and shows the difference. Anything you wrote
-  inside those sections is replaced too; what is before the first section is kept.
-
-### 2.4 The analysis environment
-
-Tools such as R and Quarto are installed once per machine. **The packages an analysis uses
-belong to the project**:
-
-```bash
-octavo env    # .venv (uv) with requirements.txt, renv with knitr, rmarkdown and what the .qmd files use
-```
-
-A project whose analyses are all in Python gets no renv. In VS Code you do not have to run it: **adding the first analysis** (or starting a project with one) sets the environment up right after, with the progress in a notification.
-
-**R packages the `.qmd` files use are installed for you** — a `.qmd` brought in from elsewhere
-included. `octavo env` installs every package that a `library(x)` or `x::f()` in the project
-uses and is not installed yet; and when an R `.qmd` fails while running, Octavo installs what
-that `.qmd` uses and is missing, then runs it once more. Both record what they added in
-`renv.lock`. They install the latest version from CRAN; a package that is not on CRAN (GitHub,
-Bioconductor) is named, with the command to install it yourself.
-
-Run it again after adding a package to `requirements.txt`; after `install.packages()` in R,
-run `renv::snapshot()`. Git keeps the records (`requirements.txt`, `renv.lock`), not the
-installed packages, so a coauthor gets the same environment from the same command.
-
-- `renv::status()` may say "out-of-sync" for packages that are recorded and installed but not
-  used in the code (MASS or boot, which come with R, or ones you stopped using). That is
-  harmless: nothing is missing.
-- Outside a project, Quarto needs knitr and rmarkdown to run an R `.qmd`. `octavo setup` puts
-  them (and `languageserver` for VS Code's R extension) in your own R library;
-  `octavo setup --r-editor` does just that, for instance after removing an old R's packages.
+The rule of the folders: **what you make** (`docs/`, `analysis/`, `figures/`, `tables/`,
+`data/raw/`) and **what is made for you** (`assets/`, `build/`, `data/derived/`) are kept
+apart. Never edit the second kind; change what it is made from.
 
 ### 2.5 Examples are marked as examples
 
-What `--example` writes carries a mark — an `octavo:example` comment, `_placeholder` in the
-values, a figure that is a box with an × — and `octavo check` counts what is left. Replace
-the content and delete the mark with it. **Placeholder values are fatal in `octavo check`**:
-before the analysis has ever run, every `{{…}}` still resolves, and the PDF would carry fake
-numbers.
+What **Fill them with examples** writes is marked: a comment in the manuscript, a mark in the
+made-up numbers, a figure that is a box with an ×. **Check before submitting** counts what is
+left, and refuses to pass a project whose numbers are still the made-up ones (before the
+analysis has run, the PDF would carry fake numbers). Replace the content and delete the mark
+with it.
+
+### 2.6 A project made with an earlier version
+
+It keeps building as before. **Check before submitting** says when its manuscripts, its
+notation or its `AGENTS.md` can be brought up to date; ask your AI assistant to do it. It first
+shows what it would change, and keeps a rewrite of the notation only if every output comes out
+the same.
 
 ---
 
@@ -339,7 +147,7 @@ numbers.
 
 | What | How you write it |
 |---|---|
-| Heading | `# Analysis {#sec-analysis}` — `#` is the top section (starting at `##` also works); no number; the label makes it referable |
+| Heading | `# Analysis {#sec-analysis}` — `#` is the top section; no number; the label makes it referable |
 | Abstract | a `# Abstract` section |
 | Citation | `@key`, `[@key; @key2]`, possessive `\poscite{key}` ("Smith and Taylor's (2003)") |
 | A number from the analysis | `{{n_obs}}`, `{{coef_x:.2f}}` (§4) |
@@ -347,7 +155,10 @@ numbers.
 | Table | a Markdown table with `: Caption {#tbl-desc}` right below it, or the caption line alone for a table from the analysis or from `tables/` |
 | Equation | `$$ … $$ {#eq-model}` |
 | Reference | `@fig-trend` → "Figure 2.1" |
-| Title, author, date | the YAML front matter at the top |
+| Title, author, date | the lines between `---` at the top |
+
+Typing `@` offers the citation keys and `{{` the analysis's values; a key that is not in the
+`.bib` is underlined when you save.
 
 ### 3.1 Referring by label, never by number
 
@@ -375,20 +186,16 @@ $$ {#eq-model}
 ```
 
 - Labels start with `fig-`, `tbl-`, `eq-` or `sec-` and continue with letters, digits, `-`
-  and `_` — Quarto's convention. Japanese may follow directly (`@fig-trendに示す`).
+  and `_`. Japanese may follow directly (`@fig-trendに示す`).
 - `@fig-trend` reads "Figure 2.1" ("図2.1" in a Japanese document), `@eq-model`
   "Equation (2.1)", `@sec-analysis` "Section 2"; `[-@eq-model]` is the number alone.
-- A paper numbers straight through (Figure 1, Figure 2; in the appendix Figure A1, A2); lecture
+- A paper numbers straight through (Figure 1, Figure 2; in the appendix Figure A1); lecture
   notes, slides and posters number by section (Figure 3.2 is the second figure of Section 3).
-  `crossref_numbering: 'section'` or `'document'` in `octavo.config.py` or at the top of a
-  manuscript chooses either way. A deck of slides whose sections show no number counts straight
-  through too (a "Figure 4.1" would leave the audience asking what 4 is), unless the same
-  document also makes the A4 handout: then the deck uses the handout's numbers.
-- A figure or table with no caption and no label is not numbered or counted.
+  **Settings for this document** changes it.
 - Numbered: headings (except `{.unnumbered}`), figures and tables with a caption, and
   equations with a label.
 - A heading `# Title {.appendix}` starts an appendix within the file (A, B, …).
-- `octavo check` stops on a label that does not exist or is used twice.
+- **Check before submitting** stops on a label that does not exist or is used twice.
 
 ### 3.2 Cases, questions and other numbered blocks
 
@@ -408,23 +215,13 @@ Unnumbered blocks need no label.
 :::
 ```
 
-- Kinds: `case`, `question` (one numbering: Case 1.1, Question 1.2), `aside`, `nb`,
-  `memo` (unnumbered), and `theorem`, `lemma`, `proposition`, `corollary`, `definition`, `example`
-  (another numbering), `remark` (unnumbered). Numbered by section, like figures.
+- Kinds: `case`, `question` (one numbering: Case 1.1, Question 1.2), `aside`, `nb`, `memo`
+  (unnumbered), and `theorem`, `lemma`, `proposition`, `corollary`, `definition`, `example`
+  (another numbering), `remark` (unnumbered).
 - The label starts with the kind (`#question-why`); `@question-why` reads "Question 1.2".
-- **Write a block once.** `restate` repeats it elsewhere with its number, which links back
-  to the original; `list-of` lists every block of the kinds given, with their text (add `.titles`
-  for number, title and page only; `.list-of` alone lists every numbered kind).
-- They look the same in every format: bold heading word, upright text (in Word, the
-  paragraph style `Theorem`). Rename or add kinds with `theorem_envs`:
-
-```python
-'theorem_envs': {
-    'case': 'Example case',
-    'claim': {'name': {'ja': '主張', 'en': 'Claim'}, 'counter': 'case'},
-    'hint': {'name': 'Hint', 'numbered': False},
-},
-```
+- **Write a block once.** `restate` repeats it elsewhere with its number; `list-of` lists every
+  block of the kinds given (add `.titles` for number, title and page only).
+- To rename a kind or add one, ask your AI assistant (the setting is `theorem_envs`).
 
 ### 3.3 Math
 
@@ -446,29 +243,18 @@ $$
 - Display math sits on its own lines with blank lines around it. For several lines use
   `aligned`, not `align`.
 - A one-line `\newcommand{\E}{\mathbb{E}}` anywhere in the manuscript works everywhere.
-  For an operator write `\newcommand{\Cov}{\operatorname{Cov}}`.
-- Keep a value with a thousands separator outside the math (`$N$ = {{n_obs}}`); inside,
-  the comma is set as punctuation.
+- Keep a value with a thousands separator outside the math (`$N$ = {{n_obs}}`).
 
 ### 3.4 Figures
 
 Write the `.png` in the manuscript, with the path relative to the manuscript
-(`../../assets/figures/` from a paper, `../assets/figures/` from slides and lecture notes).
-For each output Octavo picks the right file:
-
-| Output | File used | Why |
-|---|---|---|
-| Typst (papers, handouts, slides) and LaTeX | `.pdf` | vector: sharp at any zoom, its text selectable |
-| Word | `.png` | Word cannot embed a PDF figure |
-| The editor's preview | `.png` | |
-
-`ov_figure()` and figures drawn in Typst write both. `figure_width` sets the default width;
-`{width=60%}` after a figure sets one.
+(`../../assets/figures/` from a manuscript in `docs/<name>/`). The PDF gets the sharp `.pdf`
+beside it, Word the `.png`; the analysis writes both. `{width=60%}` after a figure sets its
+width.
 
 **A source or note under a figure or table** goes in `::: {.figure-note}` right after it
-(after a table's caption line). It is ordinary Markdown — links and footnotes work — set in
-small type with the figure, kept on the same page, and left out of the figure's title. On a
-slide the figure shrinks to leave room for it. A footnote can go in the title too:
+(after a table's caption line): small type, on the same page, not part of the caption. On a
+slide the figure shrinks to leave room for it.
 
 ```markdown
 ![Officials by level of government[^src]](../assets/figures/staff.png){#fig-staff}
@@ -481,18 +267,15 @@ Source: National Personnel Authority, *Annual Report 2025*.[^checked]
 [^checked]: Retrieved 1 October 2026.
 ```
 
-**Photos and other images you have** (a photo you took, a screenshot) go in `figures/`, next to
-the Typst figure sources, and are placed straight from there; `.jpg` and `.png` work in every
-output. Octavo does not shrink them, so resize a large photo first (about 2,000 pixels on the
-long side is plenty) or the PDF gets heavy. Where an image came from and whether you may use
-it is worth a line in `figures/README.md`, as `data/raw/README.md` does for data.
+**Photos and other images you have** go in `figures/` and are placed from there. Octavo does
+not shrink them, so resize a large photo first (about 2,000 pixels on the long side is plenty).
 
 ```markdown
 ![The council chamber](../figures/chamber.jpg){#fig-chamber width=70%}
 ```
 
-**Drawing a figure in Typst (instead of TikZ).** `octavo new figure dag` writes
-`figures/dag.typ` with a small `diagram()` helper — boxes and arrows:
+**A diagram drawn in Typst (instead of TikZ).** **+** → **Figure drawn in Typst** writes
+`figures/<name>.typ` with a small helper for boxes and arrows:
 
 ```typst
 #diagram(
@@ -505,31 +288,25 @@ it is worth a line in `figures/README.md`, as `data/raw/README.md` does for data
 )
 ```
 
-`octavo build` draws it into `assets/figures/dag.pdf` and `.png` whenever the `.typ` changes,
-and the manuscript places it like any figure. Anything Typst can draw works; parts several
-figures share go in `figures/_parts.typ`; `json("/assets/values/analysis.json")` brings in
-the analysis's numbers.
+It is drawn into `assets/figures/` whenever you build, and placed like any figure. Anything
+Typst can draw works; your AI assistant can draw one from a description.
 
 ### 3.5 Tables
 
 A short table can be a Markdown table in the manuscript. Two other kinds are placed with a
 caption line alone — `: Caption {#tbl-name}` with no table next to it:
 
-- **From the analysis**: `ov_table(tab, "summary")` writes `assets/tables/summary.*`;
-  the manuscript has `: Descriptive statistics {#tbl-summary}`. `groups = c(Demand = 1, Hiring = 6)`
-  puts a bold heading row across the columns before rows 1 and 6 (in Python, `{'Demand': 0,
-  'Hiring': 5}`, counting from 0) and indents the rows under it; `size = 9.5` sets the type size
-  in points; the note under the table is left-aligned.
-- **Made by hand**: `octavo new table compare` writes `tables/compare.csv`; fill it in (in
-  VS Code with **Edit as a Table**, or in Excel) and write `: The two schemes {#tbl-compare}`.
-  The first row is the heading; an empty heading cell to the right of a filled one is merged
-  into it (as Excel writes merged cells), and then the second row is a heading too. Number
-  columns are right-aligned, and a column with long text wraps. The file is UTF-8 (Shift_JIS
-  is read too); in Excel on Windows, open it through *Data → From Text/CSV*.
+- **From the analysis**: `ov_table(tab, "summary")` in the `.qmd`, and
+  `: Descriptive statistics {#tbl-summary}` in the manuscript ([4.2](#42-handing-over-numbers-figures-and-tables)).
+- **Made by hand**: **+** → **Table made by hand** opens a grid (also **Edit as a Table** at
+  the top of any `.csv` in `tables/` or `data/`). The first row is the heading; leave a heading
+  cell empty to the right of a filled one to merge them, and then the second row is a heading
+  too. Number columns are right-aligned, and a column with long text wraps. Excel can open the
+  file too (on Windows, through *Data → From Text/CSV*).
 
 ### 3.6 What it makes, and settings for one document
 
-**What a document makes is `outputs:` at the top of the manuscript.** Without it, `pdf`.
+**What a document makes is `outputs:` at the top of the manuscript.** Without it, a PDF.
 
 ```markdown
 ---
@@ -540,46 +317,23 @@ outputs: [pdf, word]
 
 | Output | What it makes |
 |---|---|
-| `pdf` | a PDF. Its layout is the `main.typ` beside the manuscript if there is one (a paper), otherwise Octavo's built-in one (A4, with a cover and contents) |
+| `pdf` | a PDF: the paper's layout if there is a `main.typ` beside the manuscript, otherwise the A4 handout layout (a cover and contents) |
 | `word` | Word |
-| `tex` | LaTeX (needs TeX; uses the `main.tex` beside the manuscript if there is one) |
 | `slides` | slides |
-| `slides-handout` | the same slides to hand out, without what is marked `.screen-only` (answers) and with what is marked `.no-screen` ([7.1](#71-slides)) |
-| `script` | the speaker script (each page of the deck with its `::: notes`) |
-| `poster` | a poster ([7.3](#73-posters)) |
-| `beamer` | LaTeX slides (needs TeX) |
+| `slides-handout` | the same slides to hand out ([7.1](#71-slides)) |
+| `script` | the speaker script (each slide with its `::: notes`) |
+| `poster` | a poster ([7.2](#72-posters)) |
+| `tex`, `beamer` | LaTeX, LaTeX slides (need TeX) |
 
-**A manuscript made of several class sessions says `sessions: true`.** One `#` heading (or one
-`\session{…}` marker) is one session, and the slides and the script come out as one file per
-session ([7.2](#72-lecture-notes)). A manuscript with markers is made of sessions without saying so.
+**A manuscript made of class sessions says `sessions: true`** (see
+[Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/)). The title goes in
+`title:`; don't write a `# Title` heading — a `#` heading is a section.
 
-The title goes in the front matter (`title:`). Don't write a `# Title` heading — a `#` heading is a section.
-
-**Other settings** that change per journal or talk can also go at the top of the manuscript,
-and then apply to it alone:
-
-```markdown
----
-title: Title of the Paper
-csl: apa
-word_limit: 8000
----
-```
-
-| Key | For | What |
-|---|---|---|
-| `outputs`, `sessions` | all | what it makes, made of sessions (above) |
-| `csl` | all | citation style |
-| `japanese_citation_form`, `citations_by_language` | all | Japanese works in the bibliography (§5) |
-| `word_limit`, `char_limit`, `abstract_word_limit`, `abstract_char_limit` | all | submission limits (`octavo check`) |
-| `slides_*` | slides | the look of the decks (§7) |
-| `slides_select`, `poster_select` | slides, posters | `marked`: only what is marked (`.on-slides`, `.on-poster`) goes on them (§7) |
-| `date_format` | all | how the date is shown |
-| `toc` | PDF in the built-in layout | table of contents (on by default when `sessions` is) |
-| `first_section`, `pagebreak`, `font`, `fontsize` | PDF in the built-in layout | first section number, page breaks, typeface (§7) |
-
-`octavo config --doc <name>` lists them and `set` / `unset` changes one line; in VS Code,
-**Settings for this document** under each manuscript in the sidebar.
+**Settings for this document**, under each manuscript in the sidebar, changes the settings
+that differ per journal or talk: the citation style, word and character limits, the look of
+slides and posters, the handout's layout, numbering. A value you choose is written as one line
+at the top of the manuscript and applies to it alone; what is not written there follows the
+project's **Settings**.
 
 ### 3.7 Page breaks and slide breaks
 
@@ -596,53 +350,14 @@ Each goes on a line of its own:
 - `\newpage` starts a new page (PDF, Word, LaTeX). Slides ignore it.
 - `\newslide` starts a new slide, titled like the one before with " (cont.)".
   `\newslide{Title}` gives it that title, and `\newslide{}` makes a slide with no title (more
-  height for a figure). Outputs other than slides ignore it.
+  room for a figure). Outputs other than slides ignore it.
 
-### 3.8 Writing rules and a phrase bank for your AI assistant
+### 3.8 One sentence to a line
 
-Rules on how you write, and a bank of phrasings you trust, can be handed to the AI assistant
-that helps with the prose. They are Markdown files: `notes/writing/rules/*.md` and
-`notes/writing/phrases/*.md` in the project (an older `writing/` folder is read too), or in
-`~/.config/octavo/writing/` for every project (a project file of the same name wins). `octavo writing` lists them, and the project's `AGENTS.md`
-tells the assistant to read them before it writes or revises prose, to follow the rules and to
-prefer the phrase bank's phrasings. Octavo only finds them; refining them is yours (in another
-repository, say).
-
-Each file may start with `title`, `lang` (`ja` / `en`) and `applies` (`paper`, `slides`,
-`lecture`, `poster` or `all`); each entry is one `##` heading.
-
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
-
-## One claim per sentence
-
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-Good: Staff numbers fell. How fast they fell differed between municipalities.
-Bad: Staff numbers fell, but at different speeds across municipalities, which …
-```
-
-```markdown
----
-title: Introducing previous research
-lang: en
-applies: [paper]
----
-
-## Showing the course of research
-
-When: opening the section on previous research
-- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
-- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
-```
-
-In a rule, `Rule:` is required and `Why:`, `Good:` and `Bad:` are optional. In the phrase bank,
-the parts in 〈 〉 are the ones to fill in; `When:`, `Note:` and `Source:` are optional. A Japanese
-file uses 規則: / 理由: / 良い例: / 悪い例: and 場面: / 注意: / 出典:.
+Write each sentence on a line of its own. Changes then show sentence by sentence in git, and
+your AI assistant edits one sentence without touching the next. **Check before submitting**
+points out lines broken in the middle of a sentence; your AI assistant can put a whole
+manuscript right in one go.
 
 ---
 
@@ -658,9 +373,20 @@ analysis/*.qmd  --quarto-->  assets/values/*.json      {{…}} in the text
                              assets/tables/*           tables
 ```
 
-### 4.1 Handing over numbers, figures and tables
+### 4.1 Adding an analysis
 
-A new `.qmd` already loads its helper: `octavo.R` for R, `octavo_helper.py` for Python (see below). Register what the paper shows:
+**Add an analysis** (under Analysis in the sidebar) asks R or Python and a name, writes
+`analysis/<name>.qmd` and opens it. The first analysis also sets up the project's **analysis
+environment** — its own R and Python packages (renv and `.venv`), recorded in `renv.lock` and
+`requirements.txt` so a coauthor gets the same ones. Later, **Tools → Set Up This Project's
+Analysis Environment** does it again (after adding a package to `requirements.txt`, say).
+
+Opening a `.qmd` shows the HTML it last rendered beside it, following the cursor; it is
+updated when the analysis runs, never by opening or saving.
+
+### 4.2 Handing over numbers, figures and tables
+
+A new `.qmd` already loads its helper. Register what the paper shows:
 
 | What | In the analysis | In the manuscript |
 |---|---|---|
@@ -668,20 +394,20 @@ A new `.qmd` already loads its helper: `octavo.R` for R, `octavo_helper.py` for 
 | A figure | `ov_figure(p, "trend")` | `![Trend](../../assets/figures/trend.png){#fig-trend}` |
 | A table | `ov_table(tab, "summary")` | `: Descriptive statistics {#tbl-summary}` |
 
-- `ov_figure(x, name, width, height)` takes a ggplot or a function that draws; it writes the
-  `.pdf` and the `.png`.
-- `ov_table(x, name, notes, align, groups, indent, size)` takes a data frame; the caption belongs
-  to the manuscript.
-- `ov_pval(p)` formats a p-value (`.023`, `< .001`).
-- `ov_palette(3)` gives colours that stay distinct for every kind of colour vision;
-  `ov_tint(col, 0.6)` lightens one for an area with text on it; `ov_scale_colour_cud()` /
-  `ov_scale_fill_cud()` for ggplot2.
+- `ov_figure(p, name)` takes a ggplot (or a function that draws) and writes the `.pdf` and the
+  `.png`. `ov_table(tab, name)` takes a data frame; the caption belongs to the manuscript.
+- `ov_pval(p)` formats a p-value (`.023`, `< .001`). `ov_palette(3)` gives colours that stay
+  distinct for every kind of colour vision.
+- Running one chunk on its own (Run Cell) shows `ov_value()`'s value without recording it:
+  only running the whole `.qmd` changes the numbers in the manuscript.
+- A `.qmd` brought in from elsewhere loads the helper with this line (the same in every new
+  `.qmd`; it works both when rendering and when you run a chunk on its own):
 
-The header of a new `.qmd` is ready to hand out as one HTML file: the author from `meta` in
-`octavo.config.py` (with `affiliation` and `email` if you write them), the date, a contents
-list and numbered sections.
+```r
+source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
+```
 
-### 4.2 How numbers look
+### 4.3 How numbers look
 
 | Value | Example | Shown as |
 |---|---|---|
@@ -689,45 +415,19 @@ list and numbered sections.
 | Decimal | `coef(m)[["x"]]` | `0.342` (3 places by default) |
 | Text | `ov_pval(p)` | as it is |
 
-`{{coef_x:.2f}}` in the manuscript, or `ov_value(..., fmt = ".2f")`, chooses the format. A
-name with no value stays as `{{name}}` in the output and is reported.
+`{{coef_x:.2f}}` in the manuscript chooses the format. A name with no value stays as
+`{{name}}` in the PDF and is reported.
 
-### 4.3 When the analysis runs
+### 4.4 When the analysis runs
 
-`octavo build` runs a `.qmd` when it, or a file it depends on, changed since the last run.
-What counts is the contents: switching git branches and back, or a fresh clone, does not make
-a `.qmd` out of date.
-
-```bash
-octavo analysis              # which are out of date
-octavo analysis run          # run the out-of-date ones
-octavo build --no-analysis   # build without running anything
-octavo check values --diff   # which numbers in the text changed at the last run
-octavo analysis mark-fresh analysis/00-fetch.qmd   # record it as up to date without running it
-```
-
-- If Quarto is missing, the build warns and goes on. If an analysis fails, the build stops —
-  it would otherwise typeset around old numbers.
-- Several `.qmd` files are normal: each writes its own `assets/values/<name>.json`, and the
-  manuscript sees all their values. List them in order when one feeds another:
-
-```python
-'analysis': [
-    {'src': 'analysis/01-clean.qmd', 'manual': True},       # slow: only octavo analysis run runs it
-    {'src': 'analysis/02-model.qmd', 'deps': ['data/derived/*']},
-],
-```
-
-- A `.qmd` can say this itself, at the top under `octavo:`, so the config's
-  `analysis/*.qmd` can stay as it is: `manual: true` (only `octavo analysis run` runs it) and
-  `deps` (more files to watch). An entry for that file in the config wins over it.
-- **Fetching raw data from the web** (an API, a download, an R package that fetches) goes in
-  its own `.qmd`, run by hand: `analysis/00-fetch-<source>.qmd` with `manual: true`. Have it
-  skip the fetch when the file is already in `data/raw/` (rather than overwrite it, or stop with
-  an error that makes the run fail), and write where it came from and when into
-  `data/raw/README.md` — that file is the only record once `data/raw/` is ignored.
-  `knitr::knit_exit()` ends the `.qmd` there as a successful run; put it in a chunk of its own,
-  since the rest of its chunk still runs.
+- **Building** runs a `.qmd` when it, or a file it depends on, changed since the last run. What
+  counts is the contents: switching git branches and back does not make a `.qmd` out of date.
+- The **preview** never runs it; the bar above the PDF says when something is out of date, with
+  **Run** and **Mark as up to date** (when you know nothing it uses has changed).
+- The sidebar's **Analysis** shows each `.qmd`; ▶ runs one, **Run the stale ones** all of them.
+  An open `.qmd` has ▶ at the top right of the editor too.
+- **A slow step** (cleaning the data, fetching it from the web) goes in its own `.qmd` marked
+  manual: building never runs it, only you do. Write at its top:
 
 ````markdown
 ---
@@ -746,235 +446,150 @@ download.file("https://example.org/survey.csv", out)
 ```
 ````
 
-- In VS Code the sidebar's **Analysis** section shows each `.qmd` and runs it with one
-  button. The preview never runs the analysis; it says when something is out of date.
-- **R packages a `.qmd` uses are installed for you** when Octavo runs it (`octavo build`,
-  `octavo analysis run`). Run from Quarto's own **Preview**, it stops with "there is no package
-  called …" instead; so in VS Code, opening or saving an R `.qmd` checks for packages it uses that
-  are not installed, and offers to install them into the project's renv (`octavo analysis missing
-  <qmd>` / `octavo analysis install <qmd>` from the terminal; `octavo.checkRPackages` turns the
-  check off).
+  Have it skip the fetch when the file is already there, and write where it came from and
+  when into `data/raw/README.md` — that file is the only record once `data/raw/` is out of git.
+- If an analysis fails, building stops — it would otherwise typeset around old numbers.
 
-### 4.4 Python
+### 4.5 R packages
 
-Add `--engine python` (or pick **Analysis in Python** in VS Code) and the `.qmd` is written in
-Python. It loads `analysis/octavo_helper.py`, which has the same functions under the same names
-and writes the same files, so the manuscript is written exactly as for R:
+**R packages a `.qmd` uses are installed for you**, a `.qmd` brought in from elsewhere included.
+Opening or saving an R `.qmd` checks for packages it uses that are not installed and offers to
+install them; running it from the sidebar installs them by itself. They go into the project's
+environment and are recorded in `renv.lock`. A package that is not on CRAN (GitHub,
+Bioconductor) is named, with how to install it — or ask your AI assistant.
+
+### 4.6 Python
+
+Pick **Analysis in Python** and the `.qmd` is written in Python, with the same functions under
+the same names; the manuscript is written exactly as for R:
 
 ```python
 ov_value("n_obs", len(d))              # {{n_obs}}
 ov_value("coef_x", model.params["x"])
-ov_figure(fig, "trend")                # a matplotlib Figure (or a plotnine ggplot, or a function that draws)
-ov_table(tab, "summary")               # a pandas DataFrame (or a dict, or a list of lists)
+ov_figure(fig, "trend")                # a matplotlib Figure
+ov_table(tab, "summary")               # a pandas DataFrame
 ```
 
-- An `int` (also a NumPy integer) is shown as `1,523`, a `float` as `0.342`, as in R.
-- `ov_palette()`, `ov_tint()` and `ov_pval()` are there too. The helper needs only the standard
-  library; matplotlib and pandas are used only when you hand it a figure or a DataFrame.
-- `requirements.txt` gets what Quarto needs to run Python (`ipykernel`, `nbformat`, `nbclient`,
-  `pyyaml`), and `octavo env` installs it into `.venv`, which `octavo analysis run` uses by
-  itself. R and Python `.qmd` files can live in one project.
+R and Python `.qmd` files can live in one project.
 
-### 4.5 Using Octavo with `.qmd` files alone
+### 4.7 Using Octavo with `.qmd` files alone
 
 A project need not have a manuscript. A report or an assignment written entirely in Quarto can
-live in `analysis/` like any analysis, helpers or not, and Octavo looks after the environment
-(`octavo env`) and running it (`octavo analysis run`, or ▶ in VS Code). Its output —
-HTML, PDF or Word — lands beside the `.qmd`, as Quarto always writes it; to look at a PDF, use the Quarto extension's **Preview**. With no manuscript,
-`octavo check` and `octavo build` do not count that as a problem as long as there is a `.qmd`.
-
-A Japanese PDF from Quarto (`format: typst`) is set in whatever Japanese typeface the machine
-happens to have. To use the manuscripts' typefaces, name them in the `.qmd`'s header:
-
-```yaml
-format:
-  typst:
-    papersize: a4
-    include-in-header:
-      text: |
-        #set text(font: ((name: "Libertinus Serif", covers: "latin-in-cjk"), "BIZ UDMincho", "Noto Serif CJK JP"))
-```
-
-### 4.6 Other languages
-
-Octavo only reads files, so a Julia or other `.qmd` works if it writes
-`{"name": value}` into `assets/values/<anything>.json`, figures as `.pdf` and `.png` into
-`assets/figures/`, and tables into `assets/tables/`.
+live in `analysis/`, and Octavo looks after its environment and runs it (▶). Its output lands
+beside the `.qmd`, as Quarto always writes it; use the Quarto extension's **Preview** to look
+at a PDF.
 
 ---
 
 ## 5. Citations
 
-Export your library from your reference manager (Zotero or any other) as BibTeX or BibLaTeX
-to `literature/literature.bib` (older projects keep it at `literature.bib`; `bib_file` in
-`octavo.config.py` says which). With Zotero, Better BibTeX's "Keep updated" export keeps it current and
-the keys stable. **Octavo never edits the `.bib`.**
+### 5.1 The bibliography
 
-If Zotero runs on the same machine, `octavo bib pull` can fetch it too. Name the collection to fetch
-from in `octavo.config.py` as `zotero_collection` (**Choose the Main Zotero Collection** in the VS Code
-sidebar picks it from the same tree as in Zotero); without it, the whole library is fetched.
-Collections can be nested, so write the path (`'Research / Make or buy'`). The collections under it
-are fetched too (an entry in more than one is kept once). For several, write a list
-(`['Make or buy', 'Surveys / Outsourcing']`; when a survey on a topic serves several papers, say).
+Export your library from your reference manager (Zotero or any other) as BibTeX or BibLaTeX to
+`literature/literature.bib`. With Zotero, Better BibTeX's "Keep updated" export keeps it current
+and the keys stable. **Octavo never edits the `.bib`.** **Tools → Check the Bibliography** finds
+keys you cite that are not in it, and entries that look incomplete.
 
-If Zotero does not run on this machine (a server over SSH, say), Octavo reads the Zotero web API. Give
-an API key (make one at <https://www.zotero.org/settings/keys>; reading the library is enough) and your
-user ID once with `octavo bib login` (or **Use the Zotero Web API (API Key)…** in the sidebar). The key
-is kept in `~/.config/octavo/zotero.env`, not in the project. Through the web API the citation keys are
-those Better BibTeX pinned (Zotero's Citation Key), so pin the keys in Better BibTeX.
+### 5.2 The style
 
-```bash
-octavo bib collections    # the collections in Zotero
-octavo bib pull           # fetch the .bib (bib_file) from zotero_collection
-octavo bib login --user-id 1234567   # give the web API key (on stdin)
-```
+**Settings → Citation style (CSL)** (or **Settings for this document**, for one paper) offers the
+common styles; type an ID from <https://www.zotero.org/styles> for any other. It applies to every
+output at once.
 
-**Keeping the main collection tidy.** `zotero_collection` is the project's *main* collection: what
-goes into `literature.bib`. Collections that only feed it — one per literature survey, say — are
-*linked* collections, `zotero_linked` (**Choose the Linked Zotero Collections** in the sidebar). They
-never go into the `.bib`. `octavo bib tidy` compares the main collection with what the manuscripts
-cite, and lists the papers cited but not in it (with the linked collection each is in; a paper in none
-of them is looked for in the whole library), and the papers in it that nothing cites. On its own it only shows this plan.
+`\poscite{key}` writes a possessive citation ("Smith and Taylor's (2003)"); the joining of several
+authors is an approximation of the style's rules, so read it once.
 
-`octavo bib tidy --apply` (or **Tidy the Main Zotero Collection** in the sidebar, where you untick
-what to leave) changes Zotero accordingly, only if the project allows it with `'zotero_write': True`
-in `octavo.config.py`. It changes only which collections an entry is in — adding it to the main
-collection, or taking it out of the main collection and those under it. It never deletes or edits
-an entry: one taken out stays in the library and in its other collections. An entry whose citation
-key is not pinned in Better BibTeX is never taken out (its key in Zotero may differ from the one in
-your `.bib`). Writing goes through the Zotero web API, so the API key needs write access ("Allow write
-access" at zotero.org/settings/keys); a Zotero on this machine sees the change after it syncs. Then
-`octavo bib pull` again.
+The bibliography goes at the end. A `# References` heading as a paper's last section only marks
+its place. To put it somewhere else, write `::: {#refs}` and `:::` there.
 
-```bash
-octavo bib tidy                       # the plan: what to add, what to take out
-octavo bib tidy --apply               # do it (needs 'zotero_write': True)
-octavo bib tidy --apply --keys smith2020,doe2019   # only these
-```
+### 5.3 Japanese and English works together
 
-**With a literature survey (Priorwork).** If you gather the literature with
-[Priorwork](https://github.com/yoshida-kd/priorwork), right-click the paper in the sidebar → **Ask
-Priorwork for the Literature** to copy a request, and paste it to the agent in the window of your
-Priorwork workspace. Priorwork reads the manuscript (never changing it), gathers the included papers
-in a Zotero collection of the survey's own, and exports its writing — a draft of the literature
-review, a synthesis, or additions to the manuscript in progress — into the project's
-`literature/priorwork/`: the text (`<survey>.md`, citing with your `.bib`'s keys) and a manifest
-(`<survey>.json`). That folder is an inbox, not a manuscript: nothing is built from it, and Priorwork
-never writes anywhere else in the project.
+In a Japanese document, English works and the citations follow your style; works marked
+`langid = {japanese}` in the `.bib` take one Japanese form whatever the style. **Settings →
+Form of Japanese works** chooses the form:
 
-- **From Priorwork** in the sidebar (or `octavo priorwork`) lists what arrived. **Copy a Request to
-  Take It into the Manuscript** gives you a request for your AI assistant: it reads the text with
-  the manuscript, proposes where each part goes (for additions, from the sentences they quote), and
-  waits for your answer.
-- A paper not in your `.bib` yet is cited as `@PRIORWORK:<its DOI>`. Put it in Zotero,
-  `octavo bib pull`, then `octavo priorwork resolve` replaces the mark with its key (in the
-  manuscripts and in the inbox). `octavo check cites` lists such marks apart from other missing keys.
-- Priorwork also leaves a card for each paper it included (`<survey>.cards.json`). In VS Code,
-  resting the cursor on `[@key]` in the manuscript shows the card: the paper, its question and
-  findings, which survey it is from, and whether Priorwork checked it in the full text or only in
-  the abstract. `octavo check cites` notes the papers you cite that were not read in full.
-- **Sending a request without the clipboard.** Set `octavo.priorworkWorkspace` (or run **Set the
-  Priorwork Workspace…**) to your Priorwork workspace, the folder with `.priorwork/` in it, and **Ask
-  Priorwork for the Literature** writes the request there as a file; you pick it up in the Priorwork
-  window, under **Requests from Octavo** in its sidebar. **From Priorwork** shows what became of it
-  (received, done, declined). From a terminal: `octavo priorwork ask --workspace <folder>` and
-  `octavo priorwork requests`.
-- `octavo priorwork link` adds a survey's Zotero collection to the project's linked collections;
-  once the manuscript cites its papers, `octavo bib tidy --apply` puts them into the main
-  collection. One survey can serve several projects, and one project several surveys.
-
-```bash
-octavo check cites        # keys cited but missing from the .bib, and problems in the .bib
-octavo csl get apa        # fetch a journal's style
-```
-
-The style is one line in `octavo.config.py` (`'csl': 'apa'`), for every format at once. Style
-IDs are listed at <https://www.zotero.org/styles>.
-
-**Japanese and English works together.** In a Japanese document, English works and the
-citations follow your style; works marked `langid = {japanese}` in the `.bib` take one Japanese
-form whatever the style:
-
-```
-Smith et al. (2003), (山田・田中 2020), 佐藤ほか (2018)
-
-Smith, John, Ann Taylor, Bob Brown, and Carl Green. 2003. "An Example Article." Journal of Examples 4: 1–10.
-山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12(3): 1–20.
-```
-
-`japanese_citation_form` chooses the form of Japanese works (in the project or at the top of a
-manuscript; in VS Code under the document's settings):
-
-| Value | Japanese works look like |
+| Choice | Japanese works look like |
 |---|---|
-| `'standard'` (default) | 山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20. |
-| `'fullwidth'` | 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。 |
-| `'period'` | 山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。 |
+| standard (default) | 山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20. |
+| full-width | 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。 |
+| period | 山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。 |
 
-`'fullwidth'` follows what articles in 年報行政研究 commonly print, and `'period'` what
-author–date articles in 年報政治学 print; neither journal's rules prescribe a form, so
-follow a journal's own instructions where it has them. `citations_by_language: False` sets the
-whole bibliography in `csl_locale` instead.
+The full-width form follows what articles in 年報行政研究 commonly print, the period form what
+author–date articles in 年報政治学 print; neither journal's rules prescribe a form, so follow a
+journal's own instructions where it has them.
 
-The bibliography goes at the end. A `# References` heading as a paper's last section only
-marks its place (whatever is under it is replaced); a heading of that name with a reading list
-under it inside lecture notes is kept as written. To put the bibliography somewhere else, write
-`::: {#refs}` and `:::` there.
+### 5.4 Zotero
 
-`\poscite{key}` writes a possessive citation ("Smith and Taylor's (2003)", 「山田・田中(2020)」);
-the joining of several authors is an approximation of the style's rules, so read it once.
+If Zotero runs on the same machine:
+
+- **Settings → Main Zotero collection (the .bib)** chooses the collection the `.bib` is fetched from, from
+  the same tree as in Zotero (the collections under it come too).
+- **Tools → Pull References from Zotero** fetches it.
+
+If Zotero does not run on this machine (a server over SSH, say), **Use the Zotero Web API (API
+Key)…** asks for an API key from <https://www.zotero.org/settings/keys> once; the key is kept in
+your own settings, not in the project. Pin the citation keys in Better BibTeX so they are the
+same through the web.
+
+**Keeping the main collection tidy.** Collections that only feed the paper — one per literature
+survey, say — are **linked collections** (**Choose the Linked Zotero Collections**); they never go
+into the `.bib`. **Tidy the Main Zotero Collection** compares the main collection with what the
+manuscripts cite and lists, as a tick list, the papers to add (cited, found in a linked collection
+or the library) and to take out (in it, but cited nowhere). Untick what to leave and confirm. It
+only changes which collections an entry is in; it never deletes or edits one. It needs the setting
+**Let octavo bib tidy change the Zotero collection** and a key with write access; the button asks.
+
+### 5.5 With a literature survey (Priorwork)
+
+If you gather the literature with [Priorwork](https://yoshida-kd.github.io/priorwork/):
+
+1. Right-click the paper → **Ask Priorwork for the Literature**. The request is copied; paste it
+   to the agent in your Priorwork window. (Set your Priorwork workspace once in **From Priorwork**,
+   and the request is sent there as a file instead.)
+2. Priorwork reads the manuscript (never changing it), gathers the included papers in a Zotero
+   collection of the survey's own, and delivers its writing — a draft, a synthesis, or additions
+   to the manuscript in progress — into `literature/priorwork/`.
+3. **From Priorwork** in the sidebar lists what arrived. **Copy a Request to Take It into the
+   Manuscript** gives you a request for your AI assistant: it reads the delivery with the
+   manuscript, proposes where each part goes, and waits for your answer.
+4. A paper not in your `.bib` yet is cited as `@PRIORWORK:<DOI>`. Put it in Zotero, pull, then
+   **Replace the Marks with the .bib Keys**.
+
+Resting the cursor on a citation shows Priorwork's card for that paper: its question and
+findings, and whether Priorwork read it in full or only the abstract.
 
 ---
 
 ## 6. Papers: from draft to submission
 
-A paper is `docs/<name>/<name>.md` plus `main.typ`, **the layout you keep by hand** (whatever a
-journal wants). The title, authors, affiliation, e-mail and date come from the top of the
-manuscript (`title:`, `author:`, `institute:`, `email:`, `date:`); `--anonymous` leaves out the
-authors, affiliation and e-mail. `octavo build` writes the body into `build/pdf/<name>/`
-and `main.typ` typesets it; `--compile` makes the PDF (`build/pdf/<name>/main.pdf`, with a copy
-at `build/pdf/<name>.pdf`).
+A paper is `docs/<name>/<name>.md` plus `main.typ`, **the layout you keep** (whatever a journal
+wants). The title, authors, affiliation, e-mail and date come from the top of the manuscript
+(`title:`, `author:`, `institute:`, `email:`, `date:`).
 
-```bash
-octavo build example-paper --compile            # PDF (and the appendix's, if there is one)
-octavo build example-paper --to word            # Word
-```
+**The layout** follows LaTeX: jsarticle for a Japanese paper, article (11pt) for an English one.
+Page 1 shows the length: the words or characters of the text without and with the notes, the
+abstract's, and the number of figures and tables. To suit a journal (margins, fonts, a title
+block of its own), ask your AI assistant to change `main.typ`.
 
-**The layout** follows LaTeX: jsarticle for a Japanese paper, article (11pt) for an English one
-— the page, the headings, the title block and the abstract. It lives in `article.typ`, which
-`octavo build` writes beside `main.typ` every time, so `main.typ` stays nearly empty (writing
-`title:` or `author:` in its `octavo-article.with(…)` overrides the manuscript's). Page 1 shows the length: the words (English) or characters (Japanese) of the text
-without and with the notes, the abstract's, and the number of figures and tables
-(`counts: none` in `main.typ` hides it). To suit a journal, add `set` / `show` rules after
-`#show: octavo-article.with(…)` in `main.typ`, or copy the layout with
-`octavo template copy paper/article.typ`. A paper made before this keeps its own `main.typ` and
-looks as before. To move it to the new layout, rename `main.typ` (to `main.typ.old`, say) and run
-`octavo new paper <name>`: it adds the new `main.typ` and leaves the manuscript alone. Anything
-you had added for a journal goes after `#show: octavo-article.with(…)`.
-
-**The appendix** (`octavo new paper <name> --appendix` adds `appendix.md`) is typeset as its own
-PDF, `build/pdf/<name>-appendix.pdf`, whenever there is one. Its sections are A, B, …, its figures
-and tables A1, A2, …, and references between the text and the appendix are written as numbers
-("Table A1"). To put the appendix after the text in one PDF instead, write
-`appendix_separate: false` in `octavo.config.py` or at the top of the manuscript. Either way the
-appendix's pages are numbered A-1, A-2, … from 1.
+**The appendix** (right-click the paper → **Add an appendix**) is typeset as a PDF of its own
+beside the paper's, whenever there is one. Its sections are A, B, …, its figures and tables A1,
+A2, …, and its pages A-1, A-2, …. **Settings for this document** can put it after the text in one
+PDF instead.
 
 ### 6.1 Before you submit
 
-```bash
-octavo check           # everything in one pass; fatal problems give a non-zero exit
-octavo check lint      # results typed into the text, and nested lists out of line
-```
+**Tools → Check Before Submitting** looks at everything in one pass: missing figures and tables,
+unresolved `{{…}}`, made-up values, an analysis out of date, citation keys, labels, template
+leftovers, results typed into the text, blocks that will not be read as written, and the
+submission limits. Set the limits in **Settings for this document** (word limit, character limit
+for Japanese journals, the abstract's).
 
-`octavo check` looks at: missing figures and tables, unresolved `{{…}}`, placeholder values,
-out-of-date analysis, citation keys and the `.bib`, labels, template leftovers, `:::` blocks
-that will not be read as written, submission limits, and the data fingerprints. A number that
-is not a result (a grading split, a year) is kept out of the hand-typed check by
-`[40%]{.no-lint}` in the text, `::: {.no-lint}` … `:::` around a passage, or the text around
-it in `lint_accepted` (`'midterm 40%'`). Limits are set in the config or the manuscript
-(`word_limit: 8000`, `char_limit` for Japanese journals).
+A number that is not a result (a grading split, a year) is kept out of the "typed result" check
+by writing it `[40%]{.no-lint}`.
 
 ### 6.2 Blind review
+
+Mark what identifies you:
 
 ```markdown
 ::: {.no-anonymous}
@@ -982,64 +597,37 @@ Acknowledgements: this research was funded by ...
 :::
 ```
 
-```bash
-octavo build example-paper --anonymous
-octavo bundle example-paper --anonymous   # checks the package for your name
-```
+Then ask your AI assistant for the anonymous version (and the package for the journal): the
+marked parts, the authors, the affiliation and the e-mail are left out, and the package is
+checked for your name. The next ordinary build switches everything back.
 
-`--anonymous` drops `.no-anonymous` blocks (and keeps `.anonymous-only` ones), removes the
-author from the title block, and switches `main.typ`'s title block. The next ordinary build
-switches everything back.
+### 6.3 After you send it
 
-### 6.3 Packaging for the journal
+Ask your AI assistant for these; each is one command it knows.
 
-```bash
-octavo bundle example-paper    # submission-example-paper.zip: the files, flattened into one folder
-```
-
-### 6.4 After you send it
-
-- **Coauthors' Word edits**: `octavo review returned.docx` lists their tracked changes and
-  comments. Apply them to the manuscript yourself — the Word file has the numbers typed in, so it
-  is never converted back.
-- **Keep the version you sent**: `octavo release example-paper v1-submitted` tags the commit
-  and puts the PDF on a GitHub Release (needs the `gh` command).
-- **Revisions**: `octavo check values --diff example-paper-v1-submitted` shows which numbers moved
-  since that version.
-- **Data**: `octavo data hash` records a fingerprint of `data/`; `octavo data status` says
-  whether anything changed since. `data/raw/` and `data/derived/` are kept out of git; for data
-  you typed in by hand, `octavo data track data/raw/<file>` lets git take that one file.
-- **Replication package**: `octavo bundle --replication` collects the analysis, the values,
-  the figures and tables, the config and the fingerprints (raw data only with
-  `--with-raw-data`).
+- **Packaging for the journal**: the files, flattened into one folder or zip.
+- **Coauthors' Word edits**: a list of their tracked changes and comments. Apply them to the
+  manuscript yourself — the Word file has the numbers typed in, so it is never converted back.
+- **Keeping the version you sent**: a git tag, and the PDF on a GitHub Release.
+- **Revisions**: which numbers moved since the version you sent.
+- **Data**: a record of what `data/` held, and whether it has changed since.
+- **A replication package**: the analysis, the values, the figures and tables, the settings and
+  the record of the data (raw data only if you say so).
 
 ---
 
-## 7. Slides, lecture notes and posters
+## 7. Slides and posters
+
+Lecture notes — one file for an A4 handout and a deck per session — have a page of their own:
+[Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/).
 
 ### 7.1 Slides
 
-A document that makes only slides (`outputs: [slides]`): with `#` and `##` headings, `#` is a section and `##` a slide; with one
-level, each heading is a slide. The title slide comes from the front matter. Figures fit the
-remaining space on the slide.
-
-```bash
-octavo build example-talk --compile
-```
-
-| Key | Default | What |
-|---|---|---|
-| `slides_aspect` | `'16-9'` | or `'4-3'` |
-| `slides_accent` | `'#0e2f92'` | the accent colour; `None` for plain black |
-| `slides_numbering` | `None` | heading numbers (`'1.'`, `'1.1'`) |
-| `slides_section_slides` | `False` | a divider slide for each `#` section |
-| `slides_running_header` | `True` | the current section in the top-left corner |
-| `slides_font` | BIZ UDGothic + Inter | the font |
-
-The older names (`typst_slides_aspect` and so on) are still read.
-
-**Where slides break, and their titles**, can be set in the manuscript; the handout and
-other outputs are not affected:
+A manuscript with `outputs: [slides]`: with `#` and `##` headings, `#` is a section and `##` a
+slide; with one level, each heading is a slide. The title slide comes from the top of the
+manuscript, and figures fit the room left on the slide. **Settings for this document** sets the
+aspect ratio, the accent colour, heading numbers, a divider slide for each section and the section
+name in the corner.
 
 ```markdown
 ## A long heading for the handout {slide-title="Short title"}
@@ -1051,131 +639,32 @@ other outputs are not affected:
 \newslide{Another title}
 ```
 
-- `\newslide` starts a new slide there, titled like the last one with "(cont.)";
-  `\newslide{Title}` gives that title and `\newslide{}` a slide with no title
-  ([3.7](#37-page-breaks-and-slide-breaks)). The older `::: {.slide title="…"}` + `:::` means the same
-- `{.same-slide}` on a heading: no new slide; the heading is set in bold on the current one
-- `{slide-title="…"}` replaces the heading's title on the slide only (for a session's `#`
-  heading, it is the deck's title)
+- `{slide-title="…"}` replaces a heading's title on the slide only.
+- `{.same-slide}` keeps a heading on the current slide, in bold.
+- `{.no-title}` on a heading: a new slide with no title, so a figure gets the room.
+- A slide with more than fits goes on over a new slide titled "Title (cont.)", and the build
+  says so; put a `\newslide` where you want it to break instead.
 
-- `{.no-title}` on a slide's heading: a new slide with no title, so a figure gets the room
-  (the section name stays in the top-left corner; the handout keeps the heading)
+`::: notes` holds what you will say: it never appears on the slides, only in the **speaker
+script** (add `script` to `outputs:`, or pick it for the preview's third column) — each slide as
+projected, shrunk, with its notes underneath.
 
 **A deck to hand out.** Add `slides-handout` to `outputs:` and the same slides come out a second
-time in `build/slides-handout/` (`<name>-handout.pdf`), with different contents: what you mark
-`.screen-only` is on the projected deck only, and what you mark `.no-screen` is on the handout
-deck (and in the printed handout) only. `.slides-only` is on both decks.
+time: what you mark `.screen-only` is on the projected deck only, what you mark `.no-screen` on the
+handed-out deck only.
 
 ```markdown
 The sample has [1,523 cases]{.screen-only}[\_\_\_\_\_\_]{.no-screen}.
 ```
 
-`::: notes` holds speaker notes: they never appear on the projected deck, and
-`--to script` makes a **speaker script**: each page of the typeset deck, shrunk, with the
-notes written on it underneath (A4, two slides a page). It typesets the deck first, so the
-pictures are exactly what is projected.
-**The references of a deck** are set by `slides_bibliography` (in `octavo.config.py`, or at the top
-of the manuscript for one document): `slide` — a last slide, in small type; `off` — none;
-`sheet` — not on the slides, but an A4 PDF of the deck's references beside it
-(`<deck>-references.pdf`); `both`. Without it, lecture decks get the slide and a talk gets none.
-`true` and `false` from before mean `slide` and `off`.
+**References on slides**: **Settings for this document → References of the slides** — a last slide
+in small type, none, an A4 sheet of the deck's references beside it, or both.
 
-### 7.2 Lecture notes
+### 7.2 Posters
 
-How to make them in VS Code, and every mark you can write, is on one page:
-[Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/). This section is the summary.
-
-One file gives **an A4 handout of all sessions** and **a slide deck per session**:
-
-```bash
-octavo build example-lecture --to pdf --compile      # the handout
-octavo build example-lecture --to slides --compile   # one deck per session
-octavo build example-lecture-03 --to slides          # just one session
-```
-
-Without markers, **each `#` heading is a session**; inside it, `##` is a section and `###` a
-slide (a session with only `##` headings makes each `##` a slide). Give a
-heading an id to fix its deck's name (`# Second session {#second}` →
-`octavo build example-lecture-second`, `example-lecture-slides-second.pdf`); otherwise decks
-are numbered `-01`, `-02`, … in order.
-
-**Marking sessions yourself.** When a session is not one `#` heading, put a marker where each
-session begins; then the markers decide the sessions and headings are free:
-
-```markdown
-\session{Session 3: policy and government} {#third subtitle="Public policy" date="2026-10-14"}
-```
-
-The braces of `\session{…}` hold the session's title, and `{…}` can carry `#id` (the session's
-name), `subtitle`, `date`, `author` and `institute` (all optional; `\session{}` for no title).
-Title, subtitle and date go on that session's title slide (without a title, its first heading is
-used). The older `::: {.session #third title="…"}` + `:::` means the same. The numbers of figures, tables, equations and blocks in a deck are the handout's (even when some figures are in the handout only or were not picked for the slides). Which level is a slide is decided from
-the whole of the notes (normally `###`), so adding markers does not change it.
-
-**What goes where.** Conditional blocks choose the output:
-
-```markdown
-::: {.no-slides}
-Fill-in-the-blank space and detailed footnotes: handout only.
-:::
-
-::: {.slides-only}
-Figures and short prompts: slides only.
-:::
-```
-
-| Marker | Kept in |
-|---|---|
-| `.no-slides` | everything but slides and speaker scripts — the usual mark for "handout only" |
-| `.slides-only` | slides, speaker scripts |
-| `.pdf-only` | the PDF only (handout, paper; not Word or LaTeX) |
-| `.word-only` | Word |
-| `.print-only` | anything printed (PDF, Word, LaTeX) |
-
-The older `.handout-only` still works; in lecture notes it means the same as `.no-slides`.
-
-**Only part of the notes on the slides.** With `slides_select: marked` at the top, the slides get
-only what is marked `.on-slides` (a `::: {.on-slides}` block, a section whose heading has
-`{.on-slides}`, `[…]{.on-slides}` in a line) and the headings above it; the rest goes into the
-handout only. A reference to something not picked is written as its number in the handout, and
-a session with nothing marked gets no deck.
-
-**One PDF per session.** To hand out one session at a time:
-
-```bash
-octavo build example-lecture --sessions             # build/handouts/example-lecture-<id>.pdf, one per session
-octavo extract example-lecture --session third      # one session (several, comma-separated, make one PDF)
-octavo extract example-lecture --pages 12-19        # by printed page numbers
-octavo extract example-lecture --session third --cover   # with the cover and contents in front
-```
-
-The whole handout is typeset once and each session's pages are cut from it, so page numbers,
-contents and all numbers stay those of the whole. Sessions always begin on a new page.
-In a terminal, `octavo build <name> --sessions` makes them along with the build (without it they
-are not remade).
-In VS Code, **Make the session handouts** under the lecture notes in the sidebar makes them,
-and notes with session markers have them remade in the background on every save (turn that
-off with the setting `octavo.updateHandoutsOnSave`).
-
-**The handout's layout.** A cover page of its own, the contents on pages i, ii, …, the body
-from page 1, and type after the Japanese LaTeX class jsarticle (11pt, a generous line pitch,
-paragraphs indented by one character). The body is set in BIZ UDGothic. In the project or at
-the top of the notes:
-
-| Key | Default | What |
-|---|---|---|
-| `first_section` | `1` | `0` numbers a guidance session "0" (figures "0.1") |
-| `pagebreak` | `'session'` | a new page at each session; `'section'`: at each `#`; `None`: only at markers |
-| `font` | BIZ UDGothic + Inter | the body font |
-| `fontsize` | `'11pt'` | the type size |
-| `toc` | `true` | the table of contents (`false` for a document without sessions) |
-| `date_format` | `'%B %-d, %Y'` (Japanese: `'%Y年%-m月%-d日'`) | how `date:` is shown; `date: today` is the day it was built |
-
-### 7.3 Posters
-
-For a poster session. A manuscript with `outputs: [poster]` at the top (`octavo new poster <name>`
-writes one) becomes one PDF, `build/poster/<name>.pdf`. By default it is **A0 portrait**, and
-**each top-level heading (`#`) is one cell**, filling a 2×3 grid from the top left.
+For a poster session. A manuscript with `outputs: [poster]` (**+** → **Poster**) becomes one
+PDF, by default **A0 portrait**, with **each `#` heading as one cell** filling a 2×3 grid from the
+top left.
 
 ```markdown
 ---
@@ -1202,159 +691,114 @@ poster_rows: [2, 1]
 | Write | Means |
 |---|---|
 | `{span=2}` / `{rows=2}` after a heading | a cell two columns wide / two rows high |
-| `{cell="3,2"}` | put it in column 3, row 2 (counting from 1; the others fill the free cells in order) |
-| `poster_size` | `a0` (default), `a1`, `a2`, `b0`, `b1` (the Japanese B series), or a size like `1189x841mm` |
-| `poster_orientation` | `portrait` (default) or `landscape` |
-| `poster_grid` / `poster_rows` | the grid (columns x rows, `2x3` by default) and the rows' height ratios (equal by default) |
-| `logo` / `qr` / `qr_label` | logos on the left of the title band (any number), a QR code on the right (made from the URL) and the text under it |
+| `{cell="3,2"}` | put it in column 3, row 2 |
+| `logo` / `qr` / `qr_label` | logos on the left of the title band, a QR code (made from the URL) on the right |
 
-To make a poster from a paper's manuscript, write `outputs: [pdf, poster]` and
-`poster_select: marked`, and mark what goes on the poster with `.on-poster` (written like
-`.on-slides` for slides).
-
-Type size and margins scale with the paper. Figures fit the room left in their cell. The works
-you cite go in the last cell (`# References`). **Content that does not fit in its cell is
-reported as an overflow when you build** (and marked in red at the cell's corner in the PDF):
-cut it or make the cell bigger. The colour is `slides_accent` and the typeface `poster_font`;
-`octavo template copy poster/typst-poster.typ` changes the look.
+**Settings for this document** sets the paper size (A0–A2, B0, B1), the orientation and the
+grid; `poster_rows` at the top sets the rows' heights. Content that does not fit in its cell is reported when you build and
+marked in red in the PDF: cut it or make the cell bigger. To make a poster from a paper, write
+`outputs: [pdf, poster]` and mark what goes on the poster with `.on-poster` (written like
+`.on-slides` in lecture notes).
 
 ---
 
-## 8. Making it yours
+## 8. Writing rules for your AI assistant
 
-### 8.1 Templates
+Rules on how you write, and a bank of phrasings you trust, can be handed to the AI assistant that
+helps with the prose. They are Markdown files gathered in **packs**: folders with `rules/` and
+`phrases/` in them, in `~/.config/octavo/writing/` for every project, or in the project's
+`notes/writing/`. Before the assistant writes or revises a part of a manuscript, it reads the
+rules and the phrases for that part, and follows them.
 
-Everything Octavo typesets from — the handout and slide layouts, a paper's `main.typ`, the
-manuscripts `octavo new` writes, the project `octavo init` writes — is a file you can replace.
-Copy it and edit the copy; Octavo uses yours from then on:
+```markdown
+---
+title: Style of a paper
+lang: en
+applies: [paper]
+---
 
-```bash
-octavo template list                              # which templates are in use, and from where
-octavo template copy slides/typst-slides.typ      # into this project's templates/
-octavo template copy paper/en/main.typ --user     # into ~/.config/octavo/templates/, for every project
-octavo template diff slides/typst-slides.typ      # after updating Octavo: what changed in the original
+## One claim per sentence
+
+Rule: Put one claim in a sentence.
+Why: The reader need not look for where one claim ends.
+Good: Staff numbers fell. How fast they fell differed between municipalities.
+Bad: Staff numbers fell, but at different speeds across municipalities, which …
 ```
 
-| Template | Replace it to |
-|---|---|
-| `slides/typst-slides.typ`, `slides/typst-notes.typ` | change the look of decks and scripts |
-| `poster/typst-poster.typ` | changes the look of posters |
-| `handout/handout.typ` | change the lecture handout |
-| `paper/<lang>/main.typ` | start every paper from your usual layout |
-| `manuscripts/<lang>/*.md` | start manuscripts from your own skeleton |
-| `typst/crossref.typ` | change how numbers and references look |
-| `citations/japanese.lua` | change the form of Japanese works in the bibliography |
+```markdown
+---
+title: Introducing previous research
+lang: en
+section: literature
+---
 
-### 8.2 Word styles
+## Showing the course of research
 
-```bash
-octavo template copy word          # templates/word/reference.docx (--user: for all your projects)
+When: opening the section on previous research
+- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
+- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
 ```
 
-Open it in Word, change the styles (`Heading 1`, `Body Text`, `Theorem`, …) and save it: Word
-output uses it from then on. A `.docx` named in `docx_reference` in the config comes first (the
-older `octavo reference-docx` still works).
-
-### 8.3 Fonts
-
-| | Japanese | Latin |
-|---|---|---|
-| Papers | BIZ UDMincho | Libertinus Serif |
-| Lecture handouts, slides | BIZ UDGothic | Inter |
-
-`octavo setup` installs them. Without them Typst falls back to Noto CJK, or to the fonts the
-system has (Hiragino on a Mac, Yu Gothic on Windows); `octavo doctor` says what is missing.
-Change them with `font`, `slides_font`, or in a paper's `main.typ`.
+- Each entry is one `##` heading. In a rule `Rule:` is required, `Why:`, `Good:` and `Bad:`
+  optional; in the phrase bank the parts in 〈 〉 are the ones to fill in. A Japanese file uses
+  規則: / 理由: / 良い例: / 悪い例: and 場面: / 注意: / 出典:.
+- A file with `section:` is read only for that part of a manuscript (`abstract`, `introduction`,
+  `literature`, `theory`, `design`, `results`, `discussion`, `conclusion`, `appendix`); one
+  without it always.
+- Each manuscript in the sidebar has **Writing rules**: the packs it uses, their files and entries
+  (right-click an entry to turn it off for that manuscript), **Choose the Packs…** (most general
+  first; where two disagree, the later one wins) and **Show the Rules for Where the Cursor Is**
+  (also in the editor's right-click menu) — what the assistant reads there.
 
 ---
 
-## 9. Command reference
+## 9. Making it yours
 
-```
-octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions] [--no-analysis] [--anonymous]
-octavo watch [documents...] [--to outputs]                           rebuild on every save
-octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]   some sessions, or pages, as one PDF
-octavo documents                                                     the registered manuscripts
-octavo config [--doc NAME] [set KEY VALUE | unset KEY]               show or change settings
-octavo analysis [run [QMD]]                                          is the analysis up to date / run it
-octavo analysis missing|install QMD                                  R packages a .qmd uses but are not installed
-octavo bib pull|tidy|collections|login                               Zotero: fetch the .bib, keep the main collection tidy
-octavo priorwork [resolve|link [SURVEY]] [--dry-run]                 what came from Priorwork (literature/priorwork/)
-octavo writing                                                       the writing rules and phrase bank (for your AI assistant)
-octavo check [--strict] [--anonymous]                                everything before you submit
-octavo check values [--unused] [--diff [ref]]                        cross-check {{...}} against the analysis
-octavo check cites [--list] [--unused]                               citation keys against the .bib
-octavo check lint                                                    results typed into the text, nested lists out of line, lines broken mid-sentence
-octavo fmt [name] [--apply]                                          put the manuscripts one sentence to a line (shows the change; --apply writes it)
-octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
-octavo review returned.docx                                          a coauthor's tracked changes
-octavo release <document> <label>                                    tag, and the PDF to a GitHub Release
-octavo data hash|status                                              fingerprints of data/
-octavo data track <file>                                             let git take a file under data/
-octavo csl get|list|which [ID]                                       citation styles
-octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
-octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--engine r|python] [--env]
-octavo template list|copy|diff [name] [--user]                       templates (copy word: a Word style file to edit)
-octavo env                                                           the project's R and Python packages (.venv, renv)
-octavo setup [--with-tex] [--check] [--r-editor]                     install or update the tools
-octavo doctor                                                        what is installed
-octavo selftest                                                      a sample typeset end to end
-octavo outline [documents...]                                        the heading structure
-octavo targets                                                       the outputs
-octavo migrate [--docs|--syntax|--rules] [--dry-run]                 bring an older project up to date (manuscripts into docs/, notation, AGENTS.md)
-```
-
-Outputs (in `outputs:` at the top of a manuscript and after `--to`, comma-separated; `--to all` for every one):
-
-| Output | Makes | Needs |
-|---|---|---|
-| `pdf` | a PDF (the paper layout with `main.typ`, otherwise the built-in one) | Typst |
-| `slides` | slide decks | Typst |
-| `slides-handout` | slide decks to hand out | Typst |
-| `script` | speaker scripts | Typst |
-| `poster` | posters | Typst |
-| `word` | Word | pandoc only |
-| `tex` | LaTeX (the paper layout with `main.tex`) | TeX |
-| `beamer` | slide decks | TeX |
-
-The older format names (`typst`, `typst-slides`, `typst-notes`, `docx`, `latex`) are read the same way.
+- **Settings** (the project's defaults) and **Settings for this document** cover what changes
+  often. Click a setting to change it; a filled dot means it is written, an empty one that the
+  default is used.
+- **The look of anything** — the slides, the handout, a paper's layout, how numbers and
+  references read, the manuscripts a new document starts from — comes from a template you can
+  replace, for one project or for all of yours. Ask your AI assistant to copy the template and
+  change it as you describe; after an Octavo update it can show what changed in the original.
+- **Word styles**: ask the assistant for a Word style file, open it in Word, change the styles
+  (`Heading 1`, `Body Text`, …) and save it; Word output uses it from then on.
+- **Fonts**: papers are set in BIZ UDMincho with Libertinus Serif, handouts and slides in BIZ
+  UDGothic with Inter. Set up installs them. **Settings for this document → Body font** changes the
+handout's; for anything else, ask your AI assistant.
 
 ---
 
-## 10. VS Code
+## 10. Working with an AI assistant
 
-The [Octavo extension](https://marketplace.visualstudio.com/items?itemName=yoshida-kd.octavo)
-puts all of this behind buttons:
+The project's `AGENTS.md` holds its rules — never type a result into the manuscript, never edit
+`data/raw` or what is generated, never edit the `.bib` — and is read by Claude Code, GitHub
+Copilot, Codex and Antigravity. Octavo's [reference](https://yoshida-kd.github.io/octavo/reference/)
+comes with Octavo itself, so the assistant can look up any command or setting for the version
+you have installed. **Check before submitting** catches anything that slips through.
 
-- **Set up** installs the tools (§1); **Tools** in the sidebar also sets up the analysis
-  environment, runs the analysis and the checks.
-- **Preview**: the PDF beside the manuscript, rebuilt on every save; lecture notes get a third
-  column with the deck (or the speaker script) for the session the cursor is in. Text can be
-  selected, links followed, and ☰ lists the bookmarks. Click in the PDF and press Ctrl+F (Cmd+F on a Mac) to search its text; the view of a `.qmd`'s HTML searches the same way.
-- **New project** is one screen: where, the name, the language, what to start with (an analysis in R or Python, a paper, slides, lecture notes) and whether to fill them with examples. With an analysis chosen, the environment is set up right after. In a folder that is not a project yet, the sidebar offers it first.
-- The extension also installs **Quarto**, **R** and **Python** extensions with it (an extension pack; you can uninstall any of them). The R extension uses the R package `languageserver` for completion and the like, and in a renv project it asks to install it, project after project. Octavo offers once to install it in your own R library and add that library to the R extension's `r.libPaths` (in a terminal: `octavo setup --r-editor`; `octavo setup` installs it too).
-- The sidebar lists manuscripts (with their settings), analyses and tools; open a paper to add
-  an appendix, lecture notes with session markers to make per-session handouts (also remade on
-  every save).
-- The preview scrolls to where the cursor is in the manuscript (it can still be scrolled on its own; the ⇅ button in its toolbar, or the setting `octavo.previewFollowCursor`, turns that off).
-- Opening a `.qmd` in an Octavo project shows the HTML it last rendered (`<name>.html` beside it) in the next column, and reloads it when the analysis runs again. It scrolls to where the cursor is in the `.qmd` (the same `octavo.previewFollowCursor` as the PDF) and can be searched with Ctrl+F. Nothing is rendered by opening or saving it. While the Quarto extension's own **Preview** is running, this view closes and stays closed (`octavo.qmdPreview` turns it off altogether).
-- In a project with an R analysis and a `.venv`, the extension stops the Python extension from typing the `.venv` activate command into new terminals (in an R terminal it is an error: `unexpected symbol`). It says so once, with **Undo**; it leaves the setting alone if you have set it yourself.
-- Completion and checks for citations (`@`) and analysis values (`{{`).
-- A `.csv` file in `tables/` or `data/` gets an **Edit as a Table** button in its title bar that opens it as a grid.
+Things to ask, in your own words:
 
-It runs `octavo` wherever the folder is: locally, in WSL, or on a server over Remote-SSH.
+- "Write the analysis of `data/raw/survey.csv` and put the numbers in the results section."
+- "Add a robustness section with the model without the outliers."
+- "Make the anonymous version and the package for the journal."
+- "Which numbers in the paper changed since I submitted it?"
+- "Take the Priorwork draft into the literature review."
+- "Draw the causal diagram in Typst: Z causes X and Y, X causes Y."
+- "Change the slides to 4:3 and make the accent dark green."
 
 ---
 
 ## 11. What to check on your own machine
 
-The test suite typesets every format with pandoc and Typst on Linux, macOS and Windows, and
-runs the example analysis through Quarto, in R and in Python. What it cannot see:
+Octavo's tests typeset every output on Linux, macOS and Windows, and run the example analysis
+through Quarto, in R and in Python. What they cannot see:
 
-- **How citations look in your style** — run `octavo selftest` and read it.
-- **Fonts** — look at your first PDF; `octavo doctor` lists missing fonts.
+- **How citations look in your style** — run **Octavo: Check How Citations Come Out** from the
+  Command Palette and read it.
+- **Fonts** — look at your first PDF; **Tools → Diagnose the Environment** lists missing fonts.
 - **LaTeX** — no test compiles LaTeX output. Check your first LaTeX or Beamer PDF.
 - **Your own R setup** — the example runs; your packages are yours to check.
 
 If something looks wrong, please open an [issue](https://github.com/yoshida-kd/octavo/issues)
-with the output of `octavo doctor`.
+with what **Diagnose the Environment** shows.

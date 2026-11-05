@@ -3,6 +3,47 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.9
+
+- **The documentation, regrouped around the extension.** The guide is now for people working in
+  VS Code: buttons, menus and what to write in the manuscript, with no terminal commands. Installing
+  has a page of its own (Linux, macOS, Windows), as do lecture notes and the quick guide. Every
+  command and setting moved to a new **reference**, written for AI assistants; for anything the
+  extension has no button for (an anonymous version, a package for a journal, a template to change),
+  the guide says to ask the assistant.
+- **`octavo docs`** prints that reference from the installed Octavo, section by section
+  (`octavo docs 3.8`, `octavo docs posters`, `octavo docs --search slides_select`), so an assistant
+  can look things up for the version you have, without the web. New projects' `AGENTS.md` tells it
+  to (`octavo migrate --rules` adds it to an older project's).
+- **`octavo.R` is found when you run one chunk.** The first chunk of a new R `.qmd` now looks for
+  `octavo.R` beside the `.qmd` and in `analysis/`: rendering runs in `analysis/`, but Run Cell in
+  VS Code runs in the project folder, where `source("octavo.R")` failed. A `.qmd` written before
+  keeps working when rendered; change its line to the new one to run its chunks on their own.
+- **A chunk run on its own records no values.** With `octavo.R` now found from Run Cell, `ov_value()`
+  there would have written `assets/values/values.json`, whose values win over the rendered ones of
+  the same name. Outside a render it now prints the value and records nothing (the Python helper
+  likewise outside Quarto); `options(octavo.values = "<qmd name>")` still writes.
+- **igraph (and quanteda.textplots) on Linux.** Posit Package Manager's igraph needs the GLPK
+  library when it loads, and a bare Ubuntu / WSL does not have it, so igraph installed but would
+  not load. `octavo setup` now installs `libglpk-dev`; `octavo doctor` has a *system libraries* row
+  (the extension offers Set up when it is missing); an analysis that fails with "cannot open shared
+  object file" names the apt package to install.
+- **Writing rules in packs.** A pack is a folder of rules and phrases (`~/.config/octavo/writing/<pack>/`
+  or `notes/writing/<pack>/`), with an optional `pack.md` whose `extends` brings in a more general pack.
+  Choose the packs, most general first, with `writing` in `octavo.config.py` or `writing:` at the top of
+  a manuscript (it wins for that manuscript); where two disagree, the later one wins. `writing_off`
+  turns single entries or files off. Files sitting directly in `rules/` and `phrases/`, as before, are a
+  pack called `local` and keep working.
+- **Phrases per section.** A file's `section:` (abstract, introduction, literature, theory, design,
+  results, discussion, conclusion, appendix, or one a pack adds) says when it is read.
+  `octavo writing --for DOC --section results --print` prints what applies there, layered; with
+  `--file F --line N` the heading above the line picks the section. The project's `AGENTS.md` now tells
+  the AI assistant to run this before writing (`octavo migrate --rules` updates an older project's).
+  `octavo check` warns about unknown pack and section names.
+- **Writing rules in the sidebar.** Each manuscript shows its packs, their files and entries (right-click
+  to turn one off for that manuscript), *Choose the Packs…*, and *Show the Rules for Where the Cursor
+  Is* (also in the editor's right-click menu).
+
 ## 0.6.8
 
 - **Less scattered project folders.** A new project keeps its bibliography in `literature/literature.bib`

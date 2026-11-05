@@ -40,7 +40,7 @@ from .i18n import t
 class Knob:
     key: str
     section: str        # 'document' | 'slides' | 'limits'
-    kind: str           # 'choice' | 'bool' | 'color' | 'int' | 'text' | 'suggest' | 'multi'
+    kind: str           # 'choice' | 'bool' | 'color' | 'int' | 'text' | 'suggest' | 'multi' | 'collections' | 'packs' | 'list'
     label: str          # 英語の原文（表示は t() を通す）
     choices: tuple = ()  # choice / suggest / multi の選択肢。None は「使わない」
     docs: tuple = ()     # 原稿の冒頭で文書ごとに変えられる種類（profile）
@@ -66,6 +66,8 @@ KNOBS = (
     Knob('zotero_collection', 'document', 'collections', 'Main Zotero collection (the .bib)'),
     Knob('zotero_linked', 'document', 'collections', 'Linked Zotero collections (surveys)'),
     Knob('zotero_write', 'document', 'bool', 'Let octavo bib tidy change the Zotero collection'),
+    Knob('writing', 'document', 'packs', 'Writing rule packs (general first)', docs=ALL_DOCS),
+    Knob('writing_off', 'document', 'list', 'Writing rules turned off', docs=ALL_DOCS),
     Knob('outputs', 'document', 'multi', 'What to make', tuple(configmod.OUTPUTS),
          docs=ALL_DOCS, project=False),
     Knob('sessions', 'document', 'bool', 'Made of sessions (one deck each)',
@@ -154,6 +156,18 @@ def parse_value(k: Knob, raw: str):
         if not got:
             raise EditError(t('{key} cannot be empty', key=k.key))
         return got[0] if len(got) == 1 else got
+    if k.kind in ('packs', 'list'):
+        # 文章のルールのパック・使わない項目: いつも並び（["a", "b"] か、; かカンマで区切る）
+        if s.startswith('['):
+            try:
+                got = [str(x).strip() for x in ast.literal_eval(s) if str(x).strip()]
+            except (ValueError, SyntaxError):
+                got = [x.strip().strip('"\'') for x in s[1:-1].split(',') if x.strip()]
+        else:
+            got = [x.strip() for x in re.split(r'[;,]', s) if x.strip()]
+        if k.kind == 'packs' and [x.lower() for x in got] in ([], ['none']):
+            return None
+        return got
     if s.lower() in ('none', 'null', ''):
         if k.kind in ('color', 'int') or (k.kind == 'choice' and None in k.choices):
             return None

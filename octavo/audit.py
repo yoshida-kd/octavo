@@ -178,6 +178,21 @@ def collect(cfg, anonymous: bool = False) -> list:
                      'octavo migrate --docs moves them into docs/<name>/',
                      n=len(older), files=', '.join(cfg.rel(d.src) for d in older[:3])
                      + (', …' if len(older) > 3 else ''))))
+    # -- 文章のルール（パックがあるときだけ）。名前の誤りは黙って効かなくなるので知らせる
+    from . import writing as writingmod
+    wr = writingmod.collect(Path(cfg.root))
+    if wr['packs']:
+        warns = list(wr['warnings'])
+        for d in cfg.documents.values():
+            if d.exists():
+                try:
+                    warns += [f'{d.name}: {w}' for w in writingmod.select(cfg, d)['warnings']]
+                except SystemExit as e:
+                    warns.append(f'{d.name}: {e.code}')
+        items.append(Item(
+            ok=not warns, fatal=False, label=t('writing rules'),
+            detail='; '.join(warns) if warns else t('{n} {n|pack|packs}: {names}', n=len(wr['packs']),
+                                                    names=', '.join(p['name'] for p in wr['packs']))))
     # -- 分析 ---------------------------------------------------------------
     # 分析のないプロジェクト（スライドだけ、など）には分析の行を出さない
     rows = anamod.status(cfg) if cfg['analysis'] else []

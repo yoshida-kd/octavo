@@ -1,5 +1,6 @@
 #!/bin/sh
-# 手引き（docs/guide*.md）・講義ノートの手引き（docs/lectures*.md）・クイックガイド（docs/quickstart*.md）を、
+# 手引き（docs/guide*.md）・講義ノートの手引き（docs/lectures*.md）・インストール（docs/install*.md）・
+# リファレンス（docs/reference*.md）・クイックガイド（docs/quickstart*.md）を、
 # Pages に出す HTML にする。
 #   sh site/build.sh <出力先>   ->  <出力先>/guide/index.html・<出力先>/ja/guide/index.html
 #                                  <出力先>/lectures/index.html・<出力先>/ja/lectures/index.html
@@ -31,10 +32,10 @@ page() {  # page <原稿> <出力> <言語> <題> <説明> <目次の見出し> 
 }
 
 page "$repo/docs/guide.md" "$out/guide/index.html" en "Octavo guide" \
-  "The full manual for Octavo: installing it on Linux, macOS and Windows, writing manuscripts, the analysis, citations, papers, slides and lecture notes." \
+  "How to use Octavo in VS Code: projects, writing manuscripts, the analysis, citations, papers, slides and posters." \
   "Contents" "../" "../" guide
 page "$repo/docs/guide.ja.md" "$out/ja/guide/index.html" ja "Octavo 手引き" \
-  "Octavo の手引き。Linux・macOS・Windows へのインストール、原稿の書き方、分析、文献、論文、スライドと講義ノート。" \
+  "VS Code での Octavo の使い方。プロジェクト、原稿の書き方、分析、文献、論文、スライドとポスター。" \
   "目次" "../../" "../" guide
 page "$repo/docs/lectures.md" "$out/lectures/index.html" en "Making lecture notes" \
   "How to make lecture notes with Octavo in VS Code: one Markdown file for the A4 handout, a deck per session and per-session handouts." \
@@ -42,6 +43,18 @@ page "$repo/docs/lectures.md" "$out/lectures/index.html" en "Making lecture note
 page "$repo/docs/lectures.ja.md" "$out/ja/lectures/index.html" ja "講義ノートの作り方" \
   "Octavo で講義ノートを作る手引き。1本の Markdown から A4 プリント・回ごとのスライド・回ごとの配布資料を VS Code で。" \
   "目次" "../../" "../" lectures
+page "$repo/docs/install.md" "$out/install/index.html" en "Installing Octavo" \
+  "Installing Octavo on Linux, macOS and Windows: the VS Code extension sets up R, Python, Quarto, pandoc, Typst and the fonts with one button." \
+  "Contents" "../" "../" install
+page "$repo/docs/install.ja.md" "$out/ja/install/index.html" ja "Octavo のインストール" \
+  "Linux・macOS・Windows への Octavo のインストール。VS Code 拡張機能が、R・Python・Quarto・pandoc・Typst・書体をボタン1つで入れる。" \
+  "目次" "../../" "../" install
+page "$repo/docs/reference.md" "$out/reference/index.html" en "Octavo reference" \
+  "Every command, setting and piece of manuscript syntax in Octavo, written for AI assistants. The same text comes with Octavo: octavo docs." \
+  "Contents" "../" "../" reference
+page "$repo/docs/reference.ja.md" "$out/ja/reference/index.html" ja "Octavo リファレンス" \
+  "Octavo のコマンド・設定・原稿の書き方のすべて。AI アシスタント向け。同じ文章が Octavo に同梱されている（octavo docs）。" \
+  "目次" "../../" "../" reference
 page "$repo/docs/quickstart.md" "$out/quickstart/index.html" en "Octavo quick guide" \
   "From installing Octavo to your first PDF in six short steps: install, make a project, write, build, check." \
   "Contents" "../" "../" quickstart

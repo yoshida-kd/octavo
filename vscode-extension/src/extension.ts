@@ -314,6 +314,12 @@ export function activate(context: vscode.ExtensionContext): void {
         // -- アクティビティバー ------------------------------------------------
         vscode.commands.registerCommand('octavo.sidebarRefresh', () => tree.refresh()),
         vscode.commands.registerCommand('octavo.openConfig', () => tree.openConfig()),
+        vscode.commands.registerCommand('octavo.writingShow', () => tree.writingShow()),
+        vscode.commands.registerCommand('octavo.choosePacks', (node?: { doc?: DocInfo }) => tree.choosePacks(node?.doc)),
+        vscode.commands.registerCommand('octavo.writingItemOff', (node: Parameters<OctavoTree['toggleWriting']>[0]) =>
+            node && tree.toggleWriting(node)),
+        vscode.commands.registerCommand('octavo.writingItemOn', (node: Parameters<OctavoTree['toggleWriting']>[0]) =>
+            node && tree.toggleWriting(node)),
         vscode.commands.registerCommand('octavo.editSetting', async (s: Setting, doc?: string) => {
             if (s && await tree.edit(s, doc)) {
                 await preview.rebuildIfOpen();      // 変えた結果がすぐ見えるように

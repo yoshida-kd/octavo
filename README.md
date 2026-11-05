@@ -122,19 +122,11 @@ The sample has {{n_obs}} cases (@fig-trend).
 
 ## Documentation
 
-[The guide](https://yoshida-kd.github.io/octavo/guide/) covers everything:
-
-1. [Install](https://yoshida-kd.github.io/octavo/guide/#1-install) — Linux, macOS and Windows, step by step
-2. [Your first project](https://yoshida-kd.github.io/octavo/guide/#2-your-first-project) — `octavo init` and `octavo new`, the analysis environment
-3. [Writing manuscripts](https://yoshida-kd.github.io/octavo/guide/#3-writing-manuscripts) — references, numbered blocks, math, figures, tables
-4. [The analysis](https://yoshida-kd.github.io/octavo/guide/#4-the-analysis) — numbers, figures and tables from Quarto
-5. [Citations](https://yoshida-kd.github.io/octavo/guide/#5-citations)
-6. [Papers](https://yoshida-kd.github.io/octavo/guide/#6-papers-from-draft-to-submission) — checking, blind review, submitting, revisions
-7. [Slides, lecture notes and posters](https://yoshida-kd.github.io/octavo/guide/#7-slides-lecture-notes-and-posters) — sessions, per-session handouts, posters
-8. [Making it yours](https://yoshida-kd.github.io/octavo/guide/#8-making-it-yours) — templates, Word styles, fonts
-9. [Command reference](https://yoshida-kd.github.io/octavo/guide/#9-command-reference)
-10. [VS Code](https://yoshida-kd.github.io/octavo/guide/#10-vs-code)
-11. [What to check on your own machine](https://yoshida-kd.github.io/octavo/guide/#11-what-to-check-on-your-own-machine)
+- [Quick guide](https://yoshida-kd.github.io/octavo/quickstart/) — from installing to your first PDF, in six steps
+- [Installing Octavo](https://yoshida-kd.github.io/octavo/install/) — Linux, macOS and Windows, step by step
+- [Guide](https://yoshida-kd.github.io/octavo/guide/) — using Octavo in VS Code: projects, writing, the analysis, citations, papers, slides and posters
+- [Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/) — one file for an A4 handout and a deck per session
+- [Reference](https://yoshida-kd.github.io/octavo/reference/) — every command and setting, written for AI assistants (also `octavo docs`)
 
 ## Contributing and license
 

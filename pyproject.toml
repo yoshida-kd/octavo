@@ -63,6 +63,8 @@ packages = ["octavo"]
 "config.example.ja.py" = "octavo/config.example.ja.py"
 "setup.sh" = "octavo/setup.sh"
 "setup.ps1" = "octavo/setup.ps1"
+"docs/reference.md" = "octavo/docs/reference.md"
+"docs/reference.ja.md" = "octavo/docs/reference.ja.md"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -74,6 +76,8 @@ include = [
     "bin",
     "setup.sh",
     "setup.ps1",
+    "docs/reference.md",
+    "docs/reference.ja.md",
     "README.md",
     "README.ja.md",
     "CONTRIBUTING.md",

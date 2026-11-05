@@ -11,9 +11,10 @@
 | 回ごとの配布資料 | A4 プリントを回ごとに切り出したもの。ページ番号は全体のまま | `build/handouts/<名前>-<回>.pdf` |
 | 台本（使うときだけ） | スライドを A4 に並べ、下に話すことのメモ | `build/script/<名前>-notes-<回>.pdf` |
 
-作業はすべて VS Code でできる。この手引きは VS Code を使う前提で書き、コマンドは最後に
-[まとめて](#コマンドで使うなら)ある。インストールと、論文・分析など講義ノート以外のことは
-[手引き](https://yoshida-kd.github.io/octavo/ja/guide/)を見る。
+作業はすべて VS Code でできる。この手引きは VS Code を使う前提で書いている。インストールは
+[インストールの手引き](https://yoshida-kd.github.io/octavo/ja/install/)、論文・分析など講義ノート
+以外のことは[手引き](https://yoshida-kd.github.io/octavo/ja/guide/)、コマンドと設定のすべては
+[リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/)（AI アシスタント向け）を見る。
 
 ---
 
@@ -92,8 +93,7 @@ Text for both the handout and the slides.
 # Session 2: Government {#government}
 ```
 
-これで2回目のスライドは `<名前>-government` になる（`octavo build <名前>-government`。PDF は
-`<名前>-slides-government.pdf`）。
+これで2回目のスライドは `<名前>-government` になる（PDF は `<名前>-slides-government.pdf`）。
 
 ### 区切りを書いて分ける
 
@@ -161,7 +161,7 @@ Second half — on a new slide titled "Short title (cont.)".
 `::: {.slide title="…"}` + `:::` も同じ意味。区切りで
 できるスライドは、そのときの1枚の段（ふつうは `###`）の見出しになる。
 
-1枚に入りきらない中身は、「題（続き）」の1枚に続き、`octavo build` がそう知らせる。分ける
+1枚に入りきらない中身は、「題（続き）」の1枚に続き、組むときにそう知らせる。分ける
 場所を自分で決めたいなら、そこに `\newslide` を入れる。題のないスライドが入りきらないときは、
 知らせるだけ。
 
@@ -215,7 +215,7 @@ A big figure or one short question.
 - Grading: [midterm and final]{.no-slides}[see the handout]{.slides-only}.
 ```
 
-「**投稿前に検査する**」（か `octavo check lint`）が、囲みとして読まれない `:::` と、どの出力にも
+「**投稿前に検査する**」が、囲みとして読まれない `:::` と、どの出力にも
 当たらない印（`.handouts-only` のような綴り違い）を知らせる。知らせがないと、両方から黙って消える。
 
 ### 一部だけをスライドにする
@@ -299,7 +299,7 @@ No label is needed if nothing refers to it.
 
 ## 図・表・文献
 
-論文と同じ書き方。詳しくは手引きの[原稿を書く](https://yoshida-kd.github.io/octavo/ja/guide/#3-原稿を書く)と[文献](https://yoshida-kd.github.io/octavo/ja/guide/#5-文献)。
+論文と同じ書き方。詳しくは手引きの[原稿の書き方](https://yoshida-kd.github.io/octavo/ja/guide/#3-原稿の書き方)と[文献](https://yoshida-kd.github.io/octavo/ja/guide/#5-文献)。
 
 ```markdown
 ![Spending over time](../../assets/figures/trend.png){#fig-trend}
@@ -379,7 +379,7 @@ The number of civil servants is small.[^count] A short note can go inline.^[Like
 
 付録の見出しがファイルのどこにあっても、プリントの並びは**本文、参考文献、付録**になる。
 付録のページ番号は A-1、A-2、… と 1 から振り直され、付録は別の PDF（`<名前>-appendix.pdf`）にも
-なるので、配るプリントには付録が入らない。回ごとの配布資料（`octavo build --sessions`）にも
+なるので、配るプリントには付録が入らない。回ごとの配布資料にも
 入らない。設定は2つ（サイドバーの「この文書の設定」か、原稿の冒頭）:
 
 | 設定 | 働き |
@@ -452,22 +452,3 @@ A4 プリントの組み方は日本語 LaTeX の jsarticle にならう（1行4
 | URL | `<https://…>`、文字に付けるなら `[文字](https://…)` |
 | 脚注 | `[^名前]` と `[^名前]: 本文`（同じ回の中に）、短いものは `^[本文]` |
 | 付録 | `# 題 {.appendix}` |
-
----
-
-## コマンドで使うなら
-
-VS Code でしていることは、どれもコマンドでもできる:
-
-```bash
-octavo new lecture public-policy                          # docs/public-policy/public-policy.md
-octavo build public-policy --to pdf --compile             # A4 handout
-octavo build public-policy --to slides --compile          # one deck per session
-octavo build public-policy-week3 --to slides              # one session only
-octavo build public-policy-week3 --to script              # its speaker script
-octavo build public-policy --sessions                     # build/handouts/, one PDF per session
-octavo extract public-policy --session week3 --cover      # one session, with the cover and contents
-octavo check                                              # before handing out
-```
-
-コマンドでは、回ごとの配布資料は `--sessions` を付けたときだけ作り直される。

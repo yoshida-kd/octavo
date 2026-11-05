@@ -6,6 +6,7 @@
 //   変更   octavo config set|unset   （octavo.config.py のその1行だけを書き換え、
 //                                    設定として読めるか確かめてから保存する）
 //   分析   octavo analysis --json    （.qmd ごとの 最新/古い/手動。実行するのは analysis.ts）
+//   文章   octavo writing --for DOC --all --json（原稿ごとの、文章のルールのパック。writing.ts）
 // どの鍵を出すか、値として正しいかは confedit.py が決める。ここでは判断しない。
 import * as fs from 'fs';
 import * as path from 'path';
@@ -14,6 +15,7 @@ import { AnalysisReport, AnalysisUnit, fetchAnalysis } from './analysis';
 import { priorworkWorkspace } from './literature';
 import { DocInfo, Part } from './preview';
 import { dirOf, findConfig, resolvePathFromTool, runCapture } from './runner';
+import { choosePacks, fetchWriting, showHere, toggleItem, WritingFile, WritingItem, WritingReport } from './writing';
 
 export interface Setting {
     key: string;
@@ -60,6 +62,10 @@ type Node =
     | { kind: 'section'; label: string; items: Setting[]; doc?: string }
     | { kind: 'setting'; s: Setting; doc?: string }
     | { kind: 'docSettings'; doc: DocInfo }
+    | { kind: 'writing'; doc: DocInfo }
+    | { kind: 'pack'; doc: DocInfo; name: string; report: WritingReport }
+    | { kind: 'wfile'; doc: DocInfo; f: WritingFile; report: WritingReport }
+    | { kind: 'witem'; doc: DocInfo; f: WritingFile; it: WritingItem; report: WritingReport }
     | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[]; tooltip?: string }
     | { kind: 'message'; label: string };
 
@@ -95,6 +101,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     private surveys?: Survey[];
     private connection?: Connection;
     private requests?: PriorworkRequest[];
+    private readonly writing = new Map<string, WritingReport | null>();     // null = 読めなかった
     private readonly subs: vscode.Disposable[] = [];
 
     constructor(private readonly log: (s: string) => void) {
@@ -128,6 +135,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         this.analysis = undefined;
         this.surveys = undefined;
         this.requests = undefined;
+        this.writing.clear();
         this.changed.fire(undefined);
     }
 
@@ -351,8 +359,38 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                             command: 'octavo.extract', icon: 'files', args: [{ doc: node.doc }],
                             tooltip: vscode.l10n.t('One PDF per session in build/handouts/. They are also remade each time you save the notes (setting: Update Handouts On Save).') });
             }
+            rows.push({ kind: 'writing', doc: node.doc });
             rows.push({ kind: 'docSettings', doc: node.doc });
             return rows;
+        }
+        if (node.kind === 'writing') {
+            const r = await this.loadWriting(node.doc.name);
+            const rows: Node[] = [
+                { kind: 'action', label: vscode.l10n.t('Show the Rules for Where the Cursor Is'),
+                  command: 'octavo.writingShow', icon: 'open-preview',
+                  tooltip: vscode.l10n.t('What the AI reads before writing there: the rules, and the phrases of that section') },
+                { kind: 'action', label: vscode.l10n.t('Choose the Packs…'), command: 'octavo.choosePacks',
+                  icon: 'list-ordered', args: [{ doc: node.doc }],
+                  tooltip: vscode.l10n.t('General first; where two disagree, the later one wins. Written at the top of the manuscript.') },
+            ];
+            if (!r) {
+                rows.push({ kind: 'message', label: vscode.l10n.t('Could not read the writing rules (see the output).') });
+                return rows;
+            }
+            for (const w of r.warnings) {
+                rows.push({ kind: 'message', label: w });
+            }
+            if (!r.packs.length) {
+                rows.push({ kind: 'message', label: vscode.l10n.t('No packs yet (~/.config/octavo/writing/ or notes/writing/)') });
+            }
+            return rows.concat(r.packs.map((name): Node => ({ kind: 'pack', doc: node.doc, name, report: r })));
+        }
+        if (node.kind === 'pack') {
+            return node.report.files.filter((f) => f.pack === node.name)
+                .map((f): Node => ({ kind: 'wfile', doc: node.doc, f, report: node.report }));
+        }
+        if (node.kind === 'wfile') {
+            return node.f.items.map((it): Node => ({ kind: 'witem', doc: node.doc, f: node.f, it, report: node.report }));
         }
         if (node.kind === 'docSettings') {
             const items = await this.loadDocSettings(node.doc.name);
@@ -471,7 +509,8 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
             case 'doc': {
                 const paper = node.doc.profile === 'paper';
-                const it = new vscode.TreeItem(node.doc.name, node.doc.parts.length || paper ? C : N);
+                // どの原稿にも、その文書の設定と文章のルールがある
+                const it = new vscode.TreeItem(node.doc.name, C);
                 it.description = node.doc.rel;
                 it.iconPath = new vscode.ThemeIcon(DOC_ICON[node.doc.profile] ?? 'file');
                 // 論文だけ右クリックに「付録を足す」「main.tex を足す」、講義ノートだけ
@@ -561,6 +600,56 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 it.tooltip = vscode.l10n.t('Written at the top of the manuscript; what is not written there follows the project');
                 return it;
             }
+            case 'writing': {
+                const it = new vscode.TreeItem(vscode.l10n.t('Writing rules'), C);
+                it.iconPath = new vscode.ThemeIcon('whole-word');
+                const r = this.writing.get(node.doc.name);
+                if (r) {
+                    it.description = (r.packs.join(' → ') || vscode.l10n.t('none'))
+                        + (r.chosen_here ? '' : r.chosen ? '  ' + vscode.l10n.t('(project)') : '  ' + vscode.l10n.t('(every pack)'));
+                }
+                it.tooltip = vscode.l10n.t('The rules and phrase bank the AI follows for this manuscript (octavo writing)');
+                return it;
+            }
+            case 'pack': {
+                const files = node.report.files.filter((f) => f.pack === node.name);
+                const it = new vscode.TreeItem(node.name, C);
+                it.iconPath = new vscode.ThemeIcon('package');
+                it.description = vscode.l10n.t('{0} of {1} files used here', files.filter((f) => f.used).length, files.length);
+                return it;
+            }
+            case 'wfile': {
+                const f = node.f;
+                const it = new vscode.TreeItem(f.title, f.items.length ? C : N);
+                const why = { applies: vscode.l10n.t('another kind of document'), lang: vscode.l10n.t('another language'),
+                              off: vscode.l10n.t('turned off'), section: '' }[f.skipped ?? ''] ?? f.skipped;
+                const secs = f.section.filter((x) => x !== 'all');
+                it.description = [f.kind === 'rules' ? vscode.l10n.t('rules') : vscode.l10n.t('phrases'),
+                                  secs.length ? secs.join(', ') : vscode.l10n.t('every section'),
+                                  why ? vscode.l10n.t('not used: {0}', why) : ''].filter(Boolean).join(' · ');
+                it.iconPath = new vscode.ThemeIcon(f.skipped && f.skipped !== 'section' ? 'circle-slash'
+                    : f.kind === 'rules' ? 'law' : 'quote');
+                it.tooltip = f.path;
+                const uri = resolvePathFromTool(f.path);
+                if (uri) {
+                    it.command = { command: 'vscode.open', title: '', arguments: [uri] };
+                }
+                return it;
+            }
+            case 'witem': {
+                const off = node.it.off;
+                const it = new vscode.TreeItem(node.it.title, N);
+                it.description = off ? vscode.l10n.t('turned off') : '';
+                it.iconPath = new vscode.ThemeIcon(off ? 'circle-slash' : 'circle-small-filled');
+                it.tooltip = node.it.id;
+                it.contextValue = off ? 'octavo.writingItemOff' : 'octavo.writingItem';
+                const uri = resolvePathFromTool(node.f.path);
+                if (uri) {
+                    const at = new vscode.Range(node.it.line - 1, 0, node.it.line - 1, 0);
+                    it.command = { command: 'vscode.open', title: '', arguments: [uri, { selection: at }] };
+                }
+                return it;
+            }
             case 'setting': {
                 const it = new vscode.TreeItem(node.s.label, N);
                 // 文書の設定なら「この原稿に書いた値」か「プロジェクトの値」か、
@@ -616,6 +705,19 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             }
         }
         const title = doc ? `${doc}: ${s.label} (${s.key})` : `${s.label} (${s.key})`;
+        if (s.kind === 'packs') {
+            // 文章のルールのパック: 一般的なものから1つずつ選ぶ
+            const d = doc ? this.docs?.find((x) => x.name === doc) : undefined;
+            const cwd = await this.cwd();
+            if (!cwd || (doc && !d)) {
+                return false;
+            }
+            const done = await choosePacks(cwd, d, Array.isArray(s.value) ? s.value as string[] : null);
+            if (done) {
+                this.refresh();
+            }
+            return done;
+        }
         if (s.kind === 'collections') {
             // Zotero のコレクション: Zotero の一覧（木）から選ぶ専用の画面で
             await vscode.commands.executeCommand(s.key === 'zotero_linked' ? 'octavo.chooseLinkedCollections'
@@ -725,6 +827,44 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         }
         this.refresh();
         return true;
+    }
+
+    // -- 文章のルール ------------------------------------------------------
+    private async loadWriting(doc: string): Promise<WritingReport | null> {
+        if (!this.writing.has(doc)) {
+            const cwd = await this.cwd();
+            this.writing.set(doc, cwd ? (await fetchWriting(cwd, doc, this.log)) ?? null : null);
+        }
+        return this.writing.get(doc) ?? null;
+    }
+
+    async choosePacks(doc?: DocInfo): Promise<boolean> {
+        const cwd = await this.cwd();
+        if (!cwd) {
+            return false;
+        }
+        const now = doc ? (await this.loadWriting(doc.name))?.packs ?? null : null;
+        const done = await choosePacks(cwd, doc, now);
+        if (done) {
+            this.refresh();
+        }
+        return done;
+    }
+
+    async toggleWriting(node: { doc: DocInfo; it: WritingItem; report: WritingReport }): Promise<void> {
+        const cwd = await this.cwd();
+        if (cwd && await toggleItem(cwd, node.doc, node.report, node.it.id)) {
+            this.writing.delete(node.doc.name);
+            this.changed.fire(undefined);
+        }
+    }
+
+    async writingShow(): Promise<void> {
+        const cwd = await this.cwd();
+        const docs = await this.loadDocs();
+        if (cwd && docs) {
+            await showHere(cwd, docs);
+        }
     }
 
     async openConfig(): Promise<void> {

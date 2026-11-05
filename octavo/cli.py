@@ -70,6 +70,7 @@ USAGE_LINES = (
     ('octavo new paper|slides|lecture|analysis|figure|table name', 'add a manuscript, an analysis, a figure or a table'),
     ('octavo template list', 'which templates are in use, and how to make your own'),
     ('octavo release name v1-submitted', 'tag this version, PDF to a GitHub Release'),
+    ('octavo docs [section]', 'the reference for AI assistants (octavo docs --search WORD)'),
 )
 
 
@@ -675,28 +676,81 @@ def cmd_priorwork(args) -> int:
 
 
 def cmd_writing(args) -> int:
-    """文章のルールとフレーズバンクの一覧（AI が書く前に読むもの）。"""
+    """文章のルールとフレーズバンク（AI が書く前に読むもの）。"""
+    import json as _json
     from . import writing as writingmod
     cfg = configmod.load(args.config)
-    got = writingmod.collect(Path(cfg.root))
+    root = Path(cfg.root)
+    doc, heading = None, None
+    if args.file:
+        f = Path(args.file)
+        f = f if f.is_absolute() else Path.cwd() / f
+        doc = writingmod.doc_for_file(cfg, f)
+        if doc is None:
+            print(t('{file} is not a manuscript of this project', file=args.file), file=sys.stderr)
+            return 2
+    if args.for_doc:
+        doc = cfg.document(args.for_doc)
+    if doc is None and (args.section or args.line or args.print or args.all):
+        print(t('say which manuscript: --for DOC or --file FILE'), file=sys.stderr)
+        return 2
+    if doc is None:
+        got = writingmod.collect(root)
+        if args.json:
+            print(_json.dumps(got, ensure_ascii=False))
+            return 0
+        for w in got['warnings']:
+            print(tag('warning') + ' ' + w, file=sys.stderr)
+        if not any(got[k] for k in writingmod.KINDS):
+            print(t('no writing rules or phrase bank yet. Put Markdown files in notes/writing/rules/ and '
+                    'notes/writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
+            return 0
+        for kind, head in (('rules', t('Writing rules (follow them):')),
+                           ('phrases', t('Phrase bank (prefer these phrasings):'))):
+            if not got[kind]:
+                continue
+            print(head)
+            for f in got[kind]:
+                where = cfg.rel(Path(f['path'])) if f['where'] == 'project' else f['path']
+                info = ', '.join(x for x in (f['pack'], f['lang'], '/'.join(f['applies']),
+                                             '' if f['section'] == ['all'] else '/'.join(f['section'])) if x)
+                print(f"  {where}  {f['title']} ({info}) — "
+                      + t('{n} {n|entry|entries}', n=f['entries']))
+        return 0
+
+    section = args.section
+    if args.line and not section:
+        own = Path(args.file) if args.file else Path(doc.src)
+        own = own if own.is_absolute() else Path.cwd() / own
+        known = writingmod.known_sections(writingmod.packs(root))
+        is_appendix = bool(doc.appendix) and Path(doc.appendix).resolve() == own.resolve()
+        section, heading = writingmod.section_at(mdlib.read(own), args.line, known, is_appendix)
+    try:
+        sel = writingmod.select(cfg, doc, section, every=args.all)
+    except SystemExit as e:
+        print(e.code, file=sys.stderr)
+        return 2
+    sel['heading'] = heading
+    if args.print:
+        sel['text'] = writingmod.render(sel, heading)
     if args.json:
-        import json as _json
-        print(_json.dumps(got, ensure_ascii=False))
+        print(_json.dumps(sel, ensure_ascii=False))
         return 0
-    if not any(got.values()):
-        print(t('no writing rules or phrase bank yet. Put Markdown files in notes/writing/rules/ and '
-                'notes/writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
+    for w in sel['warnings']:
+        print(tag('warning') + ' ' + w, file=sys.stderr)
+    if args.print:
+        sys.stdout.write(sel['text'])
         return 0
-    for kind, head in (('rules', t('Writing rules (follow them):')),
-                       ('phrases', t('Phrase bank (prefer these phrasings):'))):
-        if not got[kind]:
+    print(t('{doc}: packs {order}', doc=doc.name, order=' → '.join(sel['packs']) or t('(none)'))
+          + (f"  section: {section}" + (f' ("{heading}")' if heading else '') if section else ''))
+    for f in sel['files']:
+        if not (f['used'] or args.all):
             continue
-        print(head)
-        for f in got[kind]:
-            where = cfg.rel(Path(f['path'])) if f['where'] == 'project' else f['path']
-            info = ', '.join(x for x in (f['lang'], '/'.join(f['applies'])) if x)
-            print(f"  {where}  {f['title']} ({info}) — "
-                  + t('{n} {n|entry|entries}', n=f['entries']))
+        where = cfg.rel(Path(f['path'])) if f['where'] == 'project' else f['path']
+        mark = '  ' if f['used'] else '- '
+        off = sum(1 for i in f['items'] if i['off'])
+        print(f"{mark}{where}  {f['title']} — " + t('{n} {n|entry|entries}', n=f['entries'])
+              + (' ' + t('({n} turned off)', n=off) if off else ''))
     return 0
 
 
@@ -1406,6 +1460,47 @@ def copy_word_template(args, root) -> int:
     return 0
 
 
+def cmd_docs(args) -> int:
+    """AI 向けのリファレンスを、節ごとに表示する（入っている版のもの）。"""
+    from . import docsref
+    lang = args.lang or language()
+    text = docsref.read(lang)
+    if not text:
+        print(t('the reference is not installed with this octavo'), file=sys.stderr)
+        return 1
+    if args.all:
+        print(text)
+        return 0
+    if args.search:
+        hits = docsref.search(text, args.search)
+        if not hits:
+            print(t('nothing in the reference mentions {word}', word=args.search))
+            return 1
+        for sec in hits:
+            print(docsref.body(text, sec))
+        return 0
+    if not args.topic:
+        print(text.split('\n', 1)[0].lstrip('# ').strip() + '\n')
+        for level, title, _, _ in docsref.sections(text):
+            print(('  ' if level == 3 else '') + title)
+        print('\n' + t('octavo docs <number or words> shows a section (octavo docs 3.2, '
+                       'octavo docs posters); --search WORD finds a word; --all prints everything'))
+        return 0
+    hits = docsref.find(text, ' '.join(args.topic))
+    if not hits:
+        print(t('no section called {name}: octavo docs lists them', name=' '.join(args.topic)),
+              file=sys.stderr)
+        return 1
+    # 広い節が当たれば、その中の小さい節は重ねて出さない
+    shown = []
+    for sec in hits:
+        if any(s[2] <= sec[2] < s[3] for s in shown):
+            continue
+        shown.append(sec)
+        print(docsref.body(text, sec))
+    return 0
+
+
 def cmd_targets(args) -> int:
     """作れるもの（出力）の一覧。原稿の冒頭の outputs: と --to に書く名前。"""
     for name, backend in be.OUTPUTS.items():
@@ -1519,6 +1614,13 @@ def make_parser() -> argparse.ArgumentParser:
     p.set_defaults(func=cmd_priorwork)
 
     p = with_config(sub.add_parser('writing', help=t('the writing rules and phrase bank to follow')))
+    p.add_argument('--for', dest='for_doc', metavar='DOC', help=t('what this manuscript uses'))
+    p.add_argument('--file', metavar='FILE', help=t('the manuscript (or appendix) file being written'))
+    p.add_argument('--line', type=int, metavar='N',
+                   help=t('the line being written: its heading picks the section'))
+    p.add_argument('--section', metavar='NAME', help=t('the section being written (introduction, results, …)'))
+    p.add_argument('--all', action='store_true', help=t('every section'))
+    p.add_argument('--print', action='store_true', help=t('print the rules themselves, layered (for the AI)'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_writing)
 
@@ -1733,6 +1835,13 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--force', action='store_true', help=t('overwrite files that are already there'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_template)
+
+    p = sub.add_parser('docs', help=t('the reference for AI assistants, section by section'))
+    p.add_argument('topic', nargs='*', help=t('a section number (3.2) or words from its heading'))
+    p.add_argument('--search', metavar='WORD', help=t('every section that mentions WORD'))
+    p.add_argument('--all', action='store_true', help=t('the whole reference'))
+    p.add_argument('--lang', choices=('ja', 'en'), help=t('the language (default: the display language)'))
+    p.set_defaults(func=cmd_docs)
 
     p = sub.add_parser('targets', help=t('list the output formats'))
     p.set_defaults(func=cmd_targets)

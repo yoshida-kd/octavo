@@ -87,6 +87,37 @@ def r_repos_state() -> tuple:
                     url=url)
 
 
+def r_syslibs_state() -> tuple:
+    """(良いか, 説明)。Linux で、R のパッケージが読み込むシステムのライブラリがあるか。
+
+    Posit Package Manager のビルド済みパッケージ（igraph など）は、入れるときには
+    何も言わず、読み込むときに初めて失敗する。だから ldconfig で先に見る。
+    ldconfig が使えなければ、わからないので良いことにする。
+    """
+    from .analysis import R_SYSLIBS
+    LAST_R_SYSLIBS.clear()
+    exe = shutil.which('ldconfig') or next(
+        (p for p in ('/sbin/ldconfig', '/usr/sbin/ldconfig') if Path(p).exists()), None)
+    if not exe:
+        return True, t('could not check (no ldconfig)')
+    code, out = _run([exe, '-p'])
+    if code != 0:
+        return True, t('could not check (no ldconfig)')
+    have = {ln.strip().split(' ', 1)[0] for ln in out.splitlines()}
+    for head, apt, who in R_SYSLIBS:
+        if not any(h.startswith(head) for h in have):
+            LAST_R_SYSLIBS.append((head, apt, who))
+    if not LAST_R_SYSLIBS:
+        return True, t('present')
+    return False, t('{libs} not found: {pkgs} would install but not load',
+                    libs=', '.join(h[:-len('.so')] for h, _, _ in LAST_R_SYSLIBS),
+                    pkgs=', '.join(w for _, _, w in LAST_R_SYSLIBS))
+
+
+# 足りないシステムのライブラリ（report() が apt の行を出す）
+LAST_R_SYSLIBS: list = []
+
+
 def _run(cmd, timeout=20) -> tuple:
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout,
@@ -238,6 +269,7 @@ def collect() -> dict:
             cmd='octavo setup --r-editor'))
         if sys.platform.startswith('linux'):
             f['r_repos'] = r_repos_state()
+            f['r_syslibs'] = r_syslibs_state()
         stale = stale_r_libraries()
         LAST_R_STALE[:] = stale
         n = sum(r[1] for r in stale)
@@ -359,7 +391,14 @@ NEED_LABELS = {
 }
 
 # 分析に使う道具。なくても変換はできるので「注意」止まり
-ANALYSIS_TOOLS = ('quarto', 'R', 'renv', 'uv')
+ANALYSIS_TOOLS = ('quarto', 'R', 'renv', 'r_syslibs', 'uv')
+
+# 調べるのが一部の OS だけのもの。調べていなければ（その OS でなければ）良いことにする
+CHECKED_ON_SOME = ('r_syslibs',)
+
+
+def _ok(f: dict, k: str) -> bool:
+    return bool(f.get(k, (k in CHECKED_ON_SOME, ''))[0])
 
 # 道具を入れるコマンド（clone でも pip / uv で入れても使える）
 SETUP_CMD = 'octavo setup'
@@ -447,6 +486,7 @@ LABELS = {
     'r_quarto': '      └ knitr, rmarkdown',
     'r_packages': '      └ packages',
     'r_repos': '      └ package source',
+    'r_syslibs': '      └ system libraries',
     'uv': '  └ uv (Python)',
     'pandoc': 'pandoc',
     'pandoc_citeproc': '  └ CSL citations',
@@ -483,7 +523,8 @@ def report(verbose: bool = False) -> int:
 
     head = '\n== ' + t('Analysis (only when you use a .qmd)') + ' '
     print(head + '=' * max(4, 59 - len(head)))
-    for k in ('quarto', 'R', 'renv', 'r_quarto', 'languageserver', 'r_packages', 'r_repos', 'uv'):
+    for k in ('quarto', 'R', 'renv', 'r_quarto', 'languageserver', 'r_packages', 'r_repos',
+              'r_syslibs', 'uv'):
         if k not in f:
             continue
         ok, detail = f[k]
@@ -527,7 +568,7 @@ def report(verbose: bool = False) -> int:
                 what=', '.join(t(NEED_LABELS.get(n, n)) for n in lack)))
 
     run = SETUP_CMD
-    lack = [k for k in ANALYSIS_TOOLS if not f.get(k, (False, ''))[0]]
+    lack = [k for k in ANALYSIS_TOOLS if not _ok(f, k)]
     if lack:
         print('\n  ' + t('For the analysis ({what}): {cmd}',
                          what=', '.join(t(LABELS[k]).strip(' └') for k in lack), cmd=run))
@@ -537,6 +578,9 @@ def report(verbose: bool = False) -> int:
                          'renv are not affected):'))
         for cmd in dict.fromkeys(rebuild_command(lib, w) for lib, _, _, w in LAST_R_STALE):
             print('    ' + cmd)
+    if LAST_R_SYSLIBS:
+        print('\n  ' + t('For the system libraries R packages load:') + ' '
+              + 'sudo apt install ' + ' '.join(dict.fromkeys(a for _, a, _ in LAST_R_SYSLIBS)))
     if LAST_R_REPOS:
         print('\n  ' + t('To take ready-made packages on Linux, put this in ~/.Rprofile '
                          '(renv turns it into the binaries for your Ubuntu):'))
@@ -577,7 +621,7 @@ def as_json() -> dict:
         'clone': str(paths.REPO) if paths.is_clone() else None,
         'ready': not missing,
         'missing': [t(NEED_LABELS.get(n, n)) for n in missing],
-        'analysis': {k: bool(f.get(k, (False, ''))[0]) for k in ANALYSIS_TOOLS},
+        'analysis': {k: _ok(f, k) for k in ANALYSIS_TOOLS},
         # VS Code の R 拡張機能用（R がなければ null）。セットアップの判断には使わない
         'r_editor': ({'languageserver': bool(R_EDITOR.get('languageserver')),
                       'library': R_EDITOR.get('library')} if R_EDITOR else None),

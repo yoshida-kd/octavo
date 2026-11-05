@@ -5,7 +5,7 @@ Issues and pull requests are welcome, in English or Japanese.
 ## Setup
 
 No install step beyond Python itself — `octavo` is intentionally
-stdlib-only. Installing it as a user is in [the guide](https://yoshida-kd.github.io/octavo/guide/#1-install). For the full toolchain
+stdlib-only. Installing it as a user is in [the guide](https://yoshida-kd.github.io/octavo/install/). For the full toolchain
 (pandoc/Typst) needed to actually build output, run `bash setup.sh`
 (add `--with-tex` for LaTeX/Beamer).
 

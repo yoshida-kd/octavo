@@ -41,7 +41,7 @@ Tools**) or the command palette (**Octavo: Install or Update the Tools**) — fo
 example after updating the extension, so the `octavo` command follows. TeX is
 not installed; only the LaTeX and Beamer outputs need it (`octavo setup
 --with-tex` from a terminal). See the
-[Octavo guide](https://yoshida-kd.github.io/octavo/guide/#1-install) for the full
+[Octavo guide](https://yoshida-kd.github.io/octavo/install/) for the full
 picture, including installing from a terminal.
 
 ## Getting started

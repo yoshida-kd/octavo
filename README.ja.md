@@ -113,19 +113,11 @@ The sample has {{n_obs}} cases (@fig-trend).
 
 ## 手引き
 
-使い方はすべて[手引き](https://yoshida-kd.github.io/octavo/ja/guide/)にある:
-
-1. [インストール](https://yoshida-kd.github.io/octavo/ja/guide/#1-インストール) — Linux・macOS・Windows を順に
-2. [最初のプロジェクト](https://yoshida-kd.github.io/octavo/ja/guide/#2-最初のプロジェクト) — `octavo init` と `octavo new`、分析の環境
-3. [原稿を書く](https://yoshida-kd.github.io/octavo/ja/guide/#3-原稿を書く) — 参照、番号の付くブロック、数式、図、表
-4. [分析](https://yoshida-kd.github.io/octavo/ja/guide/#4-分析) — Quarto から数値・図・表を
-5. [文献](https://yoshida-kd.github.io/octavo/ja/guide/#5-文献)
-6. [論文](https://yoshida-kd.github.io/octavo/ja/guide/#6-論文-下書きから投稿まで) — 点検、匿名審査、投稿、改訂
-7. [スライド・講義ノート・ポスター](https://yoshida-kd.github.io/octavo/ja/guide/#7-スライド講義ノートポスター) — 回の区切り、回ごとの配布資料、ポスター
-8. [自分用にする](https://yoshida-kd.github.io/octavo/ja/guide/#8-自分用にする) — テンプレート、Word のスタイル、書体
-9. [コマンド一覧](https://yoshida-kd.github.io/octavo/ja/guide/#9-コマンド一覧)
-10. [VS Code](https://yoshida-kd.github.io/octavo/ja/guide/#10-vs-code)
-11. [自分の機械で確かめること](https://yoshida-kd.github.io/octavo/ja/guide/#11-自分の機械で確かめること)
+- [クイックガイド](https://yoshida-kd.github.io/octavo/ja/quickstart/) — インストールから最初の PDF まで、6つの手順で
+- [Octavo のインストール](https://yoshida-kd.github.io/octavo/ja/install/) — Linux・macOS・Windows を順に
+- [手引き](https://yoshida-kd.github.io/octavo/ja/guide/) — VS Code での使い方: プロジェクト、執筆、分析、文献、論文、スライドとポスター
+- [講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/) — 1つのファイルから A4 のプリントと回ごとのスライド
+- [リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/) — すべてのコマンドと設定。AI アシスタント向け（`octavo docs` でも読める）
 
 ## 貢献とライセンス
 

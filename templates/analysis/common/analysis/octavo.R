@@ -3,9 +3,10 @@
 #
 #  使い方（.qmd の最初のチャンクで読み込む）:
 #
-#      root <- Sys.getenv("OCTAVO_ROOT", unset = "")
-#      if (!nzchar(root)) root <- if (file.exists("octavo.R")) "." else ".."
-#      source(file.path(root, "octavo.R"))
+#      source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
+#
+#  （Render のときの作業フォルダは analysis/、チャンクだけを実行するとき
+#   ── VS Code の Run Cell など ── はプロジェクトの直下なので、両方を探す）
 #
 #  そのあと分析の中で:
 #
@@ -62,6 +63,9 @@ ov_dir <- function(kind = c("values", "figures", "tables")) {
 
 # 値の書き出し先。既定は「この .qmd と同じ名前の .json」。1本の .qmd が
 # 1つのファイルを持つので、複数の分析が同じファイルを取り合わない。
+# Render していない（チャンクだけを実行した）ときは、どの .qmd か分からないので
+# NULL を返し、値は書かない。別の名前のファイルに書くと、Render した本来の値と
+# 同じ名前で並び、試しに実行した値が本文に入ってしまう。
 ov_values_file <- function() {
   name <- getOption("octavo.values", NULL)
   if (is.null(name)) {
@@ -69,11 +73,8 @@ ov_values_file <- function() {
     if (requireNamespace("knitr", quietly = TRUE)) {
       inp <- tryCatch(knitr::current_input(), error = function(e) NULL)
     }
-    name <- if (!is.null(inp) && nzchar(inp)) {
-      tools::file_path_sans_ext(basename(inp))
-    } else {
-      "values"
-    }
+    if (is.null(inp) || !nzchar(inp)) return(NULL)
+    name <- tools::file_path_sans_ext(basename(inp))
   }
   file.path(ov_dir("values"), paste0(name, ".json"))
 }
@@ -138,6 +139,12 @@ ov_value <- function(name, x, fmt = NULL, note = NULL) {
     stop("ov_value: 値は1つだけ渡す（", name, " は length ", length(x), "）")
   }
   path <- ov_values_file()
+  if (is.null(path)) {
+    message("ov_value: ", name, " = ", format(x),
+            " (not recorded: this chunk was run on its own; render the .qmd to record it /",
+            " チャンクだけを実行したので記録しません。.qmd を実行すると記録されます)")
+    return(invisible(x))
+  }
   store <- if (is.null(.ov_store[[path]])) list() else .ov_store[[path]]
   store[[name]] <- list(value = x, fmt = fmt, note = note)
   .ov_store[[path]] <- store

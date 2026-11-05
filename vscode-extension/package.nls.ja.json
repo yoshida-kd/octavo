@@ -64,5 +64,9 @@
   "command.priorworkResolve.title": "Priorwork の印を .bib のキーに置き換える",
   "command.priorworkLink.title": "Priorwork のサーベイの Zotero コレクションを関連付ける",
   "config.priorworkWorkspace.description": "Priorwork のワークスペース（.priorwork/ のあるフォルダ。octavo コマンドから見たパス）。設定すると「Priorwork で先行研究を頼む」は、依頼をコピーする代わりにファイルでそこへ送り、Priorwork のサイドバーから頼めるようにします。",
-  "command.setPriorworkWorkspace.title": "Priorwork のワークスペースを設定…"
+  "command.setPriorworkWorkspace.title": "Priorwork のワークスペースを設定…",
+  "command.writingShow.title": "カーソルの所の文章のルールを見る",
+  "command.choosePacks.title": "文章のルールのパックを選ぶ",
+  "command.writingItemOff.title": "この原稿では使わない",
+  "command.writingItemOn.title": "この原稿でまた使う"
 }

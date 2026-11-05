@@ -10,6 +10,7 @@ pandoc が要るテストは、なければ自動で飛ばす。CSL 引用（pan
 from __future__ import annotations
 
 import ast
+import argparse
 import contextlib
 import io
 import json
@@ -1675,6 +1676,192 @@ class WritingRules(unittest.TestCase):
         self.assertEqual([(f['title'], f['where'], f['entries'], f['applies']) for f in got['rules']],
                          [('文体', 'project', 2, ['paper'])])
         self.assertEqual([(f['where'], f['entries']) for f in got['phrases']], [('user', 1)])
+
+
+class WritingPacks(unittest.TestCase):
+    """octavo writing のパック: 重ね方（extends・設定・原稿の冒頭）、節、使わない項目、--print。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.root = make_project(self.d / 'p', docs=(('paper', 'mypaper'),), legacy=False, example=False)
+        self.home = self.d / 'conf'
+        self.env = unittest.mock.patch.dict(os.environ, {'XDG_CONFIG_HOME': str(self.home)})
+        self.env.start()
+        w = self.home / 'octavo' / 'writing'
+        self.put(w / 'academic-en' / 'pack.md', '---\ntitle: General\n---\n')
+        self.put(w / 'academic-en' / 'rules' / 'core.md',
+                 '---\ntitle: Core\nlang: en\n---\n\n## One claim per sentence\n\nRule: one.\n\n'
+                 '```\n## not an entry\n```\n\n## Active voice\n\nRule: active.\n')
+        self.put(w / 'academic-en' / 'rules' / 'slides.md',
+                 '---\napplies: [slides]\n---\n\n## Short bullets\n\nRule: short.\n')
+        self.put(w / 'academic-en' / 'rules' / 'ja.md', '---\nlang: ja\n---\n\n## 一文一義\n\n規則: …\n')
+        self.put(w / 'academic-en' / 'phrases' / 'intro.md',
+                 '---\nsection: introduction\n---\n\n## Gap\n\n- Little is known about 〈x〉.\n')
+        self.put(w / 'polisci' / 'pack.md', '---\nextends: academic-en\nsections: [case-selection]\n---\n')
+        self.put(w / 'polisci' / 'rules' / 'causal.md', '## Causal words\n\nRule: careful.\n')
+        self.put(w / 'polisci' / 'phrases' / 'results.md',
+                 '---\nsection: [results, discussion]\n---\n\n## Effect\n\n- A one-unit increase …\n')
+        self.put(w / 'polisci' / 'phrases' / 'cases.md',
+                 '---\nsection: case-selection\n---\n\n## Picking\n\n- We select …\n')
+        self.put(w / 'apsr' / 'rules' / 'house.md', '## APSR\n\nRule: apsr.\n')
+        self.put(self.root / 'notes' / 'writing' / 'rules' / 'mine.md', '## Mine\n\nRule: mine.\n')
+        self.src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        self.src.write_text('---\ntitle: T\nlang: en\n---\n\n# Introduction\n\nText.\n\n'
+                            '# Data and Methods\n\nText.\n\n# Results\n\n## Main table\n\n'
+                            'Text.\n\n# Robustness {.appendix}\n\nText.\n', encoding='utf-8')
+
+    def tearDown(self):
+        self.env.stop()
+        shutil.rmtree(self.d, ignore_errors=True)
+
+    def put(self, p, text):
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(text, encoding='utf-8')
+
+    def cfg(self):
+        return config.load(self.root / 'octavo.config.py')
+
+    def front(self, extra):
+        text = self.src.read_text(encoding='utf-8')
+        self.src.write_text(text.replace('lang: en\n', 'lang: en\n' + extra), encoding='utf-8')
+
+    def select(self, section=None, **kw):
+        from octavo import writing
+        cfg = self.cfg()
+        return writing.select(cfg, cfg.documents['mypaper'], section, **kw)
+
+    def used(self, sel):
+        return [f['id'] for f in sel['files'] if f['used']]
+
+    def test_without_a_choice_every_pack_is_used_extends_first_local_last(self):
+        sel = self.select()
+        self.assertEqual(sel['packs'], ['academic-en', 'apsr', 'polisci', 'local'])
+        # 論文・英語・節を言わないとき: 核のルールだけ（スライド用・日本語・節のフレーズは除く）
+        self.assertEqual(self.used(sel), ['academic-en/core', 'apsr/house', 'polisci/causal', 'local/mine'])
+        skipped = {f['id']: f['skipped'] for f in sel['files'] if not f['used']}
+        self.assertEqual(skipped, {'academic-en/slides': 'applies', 'academic-en/ja': 'lang',
+                                   'academic-en/intro': 'section', 'polisci/results': 'section',
+                                   'polisci/cases': 'section'})
+
+    def test_the_project_and_the_manuscript_choose_the_manuscript_wins(self):
+        from octavo import confedit
+        confedit.set_value(self.root / 'octavo.config.py', 'writing', 'apsr')
+        self.assertEqual(self.select()['packs'], ['apsr', 'local'])
+        self.front('writing: [polisci]\n')
+        sel = self.select()
+        self.assertEqual(sel['packs'], ['academic-en', 'polisci', 'local'])     # extends が前に入る
+        self.assertTrue(sel['chosen_here'])
+        self.front('writing: [nope]\n'.replace('writing: [nope]', 'writing_off: [x]'))
+        self.assertIn('nothing', ' '.join(self.select()['warnings']))
+
+    def test_items_turned_off_in_the_project_and_the_manuscript_add_up(self):
+        from octavo import confedit, writing
+        confedit.set_value(self.root / 'octavo.config.py', 'writing_off', 'academic-en/core#active-voice')
+        self.front('writing_off: [local/mine]\n')
+        sel = self.select()
+        self.assertEqual(sel['off'], ['academic-en/core#active-voice', 'local/mine'])
+        self.assertNotIn('local/mine', self.used(sel))
+        text = writing.render(sel)
+        self.assertIn('One claim per sentence', text)
+        self.assertNotIn('Active voice', text)
+        self.assertIn('## not an entry', text)          # ``` の中は項目に切らない（前の項目の本文）
+        self.assertEqual(sel['warnings'], [])
+
+    def test_a_section_brings_its_phrases_and_the_order_is_general_first(self):
+        from octavo import writing
+        sel = self.select('results')
+        self.assertIn('polisci/results', self.used(sel))
+        self.assertNotIn('academic-en/intro', self.used(sel))
+        self.assertIn('polisci/cases', self.used(self.select('case-selection')))   # パックが足した節
+        text = writing.render(sel)
+        self.assertLess(text.index('One claim'), text.index('Causal words'))
+        self.assertLess(text.index('Causal words'), text.index('Mine'))
+        self.assertLess(text.index('Mine'), text.index('A one-unit increase'))     # ルールのあとにフレーズ
+        with self.assertRaises(SystemExit):
+            self.select('resluts')
+
+    def test_the_heading_above_the_line_picks_the_section(self):
+        from octavo import writing
+        text = self.src.read_text(encoding='utf-8')
+        known = writing.known_sections(writing.packs(self.root))
+        line = lambda s: text.split('\n').index(s) + 1
+        self.assertEqual(writing.section_at(text, 2, known), (None, None))          # 冒頭
+        self.assertEqual(writing.section_at(text, line('# Introduction') + 2, known)[0], 'introduction')
+        self.assertEqual(writing.section_at(text, line('# Data and Methods') + 2, known),
+                         ('design', 'Data and Methods'))
+        # ## Main table は節に当たらないので、上の # Results へさかのぼる
+        self.assertEqual(writing.section_at(text, line('## Main table') + 2, known),
+                         ('results', 'Results'))
+        self.assertEqual(writing.section_at(text, len(text.split('\n')), known)[0], 'appendix')
+        self.assertEqual(writing.section_at(text, 1, known, appendix=True)[0], 'appendix')
+        self.assertEqual(writing.match_section('Theory and Hypotheses', known), 'theory')
+        self.assertEqual(writing.match_section('Case Selection', known), 'case-selection')
+        self.assertEqual(writing.match_section('Case Selection', list(writing.SECTIONS)), 'design')
+
+    def test_unknown_sections_in_files_are_reported(self):
+        from octavo import audit, writing
+        self.put(self.home / 'octavo' / 'writing' / 'polisci' / 'phrases' / 'typo.md',
+                 '---\nsection: resluts\n---\n\n## X\n')
+        got = writing.collect(self.root)
+        self.assertTrue(any('resluts' in w for w in got['warnings']))
+        self.assertEqual([p['name'] for p in got['packs']], ['academic-en', 'apsr', 'polisci', 'local'])
+        row = next(i for i in audit.collect(self.cfg()) if i.label == 'writing rules')
+        self.assertFalse(row.ok)
+        self.assertFalse(row.fatal)
+
+    def test_the_cli_reads_the_file_and_line(self):
+        from octavo import cli
+        out = io.StringIO()
+        text = self.src.read_text(encoding='utf-8')
+        n = text.split('\n').index('# Results') + 3
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['writing', '-c', str(self.root / 'octavo.config.py'), '--file', str(self.src),
+                             '--line', str(n), '--print', '--json'])
+        self.assertEqual(code or 0, 0)
+        got = json.loads(out.getvalue())
+        self.assertEqual((got['doc'], got['section'], got['heading']), ('mypaper', 'results', 'Results'))
+        self.assertIn('A one-unit increase', got['text'])
+        for k in ('packs', 'chosen', 'chosen_here', 'sections', 'off', 'files', 'warnings'):
+            self.assertIn(k, got)
+        f = got['files'][0]
+        for k in ('id', 'pack', 'kind', 'path', 'title', 'used', 'skipped', 'items', 'where'):
+            self.assertIn(k, f)
+        self.assertEqual(set(f['items'][0]), {'title', 'slug', 'line', 'id', 'off'})
+
+    def test_the_extension_reads_keys_the_cli_writes(self):
+        from octavo import cli, writing
+        ts = ROOT / 'vscode-extension' / 'src' / 'writing.ts'
+        fields = lambda name: PreviewContract.fields(self, name, ts)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            cli.main(['writing', '-c', str(self.root / 'octavo.config.py'), '--for', 'mypaper', '--all', '--json'])
+        got = json.loads(out.getvalue())
+        self.assertLessEqual(fields('WritingReport') - {'text'}, set(got) | {'heading'})
+        self.assertLessEqual(fields('WritingFile'), set(got['files'][0]))
+        self.assertLessEqual(fields('WritingItem'), set(got['files'][0]['items'][0]))
+        packs = writing.collect(self.root)
+        self.assertLessEqual(fields('PacksReport'), set(packs))
+        self.assertLessEqual(fields('PackInfo'), set(packs['packs'][0]))
+
+    def test_config_and_front_matter_take_lists(self):
+        from octavo import confedit
+        confedit.set_value(self.root / 'octavo.config.py', 'writing', 'academic-en, polisci')
+        self.assertEqual(self.cfg()['writing'], ['academic-en', 'polisci'])
+        confedit.set_value(self.root / 'octavo.config.py', 'writing', None)
+        self.assertIsNone(self.cfg()['writing'])
+        cfg = self.cfg()
+        confedit.set_doc_value(cfg, cfg.documents['mypaper'], 'writing', 'apsr;polisci')
+        self.assertIn('writing: [apsr, polisci]', self.src.read_text(encoding='utf-8'))
+        self.assertEqual(self.select()['packs'], ['apsr', 'academic-en', 'polisci', 'local'])
+        cfg = self.cfg()
+        confedit.set_doc_value(cfg, cfg.documents['mypaper'], 'writing', 'none')
+        self.assertEqual(self.select()['packs'], ['academic-en', 'apsr', 'polisci', 'local'])
+
+    def test_the_older_flat_files_still_work(self):
+        from octavo import writing
+        got = writing.collect(self.root)
+        self.assertEqual([(f['pack'], f['title']) for f in got['rules'] if f['pack'] == 'local'],
+                         [('local', 'mine')])
 
 
 class PriorworkHandoff(unittest.TestCase):
@@ -3785,6 +3972,138 @@ class QmdOnly(unittest.TestCase):
             self.assertIn('.quarto/', lines)
             self.assertNotIn('/.quarto/', lines)
             self.assertIn('analysis/*.html', lines)
+
+
+class SystemLibraries(unittest.TestCase):
+    """R のパッケージが読み込むシステムのライブラリ（Linux）。
+
+    Posit Package Manager の igraph は GLPK とつないでビルドされていて、libglpk.so.40 が
+    なければ入っても読み込めない（quanteda.textplots も巻き添えになる）。
+    setup.sh が入れ、doctor が見て、分析が失敗したら apt の行を出す。
+    """
+
+    def test_setup_installs_glpk(self):
+        text = (paths.REPO / 'setup.sh').read_text(encoding='utf-8')
+        loop = text[text.index('RPKGS=(r-base r-base-dev)'):]
+        loop = loop[:loop.index('done')]
+        self.assertIn('libglpk-dev', loop)
+        for _, apt, _ in analysis.R_SYSLIBS:
+            self.assertIn(apt, loop)
+
+    def ldconfig(self, out):
+        return unittest.mock.patch.object(doctor, '_run', return_value=(0, out))
+
+    def test_doctor_finds_a_missing_library(self):
+        out = ('123 libs found in cache\n'
+               '\tlibxml2.so.2 (libc6,x86-64) => /lib/x86_64-linux-gnu/libxml2.so.2\n')
+        with self.ldconfig(out), unittest.mock.patch.object(
+                doctor.shutil, 'which', return_value='/sbin/ldconfig'):
+            ok, detail = doctor.r_syslibs_state()
+        self.assertFalse(ok)
+        self.assertIn('libglpk', detail)
+        self.assertIn('igraph', detail)
+        self.assertEqual([a for _, a, _ in doctor.LAST_R_SYSLIBS], ['libglpk-dev'])
+        out += '\tlibglpk.so.40 (libc6,x86-64) => /lib/x86_64-linux-gnu/libglpk.so.40\n'
+        with self.ldconfig(out), unittest.mock.patch.object(
+                doctor.shutil, 'which', return_value='/sbin/ldconfig'):
+            self.assertTrue(doctor.r_syslibs_state()[0])
+        self.assertEqual(doctor.LAST_R_SYSLIBS, [])
+
+    def test_not_checked_counts_as_fine(self):
+        """macOS / Windows では調べないので、拡張機能に「足りない」と言わない。"""
+        self.assertTrue(doctor._ok({}, 'r_syslibs'))
+        self.assertFalse(doctor._ok({}, 'renv'))
+        self.assertFalse(doctor._ok({'r_syslibs': (False, '')}, 'r_syslibs'))
+
+    def test_a_failed_render_names_the_apt_package(self):
+        out = ("Error: package or namespace load failed for 'quanteda.textplots':\n"
+               " .onLoad failed in loadNamespace() for 'igraph', details:\n"
+               "  unable to load shared object '/x/igraph/libs/igraph.so':\n"
+               "  libglpk.so.40: cannot open shared object file: No such file or directory\n")
+        with unittest.mock.patch.object(analysis.sys, 'platform', 'linux'):
+            notes = analysis.syslib_notes(out)
+            self.assertEqual(len(notes), 1)
+            self.assertIn('sudo apt install libglpk-dev', notes[0])
+            other = analysis.syslib_notes('libfoo.so.3: cannot open shared object file')
+            self.assertIn('apt-file search libfoo.so.3', other[0])
+            self.assertEqual(analysis.syslib_notes('Error: object x not found'), [])
+        with unittest.mock.patch.object(analysis.sys, 'platform', 'darwin'):
+            self.assertEqual(analysis.syslib_notes(out), [])
+
+
+class OctavoRFromEitherFolder(unittest.TestCase):
+    """.qmd の最初のチャンクは、Render（作業フォルダ analysis/）でも、チャンクだけの実行
+    （VS Code の Run Cell など。作業フォルダはプロジェクトの直下）でも octavo.R を読む。"""
+
+    def setup_chunk(self, qmd: Path) -> str:
+        text = qmd.read_text(encoding='utf-8')
+        start = text.index('```{r}')
+        body = text[start:text.index('```', start + 6)]
+        return '\n'.join(ln for ln in body.splitlines()[1:] if not ln.startswith('#'))
+
+    def test_every_template_looks_in_both(self):
+        for lang in ('ja', 'en'):
+            for rel in ('analysis.qmd', 'example/analysis.qmd'):
+                code = self.setup_chunk(paths.templates_dir() / 'manuscripts' / lang / rel)
+                self.assertIn('file.exists("octavo.R")', code, (lang, rel))
+                self.assertIn('file.path("analysis", "octavo.R")', code, (lang, rel))
+
+    @unittest.skipUnless(HAVE_R, 'R が要る')
+    def test_it_loads_from_the_project_folder_and_from_analysis(self):
+        d = Path(tempfile.mkdtemp())
+        try:
+            root = make_project(d / 'p', docs=(), example=False)
+            qmd = next((root / 'analysis').glob('*.qmd'))
+            script = d / 'chunk.R'
+            script.write_text(self.setup_chunk(qmd) + '\ncat("OV", exists("ov_value"), "\\n")\n',
+                              encoding='utf-8')
+            env = {k: v for k, v in os.environ.items() if not k.startswith('OCTAVO_')}
+            for cwd in (root, root / 'analysis'):
+                r = subprocess.run(['Rscript', '--vanilla', str(script)], cwd=str(cwd), env=env,
+                                   capture_output=True, text=True, encoding='utf-8')
+                self.assertIn('OV TRUE', r.stdout, (cwd, r.stderr))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+
+class ValuesOutsideARender(unittest.TestCase):
+    """チャンク（セル）だけを実行したとき、ov_value() は値を書かない。どの .qmd か
+    分からないので別の名前のファイルに書くと、Render した本来の値と同じ名前で並び、
+    試しに実行した値のほうが本文に入ってしまう。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        (self.d / 'octavo.config.py').write_text('CONFIG = {}\n', encoding='utf-8')
+
+    def values(self):
+        return sorted(p.name for p in (self.d / 'assets' / 'values').glob('*.json')) \
+            if (self.d / 'assets' / 'values').is_dir() else []
+
+    def test_python_shows_the_value_and_writes_nothing(self):
+        r = run_helper(self.d, 'ov_value("n_obs", 12)', qmd='')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('n_obs = 12', r.stdout)
+        self.assertEqual(self.values(), [])
+        # Quarto を通せば、その .qmd の名前のファイルに書く
+        run_helper(self.d, 'ov_value("n_obs", 12)', qmd='model.qmd')
+        self.assertEqual(self.values(), ['model.json'])
+
+    @unittest.skipUnless(HAVE_R, 'R が要る')
+    def test_r_shows_the_value_and_writes_nothing(self):
+        helper = (paths.templates_dir() / 'analysis/common/analysis/octavo.R').as_posix()
+        env = {k: v for k, v in os.environ.items() if not k.startswith('OCTAVO_')}
+        r = subprocess.run(['Rscript', '--vanilla', '-e',
+                            f'source("{helper}"); ov_value("n_obs", 12L)'],
+                           cwd=str(self.d), env=env, capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertIn('n_obs = 12', r.stderr)
+        self.assertEqual(self.values(), [])
+        # 名前を渡せば書く（options(octavo.values = …)）
+        subprocess.run(['Rscript', '--vanilla', '-e',
+                        f'options(octavo.values = "model"); source("{helper}"); ov_value("n_obs", 12L)'],
+                       cwd=str(self.d), env=env, capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(self.values(), ['model.json'])
 
 
 class MissingRPackages(unittest.TestCase):
@@ -6304,7 +6623,10 @@ class ToolSetup(unittest.TestCase):
                            capture_output=True, text=True, timeout=300,
                            env={**os.environ, 'OCTAVO_LANG': 'en'})
         self.assertEqual(r.returncode, 0, r.stdout[-2000:] + r.stderr[-2000:])
-        self.assertIn('(not run) sudo apt-get install', r.stdout)
+        # root で実行すると setup.sh は sudo を付けない（CI は一般の利用者で実行する）
+        root = hasattr(os, 'geteuid') and os.geteuid() == 0
+        self.assertIn('(not run) apt-get install' if root else '(not run) sudo apt-get install',
+                      r.stdout)
 
 
 class ProjectEnv(unittest.TestCase):
@@ -6733,7 +7055,7 @@ class Website(unittest.TestCase):
                 rel = path.relative_to((ROOT / 'site').resolve())
                 if rel.parts[0] == 'images':
                     path = ROOT / 'docs' / Path(*rel.parts)
-                for slug in ('guide', 'lectures', 'quickstart'):
+                for slug in ('guide', 'lectures', 'quickstart', 'install', 'reference'):
                     if slug in rel.parts:
                         # 手引きのページは docs/<slug>*.md から組む（site/build.sh）
                         path = ROOT / 'docs' / (f'{slug}.ja.md' if rel.parts[0] == 'ja'
@@ -6782,8 +7104,10 @@ class GuidePages(unittest.TestCase):
     Pages のページ（site/build.sh）。"""
 
     GUIDES = {'en': ROOT / 'docs' / 'guide.md', 'ja': ROOT / 'docs' / 'guide.ja.md'}
+    INSTALL = {'en': ROOT / 'docs' / 'install.md', 'ja': ROOT / 'docs' / 'install.ja.md'}
+    REFERENCE = {'en': ROOT / 'docs' / 'reference.md', 'ja': ROOT / 'docs' / 'reference.ja.md'}
     # 英語と日本語の組。どの組もコードと見出しの数がそろっている
-    PAIRS = {'guide': GUIDES,
+    PAIRS = {'guide': GUIDES, 'install': INSTALL, 'reference': REFERENCE,
              'lectures': {'en': ROOT / 'docs' / 'lectures.md',
                           'ja': ROOT / 'docs' / 'lectures.ja.md'},
              'quickstart': {'en': ROOT / 'docs' / 'quickstart.md',
@@ -6823,14 +7147,22 @@ class GuidePages(unittest.TestCase):
                 self.assertEqual(count(pair['en'], pat), count(pair['ja'], pat), (name, pat))
 
     def test_install_has_a_section_for_each_system(self):
+        for lang, p in self.INSTALL.items():
+            text = p.read_text(encoding='utf-8')
+            for heading in ('## 1. Linux', '## 2. macOS', '## 3. Windows'):
+                self.assertIn(heading + '\n', text, lang)
+
+    def test_the_guide_is_for_people_in_vs_code(self):
+        """人間向けの手引きには、ターミナルのコマンドを書かない（それはリファレンスにある）。"""
         for lang, p in self.GUIDES.items():
             text = p.read_text(encoding='utf-8')
-            for heading in ('### 1.1 Linux', '### 1.2 macOS', '### 1.3 Windows'):
-                self.assertIn(heading + '\n', text, lang)
+            self.assertEqual(re.findall(r'^```(?:bash|powershell)', text, re.M), [], lang)
 
     def test_every_section_is_numbered(self):
         """節（###）と項（####）には章の番号から続く番号が付いている。"""
-        for name, p in self.GUIDES.items():
+        pages = [*self.GUIDES.values(), *self.INSTALL.values(), *self.REFERENCE.values()]
+        for p in pages:
+            name = p.name
             text = re.sub(r'^```.*?^```', '', p.read_text(encoding='utf-8'), flags=re.S | re.M)
             chapter = section = 0
             for level, title in re.findall(r'^(#{2,4}) (.*)$', text, re.M):
@@ -6849,6 +7181,8 @@ class GuidePages(unittest.TestCase):
             subprocess.run(['sh', str(ROOT / 'site' / 'build.sh'), str(d)], check=True,
                            capture_output=True)
             for lang, rel in (('en', 'guide/index.html'), ('ja', 'ja/guide/index.html'),
+                              ('en', 'install/index.html'), ('ja', 'ja/install/index.html'),
+                              ('en', 'reference/index.html'), ('ja', 'ja/reference/index.html'),
                               ('en', 'lectures/index.html'), ('ja', 'ja/lectures/index.html'),
                               ('en', 'quickstart/index.html'), ('ja', 'ja/quickstart/index.html')):
                 html = (d / rel).read_text(encoding='utf-8')
@@ -6862,7 +7196,7 @@ class GuidePages(unittest.TestCase):
                 # 言語の切り替えは同じページの別の言語へ
                 other = rel.replace('ja/', '') if lang == 'ja' else 'ja/' + rel
                 self.assertIn('/' + other.replace('index.html', '') + '"', html)
-                if 'guide' in rel:
+                if 'install' in rel:
                     self.assertIn('Linux', html)
                 if lang == 'ja':
                     # 本文の日本語の途中に改行（＝空白）がない（コードブロックの中は除く）
@@ -6870,6 +7204,99 @@ class GuidePages(unittest.TestCase):
                     self.assertNotRegex(prose, r'[^\x00-\x7f]\n[^<\s]')
         finally:
             shutil.rmtree(d, ignore_errors=True)
+
+
+class DocsMatchTheCommands(unittest.TestCase):
+    """手引きとリファレンスに書いた octavo のコマンドとオプションが、実際にあること。
+    AI アシスタントはリファレンスのとおりに実行するので、無いオプションを書くと誤った
+    コマンドを打たせることになる。"""
+
+    @staticmethod
+    def options(parser) -> set:
+        out = set()
+        for a in parser._actions:
+            out |= set(a.option_strings)
+            if isinstance(a, argparse._SubParsersAction):
+                for q in a.choices.values():
+                    out |= DocsMatchTheCommands.options(q)
+        return out
+
+    @staticmethod
+    def mentions(text: str) -> list:
+        """コードブロックの行と、インラインのコードのうち `octavo …` で始まるもの。"""
+        lines = []
+        for _, body in re.findall(r'^```(\w*)\n(.*?)^```', text, re.S | re.M):
+            lines += body.split('\n')
+        lines += re.findall(r'`(octavo [^`]+)`', text)
+        out = []
+        for ln in lines:
+            ln = re.sub(r'\s+(#|//)\s.*$', '', ln).strip()
+            if ln.startswith('octavo '):
+                out.append(ln)
+        return out
+
+    def test_every_command_and_option_exists(self):
+        from octavo import cli
+        sub = next(a for a in cli.make_parser()._actions
+                   if isinstance(a, argparse._SubParsersAction))
+        bad = []
+        for doc in sorted((ROOT / 'docs').glob('*.md')):
+            for ln in self.mentions(doc.read_text(encoding='utf-8')):
+                for cmd in ln.split()[1].split('|'):
+                    if cmd not in sub.choices:
+                        bad.append((doc.name, ln))
+                        continue
+                    known = self.options(sub.choices[cmd])
+                    bad += [(doc.name, f) for f in re.findall(r'(?<![\w-])--[a-z][a-z-]*', ln)
+                            if f not in known]
+        self.assertEqual(bad, [])
+
+
+class ReferenceDocs(unittest.TestCase):
+    """AI 向けのリファレンスは Octavo に同梱し、`octavo docs` で節ごとに読める。"""
+
+    def run_docs(self, *args):
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(['docs', *args])
+        return code, out.getvalue()
+
+    def test_it_ships_in_the_wheel(self):
+        text = (ROOT / 'pyproject.toml').read_text(encoding='utf-8')
+        for name in ('reference.md', 'reference.ja.md'):
+            self.assertIn(f'"docs/{name}" = "octavo/docs/{name}"', text)
+            self.assertTrue(paths.reference_doc('ja' if 'ja' in name else 'en').exists())
+
+    def test_list_number_words_and_search(self):
+        code, out = self.run_docs('--lang', 'en')
+        self.assertEqual(code, 0)
+        self.assertIn('3. Writing manuscripts', out)
+        self.assertIn('  3.8 Content for some outputs only', out)
+        code, out = self.run_docs('3.8', '--lang', 'en')
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith('### 3.8 Content for some outputs only'))
+        self.assertNotIn('### 3.9', out)
+        code, out = self.run_docs('posters', '--lang', 'en')
+        self.assertIn('poster_grid', out)
+        # 章が当たれば、その中の節を重ねて出さない
+        code, out = self.run_docs('4', '--lang', 'en')
+        self.assertEqual(out.count('### 4.5 Posters'), 1)
+        code, out = self.run_docs('--search', 'slides_select', '--lang', 'en')
+        self.assertIn('slides_select', out)
+        self.assertNotIn('# Octavo reference', out)
+        code, _ = self.run_docs('no-such-section', '--lang', 'en')
+        self.assertEqual(code, 1)
+
+    def test_headings_inside_code_are_not_sections(self):
+        from octavo import docsref
+        text = '# T\n\n## 1. A\n\n```bash\n## not a heading\n```\n\n### 1.1 B\n'
+        self.assertEqual([s[1] for s in docsref.sections(text)], ['1. A', '1.1 B'])
+
+    def test_the_rules_tell_the_assistant_where_to_look(self):
+        for lang in ('ja', 'en'):
+            text = (paths.templates_dir() / 'claude' / lang / 'common.md').read_text(encoding='utf-8')
+            self.assertIn('octavo docs', text, lang)
 
 
 # =====================================================================
