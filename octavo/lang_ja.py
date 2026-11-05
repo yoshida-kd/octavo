@@ -149,7 +149,7 @@ MESSAGES: dict = {
         '文章のルールもフレーズバンクもまだない。notes/writing/rules/ と notes/writing/phrases/ に Markdown のファイルを置く'
         '（全部のプロジェクトで使うなら {dir} に）',
     'Writing rules (follow them):': '文章のルール（従う）:',
-    'Phrase bank (prefer these phrasings):': 'フレーズバンク（この表現を優先して使う）:',
+    'Phrase bank (frames to draw on where they fit):': 'フレーズバンク（合う所でだけ使う型）:',
     'print the rules themselves, layered (for the AI)': 'ルールの本文を重ねて出す（AI が読むもの）',
     'no writing pack called {name} (packs: {names})': '文章のルールのパック {name} がない（パック: {names}）',
     'the manuscript (or appendix) file being written': '書いている原稿（か付録）のファイル',
@@ -162,7 +162,32 @@ MESSAGES: dict = {
     'say which manuscript: --for DOC or --file FILE': 'どの原稿か: --for 文書 か --file ファイル',
     'Writing rules (follow them)': '文章のルール（従う）',
     'the line being written: its heading picks the section': '書いている行（その見出しから節を選ぶ）',
-    'Phrase bank (prefer these phrasings)': 'フレーズバンク（この表現を優先して使う）',
+    'Phrase bank (frames to draw on where they fit; most sentences need none)':
+        'フレーズバンク（合う所でだけ使う型。たいていの文には要らない）',
+    'no paragraph kind called {kind}': '段落の種類 {kind} がない',
+    '(did you mean {names}?)': '（{names} のことか）',
+    '{kind} is turned off in writing_off, but this paragraph names it':
+        '{kind} は writing_off で使わないことになっているが、この段落が指している',
+    'this paragraph (line {line}): kind {kind}': 'この段落（{line} 行目）: 種類 {kind}',
+    'it claims: {claim}': '主張: {claim}',
+    '(none yet)': '（まだ無い）',
+    'paragraph kinds: {kinds}': '段落の種類: {kinds}',
+    '({n} picked)': '（{n} 項目を選んだ）',
+    "only this kind of paragraph from the phrase bank (pack/file#heading); with --line, read from the paragraph's <!-- para: … --> mark":
+        'フレーズバンクのこの種類の段落だけ（パック/ファイル#見出し）。--line なら、その段落の <!-- para: … --> から読む',
+    'each paragraph: its kind, the claim in its <!-- para: … --> mark and its first sentence':
+        '段落ごとに、種類と、<!-- para: … --> に書いた主張と、本文の最初の文',
+    'no kind': '種類なし',
+    'unknown kind': '無い種類',
+    'no text yet': '本文がまだ無い',
+    'needs a blank line before the mark (it joins the paragraph above)':
+        '印の前に空行が要る（このままでは前の段落とつながる）',
+    'same kind as the paragraph before': '前の段落と同じ種類',
+    'claim': '主張',
+    'first': '最初の文',
+    '{n} {n|paragraph|paragraphs}': '{n} 段落',
+    'the same phrase-bank line {n|once|# times} under "{heading}": {text} ({id}) at lines {lines}':
+        '「{heading}」の下で、フレーズバンクの同じ行を {n} 回: {text}（{id}）、{lines} 行目',
     '{doc}: packs {order}': '{doc}: パック {order}',
     'writing_off names nothing: {id}': 'writing_off に当たる項目がない: {id}',
     '{n} {n|pack|packs}: {names}': 'パック {n} 個: {names}',

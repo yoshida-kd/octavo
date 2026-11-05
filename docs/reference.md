@@ -880,11 +880,25 @@ revising prose, run `octavo writing … --print` and follow what it prints.**
 octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
+octavo writing --for my-paper --kind polisci/results#the-main-result --print
+octavo outline my-paper --paragraphs
 ```
 
 - The second prints, for one manuscript and section, the packs layered (later wins), without
   other kinds of document, languages, sections or what is turned off. The third finds the
   section from the heading above the line.
+- **Paragraph plan.** When a pack's phrases are kinds of paragraph, put a mark directly above each
+  paragraph: `<!-- para: <kind> | <the one sentence it claims> -->`, the kind being a phrase entry
+  (`pack/file#heading`, or `file#heading`). The text starts on the next line; a mark alone is a
+  paragraph not yet written. Marks are comments and never reach the output. Leave a blank line
+  before a mark, or pandoc joins the paragraph to the one above. On a marked line, `--line` prints
+  the rules as before but only that kind's phrases (any file); `--kind` (repeatable) names kinds
+  directly; `--json` adds `paragraph` (line, kind, claim, first sentence) and, per phrase entry,
+  `when`, `note` and `lines` (`position`: `open`/`body`/`close`, `text`).
+- `octavo outline … --paragraphs [--json]` lists each paragraph's kind, claim and first sentence,
+  marking paragraphs with no kind, unknown kinds (with a near name), marks with no text, marks that
+  need a blank line, the same kind twice in a row, and a phrase-bank line used twice under one
+  heading.
 - `writing` / `writing_off` in the config or the front matter choose packs and turn entries off
   (`pack/file#heading`, `pack/file`); without a choice every pack is used.
 - A pack's `pack.md` may have `extends` and `sections`. A file may have `title`, `lang`,
@@ -944,7 +958,7 @@ octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions]
 octavo watch [documents...] [--to outputs]
 octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]
 octavo documents [--json]
-octavo outline [documents...]
+octavo outline [documents...] [--paragraphs] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
 octavo analysis [--json] | run [QMD...] | mark-fresh QMD | missing QMD | install QMD
@@ -957,7 +971,7 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
-octavo writing [--for DOC --section S | --file F --line N] [--print] [--json]
+octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
 octavo review returned.docx [--json]
 octavo release <document> <label>

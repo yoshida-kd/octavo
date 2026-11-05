@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -691,7 +692,7 @@ def cmd_writing(args) -> int:
             return 2
     if args.for_doc:
         doc = cfg.document(args.for_doc)
-    if doc is None and (args.section or args.line or args.print or args.all):
+    if doc is None and (args.section or args.line or args.print or args.all or args.kind):
         print(t('say which manuscript: --for DOC or --file FILE'), file=sys.stderr)
         return 2
     if doc is None:
@@ -706,7 +707,7 @@ def cmd_writing(args) -> int:
                     'notes/writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
             return 0
         for kind, head in (('rules', t('Writing rules (follow them):')),
-                           ('phrases', t('Phrase bank (prefer these phrasings):'))):
+                           ('phrases', t('Phrase bank (frames to draw on where they fit):'))):
             if not got[kind]:
                 continue
             print(head)
@@ -718,19 +719,32 @@ def cmd_writing(args) -> int:
                       + t('{n} {n|entry|entries}', n=f['entries']))
         return 0
 
+    from . import paragraphs as paramod
     section = args.section
-    if args.line and not section:
+    para = None
+    kinds = [k for x in (args.kind or []) for k in re.split(r'[,;\s]+', x) if k] or None
+    if args.line:
         own = Path(args.file) if args.file else Path(doc.src)
         own = own if own.is_absolute() else Path.cwd() / own
-        known = writingmod.known_sections(writingmod.packs(root))
-        is_appendix = bool(doc.appendix) and Path(doc.appendix).resolve() == own.resolve()
-        section, heading = writingmod.section_at(mdlib.read(own), args.line, known, is_appendix)
+        text = mdlib.read(own)
+        if not section:
+            known = writingmod.known_sections(writingmod.packs(root))
+            is_appendix = bool(doc.appendix) and Path(doc.appendix).resolve() == own.resolve()
+            section, heading = writingmod.section_at(text, args.line, known, is_appendix)
+        # その行の段落の印（<!-- para: 種類 | 主張 -->）。種類があれば、フレーズはその項目だけ
+        para = paramod.at_line(paramod.parse(text), args.line)
+        if para and para['kind'] and kinds is None:
+            kinds = [para['kind']]
     try:
-        sel = writingmod.select(cfg, doc, section, every=args.all)
+        sel = writingmod.select(cfg, doc, section, every=args.all, kinds=kinds)
     except SystemExit as e:
         print(e.code, file=sys.stderr)
         return 2
     sel['heading'] = heading
+    if para:
+        sel['paragraph'] = {'line': para['line'] or para['body_line'], 'kind': para['kind'],
+                            'claim': para['claim'], 'body_line': para['body_line'],
+                            'first_sentence': paramod.first_sentence(para['body']) if para['body'] else ''}
     if args.print:
         sel['text'] = writingmod.render(sel, heading)
     if args.json:
@@ -743,14 +757,18 @@ def cmd_writing(args) -> int:
         return 0
     print(t('{doc}: packs {order}', doc=doc.name, order=' → '.join(sel['packs']) or t('(none)'))
           + (f"  section: {section}" + (f' ("{heading}")' if heading else '') if section else ''))
+    if sel['paragraph_kinds'] is not None:
+        print('  ' + t('paragraph kinds: {kinds}', kinds=', '.join(sel['paragraph_kinds']) or t('(none)')))
     for f in sel['files']:
         if not (f['used'] or args.all):
             continue
         where = cfg.rel(Path(f['path'])) if f['where'] == 'project' else f['path']
         mark = '  ' if f['used'] else '- '
         off = sum(1 for i in f['items'] if i['off'])
+        picked = sum(1 for i in f['items'] if i.get('picked'))
         print(f"{mark}{where}  {f['title']} — " + t('{n} {n|entry|entries}', n=f['entries'])
-              + (' ' + t('({n} turned off)', n=off) if off else ''))
+              + (' ' + t('({n} picked)', n=picked) if picked else '')
+              + (' ' + t('({n} turned off)', n=off) if off and not picked else ''))
     return 0
 
 
@@ -1317,6 +1335,8 @@ def cmd_reference_docx(args) -> int:
 def cmd_outline(args) -> int:
     from .backends.docx import outline
     cfg = configmod.load(args.config)
+    if args.paragraphs:
+        return _outline_paragraphs(cfg, args)
     for name, src, is_appendix in cfg.sources():
         if args.documents and name not in args.documents:
             continue
@@ -1325,6 +1345,63 @@ def cmd_outline(args) -> int:
         print(f'== {head}  ({cfg.rel(src)}, profile={doc.profile})')
         for line in outline(mdlib.read(src)):
             print('  ' + line)
+    return 0
+
+
+PARA_PROBLEMS = {
+    'no-kind': lambda: t('no kind'),
+    'unknown-kind': lambda: t('unknown kind'),
+    'no-text': lambda: t('no text yet'),
+    'joined': lambda: t('needs a blank line before the mark (it joins the paragraph above)'),
+    'same-kind': lambda: t('same kind as the paragraph before'),
+}
+
+
+def _outline_paragraphs(cfg, args) -> int:
+    """段落ごとに、種類・主張・本文の最初の文（構成表と本文が食い違っていないかを人が見る）。"""
+    import json as _json
+    from . import paragraphs as paramod
+    from . import writing as writingmod
+    out = []
+    for name, src, is_appendix in cfg.sources():
+        if args.documents and name not in args.documents:
+            continue
+        doc = cfg.documents[name]
+        index = writingmod.kind_index(writingmod.select(cfg, doc, every=True))
+        got = paramod.review(mdlib.read(src), index)
+        out.append({'doc': name, 'file': cfg.rel(src), 'appendix': is_appendix, **got})
+    if args.json:
+        print(_json.dumps(out, ensure_ascii=False))
+        return 0
+    for d in out:
+        head = f"{d['doc']} " + t('(appendix)') if d['appendix'] else d['doc']
+        print(f"== {head}  ({d['file']})")
+        last = object()
+        for r in d['paragraphs']:
+            if r['heading_line'] != last:
+                last = r['heading_line']
+                if r['heading']:
+                    print('  ' * r['heading_level'] + '#' * r['heading_level'] + ' ' + r['heading']
+                          + f"  ({r['heading_line']})")
+            pad = '  ' * (r['heading_level'] + 1)
+            marks = ''.join(' [' + PARA_PROBLEMS[m]() + ']' for m in r['problems'])
+            if r['near']:
+                marks += ' ' + t('(did you mean {names}?)', names=', '.join(r['near']))
+            print(f"{pad}{r['line']:>4}  {r['kind'] or ''}{marks}")
+            if r['claim']:
+                print(f"{pad}      {t('claim')}: {r['claim']}")
+            if r['first_sentence']:
+                print(f"{pad}      {t('first')}: {r['first_sentence']}")
+        for rp in d['repeats']:
+            print('  ' + tag('note') + ' ' + t('the same phrase-bank line {n|once|# times} under "{heading}": {text} ({id}) at lines {lines}',
+                                              n=len(rp['lines']), heading=rp['heading'] or '',
+                                              text=rp['text'], id=rp['id'],
+                                              lines=', '.join(str(x) for x in rp['lines'])))
+        rows = d['paragraphs']
+        n = {k: sum(1 for r in rows if k in r['problems']) for k in PARA_PROBLEMS}
+        print('  ' + t('{n} {n|paragraph|paragraphs}', n=len(rows)) + ': '
+              + ', '.join(f'{PARA_PROBLEMS[k]()} {v}' for k, v in n.items() if v)
+              if any(n.values()) else '  ' + t('{n} {n|paragraph|paragraphs}', n=len(rows)))
     return 0
 
 
@@ -1620,6 +1697,9 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('the line being written: its heading picks the section'))
     p.add_argument('--section', metavar='NAME', help=t('the section being written (introduction, results, …)'))
     p.add_argument('--all', action='store_true', help=t('every section'))
+    p.add_argument('--kind', action='append', metavar='KIND',
+                   help=t('only this kind of paragraph from the phrase bank (pack/file#heading); '
+                          'with --line, read from the paragraph\'s <!-- para: … --> mark'))
     p.add_argument('--print', action='store_true', help=t('print the rules themselves, layered (for the AI)'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_writing)
@@ -1803,6 +1883,9 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('outline', help=t('show the heading structure')))
     p.add_argument('documents', nargs='*')
+    p.add_argument('--paragraphs', action='store_true',
+                   help=t('each paragraph: its kind, the claim in its <!-- para: … --> mark and its first sentence'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_outline)
 
     p = sub.add_parser('selftest',

@@ -733,9 +733,13 @@ octavo bundle --replication            # 分析・値・図・表・設定・ハ
 octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
+octavo writing --for my-paper --kind polisci/results#the-main-result --print
+octavo outline my-paper --paragraphs
 ```
 
 - 2つ目は、1つの原稿と1つの節について、パックを順に重ねて出す（後が勝つ）。ほかの種類の文書・言語・節のものと、使わないことにしたものは除く。3つ目は、その行の上の見出しから節を決める。
+- **段落の構成表。** パックのフレーズが段落の種類ごとの項目なら、段落の直前に印を置く: `<!-- para: <種類> | <その段落が主張する1文> -->`。種類はフレーズの項目（`pack/file#heading`、または `file#heading`）。本文は次の行から。印だけなら、まだ書いていない段落。印はコメントなので出力には出ない。印の前には空行を置く（無いと pandoc が前の段落とつなぐ）。印のある行では、`--line` はルールを今までどおりに、フレーズはその種類の項目だけを出す（ファイルをまたいでよい）。`--kind`（何度でも）で種類を直接名指しできる。`--json` には `paragraph`（行・種類・主張・最初の文）と、フレーズの項目ごとに `when`・`note`・`lines`（`position`: `open`/`body`/`close`、`text`）が入る。
+- `octavo outline … --paragraphs [--json]` は、段落ごとに種類・主張・本文の最初の文を並べ、種類の無い段落、無い種類（似た名前も）、本文の無い印、空行の要る印、同じ種類が続く所、同じ見出しの下で2回使われたフレーズの行に印を付ける。
 - 設定か冒頭の `writing` / `writing_off` でパックを選び、項目を外す（`pack/file#heading`、`pack/file`）。選ばなければすべてのパックを使う。
 - パックの `pack.md` には `extends` と `sections` を書ける。ファイルには `title`、`lang`、`applies`（`paper`、`slides`、`lecture`、`poster`、`all`）、`section`（`abstract`、`introduction`、`literature`、`theory`、`design`、`results`、`discussion`、`conclusion`、`appendix`、またはパックが足したもの）。項目は `##` の見出しごと。ルールは `Rule:`（と `Why:`、`Good:`、`Bad:`）、表現集は 〈 〉 が埋める所（と `When:`、`Note:`、`Source:`）。日本語のファイルでは 規則・理由・良い例・悪い例 と 場面・注意・出典。
 
@@ -787,7 +791,7 @@ octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions]
 octavo watch [documents...] [--to outputs]
 octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]
 octavo documents [--json]
-octavo outline [documents...]
+octavo outline [documents...] [--paragraphs] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
 octavo analysis [--json] | run [QMD...] | mark-fresh QMD | missing QMD | install QMD
@@ -800,7 +804,7 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
-octavo writing [--for DOC --section S | --file F --line N] [--print] [--json]
+octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
 octavo review returned.docx [--json]
 octavo release <document> <label>

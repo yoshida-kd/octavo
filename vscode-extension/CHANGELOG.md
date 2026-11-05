@@ -3,6 +3,23 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.10
+
+- **Planning paragraphs.** A mark directly above a paragraph, `<!-- para: <kind> | <its claim> -->`,
+  names its kind (an entry of the phrase bank) and the one sentence it claims; a mark alone is a
+  paragraph not yet written, so the plan of a section can be written first. The marks never reach
+  the output.
+- **`octavo writing` reads the mark.** `--file … --line …` on a marked paragraph prints the rules as
+  before and only that kind's phrases; `--kind` names kinds directly; `--json` gives each phrase
+  line's position (`open` / `body` / `close`).
+- **`octavo outline <document> --paragraphs`** lists each paragraph's kind, claim and first sentence,
+  so the plan and the text can be compared, and marks paragraphs without a kind, misspelt kinds,
+  marks with no text yet and a phrase-bank line used twice under one heading.
+- The phrase bank is now introduced as "frames to draw on where they fit; most sentences need none"
+  (it said "prefer these phrasings", which led to sentences added only to use a frame). New projects'
+  `AGENTS.md` says the same and explains the paragraph marks (`octavo migrate --rules` for an older
+  project).
+
 ## 0.6.9
 
 - **The documentation, regrouped around the extension.** The guide is now for people working in

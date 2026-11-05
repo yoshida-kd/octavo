@@ -206,9 +206,29 @@ other kinds of document, other languages and other sections, and the items turne
 
 - Follow each rule's Rule. When a sentence does not, propose a fix and name the rule
 - Where two items disagree, the later one in the output wins (it is the more specific pack)
-- Prefer the phrase bank's phrasings, filling in the parts in 〈 〉 to suit the context; when you
-  need a new phrasing, match the bank's patterns and tone
+- The phrase bank holds frames to draw on where they fit, filling in the parts in 〈 〉 to suit the
+  context; most sentences need none. Do not add a sentence only because a kind of paragraph has
+  a line for it
 - Do not edit the rule and phrase files unless asked (the user refines them elsewhere)
+
+### The paragraph plan
+
+When the phrase bank is organised by kind of paragraph, plan a section before drafting it: put
+one mark per paragraph, directly above the paragraph, with its kind (an entry of the phrase bank,
+`pack/file#heading-slug`) and the one sentence it claims:
+
+    <!-- para: polisci/results#the-main-result | Divisions whose composition shifted more were redrawn more often -->
+    Divisions whose composition of work had shifted more ...
+
+- A mark may stand alone before its paragraph is written (that is the plan). The paragraph's
+  text starts on the line right after the mark; leave a blank line before the mark
+- `octavo writing --file … --line …` on a marked paragraph prints only that kind's phrases
+- `octavo outline <document> --paragraphs` lists each paragraph's kind, claim and first sentence,
+  and marks paragraphs without a kind, unknown kinds, marks with no text yet and a phrase-bank
+  line used twice under one heading. Check it after drafting: the first sentence should say what
+  the claim says
+- The marks are comments: they never reach the output. Keep them when revising, and update the
+  claim when the paragraph's point changes
 
 ## The examples are marked as examples
 

@@ -1864,6 +1864,128 @@ class WritingPacks(unittest.TestCase):
                          [('local', 'mine')])
 
 
+
+class ParagraphPlan(unittest.TestCase):
+    """段落の構成表: <!-- para: 種類 | 主張 -->、octavo writing --kind / --line、outline --paragraphs。"""
+
+    setUp = WritingPacks.setUp
+    tearDown = WritingPacks.tearDown
+    put = WritingPacks.put
+    cfg = WritingPacks.cfg
+
+    PLAN = ('---\ntitle: T\nlang: en\n---\n\n# Results\n\n## Main table\n\n'
+            '<!-- para: polisci/results#effect | The effect is large -->\n'
+            'For example, the effect is large. It is e.g. bigger than X.\n\n'
+            '<!-- para: cases#picking |\n  We picked well -->\n'
+            'For example, we picked well.\n'
+            '<!-- para: results#efect | joined -->\nJoined text.\n\n'
+            '<!-- para: | a claim, no kind yet -->\n\n'
+            'Unmarked paragraph. Second.\n\n- a list item\n\n'
+            '```\n<!-- para: x#y | in code -->\n```\n')
+
+    def write_plan(self):
+        self.put(self.home / 'octavo' / 'writing' / 'polisci' / 'phrases' / 'results.md',
+                 '---\nsection: [results, discussion]\n---\n\n## Effect\n\nWhen: an estimate.\n'
+                 '- Open: Table 〈2〉 reports 〈X〉.\n- Body: For example, 〈X〉.\n'
+                 '- Close: This is consistent with 〈H1〉.\n\n## Other\n\n- Body: Other.\n')
+        self.src = self.root / 'docs' / 'mypaper' / 'mypaper.md'
+        self.src.write_text(self.PLAN, encoding='utf-8')
+        return self.PLAN.split('\n')
+
+    def run_cli(self, *argv):
+        from octavo import cli
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = cli.main(list(argv[:1]) + ['-c', str(self.root / 'octavo.config.py')] + list(argv[1:]))
+        return code or 0, out.getvalue()
+
+    def test_marks_are_read_with_their_paragraphs(self):
+        from octavo import paragraphs as P
+        got = P.parse(self.PLAN)
+        rows = [(p['kind'], p['claim'], p['body_line'] is not None, p['prose'], p['joined']) for p in got]
+        self.assertEqual(rows, [
+            ('polisci/results#effect', 'The effect is large', True, True, False),
+            ('cases#picking', 'We picked well', True, True, False),     # 2行にわたるコメント
+            ('results#efect', 'joined', True, True, True),             # 本文の直後のコメント
+            ('', 'a claim, no kind yet', False, False, False),         # 本文はまだ無い
+            (None, None, True, True, False),                           # 印の無い段落
+            (None, None, True, False, False),                          # 箇条書き
+            (None, None, True, False, False)])                         # コードの中の印は読まない
+        self.assertEqual(got[0]['heading'], 'Main table')
+        lines = self.PLAN.split('\n')
+        n = lines.index('For example, we picked well.') + 1
+        self.assertEqual(P.at_line(got, n)['kind'], 'cases#picking')
+        self.assertEqual(P.first_sentence(got[0]['body']), 'For example, the effect is large.')
+        self.assertEqual(P.first_sentence('It is e.g. bigger. Next.'), 'It is e.g. bigger.')
+        self.assertEqual(P.first_sentence('日本語の文。次の文。'), '日本語の文。')
+
+    def test_the_mark_on_the_line_picks_only_that_kind(self):
+        lines = self.write_plan()
+        n = lines.index('<!-- para: polisci/results#effect | The effect is large -->') + 2
+        code, out = self.run_cli('writing', '--file', str(self.src), '--line', str(n), '--print', '--json')
+        self.assertEqual(code, 0)
+        got = json.loads(out)
+        self.assertEqual(got['section'], 'results')
+        self.assertEqual(got['paragraph_kinds'], ['polisci/results#effect'])
+        self.assertEqual(got['paragraph']['claim'], 'The effect is large')
+        self.assertIn('## Effect', got['text'])
+        self.assertNotIn('## Other', got['text'])
+        self.assertIn('Rule: careful.', got['text'])                   # ルールは今までどおり
+        self.assertIn('most sentences need none', got['text'])
+        item = next(i for f in got['files'] for i in f['items'] if i.get('picked'))
+        self.assertEqual([x['position'] for x in item['lines']], ['open', 'body', 'close'])
+        self.assertEqual(item['when'], 'an estimate.')
+        # 別の節のファイルの種類も（ファイルをまたいで）
+        code, out = self.run_cli('writing', '--file', str(self.src), '--line',
+                                 str(lines.index('For example, we picked well.') + 1), '--print')
+        self.assertIn('## Picking', out)
+        self.assertNotIn('## Effect', out)
+        # 印の無い段落では節で絞る
+        code, out = self.run_cli('writing', '--file', str(self.src), '--line',
+                                 str(lines.index('Unmarked paragraph. Second.') + 1), '--print')
+        self.assertIn('## Effect', out)
+        self.assertIn('## Other', out)
+
+    def test_kind_names_kinds_and_a_typo_is_reported(self):
+        self.write_plan()
+        code, out = self.run_cli('writing', '--for', 'mypaper', '--kind', 'results#efect', '--json')
+        got = json.loads(out)
+        self.assertEqual(got['paragraph_kinds'], [])
+        self.assertIn('results#effect', ' '.join(got['warnings']))
+        code, out = self.run_cli('writing', '--for', 'mypaper', '--kind', 'intro#gap',
+                                 '--kind', 'polisci/results#other', '--print')
+        self.assertIn('## Gap', out)
+        self.assertIn('## Other', out)
+        self.assertNotIn('## Effect', out)
+
+    def test_outline_lists_the_plan_and_marks_problems(self):
+        self.write_plan()
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        self.assertEqual(code, 0)
+        doc = json.loads(out)[0]
+        rows = [(r['kind'], r['problems']) for r in doc['paragraphs']]
+        self.assertEqual(rows, [('polisci/results#effect', []), ('cases#picking', []),
+                                ('results#efect', ['unknown-kind', 'joined']),
+                                ('', ['no-kind', 'no-text']), (None, ['no-kind'])])
+        self.assertIn('results#effect', doc['paragraphs'][2]['near'])
+        self.assertEqual(doc['paragraphs'][0]['first_sentence'], 'For example, the effect is large.')
+        # 同じ見出しの下で "For example, 〈X〉." を2回
+        self.assertEqual([(r['id'], len(r['lines'])) for r in doc['repeats']],
+                         [('polisci/results#effect', 2)])
+        code, text = self.run_cli('outline', 'mypaper', '--paragraphs')
+        self.assertIn('[unknown kind]', text)
+        self.assertIn('claim: The effect is large', text)
+
+    @unittest.skipUnless(HAVE_PANDOC, 'pandoc is not installed')
+    def test_the_marks_never_reach_the_output(self):
+        self.write_plan()
+        cfg = self.cfg()
+        build.build_one(cfg, cfg.documents['mypaper'], 'typst', citations=False, offline=True)
+        body = (self.root / 'build' / 'pdf' / 'mypaper' / 'body.typ').read_text(encoding='utf-8')
+        self.assertIn('the effect is large', body)
+        self.assertNotIn('para: polisci', body)
+        self.assertNotIn('picked well -->', body)
+
 class PriorworkHandoff(unittest.TestCase):
     """Priorwork の受け取り場所（literature/priorwork/）。添え状の見本は tests/handoff.json で、
     priorwork-dev の tests/fixtures/handoff.json と同じ中身（形を変えるときは版を上げ、両方を直す）。"""

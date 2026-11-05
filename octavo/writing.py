@@ -41,6 +41,7 @@ from pathlib import Path
 
 from . import config as configmod
 from . import md as mdlib
+from . import paragraphs as paramod
 from . import tmpl
 from .i18n import t
 
@@ -326,8 +327,12 @@ def _match(title: str, known: list):
     return best[1] if best else None
 
 
-def select(cfg, doc, section=None, every=False) -> dict:
-    """その原稿が使うパック・ファイル・項目。section が None なら、いつも読むファイルだけ。"""
+def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
+    """その原稿が使うパック・ファイル・項目。section が None なら、いつも読むファイルだけ。
+
+    kinds（段落の種類の並び。`パック/ファイル#slug` か `ファイル#slug`）を渡すと、フレーズは
+    その項目だけになる（節・原稿の種類を問わず、ファイルをまたいでよい）。ルールは今までどおり。
+    """
     root = Path(cfg.root)
     got = packs(root)
     view = cfg.for_document(doc)
@@ -338,7 +343,7 @@ def select(cfg, doc, section=None, every=False) -> dict:
     if section is not None and section not in known:
         raise SystemExit(t('unknown section {name} (sections: {names})', name=section,
                            names=', '.join(known)))
-    kinds = doc_kinds(doc)
+    doc_kinds_ = doc_kinds(doc)
     lang = view.get('lang') or ''
     out_files = []
     for name in order:
@@ -349,7 +354,7 @@ def select(cfg, doc, section=None, every=False) -> dict:
             fid = f'{name}/{stem}'
             secs = d['section']
             reason = None
-            if 'all' not in d['applies'] and not kinds & set(d['applies']):
+            if 'all' not in d['applies'] and not doc_kinds_ & set(d['applies']):
                 reason = 'applies'
             elif d['lang'] and lang and d['lang'] != lang:
                 reason = 'lang'
@@ -360,16 +365,48 @@ def select(cfg, doc, section=None, every=False) -> dict:
             for it in d['items']:
                 it['id'] = f'{fid}#{it["slug"]}'
                 it['off'] = it['id'] in off or f'{stem}#{it["slug"]}' in off
+            if kind == 'phrases':
+                _, entries = _split_entries(mdlib.split_front_matter(mdlib.read(path))[1])
+                for it, (_, block, _) in zip(d['items'], entries):
+                    it.update(paramod.entry_fields(block))
             out_files.append({**d, 'pack': name, 'kind': kind, 'where': where, 'id': fid,
                               'used': reason is None, 'skipped': reason})
+    picked: list = []
+    if kinds is not None:
+        index = kind_index({'files': out_files})
+        for k in kinds:
+            hit = paramod.resolve(k, index)
+            if hit is None:
+                near = paramod.suggest(k, index)
+                warnings.append(t('no paragraph kind called {kind}', kind=k)
+                                + (' ' + t('(did you mean {names}?)', names=', '.join(near)) if near else ''))
+            elif hit not in picked:
+                picked.append(hit)
+                if index[hit]['off']:
+                    warnings.append(t('{kind} is turned off in writing_off, but this paragraph names it',
+                                      kind=hit))
+        for f in out_files:
+            if f['kind'] != 'phrases':
+                continue
+            for it in f['items']:
+                it['picked'] = it['id'] in picked
+            f['used'] = any(it['picked'] for it in f['items'])
+            f['skipped'] = None if f['used'] else 'kind'
     unknown = [x for x in off if not any(x == f['id'] or any(x in (i['id'], i['id'].split('/', 1)[1])
                                                               for i in f['items']) for f in out_files)]
     warnings += [t('writing_off names nothing: {id}', id=x) for x in unknown]
     return {'doc': doc.name, 'packs': order, 'chosen': view.get('writing') is not None,
-            'chosen_here': 'writing' in own, 'kinds': sorted(kinds), 'lang': lang,
+            'paragraph_kinds': picked if kinds is not None else None, 'paragraph': None,
+            'chosen_here': 'writing' in own, 'kinds': sorted(doc_kinds_), 'lang': lang,
             'section': section, 'sections': known, 'off': off,
             'off_here': _as_list(own.get('writing_off')), 'files': out_files,
             'warnings': warnings}
+
+
+def kind_index(sel: dict) -> dict:
+    """段落の種類（フレーズの項目）の id -> 項目。選んだパックのフレーズのファイルすべてから。"""
+    return {it['id']: {**it, 'file': f['id'], 'file_title': f['title']}
+            for f in sel['files'] if f['kind'] == 'phrases' for it in f['items']}
 
 
 def render(sel: dict, heading: str | None = None) -> str:
@@ -379,8 +416,15 @@ def render(sel: dict, heading: str | None = None) -> str:
              + (f' (heading "{heading}")' if heading else '') + ' -->',
              '<!-- ' + t('packs, general first: {order}. Where two disagree, the later one wins.',
                          order=' → '.join(sel['packs']) or t('(none)')) + ' -->', '']
+    para = sel.get('paragraph')
+    if para and (para.get('kind') or para.get('claim')):
+        lines += ['<!-- ' + t('this paragraph (line {line}): kind {kind}', line=para['line'],
+                              kind=para.get('kind') or t('(none yet)'))
+                  + ('; ' + t('it claims: {claim}', claim=para['claim']) if para.get('claim') else '')
+                  + ' -->', '']
+    picking = sel.get('paragraph_kinds') is not None
     for kind, head in (('rules', t('Writing rules (follow them)')),
-                       ('phrases', t('Phrase bank (prefer these phrasings)'))):
+                       ('phrases', t('Phrase bank (frames to draw on where they fit; most sentences need none)'))):
         used = [f for f in sel['files'] if f['kind'] == kind and f['used']]
         if not used:
             continue
@@ -393,6 +437,9 @@ def render(sel: dict, heading: str | None = None) -> str:
             if pre:
                 lines += [pre, '']
             for it, (_, block, _) in zip(f['items'], entries):
-                if not it['off']:
+                if picking and kind == 'phrases':
+                    if it.get('picked'):
+                        lines += [block, '']
+                elif not it['off']:
                     lines += [block, '']
     return '\n'.join(lines).rstrip() + '\n'
