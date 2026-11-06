@@ -727,35 +727,52 @@ octavo bundle --replication            # 分析・値・図・表・設定・ハ
 
 ## 9. AI アシスタントのための文章のルール
 
-利用者の書き方の決まりと、信頼できる言い回しの表現集は、**パック**にまとめた Markdown のファイル: `rules/*.md` と `phrases/*.md` のあるフォルダで、`~/.config/octavo/writing/` かプロジェクトの `notes/writing/` に置く（同じ名前ならプロジェクトのものが勝つ）。**文章を書く・直す前に `octavo writing … --print` を実行し、出てきたものに従う。**
+利用者の書き方のルールと、信頼できる言い回しのフレーズバンクは、パックにまとめた Markdown のファイル。**文章を書く・直す前に `octavo writing --file <ファイル> --line <行> --print` を実行し、出てきたものに従う。** パックの用意の仕方と例は [執筆支援](https://yoshida-kd.github.io/octavo/ja/writing/) に。
+
+### 9.1 パックとファイル
+
+- パックはフォルダー `<パック>/` で、`rules/*.md`・`phrases/*.md` と、任意の `pack.md`（`title`、`extends`、`sections`）を入れる。置き場所は `~/.config/octavo/writing/`（すべてのプロジェクト）か `notes/writing/`（そのプロジェクト。前からの `writing/` も読む）。同じパックの同じ名前のファイルはプロジェクトのものが勝つ。`rules/`・`phrases/` に直接置いたファイルはパック `local` で、いつも最後。
+- ファイルの冒頭: `title`、`lang`（`en`/`ja`。なければどの言語でも）、`applies`（`paper`、`slides`、`lecture`、`poster`、`all`。既定 `all`）、`section`（なければいつも読む）。`##` の見出し1つが項目1つで、id は `パック/ファイル#slug`（小文字にし、英数字以外の続きを `-` に。同じ見出しの2つ目は `-2`）。
+- ルールは書いたとおりに出る。フレーズでは `When:` / `Note:` / `Source:`（場面 / 注意 / 出典）が JSON の欄になり（`Contains:` も）、箇条書きが型になる（`- Open:` / `- Body:` / `- Close:` は段落の中の位置）。〈 〉は埋める所、`〈A / B〉` は選ぶ言葉。ほかの行はそのまま出るだけで、読み取らない。
+
+### 9.2 原稿が読むもの
+
+- パック: 設定か原稿の冒頭の `writing`（冒頭のものが設定に代わる）に、一般的なものから並べる。後ろが勝つ。`extends` はその前に入る。選ばなければすべてのパック（extends を前に、あとは名前順）。`local` は最後。
+- `writing_off`（設定と冒頭の分を**合わせる**）: `パック/ファイル`、`ファイル`、`パック/ファイル#slug`、`ファイル#slug`。
+- ファイルを除くのは、`applies` が原稿の種類（出力から決まる）に合わないとき、`lang` が原稿と違うとき、外されたとき、聞かれた節と違う `section` があるとき。`--all` は最後の条件だけを外す。
+- 行の節: すぐ上の見出しから浅い見出しへさかのぼり、節に当たる最初の見出しを使う（パックが足した節が先。1つの見出しの中では先に出る言葉）。組み込みの節は `abstract`、`introduction`、`literature`、`theory`、`design`、`results`、`discussion`、`conclusion`、`appendix`（`{.appendix}` の見出しとその後ろ、付録のファイル）。それぞれの言葉は [執筆支援 3.4](https://yoshida-kd.github.io/octavo/ja/writing/#34-行の節の決まり方) の表に。
+
+### 9.3 コマンド
 
 ```bash
 octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
-octavo writing --for my-paper --kind polisci/results#the-main-result --print
+octavo writing --for my-paper --kind field/results#the-main-result --print
 octavo outline my-paper --paragraphs
 ```
 
-- 2つ目は、1つの原稿と1つの節について、パックを順に重ねて出す（後が勝つ）。ほかの種類の文書・言語・節のものと、使わないことにしたものは除く。3つ目は、その行の上の見出しから節を決める。
-- **段落の構成表。** パックのフレーズが段落の種類ごとの項目なら、段落の直前に印を置く: `<!-- para: <種類> | <その段落が主張する1文> -->`。種類はフレーズの項目（`pack/file#heading`、または `file#heading`）。本文は次の行から。印だけなら、まだ書いていない段落。印はコメントなので出力には出ない。印の前には空行を置く（無いと pandoc が前の段落とつなぐ）。印のある行では、`--line` はルールを今までどおりに、フレーズはその種類の項目だけを出す（ファイルをまたいでよい）。`--kind`（何度でも）で種類を直接名指しできる。`--json` には `paragraph`（行・種類・主張・最初の文）と、フレーズの項目ごとに `when`・`note`・`lines`（`position`: `open`/`body`/`close`、`text`）が入る。
-- `octavo outline … --paragraphs [--json]` は、段落ごとに種類・主張・本文の最初の文を並べ、種類の無い段落、無い種類（似た名前も）、本文の無い印、空行の要る印、同じ種類の段落が3つ続いた所（注として。2つ続くのはふつう）に印を付ける。同じ見出しの下で2回使われたフレーズの行も出す。見るのはその見出しの節のフレーズ（と `section:` の無いファイル）の行だけで、〈 〉の外の言葉がすべて1つの文の中に同じ順で出たときだけ当たる（`〈A / B〉` は選ぶ言葉で、どれかがそのまま出なければならない。大文字で始まる型は文の頭から、`.` で終わる型は文の終わりまで。決まった言葉が2語に満たない型は探さない）。`--json` には `repeats` と `asks` が入る。
-- **著者への問い。** 書くのに要る数字や根拠が原稿にも分析にも無いとき、AI は文を書かずに `<!-- ask: … -->` を残す。`octavo outline … --paragraphs` はそれを行番号と並べて出し、`octavo check` は答えて消すまで警告で知らせる。
-- 設定か冒頭の `writing` / `writing_off` でパックを選び、項目を外す（`pack/file#heading`、`pack/file`）。選ばなければすべてのパックを使う。
-- パックの `pack.md` には `extends` と `sections` を書ける。ファイルには `title`、`lang`、`applies`（`paper`、`slides`、`lecture`、`poster`、`all`）、`section`（`abstract`、`introduction`、`literature`、`theory`、`design`、`results`、`discussion`、`conclusion`、`appendix`、またはパックが足したもの）。項目は `##` の見出しごと。ルールは `Rule:`（と `Why:`、`Good:`、`Bad:`）、表現集は 〈 〉 が埋める所（と `When:`、`Note:`、`Source:`）。日本語のファイルでは 規則・理由・良い例・悪い例 と 場面・注意・出典。
+- `--for DOC` か `--file F` で原稿を言う。`--line N`（`--file` と）で節と段落の印を見つける。`--section S` は節を指定する。`--all` はすべての節。`--kind K`（何度でも、コンマ区切りでも）は段落の種類。`--print` は重ねた本文。`--json`。
+- 種類があるとき（`--kind` か、`--line` の行の印から）、ルールは変わらず、フレーズはその項目だけになる。その原稿が使うフレーズのファイル（選んだパックの、`applies`・`lang` が合い、外していないもの）から、節を問わず探す。ほかのファイルの種類は警告して除く。
 
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
+### 9.4 段落の印と著者への問い
 
-## One claim per sentence
+- 段落のすぐ上に `<!-- para: <種類> | <主張> -->`。本文は次の行から。印の次が空行なら、まだ書いていない段落。印の前には空行を置く（ないと pandoc が上の段落とつなぐ）。種類は `writing_off` の id と同じに解決する（`ファイル#slug` は後ろのパックのもの）。
+- `octavo outline … --paragraphs` の印: `no-kind`、`unknown-kind`（と `near`）、`unused-kind`（この原稿では使わないファイルの種類）、`no-text`、`joined`、`same-kind`（1つの見出しの下で同じ種類の3つ目。注意だけ）。繰り返し: 1つの見出しの下の2つの文に当たった型（〈 〉の外の言葉がすべて1つの文の中に同じ順で出る。大文字で始まる型は文の頭、`.` で終わる型は文の終わり。決まった言葉が2語に満たない型は探さない。その見出しの節か、`section:` のないファイルの型で、その原稿が使うものだけ）。
+- `<!-- ask: … -->`: 一覧に出る。`octavo check` は消すまで「著者への問い」を警告する。コードブロックの中の印は読まない。
 
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-```
+### 9.5 JSON
+
+- `octavo writing --json`（原稿を言わないとき）: `rules`、`phrases`（ファイル: `path`、`title`、`lang`、`applies`、`section`、`entries`、`where`、`pack`、`kind`）、`packs`（`name`、`title`、`path`、`where`、`extends`、`sections`、`description`、`files`）、`sections`、`warnings`。
+- `octavo writing --for|--file … --json`: `doc`、`packs`、`chosen`、`chosen_here`、`kinds`、`lang`、`section`、`heading`、`sections`、`off`、`off_here`、`paragraph_kinds`（種類がなければ null）、`paragraph`（`line`、`kind`、`claim`、`body_line`、`first_sentence`。`--line` がなければ null）、`warnings`、`text`（`--print` のとき）と `files`: `id`、`pack`、`kind`、`path`、`title`、`lang`、`applies`、`section`、`where`、`used`、`skipped`（`applies`、`lang`、`off`、`section`、`kind` か null）、`items`（`id`、`title`、`slug`、`line`、`off`。フレーズには `when`、`note`、`source`、`lines` = [`position`、`text`]、`contains`、種類を言ったときは `picked` も）。
+- `octavo outline … --paragraphs --json`: 原稿のファイルごとの並び: `doc`、`file`、`appendix`、`paragraphs`（`line`、`body_line`、`kind`、`id`、`title`、`claim`、`first_sentence`、`heading`、`heading_line`、`heading_level`、`problems`、`near`）、`repeats`（`heading`、`heading_line`、`id`、`text`、`lines`、`section`）、`asks`（`line`、`text`）。
+
+### 9.6 何も出ないとき
+
+- ルールがまったく出ない: Octavo 0.6.8 以前にはパックがない。またはフォルダーが `~/.config/octavo/writing/<パック>/` か `notes/writing/<パック>/` にない（リンクが1段ずれていると何も出ない）。
+- ある原稿にファイルが出ない: `applies` / `lang`（`octavo writing --for DOC --all` で除いたものが見える）。ある節が読まれない: 見出しがどの節にも当たらないか、節の名前の打ち間違い（`octavo check`）。
+- 「writing_off に当たる項目がない」: 項目の見出しが変わり、slug が変わった。
+- 「印の前に空行が要る」: 印の上に空行を入れる。
 
 ---
 

@@ -1,6 +1,6 @@
-# 講義ノートの作り方
+# 授業資料の作り方
 
-> これは講義ノートの手引きの原稿。読むなら **<https://yoshida-kd.github.io/octavo/ja/lectures/>** で。 <!-- pages:skip -->
+> これは授業資料の作り方の原稿。読むなら **<https://yoshida-kd.github.io/octavo/ja/lectures/>** で。 <!-- pages:skip -->
 
 講義ノートは、**1本の Markdown から**次のものを作る。
 

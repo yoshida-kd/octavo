@@ -25,7 +25,7 @@ PARA_START = re.compile(r'^\s*<!--\s*para\s*:', re.I)
 PARA = re.compile(r'<!--\s*para\s*:(.*?)-->', re.S | re.I)
 POSITION = re.compile(r'^\s*[-*+]\s+(Open|Body|Close)\s*:\s*(.*)$', re.I)
 ITEM = re.compile(r'^\s*[-*+]\s+(.*)$')
-FIELD = re.compile(r'^(When|Note|Source|場面|注意|出典)\s*[:：]\s*(.*)$')
+FIELD = re.compile(r'^(When|Note|Source|Contains|場面|注意|出典)\s*[:：]\s*(.*)$')
 FIELD_NAMES = {'場面': 'when', '注意': 'note', '出典': 'source'}
 # 段落ではない塊の頭（構成表の印が無くても数えない）
 NOT_PROSE = re.compile(r'^\s*(?:```|~~~|[-*+]\s|\d+[.)]\s|\||!\[|:\s|\\|\[\^[^\]]*\]:|<|>|\$\$|\{\{<)')
@@ -202,11 +202,11 @@ def first_sentence(body: str, limit: int = 240) -> str:
 
 # ---------------------------------------------------------------- フレーズの項目
 def entry_fields(block: str) -> dict:
-    """フレーズの項目（`## 見出し` からの塊）を when / note / source / lines に。
+    """フレーズの項目（`## 見出し` からの塊）を when / note / source / contains / lines に。
 
     lines は [{'position': 'open'|'body'|'close'|None, 'text': …}]（`- Open: …` の Open など）。
     """
-    out = {'when': '', 'note': '', 'source': '', 'lines': []}
+    out = {'when': '', 'note': '', 'source': '', 'contains': '', 'lines': []}
     for ln in block.split('\n')[1:]:
         f = FIELD.match(ln.strip())
         if f:
@@ -385,13 +385,16 @@ def asks(text: str) -> list:
     return out
 
 
-def review(text: str, index: dict, known: list | None = None, appendix: bool = False) -> dict:
+def review(text: str, index: dict, known: list | None = None, appendix: bool = False,
+           every: dict | None = None) -> dict:
     """原稿の段落を、種類・主張・本文の最初の文と、印（problems）にして並べる。
 
     index は writing.kind_index()、known は節の名前（writing.known_sections()）。
     印は人が見るためのもので、どれも致命的ではない:
       no-kind       種類の無い段落（印が無い、または種類が空）
-      unknown-kind  パックに無い種類（打ち間違い）。near に似た名前
+      unknown-kind  パックにない種類（打ち間違い）。near に似た名前
+      unused-kind   パックにはあるが、この原稿では使わない種類（applies・lang・writing_off）。
+                    every（writing.kind_index(sel, usable=False)）を渡したときだけ
       no-text       本文がまだ無いコメント
       joined        コメントが本文の行の直後（空行が無いので、組むと前の段落とつながる）
       same-kind     同じ見出しの下で、同じ種類が SAME_RUN 個以上続いた（その3つ目から）
@@ -408,6 +411,8 @@ def review(text: str, index: dict, known: list | None = None, appendix: bool = F
         marks, near = [], []
         if not kind:
             marks.append('no-kind')
+        elif hit is None and every is not None and resolve(kind, every):
+            marks.append('unused-kind')
         elif hit is None:
             marks.append('unknown-kind')
             near = suggest(kind, index)

@@ -52,8 +52,8 @@ references are filled in when it is typeset.
 - **Ready for your AI assistant**: every project keeps its working rules in
   `AGENTS.md` — never type a result into the manuscript, `data/raw` is read-only, and
   so on — and Claude Code, GitHub Copilot, Codex and Antigravity all read it, so the
-  assistant knows them from the start. Your own writing rules and phrase bank
-  (`writing/`) are handed to it too.
+  assistant knows them from the start. Your own writing rules and phrase bank are handed
+  to it too, for the part being written ([Writing support](https://yoshida-kd.github.io/octavo/writing/)).
 - Linux, macOS and Windows; English and Japanese.
 
 ## Install
@@ -125,7 +125,8 @@ The sample has {{n_obs}} cases (@fig-trend).
 - [Quick guide](https://yoshida-kd.github.io/octavo/quickstart/) — from installing to your first PDF, in six steps
 - [Installing Octavo](https://yoshida-kd.github.io/octavo/install/) — Linux, macOS and Windows, step by step
 - [Guide](https://yoshida-kd.github.io/octavo/guide/) — using Octavo in VS Code: projects, writing, the analysis, citations, papers, slides and posters
-- [Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/) — one file for an A4 handout and a deck per session
+- [Making course materials](https://yoshida-kd.github.io/octavo/lectures/) — one file for an A4 handout and a deck per session
+- [Writing support](https://yoshida-kd.github.io/octavo/writing/) — your writing rules and phrases, handed to your AI assistant for the part being written
 - [Reference](https://yoshida-kd.github.io/octavo/reference/) — every command and setting, written for AI assistants (also `octavo docs`)
 
 ## Contributing and license

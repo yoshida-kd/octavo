@@ -153,7 +153,7 @@ MESSAGES: dict = {
     'print the rules themselves, layered (for the AI)': 'ルールの本文を重ねて出す（AI が読むもの）',
     'no writing pack called {name} (packs: {names})': '文章のルールのパック {name} がない（パック: {names}）',
     'the manuscript (or appendix) file being written': '書いている原稿（か付録）のファイル',
-    '{file}: unknown section {name} (sections: {names})': '{file}: 知らない節 {name}（節: {names}）',
+    '{file}: unknown section {name} (sections: {names})': '{file}: 不明な節 {name}（節: {names}）',
     'packs, general first: {order}. Where two disagree, the later one wins.':
         'パック（一般的なものから順に）: {order}。2つがぶつかったら後ろが勝つ。',
     'what this manuscript uses': 'この原稿が使う分',
@@ -166,11 +166,13 @@ MESSAGES: dict = {
         'フレーズバンク（合う所でだけ使う型。たいていの文には要らない）',
     'no paragraph kind called {kind}': '段落の種類 {kind} がない',
     '(did you mean {names}?)': '（{names} のことか）',
-    '{kind} is turned off in writing_off, but this paragraph names it':
-        '{kind} は writing_off で使わないことになっているが、この段落が指している',
+    '{kind} is not used for this manuscript ({why})': '{kind} はこの原稿では使わない種類（{why}）',
+    '{pack}: extends {name}, but there is no pack called {name} (packs: {names})':
+        '{pack}: extends に {name} とあるが、そのパックがない（パック: {names}）',
+    'a kind this manuscript does not use': 'この原稿では使わない種類',
     'this paragraph (line {line}): kind {kind}': 'この段落（{line} 行目）: 種類 {kind}',
     'it claims: {claim}': '主張: {claim}',
-    '(none yet)': '（まだ無い）',
+    '(none yet)': '（まだない）',
     'paragraph kinds: {kinds}': '段落の種類: {kinds}',
     '({n} picked)': '（{n} 項目を選んだ）',
     "only this kind of paragraph from the phrase bank (pack/file#heading); with --line, read from the paragraph's <!-- para: … --> mark":
@@ -178,8 +180,8 @@ MESSAGES: dict = {
     'each paragraph: its kind, the claim in its <!-- para: … --> mark and its first sentence':
         '段落ごとに、種類と、<!-- para: … --> に書いた主張と、本文の最初の文',
     'no kind': '種類なし',
-    'unknown kind': '無い種類',
-    'no text yet': '本文がまだ無い',
+    'unknown kind': '不明な種類',
+    'no text yet': '本文がまだない',
     'needs a blank line before the mark (it joins the paragraph above)':
         '印の前に空行が要る（このままでは前の段落とつながる）',
     'note: the third paragraph in a row of this kind': '注: 同じ種類の段落が3つ目',
@@ -198,7 +200,7 @@ MESSAGES: dict = {
     '{n} {n|pack|packs}: {names}': 'パック {n} 個: {names}',
     'Writing rule packs (general first)': '文章のルールのパック（一般的なものから）',
     'loose files': 'パックに入れていないファイル',
-    'unknown section {name} (sections: {names})': '知らない節 {name}（節: {names}）',
+    'unknown section {name} (sections: {names})': '不明な節 {name}（節: {names}）',
     '{file} is not a manuscript of this project': '{file} はこのプロジェクトの原稿ではない',
     '({n} turned off)': '（{n} 個を使わない）',
     'Writing rules turned off': '使わない文章のルール',

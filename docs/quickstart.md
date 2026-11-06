@@ -81,5 +81,5 @@ catches anything that slips through. More in
 - [The guide](https://yoshida-kd.github.io/octavo/guide/): everything in detail.
 - [The reference](https://yoshida-kd.github.io/octavo/reference/): every command and setting, for
   your AI assistant.
-- [Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/): a handout and a deck
+- [Making course materials](https://yoshida-kd.github.io/octavo/lectures/): a handout and a deck
   per session from one file.

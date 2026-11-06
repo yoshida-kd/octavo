@@ -871,63 +871,97 @@ octavo bundle --replication            # analysis, values, figures, tables, conf
 
 ## 9. Writing rules for AI assistants
 
-The user's rules on how they write, and a bank of trusted phrasings, are Markdown files in
-**packs**: folders with `rules/*.md` and `phrases/*.md`, in `~/.config/octavo/writing/` or the
-project's `notes/writing/` (the project's file of the same name wins). **Before writing or
-revising prose, run `octavo writing … --print` and follow what it prints.**
+The user's rules on how they write, and a bank of trusted phrasings, are Markdown files in packs.
+**Before writing or revising prose, run `octavo writing --file <file> --line <line> --print` and follow
+what it prints.** How to set packs up, with examples: [Writing support](https://yoshida-kd.github.io/octavo/writing/).
+
+### 9.1 Packs and files
+
+- A pack is a folder `<pack>/` with `rules/*.md`, `phrases/*.md` and an optional `pack.md` (`title`,
+  `extends`, `sections`), in `~/.config/octavo/writing/` (every project) or `notes/writing/` (the
+  project; the older `writing/` is read too). The same pack and file name: the project's wins. Files
+  directly in `rules/` / `phrases/` are the pack `local`, always last.
+- A file's front matter: `title`, `lang` (`en`/`ja`; none = every language), `applies` (`paper`,
+  `slides`, `lecture`, `poster`, `all`; default `all`), `section` (none = always read). Each `##`
+  heading is one entry; its id is `pack/file#slug` (lower case, non-alphanumeric runs -> `-`, a repeat
+  gets `-2`).
+- Rules are printed as written. In phrases, `When:` / `Note:` / `Source:` (場面 / 注意 / 出典) become
+  JSON fields, as does `Contains:`; list items are frames (`- Open:` / `- Body:` / `- Close:` give their
+  position), 〈 〉 are slots and `〈A / B〉` a choice; other lines are printed and not read.
+
+### 9.2 What a manuscript reads
+
+- Packs: `writing` in the config or the front matter (the front matter replaces the config's), most
+  general first, the later winning; `extends` are put in front; none chosen = every pack (extends
+  first, then by name); `local` last.
+- `writing_off` (config **plus** front matter): `pack/file`, `file`, `pack/file#slug` or `file#slug`.
+- A file is left out when its `applies` does not match the manuscript's kinds (from its outputs), its
+  `lang` differs from the manuscript's, it is turned off, or it has a `section` other than the one
+  asked for. `--all` drops only the last condition.
+- The section of a line: from the nearest heading up to shallower ones, the first that names a
+  section (a pack's own sections first; in one heading the word that comes first). Built-in sections:
+  `abstract`, `introduction`, `literature`, `theory`, `design`, `results`, `discussion`,
+  `conclusion`, `appendix` (a `{.appendix}` heading, what follows it, the appendix file). The words for
+  each are in the table in [Writing support 3.4](https://yoshida-kd.github.io/octavo/writing/#34-the-section-of-a-line).
+
+### 9.3 Commands
 
 ```bash
 octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
-octavo writing --for my-paper --kind polisci/results#the-main-result --print
+octavo writing --for my-paper --kind field/results#the-main-result --print
 octavo outline my-paper --paragraphs
 ```
 
-- The second prints, for one manuscript and section, the packs layered (later wins), without
-  other kinds of document, languages, sections or what is turned off. The third finds the
-  section from the heading above the line.
-- **Paragraph plan.** When a pack's phrases are kinds of paragraph, put a mark directly above each
-  paragraph: `<!-- para: <kind> | <the one sentence it claims> -->`, the kind being a phrase entry
-  (`pack/file#heading`, or `file#heading`). The text starts on the next line; a mark alone is a
-  paragraph not yet written. Marks are comments and never reach the output. Leave a blank line
-  before a mark, or pandoc joins the paragraph to the one above. On a marked line, `--line` prints
-  the rules as before but only that kind's phrases (any file); `--kind` (repeatable) names kinds
-  directly; `--json` adds `paragraph` (line, kind, claim, first sentence) and, per phrase entry,
-  `when`, `note` and `lines` (`position`: `open`/`body`/`close`, `text`).
-- `octavo outline … --paragraphs [--json]` lists each paragraph's kind, claim and first sentence,
-  marking paragraphs with no kind, unknown kinds (with a near name), marks with no text, marks that
-  need a blank line, and a third paragraph in a row of the same kind (a note: two in a row is
-  normal). It also reports a phrase-bank line used twice under one heading — only lines from the
-  heading's own section (or files with no `section:`), and only where every word outside 〈 〉
-  appears in order within one sentence (a slot `〈A / B〉` is a choice: one of the words must
-  appear; a frame starting with a capital starts the sentence; a frame ending in `.` ends it;
-  frames with fewer than two fixed words are not looked for). `--json` adds `repeats` and `asks`.
-- **Questions for the author.** Where the text needs a number or a source that is in neither the
-  manuscript nor the analysis, an assistant leaves `<!-- ask: … -->` instead of writing the
-  sentence. `octavo outline … --paragraphs` lists them with their lines, and `octavo check` shows
-  them as a warning until they are answered and deleted.
-- `writing` / `writing_off` in the config or the front matter choose packs and turn entries off
-  (`pack/file#heading`, `pack/file`); without a choice every pack is used.
-- A pack's `pack.md` may have `extends` and `sections`. A file may have `title`, `lang`,
-  `applies` (`paper`, `slides`, `lecture`, `poster`, `all`) and `section` (`abstract`,
-  `introduction`, `literature`, `theory`, `design`, `results`, `discussion`, `conclusion`,
-  `appendix`, or a pack's own). Each entry is a `##` heading; rules have `Rule:` (and `Why:`,
-  `Good:`, `Bad:`), phrases fill-in parts in 〈 〉 (and `When:`, `Note:`, `Source:`). Japanese
-  files use 規則 / 理由 / 良い例 / 悪い例 and 場面 / 注意 / 出典.
+- `--for DOC` or `--file F` names the manuscript; `--line N` (with `--file`) finds the section and the
+  paragraph's mark; `--section S` overrides the section; `--all` takes every section; `--kind K`
+  (repeatable, comma-separated) names paragraph kinds; `--print` prints the layered text; `--json`.
+- With a kind (from `--kind`, or from the mark on `--line`), rules are unchanged and phrases are only
+  those entries, from the phrase files this manuscript uses (chosen packs, matching `applies` / `lang`,
+  not turned off; any section). A kind from another file is left out with a warning.
 
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
+### 9.4 Paragraph marks and questions
 
-## One claim per sentence
+- `<!-- para: <kind> | <claim> -->` directly above a paragraph; the text starts on the next line; a
+  mark followed by a blank line is an unwritten paragraph; leave a blank line before a mark (otherwise
+  pandoc joins it to the paragraph above). Kinds resolve like `writing_off` ids (`file#slug` from the
+  later pack).
+- `octavo outline … --paragraphs` problems: `no-kind`, `unknown-kind` (+ `near`), `unused-kind` (in a
+  file this manuscript does not use), `no-text`, `joined`,
+  `same-kind` (the third in a row under one heading, a note). Repeats: a frame matched in two sentences
+  under one heading (every word outside 〈 〉 in order within one sentence; a capitalised frame starts
+  the sentence, one ending in `.` ends it; fewer than two fixed words are not looked for; only frames of
+  that heading's section or with no `section:`, among the files this manuscript uses).
+- `<!-- ask: … -->`: listed by the outline; `octavo check` warns ("questions for the author") until
+  deleted. Marks in code blocks are not read.
 
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-```
+### 9.5 JSON
+
+- `octavo writing --json` (no manuscript): `rules`, `phrases` (files: `path`, `title`, `lang`,
+  `applies`, `section`, `entries`, `where`, `pack`, `kind`), `packs` (`name`, `title`, `path`, `where`,
+  `extends`, `sections`, `description`, `files`), `sections`, `warnings`.
+- `octavo writing --for|--file … --json`: `doc`, `packs`, `chosen`, `chosen_here`, `kinds`, `lang`,
+  `section`, `heading`, `sections`, `off`, `off_here`, `paragraph_kinds` (null without kinds),
+  `paragraph` (`line`, `kind`, `claim`, `body_line`, `first_sentence`; null without `--line`),
+  `warnings`, `text` (with `--print`) and `files`: `id`, `pack`, `kind`, `path`, `title`, `lang`,
+  `applies`, `section`, `where`, `used`, `skipped` (`applies`, `lang`, `off`, `section`, `kind` or
+  null), `items` (`id`, `title`, `slug`, `line`, `off`; phrases also `when`, `note`, `source`, `lines`
+  = [`position`, `text`], `contains`, and `picked` when kinds are given).
+- `octavo outline … --paragraphs --json`: a list per manuscript file: `doc`, `file`, `appendix`,
+  `paragraphs` (`line`, `body_line`, `kind`, `id`, `title`, `claim`, `first_sentence`, `heading`,
+  `heading_line`, `heading_level`, `problems`, `near`), `repeats` (`heading`, `heading_line`, `id`,
+  `text`, `lines`, `section`), `asks` (`line`, `text`).
+
+### 9.6 When nothing comes out
+
+- No rules at all: Octavo 0.6.8 or earlier has no packs; or the folders are not at
+  `~/.config/octavo/writing/<pack>/` / `notes/writing/<pack>/` (a link one level off shows nothing).
+- A file missing for one manuscript: `applies` / `lang` (`octavo writing --for DOC --all` shows what
+  was left out); a section never read: the heading names no section, or the section is mistyped
+  (`octavo check`).
+- `writing_off names nothing`: the entry's heading, hence its slug, changed.
+- `needs a blank line before the mark`: add an empty line above the mark.
 
 ---
 

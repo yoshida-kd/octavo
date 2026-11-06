@@ -11,7 +11,8 @@ something you write in the manuscript.
 
 - Not installed yet? [Installing Octavo](https://yoshida-kd.github.io/octavo/install/).
 - In a hurry? The [quick guide](https://yoshida-kd.github.io/octavo/quickstart/).
-- Lecture notes: [Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/).
+- Course materials: [Making course materials](https://yoshida-kd.github.io/octavo/lectures/).
+- Writing rules for your AI assistant: [Writing support](https://yoshida-kd.github.io/octavo/writing/).
 - Everything else — every command and every setting — is in the
   [reference](https://yoshida-kd.github.io/octavo/reference/), written for your AI assistant.
   Anything this guide does not give a button for, ask the assistant.
@@ -326,7 +327,7 @@ outputs: [pdf, word]
 | `tex`, `beamer` | LaTeX, LaTeX slides (need TeX) |
 
 **A manuscript made of class sessions says `sessions: true`** (see
-[Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/)). The title goes in
+[Making course materials](https://yoshida-kd.github.io/octavo/lectures/)). The title goes in
 `title:`; don't write a `# Title` heading — a `#` heading is a section.
 
 **Settings for this document**, under each manuscript in the sidebar, changes the settings
@@ -619,7 +620,7 @@ Ask your AI assistant for these; each is one command it knows.
 ## 7. Slides and posters
 
 Lecture notes — one file for an A4 handout and a deck per session — have a page of their own:
-[Making lecture notes](https://yoshida-kd.github.io/octavo/lectures/).
+[Making course materials](https://yoshida-kd.github.io/octavo/lectures/).
 
 ### 7.1 Slides
 
@@ -705,50 +706,17 @@ marked in red in the PDF: cut it or make the cell bigger. To make a poster from 
 ## 8. Writing rules for your AI assistant
 
 Rules on how you write, and a bank of phrasings you trust, can be handed to the AI assistant that
-helps with the prose. They are Markdown files gathered in **packs**: folders with `rules/` and
-`phrases/` in them, in `~/.config/octavo/writing/` for every project, or in the project's
-`notes/writing/`. Before the assistant writes or revises a part of a manuscript, it reads the
-rules and the phrases for that part, and follows them.
+helps with the prose. They are Markdown files gathered in **packs**, in `~/.config/octavo/writing/`
+for every project or in the project's `notes/writing/`. Before the assistant writes or revises a part
+of a manuscript, it reads the rules and the phrases for that part, and follows them. A section can
+also be planned paragraph by paragraph before it is written, and checked against the plan afterwards.
 
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
-
-## One claim per sentence
-
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-Good: Staff numbers fell. How fast they fell differed between municipalities.
-Bad: Staff numbers fell, but at different speeds across municipalities, which …
-```
-
-```markdown
----
-title: Introducing previous research
-lang: en
-section: literature
----
-
-## Showing the course of research
-
-When: opening the section on previous research
-- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
-- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
-```
-
-- Each entry is one `##` heading. In a rule `Rule:` is required, `Why:`, `Good:` and `Bad:`
-  optional; in the phrase bank the parts in 〈 〉 are the ones to fill in. A Japanese file uses
-  規則: / 理由: / 良い例: / 悪い例: and 場面: / 注意: / 出典:.
-- A file with `section:` is read only for that part of a manuscript (`abstract`, `introduction`,
-  `literature`, `theory`, `design`, `results`, `discussion`, `conclusion`, `appendix`); one
-  without it always.
 - Each manuscript in the sidebar has **Writing rules**: the packs it uses, their files and entries
   (right-click an entry to turn it off for that manuscript), **Choose the Packs…** (most general
   first; where two disagree, the later one wins) and **Show the Rules for Where the Cursor Is**
   (also in the editor's right-click menu) — what the assistant reads there.
+- How to make a pack, write its files, choose what each manuscript reads, plan paragraphs and check
+  them: **[Writing support](https://yoshida-kd.github.io/octavo/writing/)**.
 
 ---
 

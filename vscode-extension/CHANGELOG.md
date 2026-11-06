@@ -3,6 +3,23 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.12
+
+- **A page on writing support** (<https://yoshida-kd.github.io/octavo/writing/>): making a pack of
+  writing rules and phrases, writing its files, choosing what each manuscript reads, paragraph plans,
+  checking them, and what to do when nothing comes out. The guide's chapter on writing rules now
+  points there, and the reference's is a short specification with the JSON shapes.
+- **The web pages' header and footer**: the header has the three guides (Guide, Course materials,
+  Writing support) at the right, then a GitHub icon and the language; the footer lists every page.
+  The lecture-notes page is now called "Making course materials" (same address).
+- **`octavo writing`: a paragraph kind is taken only from files the manuscript uses.** A kind named
+  with `--kind` or in a `<!-- para: -->` mark whose file has another `applies` or `lang`, or is in
+  `writing_off`, is left out with a warning, and `octavo outline --paragraphs` marks it "a kind this
+  manuscript does not use" (it used to print it, and to look for its frames).
+- A pack's `extends` naming no pack is reported by `octavo writing` and `octavo check` even when no
+  packs are chosen; `writing_off` takes a file name alone (`results`); `Contains:` in a phrase entry is
+  `contains` in `--json`. Japanese messages: 「不明な節」「不明な種類」「本文がまだない」.
+
 ## 0.6.11
 
 - **Fewer false repeats in `octavo outline --paragraphs`.** A phrase-bank line counts as used only

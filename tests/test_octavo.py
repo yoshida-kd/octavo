@@ -1865,6 +1865,48 @@ class WritingPacks(unittest.TestCase):
 
 
 
+    def test_a_missing_extends_is_reported_even_without_a_choice(self):
+        from octavo import writing
+        w = self.home / 'octavo' / 'writing'
+        self.put(w / 'polisci' / 'pack.md', '---\nextends: [academic-en, nosuch]\n---\n')
+        got = writing.collect(self.root)
+        self.assertTrue(any('nosuch' in x for x in got['warnings']), got['warnings'])
+        self.assertTrue(any('nosuch' in x for x in self.select()['warnings']))
+
+    def test_writing_off_takes_a_file_name_alone(self):
+        self.front('writing_off: [causal]\n')
+        sel = self.select()
+        self.assertNotIn('polisci/causal', self.used(sel))
+        self.assertFalse(any('names nothing' in x for x in sel['warnings']), sel['warnings'])
+
+    def test_a_kind_comes_only_from_files_this_manuscript_uses(self):
+        """lang・applies が合わないファイルや外したファイルの種類は、名指しされても出さない。"""
+        w = self.home / 'octavo' / 'writing'
+        self.put(w / 'polisci' / 'phrases' / 'talk.md',
+                 '---\napplies: [slides]\n---\n\n## Opening\n\n- Today 〈x〉.\n')
+        sel = self.select(kinds=['polisci/talk#opening', 'polisci/results#effect'])
+        self.assertEqual(sel['paragraph_kinds'], ['polisci/results#effect'])
+        self.assertTrue(any('not used for this manuscript' in x for x in sel['warnings']), sel['warnings'])
+        self.front('writing_off: [polisci/results#effect]\n')
+        sel = self.select(kinds=['results#effect'])
+        self.assertEqual(sel['paragraph_kinds'], [])
+
+    def test_the_outline_marks_a_kind_this_manuscript_does_not_use(self):
+        from octavo import paragraphs, writing
+        self.front('writing_off: [polisci/results]\n')
+        sel = self.select(every=True)
+        text = '# Results\n\n<!-- para: polisci/results#effect | c -->\nText.\n\n<!-- para: nosuch#x | c -->\nText.\n'
+        got = paragraphs.review(text, writing.kind_index(sel), sel['sections'],
+                                every=writing.kind_index(sel, usable=False))
+        self.assertEqual([r['problems'] for r in got['paragraphs']], [['unused-kind'], ['unknown-kind']])
+
+    def test_contains_is_read_into_the_json(self):
+        from octavo import paragraphs
+        got = paragraphs.entry_fields('## Main\n\nWhen: w\nContains: the estimate; its size\n- Open: x 〈y〉.\n')
+        self.assertEqual(got['contains'], 'the estimate; its size')
+        self.assertEqual(got['when'], 'w')
+
+
 class ParagraphPlan(unittest.TestCase):
     """段落の構成表: <!-- para: 種類 | 主張 -->、octavo writing --kind / --line、outline --paragraphs。"""
 
@@ -7228,7 +7270,7 @@ class Website(unittest.TestCase):
                 rel = path.relative_to((ROOT / 'site').resolve())
                 if rel.parts[0] == 'images':
                     path = ROOT / 'docs' / Path(*rel.parts)
-                for slug in ('guide', 'lectures', 'quickstart', 'install', 'reference'):
+                for slug in ('guide', 'lectures', 'writing', 'quickstart', 'install', 'reference'):
                     if slug in rel.parts:
                         # 手引きのページは docs/<slug>*.md から組む（site/build.sh）
                         path = ROOT / 'docs' / (f'{slug}.ja.md' if rel.parts[0] == 'ja'
@@ -7283,6 +7325,8 @@ class GuidePages(unittest.TestCase):
     PAIRS = {'guide': GUIDES, 'install': INSTALL, 'reference': REFERENCE,
              'lectures': {'en': ROOT / 'docs' / 'lectures.md',
                           'ja': ROOT / 'docs' / 'lectures.ja.md'},
+             'writing': {'en': ROOT / 'docs' / 'writing.md',
+                         'ja': ROOT / 'docs' / 'writing.ja.md'},
              'quickstart': {'en': ROOT / 'docs' / 'quickstart.md',
                             'ja': ROOT / 'docs' / 'quickstart.ja.md'}}
 
@@ -9433,6 +9477,29 @@ class TidierProject(unittest.TestCase):
         self.assertEqual(set(by), {'style.md', 'legacy.md'})
         self.assertEqual(by['style.md']['entries'], 2)                    # notes/writing/ のほう
         self.assertIn('notes', by['style.md']['path'])
+
+
+class ClaudeMdSize(unittest.TestCase):
+    """開発用の申し送り（CLAUDE.md）は今の状態だけを持ち、履歴は DECISIONS.md に置く。
+
+    肥大すると毎回の読み込みが重くなるので、上限を超えたら整理する（リリースごとに見直す）。
+    公開用ツリーにはどちらのファイルも無いので、そのときは飛ばす。
+    """
+    LIMIT = 800
+
+    @unittest.skipUnless((ROOT / 'CLAUDE.md').exists(), '開発用の checkout ではない')
+    def test_claude_md_stays_small(self):
+        n = len((ROOT / 'CLAUDE.md').read_text(encoding='utf-8').splitlines())
+        self.assertLessEqual(n, self.LIMIT,
+                             f'CLAUDE.md is {n} lines: move history to DECISIONS.md and tidy it')
+
+    @unittest.skipUnless((ROOT / 'CLAUDE.md').exists() and (ROOT / '.git').exists() and shutil.which('git'),
+                         '開発用の git の checkout ではない')
+    def test_the_history_is_not_published(self):
+        out = subprocess.run(['git', '-C', str(ROOT), 'check-attr', 'export-ignore', '--',
+                              'CLAUDE.md', 'DECISIONS.md'],
+                             capture_output=True, text=True, encoding='utf-8', check=True).stdout
+        self.assertEqual([l for l in out.splitlines() if not l.endswith(': set')], [])
 
 
 if __name__ == '__main__':

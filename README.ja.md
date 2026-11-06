@@ -44,7 +44,7 @@
 - **AI アシスタントと使える**: プロジェクトごとの約束事（結果を原稿に手入力しない、`data/raw`
   は書き換えない、など）を `AGENTS.md` に置く。Claude Code・GitHub Copilot・Codex・Antigravity
   のどれもが読むので、AI アシスタントは最初からその約束を知っている。自分で決めた文章の
-  ルールとフレーズバンク（`writing/`）も渡せる。
+  ルールとフレーズバンクも、書いている部分に合わせて渡せる（[執筆支援](https://yoshida-kd.github.io/octavo/ja/writing/)）。
 - Linux・macOS・Windows、英語と日本語。
 
 ## インストール
@@ -116,7 +116,8 @@ The sample has {{n_obs}} cases (@fig-trend).
 - [クイックガイド](https://yoshida-kd.github.io/octavo/ja/quickstart/) — インストールから最初の PDF まで、6つの手順で
 - [Octavo のインストール](https://yoshida-kd.github.io/octavo/ja/install/) — Linux・macOS・Windows を順に
 - [手引き](https://yoshida-kd.github.io/octavo/ja/guide/) — VS Code での使い方: プロジェクト、執筆、分析、文献、論文、スライドとポスター
-- [講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/) — 1つのファイルから A4 のプリントと回ごとのスライド
+- [授業資料の作り方](https://yoshida-kd.github.io/octavo/ja/lectures/) — 1つのファイルから A4 のプリントと回ごとのスライド
+- [執筆支援](https://yoshida-kd.github.io/octavo/ja/writing/) — 自分の書き方のルールとフレーズを、書いている部分に合わせて AI アシスタントに渡す
 - [リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/) — すべてのコマンドと設定。AI アシスタント向け（`octavo docs` でも読める）
 
 ## 貢献とライセンス

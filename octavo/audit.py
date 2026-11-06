@@ -187,7 +187,8 @@ def collect(cfg, anonymous: bool = False) -> list:
         for d in cfg.documents.values():
             if d.exists():
                 try:
-                    warns += [f'{d.name}: {w}' for w in writingmod.select(cfg, d)['warnings']]
+                    warns += [f'{d.name}: {w}' for w in writingmod.select(cfg, d)['warnings']
+                              if w not in wr['warnings']]
                 except SystemExit as e:
                     warns.append(f'{d.name}: {e.code}')
         items.append(Item(

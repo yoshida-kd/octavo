@@ -1351,6 +1351,7 @@ def cmd_outline(args) -> int:
 PARA_PROBLEMS = {
     'no-kind': lambda: t('no kind'),
     'unknown-kind': lambda: t('unknown kind'),
+    'unused-kind': lambda: t('a kind this manuscript does not use'),
     'no-text': lambda: t('no text yet'),
     'joined': lambda: t('needs a blank line before the mark (it joins the paragraph above)'),
     'same-kind': lambda: t('note: the third paragraph in a row of this kind'),
@@ -1368,7 +1369,8 @@ def _outline_paragraphs(cfg, args) -> int:
             continue
         doc = cfg.documents[name]
         sel = writingmod.select(cfg, doc, every=True)
-        got = paramod.review(mdlib.read(src), writingmod.kind_index(sel), sel['sections'], is_appendix)
+        got = paramod.review(mdlib.read(src), writingmod.kind_index(sel), sel['sections'], is_appendix,
+                             every=writingmod.kind_index(sel, usable=False))
         out.append({'doc': name, 'file': cfg.rel(src), 'appendix': is_appendix, **got})
     if args.json:
         print(_json.dumps(out, ensure_ascii=False))

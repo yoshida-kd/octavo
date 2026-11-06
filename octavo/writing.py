@@ -219,6 +219,13 @@ def choose(got: dict, wanted) -> tuple:
     return order, warnings
 
 
+def extends_warnings(got: dict) -> list:
+    """`extends` に書いたのに見つからないパック（打ち間違いは黙って効かなくなるので知らせる）。"""
+    return [t('{pack}: extends {name}, but there is no pack called {name} (packs: {names})',
+              pack=n, name=e, names=', '.join(sorted(got)))
+            for n in sorted(got) for e in got[n]['extends'] if e not in got]
+
+
 def known_sections(got: dict) -> list:
     out = list(SECTIONS)
     for p in got.values():
@@ -231,7 +238,7 @@ def collect(root: Path) -> dict:
     got = packs(root)
     valid = set(known_sections(got)) | {'all'}
     out: dict = {kind: [] for kind in KINDS}
-    warnings: list = []
+    warnings: list = extends_warnings(got)
     for name in default_order(got):
         for (kind, _), (path, where) in sorted(got[name]['files'].items()):
             d = {**describe(path), 'where': where, 'pack': name, 'kind': kind}
@@ -338,6 +345,8 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
     view = cfg.for_document(doc)
     own = configmod.doc_settings(doc.src)
     order, warnings = choose(got, view.get('writing'))
+    if view.get('writing') is None:
+        warnings = extends_warnings(got) + warnings
     off = list(dict.fromkeys(_as_list(cfg.get('writing_off')) + _as_list(own.get('writing_off'))))
     known = known_sections(got)
     if section is not None and section not in known:
@@ -358,7 +367,7 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
                 reason = 'applies'
             elif d['lang'] and lang and d['lang'] != lang:
                 reason = 'lang'
-            elif fid in off:
+            elif fid in off or stem in off:
                 reason = 'off'
             elif not every and 'all' not in secs and section not in secs:
                 reason = 'section'
@@ -370,21 +379,25 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
                 for it, (_, block, _) in zip(d['items'], entries):
                     it.update(paramod.entry_fields(block))
             out_files.append({**d, 'pack': name, 'kind': kind, 'where': where, 'id': fid,
-                              'used': reason is None, 'skipped': reason})
+                              'used': reason is None, 'skipped': reason,
+                              'excluded': reason if reason in ('applies', 'lang', 'off') else None})
     picked: list = []
     if kinds is not None:
         index = kind_index({'files': out_files})
+        every = kind_index({'files': out_files}, usable=False)
         for k in kinds:
             hit = paramod.resolve(k, index)
             if hit is None:
+                elsewhere = paramod.resolve(k, every)
+                if elsewhere:
+                    warnings.append(t('{kind} is not used for this manuscript ({why})', kind=elsewhere,
+                                      why=every[elsewhere]['why']))
+                    continue
                 near = paramod.suggest(k, index)
                 warnings.append(t('no paragraph kind called {kind}', kind=k)
                                 + (' ' + t('(did you mean {names}?)', names=', '.join(near)) if near else ''))
             elif hit not in picked:
                 picked.append(hit)
-                if index[hit]['off']:
-                    warnings.append(t('{kind} is turned off in writing_off, but this paragraph names it',
-                                      kind=hit))
         for f in out_files:
             if f['kind'] != 'phrases':
                 continue
@@ -392,7 +405,8 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
                 it['picked'] = it['id'] in picked
             f['used'] = any(it['picked'] for it in f['items'])
             f['skipped'] = None if f['used'] else 'kind'
-    unknown = [x for x in off if not any(x == f['id'] or any(x in (i['id'], i['id'].split('/', 1)[1])
+    unknown = [x for x in off if not any(x in (f['id'], f['id'].split('/', 1)[1])
+                                         or any(x in (i['id'], i['id'].split('/', 1)[1])
                                                               for i in f['items']) for f in out_files)]
     warnings += [t('writing_off names nothing: {id}', id=x) for x in unknown]
     return {'doc': doc.name, 'packs': order, 'chosen': view.get('writing') is not None,
@@ -403,10 +417,23 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
             'warnings': warnings}
 
 
-def kind_index(sel: dict) -> dict:
-    """段落の種類（フレーズの項目）の id -> 項目。選んだパックのフレーズのファイルすべてから。"""
-    return {it['id']: {**it, 'file': f['id'], 'file_title': f['title'], 'sections': f['section']}
-            for f in sel['files'] if f['kind'] == 'phrases' for it in f['items']}
+def kind_index(sel: dict, usable: bool = True) -> dict:
+    """段落の種類（フレーズの項目）の id -> 項目。選んだパックのフレーズのファイルから。
+
+    usable なら、その原稿で使うもの（applies・lang が合い、writing_off で外していない）だけ。
+    節は問わない。usable=False ならすべてで、各項目の why に使わないわけ（なければ None）。
+    """
+    out = {}
+    for f in sel['files']:
+        if f['kind'] != 'phrases':
+            continue
+        for it in f['items']:
+            why = f.get('excluded') or ('off' if it['off'] else None)
+            if usable and why:
+                continue
+            out[it['id']] = {**it, 'file': f['id'], 'file_title': f['title'], 'sections': f['section'],
+                             'why': why}
+    return out
 
 
 def render(sel: dict, heading: str | None = None) -> str:

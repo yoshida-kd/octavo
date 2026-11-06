@@ -1,6 +1,6 @@
 #!/bin/sh
-# 手引き（docs/guide*.md）・講義ノートの手引き（docs/lectures*.md）・インストール（docs/install*.md）・
-# リファレンス（docs/reference*.md）・クイックガイド（docs/quickstart*.md）を、
+# 手引き（docs/guide*.md）・授業資料の作り方（docs/lectures*.md）・インストール（docs/install*.md）・
+# 執筆支援（docs/writing*.md）・リファレンス（docs/reference*.md）・クイックガイド（docs/quickstart*.md）を、
 # Pages に出す HTML にする。
 #   sh site/build.sh <出力先>   ->  <出力先>/guide/index.html・<出力先>/ja/guide/index.html
 #                                  <出力先>/lectures/index.html・<出力先>/ja/lectures/index.html
@@ -28,7 +28,7 @@ page() {  # page <原稿> <出力> <言語> <題> <説明> <目次の見出し> 
   grep -v -- '<!-- pages:skip -->' "$1" | pandoc -f markdown+gfm_auto_identifiers+east_asian_line_breaks -t html5 \
     --template "$here/guide.html" --toc --toc-depth=3 --wrap=none "$nohl" \
     -V lang="$3" -V "$3=1" -M pagetitle="$4" -V description="$5" -V toclabel="$6" \
-    -V root="$7" -V home="$8" -V slug="$9" -o "$2"
+    -V root="$7" -V home="$8" -V slug="$9" -V "nav_$9=1" -o "$2"
 }
 
 page "$repo/docs/guide.md" "$out/guide/index.html" en "Octavo guide" \
@@ -37,12 +37,18 @@ page "$repo/docs/guide.md" "$out/guide/index.html" en "Octavo guide" \
 page "$repo/docs/guide.ja.md" "$out/ja/guide/index.html" ja "Octavo 手引き" \
   "VS Code での Octavo の使い方。プロジェクト、原稿の書き方、分析、文献、論文、スライドとポスター。" \
   "目次" "../../" "../" guide
-page "$repo/docs/lectures.md" "$out/lectures/index.html" en "Making lecture notes" \
+page "$repo/docs/lectures.md" "$out/lectures/index.html" en "Making course materials" \
   "How to make lecture notes with Octavo in VS Code: one Markdown file for the A4 handout, a deck per session and per-session handouts." \
   "Contents" "../" "../" lectures
-page "$repo/docs/lectures.ja.md" "$out/ja/lectures/index.html" ja "講義ノートの作り方" \
+page "$repo/docs/lectures.ja.md" "$out/ja/lectures/index.html" ja "授業資料の作り方" \
   "Octavo で講義ノートを作る手引き。1本の Markdown から A4 プリント・回ごとのスライド・回ごとの配布資料を VS Code で。" \
   "目次" "../../" "../" lectures
+page "$repo/docs/writing.md" "$out/writing/index.html" en "Writing support" \
+  "Writing rules and a phrase bank for your AI assistant, chosen for each part of a manuscript; paragraph plans and questions for the author." \
+  "Contents" "../" "../" writing
+page "$repo/docs/writing.ja.md" "$out/ja/writing/index.html" ja "執筆支援" \
+  "原稿のいま書いている部分に合わせて、書き方のルールとフレーズバンクを AI アシスタントに渡す。段落の構成表と著者への問い。" \
+  "目次" "../../" "../" writing
 page "$repo/docs/install.md" "$out/install/index.html" en "Installing Octavo" \
   "Installing Octavo on Linux, macOS and Windows: the VS Code extension sets up R, Python, Quarto, pandoc, Typst and the fonts with one button." \
   "Contents" "../" "../" install

@@ -79,5 +79,5 @@ GitHub Copilot・Codex・Antigravity は、これを自分で読みます。分�
 - [手引き](https://yoshida-kd.github.io/octavo/ja/guide/): すべての機能の詳しい説明。
 - [リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/): すべてのコマンドと設定
   （AI アシスタント向け）。
-- [講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/): 1本のファイルから、
+- [授業資料の作り方](https://yoshida-kd.github.io/octavo/ja/lectures/): 1本のファイルから、
   プリントと回ごとのスライド。

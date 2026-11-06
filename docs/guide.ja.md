@@ -10,7 +10,8 @@ Octavo は、Markdown で書いた原稿から論文・配布資料・スライ�
 
 - まだ入れていなければ: [Octavo のインストール](https://yoshida-kd.github.io/octavo/ja/install/)
 - 急ぐなら: [クイックガイド](https://yoshida-kd.github.io/octavo/ja/quickstart/)
-- 講義ノート: [講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)
+- 授業資料: [授業資料の作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)
+- AI アシスタントに渡す書き方のルール: [執筆支援](https://yoshida-kd.github.io/octavo/ja/writing/)
 - そのほかのすべて（コマンドと設定の全部）は、AI アシスタント向けに書いた
   [リファレンス](https://yoshida-kd.github.io/octavo/ja/reference/)にある。この手引きに
   ボタンのないことは、AI アシスタントに頼む。
@@ -311,7 +312,7 @@ outputs: [pdf, word]
 | `poster` | ポスター（[7.2](#72-ポスター)） |
 | `tex`、`beamer` | LaTeX、LaTeX のスライド（TeX が要る） |
 
-**授業の回でできた原稿には `sessions: true` と書く**（[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)を参照）。
+**授業の回でできた原稿には `sessions: true` と書く**（[授業資料の作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)を参照）。
 題は `title:` に書き、`# 題` の見出しは書かない（`#` の見出しは節）。
 
 サイドバーで各原稿の下にある「**この文書の設定**」で、投稿先や発表ごとに変わる設定を変える:
@@ -593,7 +594,7 @@ Acknowledgements: this research was funded by ...
 ## 7. スライドとポスター
 
 講義ノート（1つのファイルから A4 のプリントと回ごとのスライド）には専用のページがある:
-[講義ノートの作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)。
+[授業資料の作り方](https://yoshida-kd.github.io/octavo/ja/lectures/)。
 
 ### 7.1 スライド
 
@@ -674,49 +675,18 @@ poster_rows: [2, 1]
 
 ## 8. AI アシスタントのための文章のルール
 
-自分の書き方の決まりと、信頼できる言い回しの表現集を、文章を手伝う AI アシスタントに渡せる。
-**パック**にまとめた Markdown のファイルで、`rules/` と `phrases/` のあるフォルダーを、すべての
-プロジェクト用なら `~/.config/octavo/writing/` に、そのプロジェクト用なら `notes/writing/` に置く。
-アシスタントは原稿のある部分を書いたり直したりする前に、その部分のルールと表現を読み、それに従う。
+自分の書き方のルールと、信頼できる言い回しのフレーズバンクを、文章を手伝う AI アシスタントに渡せる。
+**パック**にまとめた Markdown のファイルで、すべてのプロジェクト用なら `~/.config/octavo/writing/`
+に、そのプロジェクト用なら `notes/writing/` に置く。アシスタントは原稿のある部分を書いたり直したり
+する前に、その部分のルールとフレーズを読み、それに従う。節を書く前に段落ごとの構成を決めておき、
+書いたあとで構成と見比べることもできる。
 
-```markdown
----
-title: Style of a paper
-lang: en
-applies: [paper]
----
-
-## One claim per sentence
-
-Rule: Put one claim in a sentence.
-Why: The reader need not look for where one claim ends.
-Good: Staff numbers fell. How fast they fell differed between municipalities.
-Bad: Staff numbers fell, but at different speeds across municipalities, which …
-```
-
-```markdown
----
-title: Introducing previous research
-lang: en
-section: literature
----
-
-## Showing the course of research
-
-When: opening the section on previous research
-- Research on 〈phenomenon〉 has grown in 〈field〉 [@key].
-- Explanations of 〈phenomenon〉 fall into 〈number〉 groups.
-```
-
-- 項目は `##` の見出しごと。ルールでは `Rule:` が必須で、`Why:`・`Good:`・`Bad:` は任意。
-  表現集では 〈 〉 の所を埋める。日本語のファイルでは 規則: / 理由: / 良い例: / 悪い例: と
-  場面: / 注意: / 出典: を使う。
-- `section:` のあるファイルは原稿のその部分（`abstract`、`introduction`、`literature`、`theory`、
-  `design`、`results`、`discussion`、`conclusion`、`appendix`）でだけ、ないファイルはいつも読まれる。
 - サイドバーの各原稿に「**文章のルール**」がある。その原稿が使うパック、そのファイルと項目
   （右クリックでその原稿では使わないことにできる）、「**パックを選ぶ…**」（一般的なものから。
   食い違えば後のものが勝つ）、「**カーソルの所のルールを見る**」（エディターの右クリックにもある）。
   最後のものは、アシスタントがそこで読むもの。
+- パックの作り方、ファイルの書き方、原稿ごとに読むものの選び方、段落の構成表とその確かめ方は
+  **[執筆支援](https://yoshida-kd.github.io/octavo/ja/writing/)** に。
 
 ---
 

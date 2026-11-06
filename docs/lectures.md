@@ -1,6 +1,6 @@
-# Making lecture notes
+# Making course materials
 
-> This is the source of the lecture-notes guide. Read it at **<https://yoshida-kd.github.io/octavo/lectures/>**. <!-- pages:skip -->
+> This is the source of the course-materials guide. Read it at **<https://yoshida-kd.github.io/octavo/lectures/>**. <!-- pages:skip -->
 
 From **one Markdown file**, lecture notes give you:
 
