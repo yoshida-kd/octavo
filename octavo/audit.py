@@ -27,6 +27,7 @@ from . import diagrams
 from . import handtables
 from . import lint as lintmod
 from . import md as mdlib
+from . import paragraphs as paramod
 from . import scaffold
 from . import values as valmod
 from .i18n import t
@@ -334,6 +335,18 @@ def collect(cfg, anonymous: bool = False) -> list:
                 if left else t('no marks left')),
         lines=[f'{lo.file}:{lo.line}  {lo.excerpt}' for lo in left],
         hint=t('replace them with your own content, comment mark and all')))
+
+    # -- 著者への問い（AI が数字や根拠を待って残した <!-- ask: … -->） ------------
+    asked = []
+    for _name, src, _app in cfg.sources():
+        asked += [f"{cfg.rel(src)}:{a['line']}  {a['text']}"
+                  for a in paramod.asks(mdlib.read(src))]
+    if asked:
+        items.append(Item(
+            ok=False, fatal=False, label=t('questions for the author'),
+            detail=t('{n} <!-- ask: --> {n|comment|comments} left', n=len(asked)),
+            lines=asked,
+            hint=t('answer each one (write the sentence, or tell the assistant), then delete the comment')))
 
     divs = lintmod.div_issues(cfg)
     items.append(Item(

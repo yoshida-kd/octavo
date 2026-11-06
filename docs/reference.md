@@ -897,8 +897,16 @@ octavo outline my-paper --paragraphs
   `when`, `note` and `lines` (`position`: `open`/`body`/`close`, `text`).
 - `octavo outline … --paragraphs [--json]` lists each paragraph's kind, claim and first sentence,
   marking paragraphs with no kind, unknown kinds (with a near name), marks with no text, marks that
-  need a blank line, the same kind twice in a row, and a phrase-bank line used twice under one
-  heading.
+  need a blank line, and a third paragraph in a row of the same kind (a note: two in a row is
+  normal). It also reports a phrase-bank line used twice under one heading — only lines from the
+  heading's own section (or files with no `section:`), and only where every word outside 〈 〉
+  appears in order within one sentence (a slot `〈A / B〉` is a choice: one of the words must
+  appear; a frame starting with a capital starts the sentence; a frame ending in `.` ends it;
+  frames with fewer than two fixed words are not looked for). `--json` adds `repeats` and `asks`.
+- **Questions for the author.** Where the text needs a number or a source that is in neither the
+  manuscript nor the analysis, an assistant leaves `<!-- ask: … -->` instead of writing the
+  sentence. `octavo outline … --paragraphs` lists them with their lines, and `octavo check` shows
+  them as a warning until they are answered and deleted.
 - `writing` / `writing_off` in the config or the front matter choose packs and turn entries off
   (`pack/file#heading`, `pack/file`); without a choice every pack is used.
 - A pack's `pack.md` may have `extends` and `sections`. A file may have `title`, `lang`,

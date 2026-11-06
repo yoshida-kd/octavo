@@ -1976,6 +1976,57 @@ class ParagraphPlan(unittest.TestCase):
         self.assertIn('[unknown kind]', text)
         self.assertIn('claim: The effect is large', text)
 
+    def test_a_frame_must_be_used_word_for_word(self):
+        from octavo import paragraphs as P
+        hit = lambda frame, sentence: bool(P.frame_pattern(frame).search(sentence))
+        robust = 'The 〈results〉 〈hold / remain similar〉 when 〈X〉.'
+        self.assertFalse(hit(robust, 'The same pattern holds when we drop Tokyo.'))   # holds は hold でない
+        self.assertTrue(hit(robust, 'The estimates remain similar when we drop Tokyo [@a].'))
+        share = 'Of the 〈N units〉, 〈P〉 percent 〈X〉.'
+        self.assertFalse(hit(share, 'The share averaged 30 of the units at 40 percent.'))  # 文の頭でない
+        self.assertTrue(hit(share, 'Of the 52 divisions, 40 percent were redrawn.'))
+        finding = 'The 〈results / findings〉 〈show / suggest / indicate〉 that 〈X〉.'
+        self.assertFalse(hit(finding, 'The data show that it holds.'))               # 選ぶ言葉の外
+        self.assertTrue(hit(finding, 'The findings suggest that it holds.'))
+        self.assertTrue(hit('In other words,', 'In other words, it holds.'))         # 文の一部の型
+        self.assertIsNone(P.frame_pattern('〈X〉, as 〈H1〉.'))                         # 言葉が1語だけ
+        self.assertEqual(P.sentences('It is e.g. bigger. Next one.'), ['It is e.g. bigger.', 'Next one.'])
+
+    def test_frames_count_only_in_their_own_section(self):
+        self.write_plan()
+        self.put(self.home / 'octavo' / 'writing' / 'polisci' / 'phrases' / 'abstract.md',
+                 '---\nsection: abstract\n---\n\n## State the finding\n\n'
+                 '- Body: The 〈results / findings〉 〈show / suggest〉 that 〈X〉.\n')
+        self.src.write_text('---\ntitle: T\nlang: en\n---\n\n# Hypotheses\n\n'
+                            'The results show that it rose. The results show that it fell.\n\n'
+                            '# Results\n\nFor example, A.\n\nFor example, B.\n', encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        got = json.loads(out)[0]['repeats']
+        self.assertEqual([(r['id'], r['section']) for r in got], [('polisci/results#effect', 'results')])
+
+    def test_the_same_kind_is_noted_only_from_the_third_in_a_row(self):
+        self.write_plan()
+        mark = '<!-- para: polisci/results#effect | c -->\nText {}.\n\n'
+        self.src.write_text('# Results\n\n' + ''.join(mark.format(i) for i in range(3)), encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        rows = json.loads(out)[0]['paragraphs']
+        self.assertEqual([r['problems'] for r in rows], [[], [], ['same-kind']])
+
+    def test_questions_for_the_author_are_listed(self):
+        from octavo import audit
+        self.write_plan()
+        self.src.write_text('# Results\n\nText.\n<!-- ask: What was N in 2019?\n  The data stop in 2018. -->\n\n'
+                            '```\n<!-- ask: in code -->\n```\n', encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        self.assertEqual(json.loads(out)[0]['asks'],
+                         [{'line': 4, 'text': 'What was N in 2019? The data stop in 2018.'}])
+        code, text = self.run_cli('outline', 'mypaper', '--paragraphs')
+        self.assertIn('question for the author at line 4', text)
+        row = next(i for i in audit.collect(self.cfg()) if i.label == 'questions for the author')
+        self.assertFalse(row.ok)
+        self.assertFalse(row.fatal)
+        self.assertIn('mypaper.md:4', row.lines[0])
+
     @unittest.skipUnless(HAVE_PANDOC, 'pandoc is not installed')
     def test_the_marks_never_reach_the_output(self):
         self.write_plan()

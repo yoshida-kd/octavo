@@ -176,10 +176,8 @@ def _flat(body: str) -> str:
     return out
 
 
-def first_sentence(body: str, limit: int = 240) -> str:
-    """本文の最初の文（人が主張と見比べるため。厳密でなくてよい）。"""
-    s = _flat(body)
-    s = re.sub(r'^(?:[-*+]|\d+[.)])\s+', '', s)
+def _cut(s: str):
+    """s の最初の文の終わり（文字の位置）。見つからなければ None。"""
     jp = s.find('。')
     cut = None
     for m in re.finditer(r'[.!?]["\'”’)\]]*(?=\s+["“(\[]?[A-Z0-9])', s):
@@ -190,6 +188,14 @@ def first_sentence(body: str, limit: int = 240) -> str:
         break
     if jp >= 0 and (cut is None or jp < cut):
         cut = jp + 1
+    return cut
+
+
+def first_sentence(body: str, limit: int = 240) -> str:
+    """本文の最初の文（人が主張と見比べるため。厳密でなくてよい）。"""
+    s = _flat(body)
+    s = re.sub(r'^(?:[-*+]|\d+[.)])\s+', '', s)
+    cut = _cut(s)
     out = s[:cut] if cut else s
     return out if len(out) <= limit else out[:limit - 1].rstrip() + '…'
 
@@ -264,38 +270,133 @@ def _literal(part: str) -> str:
     return out
 
 
-def frame_pattern(text: str):
-    """フレーズの行を本文から探す正規表現に。差し替える所（〈 〉）は何でも当たる。
+def _words(part: str) -> int:
+    return len(re.findall(r'[A-Za-z]{2,}|[぀-鿿]{2,}', part))
 
-    言葉が2語に満たない型（「〈X〉.」など）は探さない（どの文にも当たってしまう）。
+
+SLOT = re.compile(r'〈([^〉]*)〉')
+# 文の終わり（引用の [@key] や括弧・引用符が間にあってよい）
+TAIL = r'(?:\s*\[[^\]]*\])?\s*[.!?。]?["\'”’)\]]*\s*$'
+
+
+def frame_pattern(text: str):
+    """フレーズの行を、本文の1文に当てる正規表現に。
+
+    - 〈 〉の外の言葉は、すべて同じ順で出なければならない
+    - 〈A / B〉は選ぶ言葉なので、A か B のどちらかがそのまま出なければならない。
+      ほかの〈 〉（〈X〉〈N units〉）は何が入ってもよいが、文をまたがない
+    - 大文字の言葉で始まる型は文の頭で、`.` などで終わる型（1文まるごとの型）は文の終わりで当たる
+    - 決まった言葉（選ぶ言葉は1つと数える）が2語に満たない型は探さない（どの文にも当たってしまう）
+    使うときは文ごとに `.search()` する（sentences()）。
     """
     pats = []
     for alt in _alternatives(text):
-        parts = re.split(r'〈[^〉]*〉', alt)
-        words = sum(len(re.findall(r'[A-Za-z]{2,}|[぀-鿿]{2,}', p)) for p in parts)
-        if words < 2:
+        alt = alt.strip()
+        pieces, words, last = [], 0, 0
+        for m in SLOT.finditer(alt):
+            lit = alt[last:m.start()].strip(' ,、')
+            if lit:
+                pieces.append(_literal(lit))
+                words += _words(lit)
+            choices = [c.strip() for c in m.group(1).split(' / ')]
+            if len(choices) > 1 and all(c and _words(c) for c in choices):
+                pieces.append('(?:' + '|'.join(_literal(c) for c in choices) + ')')
+                words += 1
+            else:
+                pieces.append(None)
+            last = m.end()
+        tail = alt[last:].strip(' .。,、')
+        if tail:
+            pieces.append(_literal(tail))
+            words += _words(tail)
+        if words < 2 or not any(pieces):
             continue
-        lit = [_literal(p.strip(' .。,、')) for p in parts]
-        body = r'.{1,120}?'.join(x for x in lit if x) if len(lit) > 1 else lit[0]
-        if not body:
-            continue
+        # 続く「何でもよい」は1つにまとめる
+        out, gap = [], False
+        for x in pieces:
+            if x is None:
+                gap = True
+                continue
+            if out:
+                out.append(r'.{1,120}?' if gap else r'[\s,、]*')
+            elif gap:
+                out.append(r'.{1,120}?')
+            out.append(x)
+            gap = False
+        body = ''.join(out)
+        # 大文字で始まる型は文の頭から、文の終わりの記号で終わる型は文の終わりまで
+        if pieces[0] is not None and re.match(r'[A-Z]', alt):
+            body = r'^["“(]?' + body
+        if re.search(r'[.!?。]$', alt):
+            body += (r'.+?' if gap else '') + TAIL
         pats.append(body)
     if not pats:
         return None
-    return re.compile('|'.join(pats), re.I)
+    return re.compile('|'.join(f'(?:{x})' for x in pats), re.I)
+
+
+def sentences(body: str) -> list:
+    """本文を文に分ける（first_sentence と同じ見方。厳密でなくてよい）。"""
+    out, rest = [], _flat(body)
+    while rest:
+        cut = _cut(rest) or len(rest)
+        out.append(rest[:cut].strip())
+        rest = rest[cut:].lstrip()
+    return [x for x in out if x]
 
 
 # ---------------------------------------------------------------- 構成表の確認（逆アウトライン）
-def review(text: str, index: dict) -> dict:
+ASK = re.compile(r'<!--\s*ask\s*:(.*?)-->', re.S | re.I)
+SAME_RUN = 3                    # 同じ種類がこれだけ続いたら知らせる（2つ続くのはふつう）
+
+
+def asks(text: str) -> list:
+    """著者への問い `<!-- ask: … -->` の並び [{'line', 'text'}]（コードの中は読まない）。"""
+    lines = text.split('\n')
+    start = 0
+    m = mdlib.FRONT_MATTER.match(text)
+    if m:
+        start = text[:m.end()].count('\n')
+    out, fence, i = [], None, start
+    while i < len(lines):
+        raw = lines[i]
+        s = raw.strip()
+        if fence:
+            if s.startswith(fence):
+                fence = None
+            i += 1
+            continue
+        f = re.match(r'\s*(```+|~~~+)', raw)
+        if f:
+            fence = f.group(1)
+            i += 1
+            continue
+        if '<!--' in raw:
+            j, chunk = i, raw
+            while '-->' not in chunk[chunk.index('<!--'):] and j + 1 < len(lines):
+                j += 1
+                chunk += '\n' + lines[j]
+            for mm in ASK.finditer(chunk):
+                at = i + 1 + chunk[:mm.start()].count('\n')
+                out.append({'line': at, 'text': ' '.join(mm.group(1).split())})
+            i = j + 1
+            continue
+        i += 1
+    return out
+
+
+def review(text: str, index: dict, known: list | None = None, appendix: bool = False) -> dict:
     """原稿の段落を、種類・主張・本文の最初の文と、印（problems）にして並べる。
 
-    index は writing.kind_index()。印は人が見るためのもので、どれも致命的ではない:
+    index は writing.kind_index()、known は節の名前（writing.known_sections()）。
+    印は人が見るためのもので、どれも致命的ではない:
       no-kind       種類の無い段落（印が無い、または種類が空）
       unknown-kind  パックに無い種類（打ち間違い）。near に似た名前
       no-text       本文がまだ無いコメント
       joined        コメントが本文の行の直後（空行が無いので、組むと前の段落とつながる）
-      same-kind     同じ見出しの下で、すぐ前の段落と同じ種類
-    repeats は、同じ見出しの下で同じフレーズの行が2回以上使われている所。
+      same-kind     同じ見出しの下で、同じ種類が SAME_RUN 個以上続いた（その3つ目から）
+    repeats は、同じ見出しの下で同じフレーズの行が2回以上使われている所（その節のフレーズだけ）。
+    asks は、残っている著者への問い。
     """
     paras = parse(text)
     rows, prev = [], {}
@@ -315,46 +416,60 @@ def review(text: str, index: dict) -> dict:
         if p['joined']:
             marks.append('joined')
         region = p['heading_line']
-        if hit and prev.get(region) == hit:
+        last, run = prev.get(region, (None, 0))
+        run = run + 1 if hit and last == hit else 1
+        if hit and run >= SAME_RUN:
             marks.append('same-kind')
-        prev[region] = hit
+        prev[region] = (hit, run)
         rows.append({'line': p['line'] or p['body_line'], 'body_line': p['body_line'],
                      'kind': p['kind'], 'id': hit, 'title': index[hit]['title'] if hit else None,
                      'claim': p['claim'],
                      'first_sentence': first_sentence(mdlib.strip_comments(p['body'])) if p['body'] else '',
                      'heading': p['heading'], 'heading_line': p['heading_line'],
                      'heading_level': p['heading_level'], 'problems': marks, 'near': near})
-    return {'paragraphs': rows, 'repeats': repeats(paras, index)}
+    return {'paragraphs': rows, 'repeats': repeats(paras, index, text, known, appendix),
+            'asks': asks(text)}
 
 
-def repeats(paras: list, index: dict) -> list:
-    """同じ見出しの下で2回以上使われたフレーズの行（ルールの "Vary the frames" の確認）。"""
+def repeats(paras: list, index: dict, text: str = '', known: list | None = None,
+            appendix: bool = False) -> list:
+    """同じ見出しの下で2回以上使われたフレーズの行（ルールの "Vary the frames" の確認）。
+
+    見るのは、その見出しの節（writing.section_at）のフレーズのファイルと、節を決めていない
+    ファイルの行だけ。要旨の型が仮説の節の文に当たる、ということが無いように。
+    """
+    from . import writing as writingmod
     frames = []
     seen = set()
     for kid, it in index.items():
         for ln in it.get('lines', []):
-            if ln['text'] in seen:
+            key = (ln['text'], tuple(it.get('sections') or ['all']))
+            if key in seen:
                 continue
-            seen.add(ln['text'])
+            seen.add(key)
             pat = frame_pattern(ln['text'])
             if pat:
-                frames.append((kid, ln['text'], pat))
+                frames.append((kid, ln['text'], pat, set(it.get('sections') or ['all'])))
     by_region: dict = {}
     for p in paras:
         if p['body'].strip() and p['prose']:
             by_region.setdefault((p['heading_line'], p['heading']), []).append(p)
     out = []
     for (hline, htitle), ps in by_region.items():
+        section = None
+        if known is not None:
+            section = writingmod.section_at(text, ps[0]['body_line'], known, appendix)[0]
+        said = [(p['body_line'], sentences(mdlib.strip_comments(p['body']))) for p in ps]
         best: dict = {}             # 当たった所が同じなら、言葉のいちばん長い型を1つだけ
-        for kid, text, pat in frames:
-            where = []
-            for p in ps:
-                where += [p['body_line']] * len(pat.findall(_flat(mdlib.strip_comments(p['body']))))
+        for kid, ftext, pat, secs in frames:
+            if known is not None and 'all' not in secs and section not in secs:
+                continue
+            where = [line for line, ss in said for x in ss if pat.search(x)]
             if len(where) >= 2:
-                weight = len(re.sub(r'〈[^〉]*〉', '', text))
+                weight = len(SLOT.sub('', ftext))
                 key = tuple(where)
                 if key not in best or weight > best[key][0]:
                     best[key] = (weight, {'heading': htitle, 'heading_line': hline, 'id': kid,
-                                          'text': text, 'lines': where})
+                                          'text': ftext, 'lines': where, 'section': section})
         out += [v for _, v in best.values()]
     return out

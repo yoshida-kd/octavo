@@ -3,6 +3,18 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.6.11
+
+- **Fewer false repeats in `octavo outline --paragraphs`.** A phrase-bank line counts as used only
+  when every word outside 〈 〉 appears in order within one sentence (`〈A / B〉` means one of those
+  words), and only lines from the heading's own section are looked for.
+- **Several paragraphs of one kind in a row are fine.** The outline notes only the third in a row.
+- **Questions for the author.** `<!-- ask: … -->` comments, left where a number or a source is
+  missing, are listed by `octavo outline --paragraphs` and shown as a warning by `octavo check`.
+- **Rules for what a figure or table shows** in the project's AGENTS.md (figure over table, no
+  crowding, labelled axes and direct labels, no raw statistics output). `octavo migrate --rules`
+  brings them into an existing project.
+
 ## 0.6.10
 
 - **Planning paragraphs.** A mark directly above a paragraph, `<!-- para: <kind> | <its claim> -->`,

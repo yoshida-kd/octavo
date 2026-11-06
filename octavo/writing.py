@@ -405,7 +405,7 @@ def select(cfg, doc, section=None, every=False, kinds=None) -> dict:
 
 def kind_index(sel: dict) -> dict:
     """段落の種類（フレーズの項目）の id -> 項目。選んだパックのフレーズのファイルすべてから。"""
-    return {it['id']: {**it, 'file': f['id'], 'file_title': f['title']}
+    return {it['id']: {**it, 'file': f['id'], 'file_title': f['title'], 'sections': f['section']}
             for f in sel['files'] if f['kind'] == 'phrases' for it in f['items']}
 
 

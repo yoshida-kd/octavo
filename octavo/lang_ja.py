@@ -182,7 +182,12 @@ MESSAGES: dict = {
     'no text yet': '本文がまだ無い',
     'needs a blank line before the mark (it joins the paragraph above)':
         '印の前に空行が要る（このままでは前の段落とつながる）',
-    'same kind as the paragraph before': '前の段落と同じ種類',
+    'note: the third paragraph in a row of this kind': '注: 同じ種類の段落が3つ目',
+    'question for the author at line {line}: {text}': '著者への問い（{line} 行目）: {text}',
+    'questions for the author': '著者への問い',
+    '{n} <!-- ask: --> {n|comment|comments} left': '<!-- ask: --> が {n} 件残っている',
+    'answer each one (write the sentence, or tell the assistant), then delete the comment':
+        'それぞれに答え（文を書くか、AI に伝える）、コメントを消す',
     'claim': '主張',
     'first': '最初の文',
     '{n} {n|paragraph|paragraphs}': '{n} 段落',

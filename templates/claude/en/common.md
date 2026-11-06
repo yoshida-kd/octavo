@@ -123,6 +123,19 @@ copy it.
    text with `ov_tint(colour, 0.6)`
 4. Don't put red next to green, or yellow next to white
 
+### What a figure or table shows
+
+1. **Prefer a figure to a table** when the point is a comparison, a trend or a size of effect;
+   keep tables for exact values the reader will look up
+2. **Don't pack in digits or lines.** Round to what the argument needs (two or three
+   significant digits), and drop gridlines, borders and rules that separate nothing
+3. **Label every axis** (with its unit), and label lines and groups in the figure rather than
+   in a legend; use a legend only when direct labels would collide
+4. **Never paste a statistics package's output as it is.** Choose the rows and columns the text
+   uses, give them readable names (not variable names), and say what the numbers are (estimate,
+   standard error, N) in the table or its note — `ov_table()` writes the table from a data frame
+   you have shaped
+
 Diagrams such as boxes and arrows are drawn in Typst: `octavo new figure <name>` puts
 `figures/<name>.typ`, and `octavo build` turns it into `.pdf` and `.png`, so the
 manuscript references the `.png` like any figure (**never edit the drawn `.pdf` / `.png`**;
@@ -226,7 +239,12 @@ one mark per paragraph, directly above the paragraph, with its kind (an entry of
 - `octavo outline <document> --paragraphs` lists each paragraph's kind, claim and first sentence,
   and marks paragraphs without a kind, unknown kinds, marks with no text yet and a phrase-bank
   line used twice under one heading. Check it after drafting: the first sentence should say what
-  the claim says
+  the claim says. Several paragraphs of the same kind in a row are normal (it notes only the
+  third): keep the kind that fits rather than switching to one that does not
+- When the text needs a number or a source that is in neither the manuscript nor the analysis,
+  don't guess or write around it: leave `<!-- ask: what you need -->` at that place, write no
+  sentence there, and tell the author. `octavo outline … --paragraphs` and `octavo check` list
+  the questions left
 - The marks are comments: they never reach the output. Keep them when revising, and update the
   claim when the paragraph's point changes
 

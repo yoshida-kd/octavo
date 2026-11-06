@@ -1353,7 +1353,7 @@ PARA_PROBLEMS = {
     'unknown-kind': lambda: t('unknown kind'),
     'no-text': lambda: t('no text yet'),
     'joined': lambda: t('needs a blank line before the mark (it joins the paragraph above)'),
-    'same-kind': lambda: t('same kind as the paragraph before'),
+    'same-kind': lambda: t('note: the third paragraph in a row of this kind'),
 }
 
 
@@ -1367,8 +1367,8 @@ def _outline_paragraphs(cfg, args) -> int:
         if args.documents and name not in args.documents:
             continue
         doc = cfg.documents[name]
-        index = writingmod.kind_index(writingmod.select(cfg, doc, every=True))
-        got = paramod.review(mdlib.read(src), index)
+        sel = writingmod.select(cfg, doc, every=True)
+        got = paramod.review(mdlib.read(src), writingmod.kind_index(sel), sel['sections'], is_appendix)
         out.append({'doc': name, 'file': cfg.rel(src), 'appendix': is_appendix, **got})
     if args.json:
         print(_json.dumps(out, ensure_ascii=False))
@@ -1397,6 +1397,9 @@ def _outline_paragraphs(cfg, args) -> int:
                                               n=len(rp['lines']), heading=rp['heading'] or '',
                                               text=rp['text'], id=rp['id'],
                                               lines=', '.join(str(x) for x in rp['lines'])))
+        for a in d['asks']:
+            print('  ' + tag('note') + ' ' + t('question for the author at line {line}: {text}',
+                                              line=a['line'], text=a['text']))
         rows = d['paragraphs']
         n = {k: sum(1 for r in rows if k in r['problems']) for k in PARA_PROBLEMS}
         print('  ' + t('{n} {n|paragraph|paragraphs}', n=len(rows)) + ': '
