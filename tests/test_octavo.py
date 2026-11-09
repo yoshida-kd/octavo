@@ -25,6 +25,7 @@ import textwrap
 import time
 import unittest
 import unittest.mock
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,7 +35,7 @@ os.environ['XDG_CONFIG_HOME'] = tempfile.mkdtemp(prefix='octavo-test-config-')
 sys.path.insert(0, str(ROOT))
 
 import octavo                                                        # noqa: E402
-from octavo import (analysis, audit, bib, build, bundle, check, theorems,      # noqa: E402
+from octavo import (analysis, audit, bib, build, bundle, check, theorems, translate,      # noqa: E402
                       config, crossref, csl, dataset, doctor, envsetup, lint, md,
                       pandocrun, paths, review, scaffold, selftest, syntax, tmpl, values)
 from octavo import backends as be                                    # noqa: E402
@@ -2677,6 +2678,19 @@ class PreviewContract(unittest.TestCase):
 
     SCAFFOLD = ROOT / 'vscode-extension' / 'src' / 'scaffold.ts'
 
+    def test_keep_cache_comes_after_the_names(self):
+        """argparse は、名前の前に置いたオプションのあとの名前を受け取らない。"""
+        self.assertIn("'run', ...names, ...keep]", self.ANALYSIS.read_text(encoding='utf-8'))
+        from octavo import cli
+        got = cli.make_parser().parse_args(['analysis', 'run', 'a.qmd', '--keep-cache'])
+        self.assertEqual(got.names, ['a.qmd'])
+        self.assertTrue(got.keep_cache)
+
+    def test_prose_json_has_every_field_the_extension_reads(self):
+        got = self.cli_json('analysis', 'prose', 'nothing-registered', '--json')
+        self.assertEqual(self.fields('ProseResult', self.ANALYSIS) - set(got), set())
+        self.assertEqual(got['status'], 'skipped')
+
     def test_new_json_has_every_field_the_extension_reads(self):
         """「足す」は octavo new --json の open を開く。パスは拡張機能が組み立てない。"""
         got = self.cli_json('new', 'slides', 'added-deck', '--json')
@@ -3704,7 +3718,7 @@ class MultipleSources(unittest.TestCase):
 
         ran = []
 
-        def fake_render(cfg_, u, report):
+        def fake_render(cfg_, u, report, extra=()):
             ran.append(u.src.stem)
             if u.src.stem == '01-clean':          # 前段が後段の入力を書き換える
                 t = time.time() + 20
@@ -3727,7 +3741,7 @@ class MultipleSources(unittest.TestCase):
     def _run(self, cfg, **kw):
         ran, report = [], []
 
-        def fake_render(cfg_, u, rep):
+        def fake_render(cfg_, u, rep, extra=()):
             ran.append(u.src.stem)
             return True
         with unittest.mock.patch.object(analysis, 'render', fake_render), \
@@ -4347,7 +4361,7 @@ class MissingRPackages(unittest.TestCase):
     def render(self, *results):
         it = iter(results)
 
-        def fake(cfg, u, report):
+        def fake(cfg, u, report, extra=()):
             self.calls += 1
             ok = next(it)
             report.append('ran' if ok else 'failed')
@@ -4472,6 +4486,417 @@ class MissingRPackages(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')
+class ReplicationLanguage(unittest.TestCase):
+    """再現用パッケージの言語。Octavo は訳さず、翻訳ファイルの行を複製に当てるだけ。"""
+    QMD = ('---\ntitle: "題"\n---\n\n本文です。\n\n```{r}\n# 準備\nx <- 1  # 説明\n'
+           'y <- d[d$k == "本会議", ]\n```\n')
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        make_project(self.d / 'p')
+        self.cfg = config.load(self.d / 'p' / 'octavo.config.py')
+        self.q = self.d / 'p' / 'analysis' / 'analysis.qmd'
+        self.q.write_text(self.QMD, encoding='utf-8')
+        self.table = self.d / 'p' / 'analysis' / 'replication' / 'analysis.en.json'
+        self.n = 0
+
+    def package(self, **kw):
+        self.n += 1
+        return bundle.replication(self.cfg, self.d / f'out{self.n}', **kw)
+
+    def text(self, res, rel='analysis/analysis.qmd'):
+        return (res.out / rel).read_text(encoding='utf-8')
+
+    def test_lines_are_sorted_by_how_safe_they_are_to_translate(self):
+        got = translate.classify(self.QMD)
+        self.assertEqual(got['prose'], ['title: "題"', '本文です。'])
+        self.assertEqual(got['comments'], ['# 準備', 'x <- 1  # 説明'])
+        self.assertEqual(got['code'], ['y <- d[d$k == "本会議", ]'])
+
+    def test_english_is_the_default_and_ja_translates_nothing(self):
+        self.assertIn('再現用パッケージ', self.text(self.package(lang='ja'), 'README.md'))
+        self.assertFalse(self.table.exists())
+        res = self.package()
+        self.assertIn('Replication package', self.text(res, 'README.md'))
+        self.assertIn('本文です', self.text(res))
+        table = json.loads(self.table.read_text(encoding='utf-8'))
+        self.assertEqual(table['prose']['本文です。'], '')
+
+    def test_scripts_are_listed_for_translation_too(self):
+        script = self.d / 'p' / 'analysis' / 'tools.R'
+        script.write_text('# 準備\nx <- "本会議"\ny <- 1  # 説明\n', encoding='utf-8')
+        self.package()
+        path = self.d / 'p' / 'analysis' / 'replication' / 'tools.R.en.json'
+        table = json.loads(path.read_text(encoding='utf-8'))
+        self.assertEqual(sorted(table['comments']), ['# 準備', 'y <- 1  # 説明'])
+        self.assertEqual(list(table['code']), ['x <- "本会議"'])
+        table['comments']['# 準備'] = '# Setup'
+        path.write_text(json.dumps(table, ensure_ascii=False), encoding='utf-8')
+        res = self.package()
+        self.assertIn('# Setup', self.text(res, 'analysis/tools.R'))
+        self.assertIn('# 準備', script.read_text(encoding='utf-8'))
+
+    def test_the_helpers_the_package_ships_are_in_english(self):
+        res = self.package()
+        for rel in ('analysis/octavo.R',):
+            self.assertFalse(translate.has_japanese(self.text(res, rel)), rel)
+        for p in ('common/analysis/octavo.R', 'python/analysis/octavo_helper.py'):
+            text = (ROOT / 'templates' / 'analysis' / p).read_text(encoding='utf-8')
+            self.assertFalse(translate.has_japanese(text), p)
+
+    def test_an_older_japanese_helper_is_listed_unless_standalone_removes_it(self):
+        helper = self.d / 'p' / 'analysis' / 'octavo.R'
+        helper.write_text(helper.read_text(encoding='utf-8') + '# 古い説明\n', encoding='utf-8')
+        path = self.d / 'p' / 'analysis' / 'replication' / 'octavo.R.en.json'
+        self.q.write_text('Text.\n\n```{r}\nov_value("n", 1)\n```\n', encoding='utf-8')
+        self.package(standalone=True)
+        self.assertFalse(path.exists())
+        self.package()
+        self.assertIn('# 古い説明', path.read_text(encoding='utf-8'))
+
+    def test_settings_lose_their_japanese_comments_but_keep_working(self):
+        config_file = self.d / 'p' / 'octavo.config.py'
+        original = config_file.read_text(encoding='utf-8')
+        config_file.write_text(original + "\n# 日本語の説明\nOTHER = {'a': '#fff'}  # 色\nNAME = '著者'\n",
+                               encoding='utf-8')
+        self.cfg = config.load(config_file)
+        res = self.package()
+        got = self.text(res, 'octavo.config.py')
+        self.assertNotIn('日本語の説明', got)
+        self.assertIn("OTHER = {'a': '#fff'}\n", got)
+        self.assertIn("NAME = '著者'", got)
+        compile(got, 'octavo.config.py', 'exec')
+        self.assertIn('日本語の説明', config_file.read_text(encoding='utf-8'))
+        table = self.d / 'p' / 'analysis' / 'replication' / 'package.en.json'
+        filled = json.loads(table.read_text(encoding='utf-8'))
+        filled['code']["NAME = '著者'"] = "NAME = 'Author'"
+        table.write_text(json.dumps(filled, ensure_ascii=False), encoding='utf-8')
+        self.assertIn("NAME = 'Author'", self.text(self.package(), 'octavo.config.py'))
+
+    def test_notes_octavo_wrote_become_english_and_the_rest_is_reported(self):
+        tables = Path(self.cfg['table_dir'])
+        (tables / 'old.typ').write_text('// octavo.R の ov_table() が作ったファイル。手で直さない。\n#table()\n',
+                                        encoding='utf-8')
+        (tables / 'hand.md').write_text('<!-- octavo が hand.csv から作ったファイル。手で直さない（hand.csv を直す）。 -->\n\n| a |\n',
+                                        encoding='utf-8')
+        (tables / 'label.md').write_text('| 都道府県 |\n', encoding='utf-8')
+        requirements = self.d / 'p' / 'requirements.txt'
+        requirements.write_text('# 説明\npandas==2.0  # 表\n', encoding='utf-8')
+        res = self.package()
+        self.assertEqual(self.text(res, 'requirements.txt'), 'pandas==2.0\n')
+        self.assertIn('# 説明', requirements.read_text(encoding='utf-8'))
+        self.assertIn('Written by ov_table() in octavo.R', self.text(res, tables.relative_to(self.d / 'p').as_posix() + '/old.typ'))
+        self.assertIn('Written by octavo from hand.csv', self.text(res, tables.relative_to(self.d / 'p').as_posix() + '/hand.md'))
+        said = '\n'.join(res.report)
+        self.assertIn('label.md (1)', said)
+        self.assertNotIn('old.typ', said)
+        hashes = json.loads(self.text(res, 'data/HASHES.json'))
+        self.assertFalse(translate.has_japanese(hashes['_note']))
+
+    def test_translated_lines_reach_only_the_package(self):
+        res = self.package(lang='en')
+        table = json.loads(self.table.read_text(encoding='utf-8'))
+        self.assertEqual(table['prose']['本文です。'], '')
+        self.assertIn('本文です', self.text(res))          # 訳がなければそのまま
+        table['prose']['本文です。'] = 'The text.'
+        table['comments']['# 準備'] = '# Setup'
+        self.table.write_text(json.dumps(table, ensure_ascii=False), encoding='utf-8')
+        res = self.package(lang='en')
+        got = self.text(res)
+        self.assertIn('The text.', got)
+        self.assertIn('\n# Setup\n', got)
+        self.assertIn('"本会議"', got)                     # データと照合する文字列は、空のままなら残る
+        self.assertEqual(self.q.read_text(encoding='utf-8'), self.QMD)
+        self.assertFalse((res.out / 'analysis' / 'replication').exists())
+
+    def test_a_changed_line_comes_back_as_to_do(self):
+        self.package(lang='en')
+        table = json.loads(self.table.read_text(encoding='utf-8'))
+        table['prose']['本文です。'] = 'The text.'
+        self.table.write_text(json.dumps(table, ensure_ascii=False), encoding='utf-8')
+        self.q.write_text(self.QMD.replace('本文です。', '本文を直した。'), encoding='utf-8')
+        res = self.package(lang='en')
+        table = json.loads(self.table.read_text(encoding='utf-8'))
+        self.assertEqual(table['prose']['本文を直した。'], '')
+        self.assertIn('本文を直した。', self.text(res))
+        self.assertTrue(any('1' in line and 'replication/analysis.en.json' in line and '.qmd' in line
+                            for line in res.report[-3:]))
+
+    def test_the_translation_goes_in_before_the_helpers_come_out(self):
+        self.q.write_text('Text.\n\n```{r}\n# 準備\nov_value("n", 1)\n```\n', encoding='utf-8')
+        self.package(lang='en')
+        table = json.loads(self.table.read_text(encoding='utf-8'))
+        table['comments']['# 準備'] = '# Setup'
+        self.table.write_text(json.dumps(table, ensure_ascii=False), encoding='utf-8')
+        got = self.text(self.package(lang='en', standalone=True))
+        self.assertIn('# Setup', got)
+        self.assertNotIn('ov_value', got)
+
+    def test_only_a_replication_package_has_a_language(self):
+        with self.assertRaises(SystemExit):
+            bundle.run(self.cfg, lang='en')
+        with self.assertRaises(SystemExit):
+            bundle.run(self.cfg, verify=True)
+
+    def test_a_broken_translation_file_stops_with_its_name(self):
+        self.table.parent.mkdir(parents=True)
+        self.table.write_text('{', encoding='utf-8')
+        with self.assertRaises(SystemExit) as got:
+            self.package(lang='en')
+        self.assertIn('analysis.en.json', str(got.exception))
+
+
+class BundleOutput(unittest.TestCase):
+    """出力先にある、Octavo が作ったのではないものを消さない。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        make_project(self.d / 'p')
+        self.root = (self.d / 'p').resolve()
+        self.cfg = config.load(self.root / 'octavo.config.py')
+
+    def package(self, **kw):
+        with contextlib.redirect_stdout(io.StringIO()):
+            return bundle.run(self.cfg, as_replication=True, **kw)
+
+    def mine(self, rel):
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('mine', encoding='utf-8')
+        return path
+
+    def test_the_default_zip_leaves_a_folder_of_the_same_name(self):
+        kept = self.mine('replication/notes.txt')
+        self.assertEqual(self.package(), 0)
+        self.assertEqual(kept.read_text(encoding='utf-8'), 'mine')
+        self.assertTrue(zipfile.is_zipfile(self.root / 'replication.zip'))
+
+    def test_a_zip_named_after_a_project_folder_leaves_that_folder(self):
+        kept = self.mine('data/mine.csv')
+        self.assertEqual(self.package(out='data.zip'), 0)
+        self.assertEqual(kept.read_text(encoding='utf-8'), 'mine')
+        self.assertTrue((self.root / 'analysis' / 'analysis.qmd').is_file())
+
+    def test_the_project_and_what_holds_it_cannot_be_the_output(self):
+        for out in ('.', '..', str(self.root)):
+            with self.assertRaises(SystemExit):
+                self.package(as_dir=True, out=out)
+        self.assertTrue((self.root / 'octavo.config.py').is_file())
+
+    def test_a_folder_octavo_did_not_write_is_refused(self):
+        kept = self.mine('rep/notes.txt')
+        with self.assertRaises(SystemExit) as got:
+            self.package(as_dir=True, out='rep')
+        self.assertIn('rep', str(got.exception))
+        self.assertEqual(kept.read_text(encoding='utf-8'), 'mine')
+
+    def test_octavos_own_folder_is_made_again_until_something_is_added(self):
+        self.assertEqual(self.package(as_dir=True, out='rep'), 0)
+        stale = self.root / 'rep' / 'README.md'
+        stale.write_text('old', encoding='utf-8')
+        self.assertEqual(self.package(as_dir=True, out='rep'), 0)
+        self.assertNotEqual(stale.read_text(encoding='utf-8'), 'old')
+        kept = self.mine('rep/added.txt')
+        with self.assertRaises(SystemExit):
+            self.package(as_dir=True, out='rep')
+        self.assertTrue(kept.is_file())
+
+    def test_a_file_that_is_not_a_zip_is_not_overwritten(self):
+        cfg_file = self.root / 'octavo.config.py'
+        before = cfg_file.read_bytes()
+        with self.assertRaises(SystemExit):
+            self.package(out='octavo.config.py')
+        self.assertEqual(cfg_file.read_bytes(), before)
+        with self.assertRaises(SystemExit):
+            self.package(as_dir=True, out='octavo.config.py')
+
+    def test_a_zip_is_replaced_and_no_work_folder_is_left(self):
+        self.assertEqual(self.package(), 0)
+        self.assertEqual(self.package(), 0)
+        self.assertFalse((self.root / 'replication').exists())
+
+    def test_a_failed_verify_makes_no_zip_and_says_why(self):
+        out = io.StringIO()
+        with unittest.mock.patch.object(bundle.transmod, 'verify', return_value=False), contextlib.redirect_stdout(out):
+            self.assertEqual(bundle.run(self.cfg, as_replication=True, verify=True), 1)
+        self.assertFalse((self.root / 'replication.zip').exists())
+        self.assertIn('--verify', out.getvalue())
+        self.assertNotIn('anonymis', out.getvalue())
+
+
+class ReplicationSteps(unittest.TestCase):
+    """手順書の「環境を作る」と「実行する」。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        make_project(self.d / 'p')
+        self.root = self.d / 'p'
+        self.cfg = config.load(self.root / 'octavo.config.py')
+        self.q = self.root / 'analysis' / 'fetch.qmd'
+        self.q.write_text('---\ntitle: f\noctavo:\n  manual: true\n---\n\n```{r}\nx <- 1\n```\n', encoding='utf-8')
+        self.cfg = config.load(self.root / 'octavo.config.py')
+
+    def readme(self, **kw):
+        res = bundle.replication(self.cfg, self.d / 'out', **kw)
+        return (res.out / 'README.md').read_text(encoding='utf-8')
+
+    def test_a_manual_analysis_is_shown_apart_and_not_in_the_steps(self):
+        for standalone in (False, True):
+            text = self.readme(standalone=standalone)
+            self.assertNotIn('@@', text)
+            self.assertIn('    quarto render analysis/analysis.qmd', text)
+            self.assertNotIn('quarto render analysis/fetch.qmd', text)
+            self.assertIn('- `analysis/fetch.qmd`', text)
+            self.assertNotIn('analysis/*.qmd', text)
+            shutil.rmtree(self.d / 'out')
+
+    def test_the_recorded_versions_can_be_restored(self):
+        self.assertNotIn('renv::restore', self.readme())
+        shutil.rmtree(self.d / 'out')
+        (self.root / 'renv.lock').write_text('{}', encoding='utf-8')
+        text = self.readme()
+        self.assertLess(text.index('renv::activate()'), text.index('renv::restore(prompt = FALSE)'))
+        self.assertNotIn('pip install', text)
+
+    def test_quarto_settings_travel_with_the_package(self):
+        (self.root / '_quarto.yml').write_text('project:\n  type: default\n', encoding='utf-8')
+        res = bundle.replication(self.cfg, self.d / 'out')
+        self.assertTrue((res.out / '_quarto.yml').is_file())
+
+
+class ExtensionSaveAll(unittest.TestCase):
+    """「すべて保存」: 別のプロジェクトの .qmd も、そのファイルのプロジェクトで組み直す。"""
+
+    def test_the_project_comes_from_the_saved_file(self):
+        src = (ROOT / 'vscode-extension' / 'src' / 'qmdPreview.ts').read_text(encoding='utf-8')
+        self.assertIn('findConfig(doc.uri)', src)
+        self.assertIn('findConfig(vscode.Uri.file(fsPath))', src)
+        self.assertNotIn('findConfig()', src)
+        self.assertIn('savedAgain.set(p, doc)', src)
+
+
+class ProseOnly(unittest.TestCase):
+    """地の文だけの変更か、コードを実行してはいけない変更かの見分け。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        make_project(self.d / 'p')
+        self.cfg = config.load(self.d / 'p' / 'octavo.config.py')
+        self.q = self.d / 'p' / 'analysis' / 'analysis.qmd'
+        self.q.write_text('---\ntitle: A\n---\n\nProse.\n\n```{r}\nx <- 1\n```\n\nInline `r x`.\n\n```r\nshown\n```\n',
+                          encoding='utf-8')
+        self.u = analysis.units(self.cfg)[0]
+        self.mark = analysis.cache_mark(self.u)
+
+    def edit(self, a, b):
+        self.q.write_text(self.q.read_text(encoding='utf-8').replace(a, b), encoding='utf-8')
+        return analysis.cache_mark(self.u) == self.mark
+
+    def test_prose_and_shown_code_are_not_code(self):
+        self.assertTrue(self.edit('Prose.', 'Other words.'))
+        self.assertTrue(self.edit('shown', 'also shown'))
+
+    def test_what_runs_is_code(self):
+        self.assertFalse(self.edit('x <- 1', 'x <- 2'))
+
+    def test_inline_code_and_the_front_matter_are_code(self):
+        self.assertFalse(self.edit('`r x`', '`r x + 1`'))
+        self.edit('`r x + 1`', '`r x`')
+        self.assertFalse(self.edit('title: A', 'title: B'))
+
+    def test_a_changed_input_counts(self):
+        dep = self.d / 'dep.csv'
+        dep.write_text('1', encoding='utf-8')
+        u = analysis.Unit(src=self.q, deps=(dep,))
+        mark = analysis.cache_mark(u)
+        dep.write_text('2', encoding='utf-8')
+        self.assertNotEqual(analysis.cache_mark(u), mark)
+
+    def prepared(self):
+        stamp = {'analysis/analysis.qmd': {**self.u.record(), 'cache': analysis.cache_mark(self.u)}}
+        analysis.write_stamp(self.cfg, stamp)
+        analysis.cache_dir(self.u).mkdir()
+
+    def status(self):
+        with unittest.mock.patch.object(analysis, 'render', side_effect=AssertionError('must not render')):
+            return analysis.render_prose(self.cfg, 'analysis/analysis.qmd')['status']
+
+    def test_nothing_is_rendered_without_kept_results(self):
+        self.edit('Prose.', 'Other words.')
+        self.assertEqual(self.status(), 'needs-run')
+
+    def test_an_unchanged_file_is_not_rendered(self):
+        self.prepared()
+        self.assertEqual(self.status(), 'skipped')
+
+    def test_a_code_change_is_not_rendered(self):
+        self.prepared()
+        self.edit('x <- 1', 'x <- 2')
+        self.assertEqual(self.status(), 'needs-run')
+
+    def test_a_chunk_that_never_caches_is_not_rendered(self):
+        self.edit('x <- 1', '#| cache: false\nx <- 1')
+        self.prepared()
+        self.edit('Prose.', 'Other words.')
+        self.assertEqual(self.status(), 'needs-run')
+
+    def test_a_chunk_that_ran_anyway_cannot_shrink_the_values(self):
+        self.prepared()
+        self.edit('Prose.', 'Other words.')
+        values = Path(self.cfg['values_dir']) / 'analysis.json'
+        values.write_text('{"a": 1, "b": 2}', encoding='utf-8')
+
+        def ran(cfg, u, report, extra=()):
+            values.write_text('{"b": 2}', encoding='utf-8')
+            return True
+        with unittest.mock.patch.object(analysis, 'render', ran), unittest.mock.patch.object(analysis.shutil, 'which', return_value='q'):
+            got = analysis.render_prose(self.cfg, 'analysis/analysis.qmd')
+        self.assertEqual(got['status'], 'rendered')
+        self.assertEqual(values.read_text(encoding='utf-8'), '{"a": 1, "b": 2}')
+        self.assertTrue(analysis.is_stale(self.cfg, self.u, analysis.read_stamp(self.cfg)))
+
+    def test_replication_leaves_out_the_cache_and_carries_the_package_records(self):
+        analysis.cache_dir(self.u).mkdir()
+        (analysis.cache_dir(self.u) / 'x.rdb').write_text('x', encoding='utf-8')
+        (self.d / 'p' / 'renv.lock').write_text('{}', encoding='utf-8')
+        (self.d / 'p' / 'requirements.txt').write_text('pandas', encoding='utf-8')
+        res = bundle.replication(self.cfg, self.d / 'out')
+        self.assertTrue(res.ok)
+        self.assertFalse((self.d / 'out' / 'analysis' / 'analysis_cache').exists())
+        self.assertTrue((self.d / 'out' / 'renv.lock').is_file())
+        self.assertTrue((self.d / 'out' / 'requirements.txt').is_file())
+
+
+def _trial_prose(test, cfg, marker):
+    """実際に Quarto で: 結果を残して実行し、地の文だけ変えて組み直す。コードは2度動かないこと。"""
+    q = analysis.units(cfg)[0].src
+    count = Path(cfg.root) / 'runs.txt'
+    q.write_text(q.read_text(encoding='utf-8') + marker.format(count=count.as_posix())
+                 + '\n\nOriginal prose.\n', encoding='utf-8')
+    report: list = []
+    _, ok = analysis.run(cfg, force=True, report=report, keep_cache=True)
+    test.assertTrue(ok, '\n'.join(report))
+    values = Path(cfg['values_dir']) / f'{q.stem}.json'
+    before = values.read_bytes()
+    q.write_text(q.read_text(encoding='utf-8').replace('Original prose.', 'Changed prose.'), encoding='utf-8')
+    got = analysis.render_prose(cfg, analysis.key(cfg, analysis.units(cfg)[0]))
+    test.assertEqual(got['status'], 'rendered', got['message'])
+    test.assertIn('Changed prose', q.with_suffix('.html').read_text(encoding='utf-8'))
+    test.assertEqual(len(count.read_text(encoding='utf-8').splitlines()), 1)
+    test.assertEqual(values.read_bytes(), before)
+    test.assertFalse(analysis.status(cfg)[0][2])
+    test.assertEqual((analysis.cache_dir(analysis.units(cfg)[0]) / '.gitignore').read_text(encoding='utf-8'), '*\n')
+    # コードを変えたら、組まない。ふつうの実行のあとは、残した結果を使わない
+    q.write_text(q.read_text(encoding='utf-8').replace('Changed prose.', 'Again.'), encoding='utf-8')
+    analysis.run(cfg, force=True, report=[])
+    q.write_text(q.read_text(encoding='utf-8').replace('Again.', 'Once more.'), encoding='utf-8')
+    test.assertEqual(analysis.render_prose(cfg, analysis.key(cfg, analysis.units(cfg)[0]))['status'], 'needs-run')
+
+
 class AnalysisEndToEnd(unittest.TestCase):
     """**octavo.R を実際に実行する。**
 
@@ -4499,6 +4924,106 @@ class AnalysisEndToEnd(unittest.TestCase):
     def test_render_succeeded(self):
         self.assertTrue(self.ok, '\n'.join(self.report))
         self.assertEqual(self.ran, 1)
+
+    def _verify_project(self, chunk):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        make_project(d / 'p')
+        cfg = config.load(d / 'p' / 'octavo.config.py')
+        q = d / 'p' / 'analysis' / 'analysis.qmd'
+        q.write_text(q.read_text(encoding='utf-8') + f'\n```{{r}}\n{chunk}\n```\n', encoding='utf-8')
+        return d, cfg, q
+
+    def test_verify_runs_the_package_not_the_project(self):
+        # プロジェクトでは動くが、パッケージに入らないものに頼っている
+        d, cfg, _ = self._verify_project('source("../scripts/util.R")\nov_value("twice", double_it(2))')
+        (d / 'p' / 'scripts').mkdir()
+        (d / 'p' / 'scripts' / 'util.R').write_text('double_it <- function(x) x * 2\n', encoding='utf-8')
+        report: list = []
+        self.assertTrue(analysis.run(cfg, force=True, report=report)[1], report)
+        res = bundle.replication(cfg, d / 'out', verify=True)
+        self.assertFalse(res.ok, res.report)
+        self.assertTrue(any('analysis/analysis.qmd' in line and 'util.R' in line for line in res.report), res.report)
+
+    def test_verify_says_when_only_the_raw_data_is_missing(self):
+        d, cfg, _ = self._verify_project('r <- read.csv("../data/raw/in.csv")\nov_value("rows", nrow(r))')
+        (d / 'p' / 'data' / 'raw').mkdir(parents=True, exist_ok=True)
+        (d / 'p' / 'data' / 'raw' / 'in.csv').write_text('a\n1\n2\n', encoding='utf-8')
+        report: list = []
+        self.assertTrue(analysis.run(cfg, force=True, report=report)[1], report)
+        res = bundle.replication(cfg, d / 'out', verify=True)
+        self.assertTrue(res.ok, res.report)
+        self.assertTrue(any('data/raw' in line and '[verify]' in line for line in res.report), res.report)
+        self.assertFalse((d / 'out' / 'data' / 'raw' / 'in.csv').exists())
+
+    def test_verify_runs_the_rewritten_package_too(self):
+        d, cfg, _ = self._verify_project('ov_value("two", 2L)')
+        report: list = []
+        self.assertTrue(analysis.run(cfg, force=True, report=report)[1], report)
+        res = bundle.replication(cfg, d / 'out', standalone=True, verify=True)
+        self.assertTrue(res.ok, res.report)
+        self.assertTrue(any('.qmd' in line and ('rewritten' in line or '書き換えた' in line) for line in res.report), res.report)
+
+    def test_verify_with_only_manual_analyses_does_not_pass(self):
+        d, cfg, q = self._verify_project('ov_value("two", 2L)')
+        q.write_text(q.read_text(encoding='utf-8').replace('---\n', '---\noctavo:\n  manual: true\n', 1), encoding='utf-8')
+        cfg = config.load(d / 'p' / 'octavo.config.py')
+        res = bundle.replication(cfg, d / 'out', verify=True)
+        self.assertFalse(res.ok, res.report)
+
+    def test_verify_catches_a_translation_that_changes_a_value(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        make_project(d / 'p')
+        cfg = config.load(d / 'p' / 'octavo.config.py')
+        q = d / 'p' / 'analysis' / 'analysis.qmd'
+        code = 'ov_value("checked", nchar("日本語"))'
+        q.write_text(q.read_text(encoding='utf-8') + f'\n```{{r}}\n{code}\n```\n', encoding='utf-8')
+        report: list = []
+        self.assertTrue(analysis.run(cfg, force=True, report=report)[1], report)
+        before = sorted(p.name for p in (d / 'p').iterdir())
+        res = bundle.replication(cfg, d / 'same', lang='en', verify=True)
+        self.assertTrue(res.ok, res.report)
+        self.assertTrue(any('values' in line or '数値' in line for line in res.report), res.report)
+        table = d / 'p' / 'analysis' / 'replication' / 'analysis.en.json'
+        got = json.loads(table.read_text(encoding='utf-8'))
+        got['code'][code] = 'ov_value("checked", nchar("Japanese"))'
+        table.write_text(json.dumps(got, ensure_ascii=False), encoding='utf-8')
+        res = bundle.replication(cfg, d / 'differs', lang='en', verify=True)
+        self.assertFalse(res.ok)
+        self.assertTrue(any('checked' in line for line in res.report), res.report)
+        self.assertEqual(before, sorted(p.name for p in (d / 'p').iterdir()))
+
+    def test_a_prose_edit_reaches_the_html_without_running_the_code(self):
+        d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, d, ignore_errors=True)
+        make_project(d / 'p')
+        _trial_prose(self, config.load(d / 'p' / 'octavo.config.py'),
+                     '\n```{{r}}\ncat("x\\n", file = "{count}", append = TRUE)\n```\n')
+
+    def test_the_standalone_package_runs_without_the_helper(self):
+        dest = self.d / 'standalone'
+        _, got = _render_standalone(self.cfg, dest)
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertFalse((dest / 'analysis' / 'octavo.R').exists())
+        self.assertFalse((dest / 'octavo.config.py').exists())
+        html = (dest / 'analysis' / 'analysis.html').read_text(encoding='utf-8')
+        self.assertIn('n_obs: 1523', html)
+        for ext in ('.pdf', '.png'):
+            self.assertGreater((dest / 'assets' / 'figures' / f'trend{ext}').stat().st_size, 500)
+        self.assertGreater((dest / 'assets' / 'tables' / 'summary.csv').stat().st_size, 5)
+
+    def test_format_p_and_tint_agree_with_the_r_helper(self):
+        snippets = ROOT / 'templates' / 'replication' / 'standalone'
+        script = self.d / 'compare.R'
+        script.write_text(
+            f'source("{(self.cfg.root / "analysis" / "octavo.R").as_posix()}")\n'
+            f'source("{(snippets / "format_p.R").as_posix()}")\n'
+            f'source("{(snippets / "tint.R").as_posix()}")\n'
+            'for (p in c(0.5, 0.0004, 0.042, NA)) stopifnot(identical(format_p(p), ov_pval(p)))\n'
+            'stopifnot(identical(tint("#0072B2", 0.3), ov_tint("#0072B2", 0.3)))\n', encoding='utf-8')
+        got = subprocess.run(['Rscript', str(script)], capture_output=True, text=True, encoding='utf-8')
+        self.assertEqual(got.returncode, 0, got.stderr)
 
     def test_values_were_written(self):
         vals, warn = values.load(self.cfg)
@@ -8425,7 +8950,7 @@ class PythonHelper(unittest.TestCase):
         r = run_helper(self.d, 'ov_value("1bad", 1)')
         self.assertNotEqual(r.returncode, 0)
         r = run_helper(self.d, 'ov_value("many", [1, 2])')
-        self.assertIn('値は1つだけ', r.stderr)
+        self.assertIn('exactly one value', r.stderr)
 
     def test_tables_are_contents_only_in_three_formats(self):
         self.run_ok('ov_table([["term", "est", "n"], ["x & y", 0.5, 10], ["z_1", 1.25, 20]],'
@@ -8620,6 +9145,20 @@ class PythonAnalysisEndToEnd(unittest.TestCase):
     def test_render_succeeded(self):
         self.assertTrue(self.ok, '\n'.join(self.report))
 
+    def test_a_prose_edit_reaches_the_html_without_running_the_code(self):
+        _trial_prose(self, self.cfg, '\n```{{python}}\nopen("{count}", "a").write("x\\n")\n```\n')
+
+    def test_the_standalone_package_runs_without_the_helper(self):
+        dest = self.d / 'standalone'
+        _, got = _render_standalone(self.cfg, dest, analysis._env(self.cfg))
+        self.assertEqual(got.returncode, 0, got.stderr)
+        self.assertFalse((dest / 'analysis' / 'octavo_helper.py').exists())
+        html = (dest / 'analysis' / 'analysis.html').read_text(encoding='utf-8')
+        self.assertIn('n_obs: 1523', html)
+        for ext in ('.pdf', '.png'):
+            self.assertGreater((dest / 'assets' / 'figures' / f'trend{ext}').stat().st_size, 500)
+        self.assertGreater((dest / 'assets' / 'tables' / 'summary.csv').stat().st_size, 5)
+
     def test_values_figure_and_table_were_written(self):
         vals, warn = values.load(self.cfg)
         self.assertEqual(warn, [])
@@ -8630,6 +9169,172 @@ class PythonAnalysisEndToEnd(unittest.TestCase):
             self.assertGreater((Path(self.cfg['figure_dir']) / f'trend{ext}').stat().st_size, 500)
         for ext in ('.tex', '.typ', '.md'):
             self.assertTrue((Path(self.cfg['table_dir']) / f'summary{ext}').is_file())
+
+
+class Standalone(unittest.TestCase):
+    """`bundle --replication --standalone` の書き換え（Quarto を使わない部分）。"""
+    DIRS = {'values': 'assets/values', 'figures': 'assets/figures', 'tables': 'assets/tables'}
+
+    @staticmethod
+    def snippet(name):
+        return (ROOT / 'templates' / 'replication' / 'standalone' / name).read_text(encoding='utf-8')
+
+    def convert(self, code, lang='r', up=1):
+        from octavo import standalone
+        return standalone.convert(f'---\ntitle: t\n---\n\n```{{{lang}}}\n{code}\n```\n', self.DIRS, up, self.snippet)
+
+    def test_the_plain_calls_are_replaced_and_the_helper_is_not_loaded(self):
+        r = self.convert('source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))\n'
+                         'd <- read.csv(file.path(ov_root(), "data", "x.csv"))\n'
+                         'ov_value("n_obs", nrow(d))\n'
+                         'p <- ggplot(d) + geom_line()\n'
+                         'ov_figure(p, "trend", width = 5)\n'
+                         'ov_table(d, "summary", digits = 2)')
+        self.assertEqual((r.left, r.keeps), ([], set()))
+        self.assertNotRegex(r.text, r'\bov_|octavo')
+        self.assertIn('file.path("..", "data", "x.csv")', r.text)
+        self.assertIn('cat("n_obs:", format(nrow(d)), "\\n")', r.text)
+        self.assertIn('ggplot2::ggsave(file.path("..", "assets", "figures", "trend.png"), plot = p, width = 5', r.text)
+        self.assertIn('write.csv(d, file.path("..", "assets", "tables", "summary.csv"), row.names = FALSE)', r.text)
+        self.assertIn('dir.create(file.path("..", "assets", "figures")', r.text)
+
+    def test_what_it_cannot_be_sure_of_is_listed_and_keeps_the_helper(self):
+        for code in ('ov_figure(p, paste0("fig", i))',            # 名前が変数
+                     'for (i in 1:3) {\n  ov_value("x", i)\n}',     # ブロックの中
+                     'x <- ov_value("a", 1)',                     # 式の一部
+                     'd |>\n  ov_table("t")',                      # 前の行から続く
+                     'ov_figure(mystery, "trend")',               # 図の種類が分からない
+                     'ov_table(list(tex = "x"), "t")',            # 出来合いの表
+                     'ov_device("a.pdf", "pdf", 1, 1, 1)'):       # 置き換える先がない
+            with self.subTest(code):
+                r = self.convert('source("octavo.R")\n' + code)
+                self.assertTrue(r.left)
+                self.assertEqual(r.keeps, {'r'})
+                self.assertIn('source("octavo.R")', r.text)
+                self.assertGreater(r.left[0].line, 0)
+
+    def test_strings_and_comments_are_not_calls(self):
+        r = self.convert('source("octavo.R")\nx <- "ov_value(1)"\ny <- 2  # see ov_table\nz <- oecd_gov_x')
+        self.assertEqual((r.left, r.keeps), ([], set()))
+        self.assertIn('x <- "ov_value(1)"', r.text)
+        self.assertIn('y <- 2\n', r.text)
+        self.assertIn('z <- oecd_gov_x', r.text)
+
+    def test_a_comment_between_values_stays_out_of_the_call(self):
+        r = self.convert('ov_values(\n  a = 1, # first\n  # the second\n  b = 2 # last\n)')
+        self.assertEqual(r.left, [])
+        self.assertIn('cat("a:", format(1), "\\n")', r.text)
+        self.assertIn('# the second\ncat("b:", format(2), "\\n")', r.text)
+
+    def test_a_figure_drawn_by_a_function(self):
+        r = self.convert('f <- function() {\n  plot(1)\n}\nov_figure(f, "a", formats = "png")')
+        self.assertEqual(r.left, [])
+        self.assertIn('png(file.path("..", "assets", "figures", "a.png"), width = 6, height = 4, units = "in", res = 300)\nf()\ninvisible(dev.off())', r.text)
+
+    def test_a_function_that_returns_a_ggplot(self):
+        r = self.convert('g <- function(x) {\n  ggplot(x) + geom_line()\n}\nov_figure(g(1), "a")')
+        self.assertEqual(r.left, [])
+        self.assertIn('plot = g(1)', r.text)
+
+    def test_python(self):
+        r = self.convert('import os, sys\nroot = os.environ.get("OCTAVO_ROOT")\n'
+                         'sys.path.insert(0, os.path.join(root, "analysis") if root else ".")\n'
+                         'from octavo_helper import *\nov_style()\n'
+                         'fig, ax = plt.subplots()\nov_value("n", len(d), fmt=".2f")\n'
+                         'ov_figure(fig, "trend", formats=("png",))\nov_table(df, "s")\n'
+                         'p = ov_pval(0.5)\nd = ov_root() / "data"', lang='python')
+        self.assertEqual((r.left, r.keeps), ([], set()))
+        self.assertNotRegex(r.text, r'\bov_|octavo|OCTAVO|import os')
+        self.assertIn('print("n:", format(len(d), ".2f"))', r.text)
+        self.assertIn('fig.savefig(Path("..") / "assets" / "figures" / "trend.png", dpi=300, format="png")', r.text)
+        self.assertIn('pd.DataFrame(df).to_csv(Path("..") / "assets" / "tables" / "s.csv", index=False)', r.text)
+        self.assertIn('from pathlib import Path', r.text)
+        self.assertIn('import pandas as pd', r.text)
+        self.assertIn('def format_p(', r.text)
+        self.assertIn('def setup_fonts(', r.text)
+
+    def test_the_path_follows_the_depth_of_the_qmd(self):
+        self.assertIn('file.path("../..", "data")', self.convert('x <- file.path(ov_root(), "data")', up=2).text)
+
+    def test_octavo_marks_leave_the_prose_and_the_front_matter(self):
+        from octavo import standalone
+        r = standalone.convert('---\ntitle: t\noctavo:\n  manual: true\nlang: ja\n---\n\n'
+                               '<!-- octavo:example x -->\n\nBody <!-- keep -->\n\n'
+                               '```{r}\nx <- 1\n```\n', self.DIRS, 1, self.snippet)
+        self.assertEqual(r.text.count('octavo'), 0)
+        self.assertIn('lang: ja', r.text)
+        self.assertIn('<!-- keep -->', r.text)
+
+    def test_inline_code_is_listed(self):
+        from octavo import standalone
+        r = standalone.convert('Value `r ov_pval(p)` here.\n\n```{r}\nsource("octavo.R")\n```\n',
+                               self.DIRS, 1, self.snippet)
+        self.assertEqual(r.keeps, {'r'})
+        self.assertEqual(r.left[0].line, 1)
+
+    def test_the_colours_match_both_helpers(self):
+        from octavo import standalone
+        base = ROOT / 'templates' / 'analysis'
+        py = (base / 'python' / 'analysis' / 'octavo_helper.py').read_text(encoding='utf-8')
+        r = (base / 'common' / 'analysis' / 'octavo.R').read_text(encoding='utf-8')
+        for name, colour in standalone.CUD.items():
+            self.assertIn(f"'{name}': '{colour}'", py)
+            self.assertIn(f'{name} = "{colour}"', r)
+        self.assertIn(repr(standalone.ORDER), py)
+
+    def test_format_p_and_tint_agree_with_the_python_helper(self):
+        sys.path.insert(0, str(ROOT / 'templates' / 'analysis' / 'python' / 'analysis'))
+        try:
+            import octavo_helper as helper
+        finally:
+            sys.path.pop(0)
+        scope: dict = {}
+        exec(self.snippet('format_p.py') + self.snippet('tint.py'), scope)
+        for p in (0.5, 0.0004, 0.042, float('nan')):
+            self.assertEqual(scope['format_p'](p), helper.ov_pval(p))
+        self.assertEqual(scope['tint']('#0072B2', 0.3), helper.ov_tint('#0072B2', 0.3))
+
+    def test_the_project_is_not_touched_and_the_package_has_no_helper(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_project(Path(d) / 'p')
+            cfg = config.load(Path(d) / 'p' / 'octavo.config.py')
+            before = (cfg.root / 'analysis' / 'analysis.qmd').read_text(encoding='utf-8')
+            res = bundle.replication(cfg, Path(d) / 'out', standalone=True)
+            self.assertEqual((cfg.root / 'analysis' / 'analysis.qmd').read_text(encoding='utf-8'), before)
+            self.assertTrue((cfg.root / 'analysis' / 'octavo.R').is_file())
+            out = Path(d) / 'out'
+            self.assertFalse((out / 'analysis' / 'octavo.R').exists())
+            self.assertFalse((out / 'octavo.config.py').exists())
+            self.assertNotRegex((out / 'analysis' / 'analysis.qmd').read_text(encoding='utf-8'), r'\bov_|octavo')
+            self.assertNotIn('octavo', (out / 'README.md').read_text(encoding='utf-8').lower())
+            self.assertTrue(all(p.is_file() for p in res.files))
+
+    def test_a_script_that_uses_the_helper_keeps_it(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_project(Path(d) / 'p')
+            cfg = config.load(Path(d) / 'p' / 'octavo.config.py')
+            (cfg.root / 'analysis' / 'more.R').write_text('ov_value("a", 1)\n', encoding='utf-8')
+            bundle.replication(cfg, Path(d) / 'out', standalone=True)
+            self.assertTrue((Path(d) / 'out' / 'analysis' / 'octavo.R').is_file())
+            self.assertTrue((Path(d) / 'out' / 'octavo.config.py').is_file())
+
+    def test_standalone_needs_replication(self):
+        with tempfile.TemporaryDirectory() as d:
+            make_project(Path(d) / 'p')
+            with self.assertRaises(SystemExit):
+                bundle.run(config.load(Path(d) / 'p' / 'octavo.config.py'), standalone=True)
+
+
+def _render_standalone(cfg, dest, env=None):
+    """再現用パッケージを --standalone で作り、Octavo の環境変数なしで .qmd を実行する。"""
+    res = bundle.replication(cfg, dest, standalone=True)
+    for p in sorted((dest / 'assets').rglob('*')):
+        if p.is_file():
+            p.unlink()
+    clean = {k: v for k, v in (env or os.environ).items() if not k.startswith('OCTAVO_')}
+    got = subprocess.run([shutil.which('quarto'), 'render', str(dest / 'analysis' / 'analysis.qmd')],
+                         env=clean, capture_output=True, text=True, encoding='utf-8')
+    return res, got
 
 
 class ExtensionProjectForm(unittest.TestCase):
@@ -8707,16 +9412,62 @@ class ExtensionProjectForm(unittest.TestCase):
         # プレビュー側だけを自分でスクロールできる（スクロールそのものは奪わない）
         js = (self.EXT / 'media/preview.js').read_text(encoding='utf-8')
         self.assertNotIn("addEventListener('scroll'", js)
-        # .qmd は保存しても組み直さない（見せるだけ）
+        # .qmd を保存で組み直すのは設定がオンのときだけで、判断は CLI に任せる
         q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
-        self.assertNotIn('onDidSaveTextDocument', q)
+        self.assertIs(props['octavo.qmdPreviewOnSave']['default'], False)
+        self.assertIn("get<boolean>('qmdPreviewOnSave', false)", q)
+        self.assertIn('renderProse(', q)
         self.assertNotIn('quarto render', q)
 
     def test_the_qmd_view_steps_aside_for_quarto_preview(self):
         q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
-        self.assertIn("'Quarto Preview'", q)          # Quarto が開くターミナルの名前
         self.assertIn('quarto\\.previewView', q)     # その画面の viewType
-        self.assertIn('quartoPreviewRunning()', q)
+        self.assertIn('quartoPreviewShown()', q)
+        # ターミナルは見ない: 画面が見えないまま残ると、どちらのプレビューも見られなくなる
+        self.assertNotIn('vscode.window.terminals', q)
+        self.assertNotIn('onDidOpenTerminal', q)
+
+    def test_the_qmd_view_can_always_be_brought_back(self):
+        """手で閉じたあとも、タイトルバーのボタンで出せる。HTML がなければ案内を出す
+        （何も出さずに終わる経路を作らない）。"""
+        manifest = self.manifest()
+        self.assertIn('octavo.showQmdHtml',
+                      [c['command'] for c in manifest['contributes']['commands']])
+        self.assertIn('octavo.showQmdHtml',
+                      [m['command'] for m in manifest['contributes']['menus']['editor/title']])
+        ext = (self.EXT / 'src/extension.ts').read_text(encoding='utf-8')
+        self.assertIn("registerCommand('octavo.showQmdHtml'", ext)
+        q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
+        show = q[q.index('private async show('):q.index('private disposing')]
+        self.assertIn('this.notRendered(name)', show)
+        self.assertNotIn('!this.panel) {\n            return', show)
+
+    def test_the_missing_references_warning_can_be_acted_on(self):
+        """ステータスバーの「文献が不足」は、押すと対処の一覧が出る（押してもビルドが走るだけに戻さない）。
+        文献がそろっているときの押した動きはビルドのまま。"""
+        ext = (self.EXT / 'src/extension.ts').read_text(encoding='utf-8')
+        update = ext[ext.index('const updateStatusBar'):ext.index('context.subscriptions.push(\n        output')]
+        self.assertIn("statusBar.command = 'octavo.build'", update)
+        warn = update[update.index('report.missing.length > 0'):update.index('} else {')]
+        self.assertIn("statusBar.command = 'octavo.fixMissingReferences'", warn)
+        self.assertIn("registerCommand('octavo.fixMissingReferences'", ext)
+        self.assertIn('octavo.fixMissingReferences',
+                      [c['command'] for c in self.manifest()['contributes']['commands']])
+        cit = (self.EXT / 'src/citations.ts').read_text(encoding='utf-8')
+        fix = cit[cit.index('export async function fixMissingReferences'):cit.index('export async function insertCitationCommand')]
+        for action in ("'octavo.bibPull'", "'octavo.bibTidy'", 'goToCitation('):
+            self.assertIn(action, fix)
+
+    def test_the_qmd_view_handles_page_links_vscode_does_not(self):
+        """VS Code は href と a.hash が同じリンクだけをページ内リンクとして扱う。日本語の id では
+        a.hash がパーセントエンコードされて一致しないので、ページのスクリプトが受ける。
+        VS Code の処理は window で動くので、document で止めれば二重にならない。"""
+        q = (self.EXT / 'src/qmdPreview.ts').read_text(encoding='utf-8')
+        page = q[q.index('const PAGE_SCRIPT'):q.index('export function withPreviewScript')]
+        self.assertIn("document.addEventListener('click'", page)
+        self.assertIn('h===a.hash', page)
+        self.assertIn('decodeURIComponent', page)
+        self.assertIn('e.stopPropagation()', page)
 
     def test_venv_activation_is_only_turned_off_for_r_projects_and_never_over_the_user(self):
         v = (self.EXT / 'src/venvActivation.ts').read_text(encoding='utf-8')

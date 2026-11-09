@@ -35,7 +35,8 @@ bundled version since you copied it.
 | `handout/` | `octavo build` | the A4 handout's layout: `handout.typ` (Typst; cover, contents, jsarticle-style type) and `handout-header.tex` (the LaTeX header) |
 | `citations/japanese.lua` | `octavo build` | a pandoc filter for Japanese documents: English works formatted in English, Japanese works (`langid = {japanese}`) as 山田・田中, ほか, 「」 and 『』 (`citations_by_language`) |
 | `typst/crossref.typ` | `octavo build` | how figures, tables, equations and sections are numbered and how `@fig-…` references read, in every Typst output (papers import it as `crossref.typ`) |
-| `replication/<lang>/` | `octavo bundle --replication` | the README that goes into the replication package |
+| `replication/<lang>/` | `octavo bundle --replication` | the README that goes into the replication package (`README-standalone.md` with `--standalone`, when no helper is left) |
+| `replication/standalone/` | `octavo bundle --replication --standalone` | small functions written into a `.qmd` in place of `ov_pval()`, `ov_tint()` and `ov_style()` |
 
 In the text files, `@@NAME@@` becomes the project or document name and
 `@@AUTHOR@@` the author from `octavo.config.py` (`@@DOCUMENTS@@` in the config

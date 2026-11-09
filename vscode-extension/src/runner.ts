@@ -277,7 +277,8 @@ export function runStreaming(cwd: string, args: string[], onText: (s: string) =>
 }
 
 /** octavo.config.py をワークスペース内から探す（設定で明示されていればそれを優先）。 */
-export async function findConfig(): Promise<vscode.Uri | undefined> {
+/** near: 開いているファイルの代わりに、このファイルのプロジェクトを選ぶ（画面の「いまのプロジェクト」は変えない）。 */
+export async function findConfig(near?: vscode.Uri): Promise<vscode.Uri | undefined> {
     const explicit = cfg().get<string>('configPath', '');
     const folders = vscode.workspace.workspaceFolders;
     if (!folders || folders.length === 0) {
@@ -291,6 +292,9 @@ export async function findConfig(): Promise<vscode.Uri | undefined> {
     if (hits.length === 0) {
         lastConfig = undefined;
         return undefined;
+    }
+    if (near) {
+        return vscode.Uri.file(pickConfig(hits.map((u) => u.fsPath), near, lastConfig));
     }
     lastConfig = pickConfig(hits.map((u) => u.fsPath),
                             vscode.window.activeTextEditor?.document.uri, lastConfig);

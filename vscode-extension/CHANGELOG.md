@@ -3,6 +3,51 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.7.0
+
+- **Prose edits reach the HTML without running the analysis**, if you turn on `octavo.qmdPreviewOnSave`
+  (off by default). Run the analysis once with it on, and from then a save that changed only the prose
+  updates the HTML with the code's kept results. A change to a chunk, the front matter or a watched input
+  runs nothing and says to run the analysis. On the command line: `octavo analysis run --keep-cache`, then
+  `octavo analysis prose <qmd>`. A Python `.qmd` needs `jupyter-cache`, now in new projects'
+  `requirements.txt`; add it to older ones.
+- **`octavo bundle` no longer deletes folders it did not make.** The work folder was named after the output and
+  removed first, so `octavo bundle --replication` deleted an existing `replication/`, `--out data.zip` deleted
+  `data/`, and `--dir --out .` deleted the project. Zips are now built in a temporary folder. `--dir` makes its
+  folder again only if it holds nothing but the files Octavo wrote there; otherwise it stops, so a folder from an
+  older version stops once (move it or choose another `--out`). A file that is not a zip is not overwritten.
+- **A replication package is now in English by default** (`--lang ja` keeps Japanese; its README used to follow
+  the project's language). The Japanese lines of each `.qmd`, `.R` and `.py` under `analysis/` go into translation
+  files, and what you or an AI fill in is applied to the package; Octavo does not translate. The package's settings
+  lose their Japanese comments, and other files with Japanese left in them are listed.
+- **`octavo.R` and `octavo_helper.py` are in English**, including their error messages, in new projects. A project
+  keeps its own copy; an older Japanese copy in a package is listed for translation like any other script.
+- **`--verify` runs the package itself** in a temporary folder and compares the values with the record, so it finds
+  a file the analysis needs that did not go in. With `--standalone` it also runs the rewritten `.qmd` files. If only
+  `data/raw` is missing it says so. If nothing could be checked it fails, and a failed check makes no zip.
+- **The package's README gives real steps**: commands to install the recorded package versions, and the analyses
+  in the configured order, with manual ones listed apart. `_quarto.yml` now goes in the package.
+- **"Save All" updates the HTML of every `.qmd` saved**, in whichever project it belongs to.
+- **Replication packages carry `renv.lock` and `requirements.txt`**, so the package versions travel with the
+  analysis.
+- **`octavo bundle --replication --standalone`**: a replication package whose `.qmd` files do not need
+  Octavo's helpers, for readers who do not know Octavo. `ov_value()` prints the value, `ov_figure()`
+  becomes `ggsave()` or `savefig()`, `ov_table()` writes a CSV. Calls it cannot be sure of are listed with
+  the reason and left as they are, and a `.qmd` with any left keeps loading the helper, so the package
+  still runs. Your project's own `.qmd` files are not changed.
+- **The `.qmd` HTML view opens when you expect it.** A `Quarto Preview` terminal left open no longer
+  keeps it closed: only Quarto's own preview page does, so a preview you cannot see (over a Remote
+  Tunnel, for example) no longer takes this view away as well. If there is no HTML yet, the view says
+  so instead of not appearing. Finishing a run opens the view if that `.qmd` is on screen, even if you
+  closed the view earlier. Closing the `.qmd` tab and opening it again brings the view back.
+- **Show the HTML**: a new button in the `.qmd` title bar (`octavo.showQmdHtml`) opens the view
+  whatever stopped it from opening by itself.
+- **The "references missing" warning in the status bar can be acted on.** Clicking it used to run a
+  build. It now lists the missing keys (choose one to go to its citation) and the ways to fix them:
+  pull from Zotero, tidy the main collection, or open the `.bib`.
+- **The table of contents of the HTML view works with Japanese headings.** Links within the page whose
+  target is not plain ASCII now jump to their section.
+
 ## 0.6.12
 
 - **A page on writing support** (<https://yoshida-kd.github.io/octavo/writing/>): making a pack of

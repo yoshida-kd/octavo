@@ -12,10 +12,17 @@
     figures/        Typst で手で描いた図（<名前>.typ。あれば）
     octavo.config.py  設定
     literature.bib    書誌
+    renv.lock requirements.txt  使ったパッケージの版（ある場合）
+
+## 環境を作る
+
+@@SETUP@@
 
 ## もう一度実行する
 
-    quarto render analysis/*.qmd
+このフォルダで:
+
+@@RUN@@
 
 あるいは [Octavo](https://github.com/yoshida-kd/octavo) があれば
 

@@ -12,10 +12,17 @@ This package alone reproduces every number, figure and table in the paper.
     figures/        figures drawn by hand in Typst (<name>.typ), if any
     octavo.config.py  settings
     literature.bib    bibliography
+    renv.lock requirements.txt  the package versions used (when the project has them)
+
+## Setting up
+
+@@SETUP@@
 
 ## Running it again
 
-    quarto render analysis/*.qmd
+From this folder:
+
+@@RUN@@
 
 or, with [Octavo](https://github.com/yoshida-kd/octavo) installed,
 

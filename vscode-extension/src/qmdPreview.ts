@@ -1,32 +1,34 @@
 // qmdPreview.ts — .qmd を開いたとき、その分析の**いまある HTML**（Quarto が書き出したもの）を
 // エディタの右に出す。
 //
-// ここは「見せるだけ」: .qmd を保存しても組み直さない（分析の実行は analysis.ts の
-// ボタンか `octavo analysis run`。重い推定が保存のたびに走るのを避けるため）。実行が
-// 終わって HTML が書き換わったら、出ている画面を自動で読み直す。
+// 既定では「見せるだけ」: .qmd を保存しても組み直さない（分析の実行は analysis.ts の
+// ボタンか `octavo analysis run`。重い推定が保存のたびに走るのを避けるため）。設定
+// octavo.qmdPreviewOnSave をオンにすると、地の文だけが変わった保存では `octavo analysis prose` が
+// コードを実行せずに組み直す（判断は CLI がする）。実行が
+// 終わって HTML が書き換わったら、出ている画面を読み直す。画面が出ていなくても、その .qmd が
+// エディタに見えていれば開く（実行は結果を見たいという意思表示なので、自分で閉じたあとでも開く）。
 //
 // 出すのは Octavo のプロジェクトの中の .qmd だけ（Quarto だけを使っている .qmd には出ない）。
 // HTML は `embed-resources: true`（新しい .qmd の既定）で1枚に収まっている前提。
-// 画面を自分で閉じたら、その .qmd を開き直すまで出さない。
+// 画面を自分で閉じたら、その .qmd を開き直すまで出さない（タブを閉じて開き直すか、別の .qmd へ
+// 移るか、タイトルバーの「HTML を表示」で出る）。HTML がまだないときは、その旨の画面を出す。
 // 原稿のカーソルの位置へ、画面もスクロールする（PDF のプレビューと同じ。設定 octavo.previewFollowCursor。
 // 行の頭の文字を HTML の文字の中から探す）。
-// Quarto 拡張機能のプレビュー（Preview ボタン）が動いているあいだは出さない。始まったら
-// こちらを閉じる（同じ HTML が2つ並ばないように）。検知は、Quarto が開くターミナル
-// 「Quarto Preview」と、その画面（webview の viewType quarto.previewView）で行う。
+// Quarto 拡張機能のプレビュー（Preview ボタン）の画面が出ているあいだは、自動では出さない。
+// 出たらこちらを閉じる（同じ HTML が2つ並ばないように）。検知は、その画面（webview の viewType
+// quarto.previewView）だけで行う。ターミナル「Quarto Preview」は見ない: 画面が見えないまま
+// ターミナルだけが残る場合（トンネル接続など）に、どちらのプレビューも見られなくなるため。
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { dirOf, findConfig } from './runner';
 import { plainText, samePath } from './preview';
+import { renderProse } from './analysis';
 
 const isQmd = (p: string): boolean => /\.qmd$/i.test(p);
 const htmlOf = (qmd: string): string => qmd.replace(/\.qmd$/i, '.html');
 
-const QUARTO_TERMINAL = 'Quarto Preview';
-
-/** Quarto のプレビューが動いているか（ターミナルか画面のどちらかがある）。 */
-export function quartoPreviewRunning(): boolean {
-    if (vscode.window.terminals.some((t) => t.name === QUARTO_TERMINAL && t.exitStatus === undefined)) {
-        return true;
-    }
+/** Quarto のプレビューの画面が出ているか。 */
+export function quartoPreviewShown(): boolean {
     return vscode.window.tabGroups.all.some((g) => g.tabs.some((tab) =>
         tab.input instanceof vscode.TabInputWebview && /quarto\.previewView$/.test(tab.input.viewType)));
 }
@@ -38,16 +40,19 @@ export class QmdPreview implements vscode.Disposable {
     private reloadTimer?: NodeJS.Timeout;
     private readonly subs: vscode.Disposable[] = [];
 
-    constructor(private readonly log: (s: string) => void) {
+    constructor(private readonly log: (s: string) => void,
+                private readonly analysisRunning: () => boolean = () => false) {
         const watcher = vscode.workspace.createFileSystemWatcher('**/*.html');
         const changed = (u: vscode.Uri): void => this.onHtmlChanged(u.fsPath);
         this.subs.push(
             watcher, watcher.onDidChange(changed), watcher.onDidCreate(changed),
             vscode.window.onDidChangeActiveTextEditor((e) => void this.onEditor(e)),
             vscode.window.onDidChangeTextEditorSelection((e) => this.onCursor(e)),
-            vscode.window.onDidOpenTerminal(() => this.onQuartoChange()),
-            vscode.window.onDidCloseTerminal(() => this.onQuartoChange()),
-            vscode.window.tabGroups.onDidChangeTabs(() => this.onQuartoChange()),
+            vscode.workspace.onDidSaveTextDocument((d) => void this.onSave(d)),
+            vscode.window.tabGroups.onDidChangeTabs(() => {
+                this.forgetClosedIfTabGone();
+                this.onQuartoChange();
+            }),
         );
         void this.onEditor(vscode.window.activeTextEditor);
     }
@@ -64,9 +69,18 @@ export class QmdPreview implements vscode.Disposable {
 
     private quarto = false;
 
-    /** Quarto のプレビューが始まったらこちらを閉じ、終わったら（.qmd を開いていれば）出し直す。 */
+    /** 手で閉じた記録は、その .qmd のタブがなくなったら消す（開き直せば、また出る）。 */
+    private forgetClosedIfTabGone(): void {
+        const closed = this.closedByUser;
+        if (closed && !vscode.window.tabGroups.all.some((g) => g.tabs.some((tab) =>
+            tab.input instanceof vscode.TabInputText && samePath(tab.input.uri.fsPath, closed)))) {
+            this.closedByUser = undefined;
+        }
+    }
+
+    /** Quarto のプレビューの画面が出たらこちらを閉じ、消えたら（.qmd を開いていれば）出し直す。 */
     private onQuartoChange(): void {
-        const running = quartoPreviewRunning();
+        const running = quartoPreviewShown();
         if (running === this.quarto) {
             return;
         }
@@ -74,7 +88,7 @@ export class QmdPreview implements vscode.Disposable {
         if (running && this.panel) {
             this.closingForQuarto = true;    // 利用者が閉じたことにしない（onDidDispose が読む）
             this.panel.dispose();
-            this.log('[qmd] Quarto Preview is running: closed the HTML view');
+            this.log("[qmd] Quarto's preview is showing: closed the HTML view");
         } else if (!running) {
             this.closedByUser = undefined;
             void this.onEditor(vscode.window.activeTextEditor);
@@ -87,7 +101,7 @@ export class QmdPreview implements vscode.Disposable {
 
     /** Octavo のプロジェクトの中の .qmd か。 */
     private async inProject(fsPath: string): Promise<boolean> {
-        const config = await findConfig();
+        const config = await findConfig(vscode.Uri.file(fsPath));
         if (!config) {
             return false;
         }
@@ -98,7 +112,7 @@ export class QmdPreview implements vscode.Disposable {
 
     private async onEditor(editor: vscode.TextEditor | undefined): Promise<void> {
         // 画面（webview）にフォーカスが移ったときは editor が undefined になる。何もしない
-        if (!editor || !this.enabled || quartoPreviewRunning()) {
+        if (!editor) {
             return;
         }
         const p = editor.document.uri.fsPath;
@@ -106,7 +120,16 @@ export class QmdPreview implements vscode.Disposable {
             this.closedByUser = undefined;
             return;
         }
+        // 手で出した画面（設定がオフ、Quarto の画面が出ている）は、移った先の .qmd についていく
+        if (!this.panel && !this.enabled) {
+            return;
+        }
+        if (!this.panel && quartoPreviewShown()) {
+            this.log(`[qmd] ${this.fileName(p)}: Quarto's preview is showing, so the HTML view stays closed`);
+            return;
+        }
         if (samePath(this.closedByUser, p)) {
+            this.log(`[qmd] ${this.fileName(p)}: you closed the HTML view (Show the HTML in the title bar brings it back)`);
             return;
         }
         this.closedByUser = undefined;
@@ -117,6 +140,51 @@ export class QmdPreview implements vscode.Disposable {
             return;
         }
         await this.show(p);
+    }
+
+    // -- 保存で組み直す（設定がオンのときだけ） --------------------------
+    private rendering = false;
+    private readonly savedAgain = new Map<string, vscode.TextDocument>();
+
+    private async onSave(doc: vscode.TextDocument): Promise<void> {
+        const p = doc.uri.fsPath;
+        if (!isQmd(p) || this.analysisRunning()
+            || !vscode.workspace.getConfiguration('octavo').get<boolean>('qmdPreviewOnSave', false)) {
+            return;
+        }
+        // 組み直している間に保存されたら、終わってからファイルごとに1度だけ組み直す
+        // （「すべて保存」では何本も続けて来る。別のプロジェクトのものもあるので、そのファイルから探す）
+        if (this.rendering) {
+            this.savedAgain.set(p, doc);
+            return;
+        }
+        const config = await findConfig(doc.uri);
+        if (!config || !(await this.inProject(p))) {
+            return;
+        }
+        this.rendering = true;
+        const wait = vscode.window.setStatusBarMessage('$(sync~spin) ' + vscode.l10n.t('Octavo: updating the HTML…'));
+        try {
+            const cwd = dirOf(config);
+            const got = await renderProse(cwd, path.relative(cwd, p).split(path.sep).join('/'));
+            if (got?.status === 'skipped') {
+                this.log(`[qmd] ${got.message}`);
+            } else if (got?.status === 'failed') {
+                this.log(`[qmd] ${got.message}`);
+                void vscode.window.showWarningMessage(vscode.l10n.t('Octavo: could not update the HTML. See the Octavo output.'));
+            } else if (got) {
+                this.log(`[qmd] ${got.message}`);
+                vscode.window.setStatusBarMessage(`Octavo: ${got.message}`, 8000);
+            }
+        } finally {
+            wait.dispose();
+            this.rendering = false;
+        }
+        const [next] = this.savedAgain.entries();
+        if (next) {
+            this.savedAgain.delete(next[0]);
+            await this.onSave(next[1]);
+        }
     }
 
     // -- カーソルに合わせてスクロール ------------------------------------
@@ -157,12 +225,49 @@ export class QmdPreview implements vscode.Disposable {
     }
 
     private onHtmlChanged(htmlPath: string): void {
-        if (!this.panel || !this.current || !samePath(htmlOf(this.current), htmlPath)) {
+        const shownNow = this.panel && this.current && samePath(htmlOf(this.current), htmlPath);
+        const opened = shownNow ? undefined : this.editorOfHtml(htmlPath);
+        if (!shownNow && !opened) {
             return;
         }
-        // 書き出しの途中を読まないように、少し待ってから読み直す
+        // 書き出しの途中を読まないように、少し待ってから読む
         clearTimeout(this.reloadTimer);
-        this.reloadTimer = setTimeout(() => void this.show(this.current!, true), 400);
+        this.reloadTimer = setTimeout(() => void (async () => {
+            if (shownNow) {
+                await this.show(this.current!, true);
+            } else if (opened && this.enabled && !quartoPreviewShown() && await this.inProject(opened)) {
+                this.closedByUser = undefined;
+                await this.show(opened);
+            }
+        })(), 400);
+    }
+
+    /**
+     * いま書かれた HTML の .qmd がエディタに見えていれば、そのパス。画面が別の .qmd を
+     * 映しているときは、まとめて実行しても画面が次々に替わらないよう、作業中の .qmd に限る。
+     */
+    private editorOfHtml(htmlPath: string): string | undefined {
+        const editors = this.panel
+            ? [vscode.window.activeTextEditor].flatMap((e) => (e ? [e] : []))
+            : vscode.window.visibleTextEditors;
+        return editors.map((e) => e.document.uri.fsPath)
+            .find((p) => isQmd(p) && samePath(htmlOf(p), htmlPath));
+    }
+
+    /** タイトルバーの「HTML を表示」。自動で出さない理由（手で閉じた・設定・Quarto の画面）を超えて出す。 */
+    async showNow(uri?: vscode.Uri): Promise<void> {
+        const p = uri?.fsPath ?? vscode.window.activeTextEditor?.document.uri.fsPath ?? this.current;
+        if (!p || !isQmd(p)) {
+            void vscode.window.showInformationMessage(vscode.l10n.t('Open a .qmd file first.'));
+            return;
+        }
+        this.closedByUser = undefined;
+        await this.show(p);
+        this.panel?.reveal(undefined, true);
+    }
+
+    private fileName(p: string): string {
+        return p.replace(/\\/g, '/').split('/').pop() ?? p;
     }
 
     private async show(qmd: string, reload = false): Promise<void> {
@@ -173,11 +278,7 @@ export class QmdPreview implements vscode.Disposable {
         } catch {
             text = undefined;
         }
-        // まだ組んでいない分析: 画面がすでに出ているときだけ、その旨を出す（出ていなければ何も出さない）
-        if (text === undefined && !this.panel) {
-            return;
-        }
-        const name = qmd.replace(/\\/g, '/').split('/').pop() ?? qmd;
+        const name = this.fileName(qmd);
         if (!this.panel) {
             this.panel = vscode.window.createWebviewPanel(
                 'octavo.qmdPreview', htmlOf(name), { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true },
@@ -207,7 +308,7 @@ export class QmdPreview implements vscode.Disposable {
     private closingForQuarto = false;
 
     private notRendered(name: string): string {
-        const msg = vscode.l10n.t('{0} has not been rendered yet. Run the analysis (the ▶ button in the title bar) and the result appears here.', name);
+        const msg = vscode.l10n.t('{0} has no HTML yet. Run the analysis (the ▶ button in the title bar) and the result appears here. A .qmd that makes no HTML has nothing to show: the setting octavo.qmdPreview turns this view off.', name);
         const esc = msg.replace(/&/g, '&amp;').replace(/</g, '&lt;');
         return `<!DOCTYPE html><html><body style="font-family:var(--vscode-font-family);`
             + `color:var(--vscode-foreground);padding:24px"><p>${esc}</p></body></html>`;
@@ -266,6 +367,11 @@ export function qmdNeedles(lines: string[], line: number): string[] {
 //    needles の頭の文字を HTML の文字の中から探し、同じ文が何か所かあるときは、原稿の位置の
 //    割合に近いものを取る。見つからなければ割合だけで合わせる。折りたたんだ所（見えない所）は
 //    候補にしない。すでに見える位置（上から 12%〜80%）なら動かさない（PDF のプレビューと同じ）。
+//  - 日本語の id へのページ内リンク（目次など）を飛べるようにする。VS Code は webview の window で
+//    クリックを受け、href の文字列と a.hash が同じときだけページ内リンクとして扱う。a.hash は
+//    パーセントエンコードされるので、日本語では一致せず、外部リンクとして渡されて何も起きない。
+//    一致しないリンクだけここで飛び、window へ伝えない（一致するものは VS Code に任せる）。
+//    document の bubble で受けるので、Quarto や Bootstrap がリンクに付けた処理は先に動く。
 // JS の正規表現の \ をそのまま残すため String.raw。バッククォートと ${ は使わないこと。
 const PAGE_SCRIPT = String.raw`(function(){
 var vs=acquireVsCodeApi();var K=__KEY__;
@@ -330,6 +436,17 @@ function apply(m){
   }
 }
 window.addEventListener('message',function(e){var m=e.data;if(m&&m.type==='sync')apply(m);});
+document.addEventListener('click',function(e){
+  var a=e.target&&e.target.closest?e.target.closest('a[href^="#"]'):null;
+  if(!a)return;
+  var h=a.getAttribute('href');
+  if(h==='#'||h===a.hash)return;
+  e.preventDefault();e.stopPropagation();
+  var id=h.slice(1);
+  try{id=decodeURIComponent(id);}catch(x){}
+  var el=document.getElementById(h.slice(1))||document.getElementById(id);
+  if(el)el.scrollIntoView();
+});
 })();`;
 
 export function withPreviewScript(html: string, key: string): string {

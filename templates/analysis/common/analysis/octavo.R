@@ -1,40 +1,38 @@
 # =====================================================================
-#  Octavo — 分析（.qmd）から論文（.md）へ、数値・図・表を渡す。
+#  Octavo — hands numbers, figures and tables from the analysis (.qmd) to the paper (.md).
 #
-#  使い方（.qmd の最初のチャンクで読み込む）:
+#  Usage (load it in the first chunk of the .qmd):
 #
 #      source(if (file.exists("octavo.R")) "octavo.R" else file.path("analysis", "octavo.R"))
 #
-#  （Render のときの作業フォルダは analysis/、チャンクだけを実行するとき
-#   ── VS Code の Run Cell など ── はプロジェクトの直下なので、両方を探す）
+#  (Rendering works in analysis/; running a single chunk, with VS Code's Run Cell for
+#   instance, works in the project's root. So it looks in both places.)
 #
-#  そのあと分析の中で:
+#  Then, in the analysis:
 #
-#      ov_value("n_obs", nrow(d))                    -> 本文の {{n_obs}}
-#      ov_value("coef_x", coef(m)[["x"]])        -> 本文の {{coef_x}}
-#      ov_value("p_x", ov_pval(pv))                -> 本文の {{p_x}}
+#      ov_value("n_obs", nrow(d))                    -> {{n_obs}} in the text
+#      ov_value("coef_x", coef(m)[["x"]])        -> {{coef_x}} in the text
+#      ov_value("p_x", ov_pval(pv))                -> {{p_x}} in the text
 #      ov_figure(gg, "trend")                        -> assets/figures/trend.{pdf,png}
 #      ov_table(tab, "summary")                      -> assets/tables/summary.{tex,typ,md}
-#      ov_palette(3) / ov_tint(col) / ov_scale_colour_cud()   色覚に配慮した配色
+#      ov_palette(3) / ov_tint(col) / ov_scale_colour_cud()   colourblind-safe colours
 #
-#  数値は assets/values/<この .qmd の名前>.json に貯まる。octavo build が読んで
-#  本文の {{…}} に差し込む。図は原稿に ![推移](../../assets/figures/trend.png){#fig-trend}
-#  と書けば入り、表は原稿に `: 記述統計 {#tbl-summary}` の1行を書けばそこに
-#  入る。キャプションと番号は原稿の側（@fig-trend / @tbl-summary で参照できる）。
+#  Numbers collect in assets/values/<name of this .qmd>.json. octavo build reads them into
+#  the {{...}} of the text. A figure goes in with ![Trend](../../assets/figures/trend.png){#fig-trend}
+#  in the manuscript, and a table with the line `: Summary {#tbl-summary}` where it belongs.
+#  Captions and numbers belong to the manuscript (refer to them with @fig-trend / @tbl-summary).
 #
-#  **整数と小数を区別する。**R の整数（nrow() など）は桁区切り付きで
-#  「1,523」、小数（coef() など）は既定 3 桁で「0.342」になる。書式を
-#  決め打ちしたいときは ov_value(..., fmt = ".2f") か、本文側で
-#  {{coef_x:.2f}} と書く。
+#  **Integers and decimals are kept apart.** An R integer (nrow() and so on) shows with a
+#  thousands separator, "1,523"; a decimal (coef() and so on) shows with 3 digits by default,
+#  "0.342". To fix the format, use ov_value(..., fmt = ".2f") or write {{coef_x:.2f}} in the text.
 #
-#  外部パッケージには依存しない。ggplot2 は ov_figure() に ggplot を
-#  渡したときだけ使う。表の LaTeX 出力は booktabs（\toprule 等）を使う
-#  ので、main.tex 側で \usepackage{booktabs} が要る（同梱の main.tex
-#  と pandoc の既定テンプレートは読み込み済み）。Typst の
-#  表は table.hline() を使うので Typst 0.11 以上。
+#  It depends on no package. ggplot2 is used only when ov_figure() is given a ggplot. LaTeX
+#  tables use booktabs (\toprule and so on), so main.tex needs \usepackage{booktabs} (the
+#  bundled main.tex and pandoc's default template have it). Typst tables use table.hline(),
+#  so Typst 0.11 or later.
 # =====================================================================
 
-# ---------------------------------------------------------------- 置き場所
+# ---------------------------------------------------------------- locations
 
 ov_root <- function() {
   e <- Sys.getenv("OCTAVO_ROOT")
@@ -49,8 +47,8 @@ ov_root <- function() {
   normalizePath(getwd(), winslash = "/")
 }
 
-# 書き出し先。octavo が環境変数で渡す（octavo.config.py の values_dir など）。
-# Quarto で直接 render したときは、既定の置き場 assets/ の下。
+# Where to write. octavo passes it in environment variables (values_dir in octavo.config.py and
+# so on). When Quarto renders directly, it is under the default place, assets/.
 ov_dir <- function(kind = c("values", "figures", "tables")) {
   kind <- match.arg(kind)
   env <- c(values = "OCTAVO_VALUES_DIR", figures = "OCTAVO_FIGURE_DIR",
@@ -61,11 +59,11 @@ ov_dir <- function(kind = c("values", "figures", "tables")) {
   p
 }
 
-# 値の書き出し先。既定は「この .qmd と同じ名前の .json」。1本の .qmd が
-# 1つのファイルを持つので、複数の分析が同じファイルを取り合わない。
-# Render していない（チャンクだけを実行した）ときは、どの .qmd か分からないので
-# NULL を返し、値は書かない。別の名前のファイルに書くと、Render した本来の値と
-# 同じ名前で並び、試しに実行した値が本文に入ってしまう。
+# Where values go: by default a .json named after this .qmd. Each .qmd has its own file, so
+# analyses do not compete for one. When nothing is being rendered (a chunk was run on its own)
+# there is no telling which .qmd this is, so it returns NULL and no value is written. Written to
+# a file of another name, a trial value would sit beside the rendered one under the same name
+# and could reach the text.
 ov_values_file <- function() {
   name <- getOption("octavo.values", NULL)
   if (is.null(name)) {
@@ -92,8 +90,8 @@ ov_json_str <- function(s) {
   paste0("\"", s, "\"")
 }
 
-# 整数はそのまま、小数は必ず小数点を付けて書く。JSON には整数と小数の
-# 区別がないので、「1523」と「1523.0」で Octavo 側の既定書式が変わる。
+# Integers as they are, decimals always with a decimal point. JSON does not tell them apart, so
+# "1523" and "1523.0" are how Octavo chooses its default format.
 ov_json_scalar <- function(x) {
   if (is.null(x)) return("\"NA\"")
   if (length(x) == 1L && is.na(x)) return("\"NA\"")
@@ -118,31 +116,30 @@ ov_write_lines <- function(txt, path) {
 }
 
 
-# ---------------------------------------------------------------- 数値
+# ---------------------------------------------------------------- numbers
 
 .ov_store <- new.env(parent = emptyenv())
 
-#' 論文の本文に出す数値を1つ登録する。
+#' Record one number for the text of the paper.
 #'
-#' @param name 本文で {{name}} と書く名前
-#' @param x    値（長さ1）。整数・小数・文字のいずれでもよい
-#' @param fmt  Python の書式指定（".3f" 等）。省略なら Octavo 側の既定
-#' @param note 覚え書き。octavo check values で表示される
+#' @param name the name written {{name}} in the text
+#' @param x    the value (length 1): an integer, a decimal or a string
+#' @param fmt  a Python format (".3f" and so on). Left out, Octavo's default
+#' @param note a memo, shown by octavo check values
 ov_value <- function(name, x, fmt = NULL, note = NULL) {
   if (!is.character(name) || length(name) != 1L || !nzchar(name)) {
-    stop("ov_value: name は長さ1の文字列")
+    stop("ov_value: name must be one string")
   }
   if (!grepl("^[A-Za-z_][A-Za-z0-9_.]*$", name)) {
-    stop("ov_value: name は英字か _ で始め、英数字・_ ・. だけを使う（", name, "）")
+    stop("ov_value: name must start with a letter or _ and use only letters, digits, _ and . (", name, ")")
   }
   if (length(x) != 1L) {
-    stop("ov_value: 値は1つだけ渡す（", name, " は length ", length(x), "）")
+    stop("ov_value: pass exactly one value (", name, " has length ", length(x), ")")
   }
   path <- ov_values_file()
   if (is.null(path)) {
     message("ov_value: ", name, " = ", format(x),
-            " (not recorded: this chunk was run on its own; render the .qmd to record it /",
-            " チャンクだけを実行したので記録しません。.qmd を実行すると記録されます)")
+            " (not recorded: this chunk was run on its own; render the .qmd to record it)")
     return(invisible(x))
   }
   store <- if (is.null(.ov_store[[path]])) list() else .ov_store[[path]]
@@ -152,17 +149,17 @@ ov_value <- function(name, x, fmt = NULL, note = NULL) {
   invisible(x)
 }
 
-#' 複数まとめて登録する。ov_values(n_obs = nrow(d), mean_x = mean(d$x))
+#' Record several at once: ov_values(n_obs = nrow(d), mean_x = mean(d$x))
 ov_values <- function(...) {
   args <- list(...)
   nm <- names(args)
-  if (is.null(nm) || any(!nzchar(nm))) stop("ov_values: 全部に名前を付ける")
+  if (is.null(nm) || any(!nzchar(nm))) stop("ov_values: give every value a name")
   for (i in seq_along(args)) ov_value(nm[i], args[[i]])
   invisible(args)
 }
 
-# 再現性の記録。replication package を出すときに要る「何で実行したか」を
-# 値のファイルに一緒に残す。`_` で始まるキーは Octavo 側が値として扱わない。
+# A record for reproducibility: what this ran on, kept in the values file for the replication
+# package. Octavo does not treat keys starting with `_` as values.
 ov_session <- function() {
   si <- utils::sessionInfo()
   pkgs <- c(si$otherPkgs, si$loadedOnly)
@@ -209,7 +206,7 @@ ov_write_values <- function(path, store) {
                  path)
 }
 
-#' p 値の慣例的な書き方。0.001 未満は "< .001"。
+#' The usual way to write a p value. Below 0.001 it is "< .001".
 ov_pval <- function(p, digits = 3) {
   if (length(p) != 1L || is.na(p)) return("NA")
   cut <- 10^(-digits)
@@ -218,11 +215,11 @@ ov_pval <- function(p, digits = 3) {
 }
 
 
-# ---------------------------------------------------------------- 図
+# ---------------------------------------------------------------- figures
 
 ov_device <- function(path, fmt, width, height, dpi) {
-  # macOS の CRAN 版 R の cairo は XQuartz がないと動かない。Mac 標準の quartz で
-  # 書く（和文もそのまま出る）
+  # On macOS, cairo in CRAN's R does not work without XQuartz. Use the system's quartz
+  # (Japanese text comes out as it is)
   mac <- identical(Sys.info()[["sysname"]], "Darwin")
   cairo <- !mac && isTRUE(capabilities("cairo"))
   if (fmt == "pdf") {
@@ -242,22 +239,22 @@ ov_device <- function(path, fmt, width, height, dpi) {
   } else if (fmt == "svg") {
     grDevices::svg(path, width = width, height = height)
   } else {
-    stop("ov_figure: 不明な形式 ", fmt)
+    stop("ov_figure: unknown format ", fmt)
   }
 }
 
-#' 図を assets/figures/ に保存する。既定で .pdf（Typst・LaTeX 用）と .png（Word 用）
-#' の両方を書くので、octavo.config.py の figure_ext をそのまま使える。
+#' Save a figure in assets/figures/. By default it writes both .pdf (for Typst and LaTeX) and
+#' .png (for Word), so figure_ext in octavo.config.py works as it is.
 #'
-#' @param x      ggplot、あるいは「描画する関数」（base graphics）
-#' @param name   ファイル名（拡張子なし）。原稿の ![](assets/figures/<name>.png) と揃える
+#' @param x      a ggplot, or a function that draws (base graphics)
+#' @param name   the file name, no extension. Match ![](assets/figures/<name>.png) in the manuscript
 ov_figure <- function(x, name, width = 6, height = 4, dpi = 300,
                       formats = c("pdf", "png")) {
   dir <- ov_dir("figures")
   out <- character(0)
   is_gg <- inherits(x, "ggplot")
   if (is_gg && !requireNamespace("ggplot2", quietly = TRUE)) {
-    stop("ov_figure: ggplot を渡すには ggplot2 が要る")
+    stop("ov_figure: passing a ggplot needs ggplot2")
   }
   for (fmt in formats) {
     path <- file.path(dir, paste0(name, ".", fmt))
@@ -285,38 +282,39 @@ ov_figure <- function(x, name, width = 6, height = 4, dpi = 300,
 }
 
 
-# ---------------------------------------------------------------- 配色
-# 色覚の多様性に配慮した配色（カラーユニバーサルデザイン）。Okabe & Ito (2008) の
-# 8 色。図を作るときの約束（プロジェクトの CLAUDE.md）:
-#   1. 色はここから選ぶ
-#   2. 色だけで区別しない（値や名前を図の中に直接書く。強調は太字・線種・位置でも）
-#   3. 隣り合う面は明るさも変える。文字を載せる面は ov_tint() で白に寄せる
-#   4. 赤と緑、黄と白を隣り合わせない
+# ---------------------------------------------------------------- colours
+# Colours that stay distinct for people with colour-vision differences: the 8 colours of
+# Okabe & Ito (2008). The rules for making a figure:
+#   1. Choose colours from here
+#   2. Do not tell things apart by colour alone (write values or names in the figure; emphasise
+#      with bold, line type or position as well)
+#   3. Give neighbouring areas different lightness too. Lighten an area that carries text with ov_tint()
+#   4. Do not put red next to green, or yellow next to white
 
 ov_cud <- c(blue = "#0072B2", orange = "#E69F00", green = "#009E73",
             vermillion = "#D55E00", skyblue = "#56B4E9", purple = "#CC79A7",
             yellow = "#F0E442", grey = "#999999", black = "#000000")
 
-#' CUD の色を返す。n を渡すとその数だけ（見分けやすい順）、名前を渡すとその色
+#' The colours. Given n, that many (most distinct first); given names, those colours
 #'
-#'   ov_palette(3)                   # 青・橙・緑
+#'   ov_palette(3)                   # blue, orange, green
 #'   ov_palette(c("blue", "grey"))
 ov_palette <- function(n = NULL) {
   if (is.character(n)) {
     bad <- setdiff(n, names(ov_cud))
-    if (length(bad)) stop("ov_palette: 知らない色 ", paste(bad, collapse = ", "),
-                          "（", paste(names(ov_cud), collapse = " / "), "）")
+    if (length(bad)) stop("ov_palette: unknown colour ", paste(bad, collapse = ", "),
+                          " (", paste(names(ov_cud), collapse = " / "), ")")
     return(ov_cud[n])
   }
   order <- c("blue", "orange", "green", "vermillion", "skyblue", "purple",
              "yellow", "grey")
   if (is.null(n)) return(ov_cud[order])
-  if (n > length(order)) stop("ov_palette: 色は ", length(order), " まで（それより多いなら",
-                              "色ではなく線種・形・直接の文字で区別する）")
+  if (n > length(order)) stop("ov_palette: at most ", length(order), " colours (beyond that, tell things apart ",
+                              "by line type, shape or direct labels)")
   ov_cud[order[seq_len(n)]]
 }
 
-#' 色を白に寄せる（p = 0 でそのまま、1 で白）。面の上に黒い文字を載せるときに
+#' Lighten a colour (p = 0 leaves it, 1 makes it white), for an area that carries black text
 ov_tint <- function(col, p = 0.6) {
   m <- grDevices::col2rgb(col) / 255
   m <- m + (1 - m) * p
@@ -325,7 +323,7 @@ ov_tint <- function(col, p = 0.6) {
   out
 }
 
-#' ggplot2 の色・塗りを CUD の色にする（ggplot2 を使うときだけ）
+#' Use these colours for ggplot2's colour and fill (only when you use ggplot2)
 #'
 #'   ggplot(d, aes(x, y, colour = g)) + geom_line() + ov_scale_colour_cud()
 ov_scale_colour_cud <- function(...) {
@@ -336,12 +334,12 @@ ov_scale_fill_cud <- function(...) {
 }
 
 
-# ---------------------------------------------------------------- 表
+# ---------------------------------------------------------------- tables
 
 ov_tex_escape <- function(s) {
   s <- as.character(s)
-  # バックスラッシュを先に印に逃がす。そうしないと、この行が入れた
-  # \textbackslash{} の波括弧を、下の { } のエスケープが二重に潰す。
+  # Move backslashes out of the way first. Otherwise the escaping of { } below would escape
+  # the braces of the \textbackslash{} this puts in.
   s <- gsub("\\", "\u0001", s, fixed = TRUE)
   for (ch in c("&", "%", "$", "#", "_", "{", "}")) {
     s <- gsub(ch, paste0("\\", ch), s, fixed = TRUE)
@@ -360,7 +358,7 @@ ov_typ_escape <- function(s) {
   s
 }
 
-# データフレームを「文字の行列」にする。小数は digits 桁に揃え、NA は空欄。
+# A data frame as a matrix of strings. Decimals to digits places, NA left empty.
 ov_cells <- function(x, digits) {
   x <- as.data.frame(x, stringsAsFactors = FALSE, check.names = FALSE)
   cols <- lapply(x, function(col) {
@@ -384,34 +382,34 @@ ov_align <- function(x, align) {
   vapply(x, function(col) if (is.numeric(col)) "r" else "l", character(1))
 }
 
-# 群の見出し: c(Demand = 1, Hiring = 6) は「1 行目の前に Demand、6 行目の前に Hiring」。
-# list(Demand = 1, ...) でもよい。返すのは list(at = 行番号, label = 見出し)
+# Group headings: c(Demand = 1, Hiring = 6) puts Demand before row 1 and Hiring before row 6.
+# list(Demand = 1, ...) works too. Returns list(at = row numbers, label = headings)
 ov_groups <- function(groups, n) {
   if (is.null(groups) || length(groups) == 0L) return(NULL)
   at <- as.integer(unlist(groups))
   lab <- names(groups)
   if (is.null(lab) || any(!nzchar(lab))) {
-    stop("ov_table: groups は c(見出し = 始まりの行) の形にする（例: c(Demand = 1, Hiring = 6)）")
+    stop("ov_table: write groups as c(heading = first row), for example c(Demand = 1, Hiring = 6)")
   }
   if (any(is.na(at)) || any(at < 1L) || any(at > n)) {
-    stop("ov_table: groups の行は 1 から ", n, " の間（見出しは、その行の前に入る）")
+    stop("ov_table: rows in groups must be from 1 to ", n, " (the heading goes before that row)")
   }
   o <- order(at)
   list(at = at[o], label = lab[o])
 }
 
-# 行ごとの「群の見出し」と「字下げするか」。i 行目の前に見出しがあれば、その文字
+# For each row, its group heading (if one goes before it) and whether to indent it
 ov_row_plan <- function(n, grp, indent) {
   head <- rep(NA_character_, n)
   if (!is.null(grp)) head[grp$at] <- grp$label
   if (is.null(indent)) indent <- !is.null(grp)
-  # 最初の群より前の行は字下げしない
+  # Rows before the first group are not indented
   inside <- if (is.null(grp)) rep(FALSE, n) else seq_len(n) >= min(grp$at)
   list(head = head, indent = isTRUE(indent) & inside)
 }
 
-# 表の**中身だけ**を書く。キャプションとラベル（#tbl-<名前>）は原稿の
-# `: 表題 {#tbl-<名前>}` が持ち、Octavo が組むときに包む。
+# Writes **only the contents** of the table. The caption and the label (#tbl-<name>) belong to
+# the manuscript's `: Caption {#tbl-<name>}`, and Octavo wraps them around it when typesetting.
 ov_tex_table <- function(cells, align, notes, plan, size) {
   nc <- ncol(cells)
   cn <- colnames(cells)
@@ -435,7 +433,7 @@ ov_tex_table <- function(cells, align, notes, plan, size) {
   if (!is.null(size)) tab <- paste0("{\\fontsize{", size, "}{", round(size * 1.2, 2),
                                     "}\\selectfont\n", tab, "}\n")
   paste0(
-    "% octavo.R の ov_table() が作ったファイル。手で直さない。\n", tab,
+    "% Written by ov_table() in octavo.R. Do not edit by hand.\n", tab,
     if (!is.null(notes)) {
       paste0("\\par\\vspace{2pt}\n{\\footnotesize ", ov_tex_escape(notes), "}\n")
     } else "")
@@ -446,7 +444,7 @@ ov_typ_table <- function(cells, align, notes, plan, size) {
   typ_align <- c(l = "left", r = "right", c = "center")[align]
   cell <- function(v) paste0("[", ov_typ_escape(v), "]")
   cn <- colnames(cells)
-  # 見出しが空の列（行の名前の列）は [] にする。[**] は Typst が警告する
+  # A column with no heading (the row names) gets []. Typst warns about [**]
   head_row <- paste(ifelse(nzchar(cn), paste0("[*", ov_typ_escape(cn), "*]"), "[]"),
                     collapse = ", ")
   body <- character(0)
@@ -470,9 +468,9 @@ ov_typ_table <- function(cells, align, notes, plan, size) {
     paste(body, collapse = "\n"), "\n",
     "  table.hline(),\n",
     ")\n")
-  # 本文の両端揃えを表のセルに持ち込まない。字の大きさは size（pt）で
+  # Keep the text's justification out of the cells. The type size is size (pt)
   paste0(
-    "// octavo.R の ov_table() が作ったファイル。手で直さない。\n",
+    "// Written by ov_table() in octavo.R. Do not edit by hand.\n",
     "#set par(justify: false)\n",
     if (!is.null(size)) paste0("#set text(size: ", size, "pt)\n") else "",
     tbl,
@@ -482,8 +480,8 @@ ov_typ_table <- function(cells, align, notes, plan, size) {
     } else "")
 }
 
-# Word 用（Octavo が本文の表として入れる）。セルの | は打ち消す。
-# Markdown の表は列をまたげないので、群の見出しは最初の列に太字で書いた行にする
+# For Word (Octavo puts it in as a table of the text). | in a cell is escaped. A Markdown table
+# cannot span columns, so a group heading is a row with the heading in bold in the first column
 ov_md_table <- function(cells, align, notes, plan, size) {
   nc <- ncol(cells)
   esc <- function(v) gsub("|", "\\|", v, fixed = TRUE)
@@ -497,26 +495,27 @@ ov_md_table <- function(cells, align, notes, plan, size) {
     rows <- c(rows, row(r))
   }
   paste0(
-    "<!-- octavo.R の ov_table() が作ったファイル。手で直さない。 -->\n\n",
+    "<!-- Written by ov_table() in octavo.R. Do not edit by hand. -->\n\n",
     row(colnames(cells)), "\n",
     "|", paste(rule, collapse = "|"), "|\n",
     paste(rows, collapse = "\n"), "\n",
     if (!is.null(notes)) paste0("\n*", notes, "*\n") else "")
 }
 
-#' 表を assets/tables/ に保存する（.tex・.typ・.md。Typst・LaTeX・Word がそれぞれ読む）。
-#' 本文に `: 表題 {#tbl-<name>}` の1行を書けば、Octavo がそこに差し込み、
-#' @tbl-<name> で参照できる。キャプションは本文が持つ（ここでは付けない）。
+#' Save a table in assets/tables/ (.tex, .typ and .md, read by LaTeX, Typst and Word).
+#' Write the line `: Caption {#tbl-<name>}` in the text and Octavo puts it there, and
+#' @tbl-<name> refers to it. The caption belongs to the text (none is added here).
 #'
-#' @param x       data.frame / matrix、あるいは list(tex = "…", typ = "…", md = "…")
-#'                （modelsummary 等が作った文字列をそのまま渡すとき）
-#' @param name    ファイル名（拡張子なし）
-#' @param notes   表の下に小さく出す注（左揃え）
-#' @param align   "lrrr" のように列ごとの寄せを決める。省略なら数値は右
-#' @param groups  群の見出し。c(Demand = 1, Hiring = 6) は 1 行目の前に Demand、6 行目の前に
-#'                Hiring を、列をまたぐ太字の行として入れる
-#' @param indent  群の下の行の見出し（最初の列）を字下げするか。省略なら groups があれば TRUE
-#' @param size    表の字の大きさ（pt。例: 9.5）。省略なら本文と同じ
+#' @param x       a data.frame or matrix, or list(tex = "...", typ = "...", md = "...")
+#'                (for strings made by modelsummary and the like, passed as they are)
+#' @param name    the file name, no extension
+#' @param notes   a note in small type under the table (left-aligned)
+#' @param align   the alignment of each column, like "lrrr". Left out, numbers go right
+#' @param groups  group headings. c(Demand = 1, Hiring = 6) puts Demand before row 1 and Hiring
+#'                before row 6, as bold rows across the columns
+#' @param indent  whether to indent the first column of rows under a group. Left out, TRUE if
+#'                there are groups
+#' @param size    the type size in pt (9.5, say). Left out, the same as the text
 ov_table <- function(x, name, notes = NULL, align = NULL,
                      digits = 3, formats = c("tex", "typ", "md"),
                      groups = NULL, indent = NULL, size = NULL) {
@@ -527,7 +526,7 @@ ov_table <- function(x, name, notes = NULL, align = NULL,
 
   if (is.list(x) && !is.data.frame(x)) {
     if (is.null(names(x)) || any(!nzchar(names(x)))) {
-      stop("ov_table: 出来合いの文字列を渡すときは list(tex = …, typ = …, md = …) の形にする")
+      stop("ov_table: pass ready-made strings as list(tex = ..., typ = ..., md = ...)")
     }
     for (fmt in names(x)) {
       path <- file.path(dir, paste0(name, ".", fmt))
@@ -536,8 +535,8 @@ ov_table <- function(x, name, notes = NULL, align = NULL,
     }
     missing <- setdiff(formats, names(x))
     if (length(missing)) {
-      warning("ov_table: ", name, " に ", paste(missing, collapse = "/"),
-              " がない。その形式では表が入らない")
+      warning("ov_table: ", name, " has no ", paste(missing, collapse = "/"),
+              ", so the table will not appear in that format")
     }
     return(invisible(out))
   }
@@ -554,7 +553,7 @@ ov_table <- function(x, name, notes = NULL, align = NULL,
     } else if (fmt == "md") {
       ov_md_table(cells, al, notes, plan, size)
     } else {
-      stop("ov_table: 不明な形式 ", fmt)
+      stop("ov_table: unknown format ", fmt)
     }
     ov_write_lines(txt, path)
     out <- c(out, path)

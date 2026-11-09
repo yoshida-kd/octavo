@@ -14,7 +14,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { AnalysisUnit, fetchAnalysis, runAnalysisWithProgress } from './analysis';
 import { BibCache } from './bib';
-import { CitationCompletionProvider, CitationHoverProvider, insertCitationCommand } from './citations';
+import { CitationCompletionProvider, CitationHoverProvider, fixMissingReferences, insertCitationCommand } from './citations';
 import { DiagnosticsManager } from './diagnostics';
 import { HandoutManager } from './handouts';
 import { CardCache, CardHoverProvider } from './cards';
@@ -65,7 +65,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const valuesCache = new ValuesCache();
     const valueDiagnostics = new ValueDiagnostics(valuesCache);
     const preview = new PreviewManager(context, (line) => output.appendLine(line));
-    const qmdPreview = new QmdPreview((line) => output.appendLine(line));
+    const qmdPreview = new QmdPreview((line) => output.appendLine(line), () => analysisRunning);
     const handouts = new HandoutManager(preview, (line) => output.appendLine(line));
     const rPackages = new RPackageCheck((line) => output.appendLine(line));
     const tree = new OctavoTree((line) => output.appendLine(line));
@@ -109,12 +109,17 @@ export function activate(context: vscode.ExtensionContext): void {
 
     const updateStatusBar = (): void => {
         const report = cache.current;
+        // 押して直せるのは「不足」のときだけ。それ以外の押した動きはビルドのまま
+        statusBar.command = 'octavo.build';
+        statusBar.tooltip = vscode.l10n.t('Runs: {0}', describeMode());
         if (!report) {
             statusBar.text = '$(book) Octavo';
             statusBar.backgroundColor = undefined;
             return;
         }
         if (report.missing.length > 0) {
+            statusBar.command = 'octavo.fixMissingReferences';
+            statusBar.tooltip = vscode.l10n.t('Click to see which ones and how to fix them');
             statusBar.text = '$(warning) ' +
                 vscode.l10n.t('Octavo: {0} references missing', report.missing.length);
             statusBar.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
@@ -349,6 +354,8 @@ export function activate(context: vscode.ExtensionContext): void {
             await runAnalysis(dirOf(configUri), []);
         }),
         // 1本だけ。サイドバーの行（node.u）、エディタの .qmd（Uri）、パレット（選ばせる）から。
+        vscode.commands.registerCommand('octavo.showQmdHtml',
+            (uri?: vscode.Uri) => qmdPreview.showNow(uri)),
         vscode.commands.registerCommand('octavo.analysisRunOne',
             async (arg?: { u?: AnalysisUnit } | vscode.Uri) => {
                 const configUri = await requireConfig();
@@ -514,6 +521,7 @@ export function activate(context: vscode.ExtensionContext): void {
             (node?: { doc?: DocInfo }) => askPriorwork(node?.doc)),
 
         vscode.commands.registerCommand('octavo.insertCitation', () => insertCitationCommand(cache)),
+        vscode.commands.registerCommand('octavo.fixMissingReferences', () => fixMissingReferences(cache)),
 
         vscode.commands.registerCommand('octavo.refreshBib', async () => {
             const report = await cache.refresh(true);

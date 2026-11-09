@@ -13,7 +13,7 @@ function escapeRegExp(s: string): string {
 
 const KEY_CHAR = String.raw`[\w:.#$%&+?<>~/-]`;
 
-function missingKeyPatterns(key: string): RegExp[] {
+export function missingKeyPatterns(key: string): RegExp[] {
     const k = escapeRegExp(key);
     return [
         // @key（地の文・括弧の中どちらも）。直前が単語文字/@/.-でないこと。

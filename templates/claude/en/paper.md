@@ -108,6 +108,10 @@ octavo bundle --replication          # a different set from the submission zip
 Raw data is excluded by default. Add `--with-raw-data` only after checking it
 may be redistributed.
 
+A package is in English. Japanese lines of each `.qmd`, `.R` and `.py` go into `analysis/replication/*.en.json`. Fill them in.
+Under `code`, leave empty any string the code compares with data (a filter on a value, a regular expression).
+Then `octavo bundle --replication --verify` runs the package itself and checks that the numbers did not change.
+
 ## Never, in a paper
 
 - **Never write a coauthor's docx back into the manuscript** (it pins the numbers).

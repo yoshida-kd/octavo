@@ -676,6 +676,8 @@ octavo analysis                   # which .qmd are out of date
 octavo analysis run               # run every out-of-date one (manual ones too)
 octavo analysis run analysis/02-model.qmd   # this one, even if up to date
 octavo analysis mark-fresh analysis/00-fetch.qmd   # record it as up to date without running
+octavo analysis run --keep-cache   # also keep the results, for analysis prose
+octavo analysis prose analysis/02-model.qmd   # only the prose changed: update the HTML, run no code
 octavo check values --diff        # numbers in the text that changed at the last run
 octavo check values --diff my-paper-v1-submitted   # since a git tag
 ```
@@ -859,6 +861,8 @@ octavo data hash                       # data/HASHES.json
 octavo data status                     # has data/ changed since
 octavo data track data/raw/typed.csv   # let git take one file under data/
 octavo bundle --replication            # analysis, values, figures, tables, config, fingerprints
+octavo bundle --replication --standalone  # the same, with .qmd files that do not need the helpers
+octavo bundle --replication --standalone --verify   # and run the package itself to check it
 ```
 
 - `review` only reads; a returned `.docx` is never converted back (its numbers are typed in).
@@ -866,6 +870,34 @@ octavo bundle --replication            # analysis, values, figures, tables, conf
 - `release` refuses uncommitted changes, placeholder values and an analysis out of date; it
   never runs the analysis. Ask the user first.
 - `--replication` leaves raw data out unless `--with-raw-data`.
+- `--standalone` rewrites the copies in the package, never the project's `.qmd` files: `ov_value()` prints
+  the value, `ov_figure()` becomes `ggsave()` / `savefig()`, `ov_table()` writes a CSV, `ov_root()` a relative
+  path, and `ov_pval()` / `ov_tint()` small functions defined in the file. It replaces calls it can be sure of:
+  a statement of its own at the start of a line, outside functions and blocks, with its name written as a
+  string. Others are listed with the reason and stay as they are; a `.qmd` with any left keeps loading the
+  helper, so the package still runs. Run a package once before sending it: the packages your analysis needs
+  are the reader's to install.
+- **A package is in English** unless `--lang ja`, which translates nothing and writes the README in Japanese.
+  Octavo does not translate: it writes each Japanese line of a `.qmd`, `.R` or `.py` under `analysis/` into
+  `analysis/replication/<name>.en.json` (`<name>.R.en.json` for a script), under `prose`, `comments` or `code`,
+  and applies the lines you or an AI fill in, to the package's copy only. A line you later change comes back as
+  to do; `package.en.json` holds the README's title and any Japanese settings. **Under `code`, keep what code
+  compares with data** (a filter on a value, a regular expression): leave its translation empty. The package's
+  copy of the settings loses its Japanese comments. Other files with Japanese left in them (a table's labels, a
+  value's note) are listed, not changed. Data, the bibliography and text inside figures are left as they are.
+- `--verify` runs **the package itself** in a temporary folder, without manual analyses, and compares the values
+  with `assets/values`, so it finds a file the analysis needs that did not go into the package. It borrows the
+  project's `renv` and `.venv`, so it does not check that the package versions can be installed. An analysis that
+  fails only without `data/raw` is reported and compared, since leaving raw data out is allowed. With
+  `--standalone` it also runs the rewritten `.qmd` files, which record no values, and says which figures and
+  tables did not come out again. It fails if nothing could be checked (only manual analyses, or no Quarto), and
+  then no zip is made.
+- The package's README gives the commands to install the recorded package versions and to run the analyses in
+  the configured order; manual analyses are listed apart.
+- **The output never replaces what Octavo did not write.** A zip is built in a temporary folder, so a folder of
+  the same name (`replication/`, or `data/` with `--out data.zip`) is not touched, and an existing file that is
+  not a zip is refused. `--dir` makes its folder again only if it holds nothing but the files Octavo wrote there
+  last time (recorded in `build/`); otherwise it stops and changes nothing.
 
 ---
 
@@ -1003,7 +1035,7 @@ octavo documents [--json]
 octavo outline [documents...] [--paragraphs] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
-octavo analysis [--json] | run [QMD...] | mark-fresh QMD | missing QMD | install QMD
+octavo analysis [--json] | run [QMD...] [--keep-cache] | mark-fresh QMD | prose QMD | missing QMD | install QMD
 octavo env
 octavo check [--strict] [--anonymous] [--json]
 octavo check values [--unused] [--diff [REF]] [--json]
@@ -1014,7 +1046,7 @@ octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
 octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
-octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
+octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
 octavo data hash|status|track

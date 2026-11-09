@@ -572,6 +572,8 @@ octavo analysis                   # 古くなった .qmd
 octavo analysis run               # 古いものをすべて実行（手動のものも）
 octavo analysis run analysis/02-model.qmd   # これを、最新でも実行
 octavo analysis mark-fresh analysis/00-fetch.qmd   # 実行せずに最新として記録
+octavo analysis run --keep-cache   # 実行結果も残す（analysis prose のため）
+octavo analysis prose analysis/02-model.qmd   # 地の文だけ変わった: コードを実行せず HTML を更新
 octavo check values --diff        # 前回の実行で変わった本文の数値
 octavo check values --diff my-paper-v1-submitted   # git のタグから
 ```
@@ -717,11 +719,28 @@ octavo data hash                       # data/HASHES.json
 octavo data status                     # それから data/ が変わったか
 octavo data track data/raw/typed.csv   # data/ の中のファイルを1つ git に入れる
 octavo bundle --replication            # 分析・値・図・表・設定・ハッシュ値
+octavo bundle --replication --standalone  # 同じものを、ヘルパーのいらない .qmd で
+octavo bundle --replication --standalone --verify   # パッケージそのものを実行して確かめる
 ```
 
 - `review` は読むだけ。戻ってきた `.docx` を原稿に戻すことはしない（数値が手入力の文字になっている）。変更は原稿に入れ直す。
 - `release` は、コミットしていない変更・仮の値・古い分析があれば断り、分析は実行しない。先に利用者に尋ねる。
 - `--replication` は、`--with-raw-data` がなければ生データを入れない。
+- `--standalone` は、パッケージの中の複製だけを書き換える（プロジェクトの `.qmd` は変えない）。`ov_value()` は値の表示に、
+  `ov_figure()` は `ggsave()` / `savefig()` に、`ov_table()` は CSV の書き出しに、`ov_root()` は相対パスに、`ov_pval()` / `ov_tint()` は
+  ファイルの中に定義した小さな関数になる。置き換えるのは確実なものだけで、行の頭から始まる1文であること、関数やブロックの外にあること、
+  名前が文字列で書かれていることが条件である。それ以外は理由とともに一覧に出して、そのまま残す。1つでも残った `.qmd` はヘルパーを読み込んだままに
+  なるので、パッケージは実行できる。送る前に一度実行すること。分析が使うパッケージは、読む人が入れることになる。
+- **パッケージは英語になる。**`--lang ja` のときだけ、何も訳さず、README も日本語にする。Octavo は翻訳しない。`analysis/` の `.qmd`・`.R`・`.py` の日本語の行を
+  `analysis/replication/<名前>.en.json`（スクリプトは `<名前>.R.en.json`）の `prose`（地の文）、`comments`（コメント）、`code`（コードの中）に書き出し、人か AI が埋めた行をパッケージの複製にだけ当てる。
+  あとで直した行は未翻訳に戻る。`package.en.json` には README の表題と、日本語の設定の値が入る。**`code` のうち、データと照合する文字列（値による絞り込み、正規表現）は訳を空のままにする。**
+  パッケージの設定ファイルからは、日本語のコメントを除く。ほかのファイルに残る日本語（表の見出し、数値の覚え書きなど）は、一覧で知らせるだけで変えない。データ、文献、図の中の文字はそのままにする。
+- `--verify` は**パッケージそのもの**を一時フォルダで実行し（手動の分析は除く）、数値を `assets/values` と比べる。分析に要るファイルがパッケージに入っていなければ、ここで分かる。
+  `renv` と `.venv` はプロジェクトのものを借りるので、パッケージの版を入れ直せるかどうかは確かめない。`data/raw` がないときだけ失敗する分析は、原データを入れないのは認められているので、その旨を知らせて数値を比べる。
+  `--standalone` では、書き換えた `.qmd` も実行する。数値は記録しないので、動くことと、作られなかった図表を確かめる。確かめられたものが1本もなければ（手動の分析だけ、Quarto がない）失敗とし、zip は作らない。
+- パッケージの README には、記録した版のパッケージを入れるコマンドと、分析を設定の順に実行するコマンドが入る。手動の分析は別に示す。
+- **Octavo が書いたのではないものを、出力で置き換えない。**zip は一時フォルダで作るので、同じ名前のフォルダ（`replication/`、`--out data.zip` のときの `data/`）には触らない。すでにある zip 以外のファイルは断る。
+  `--dir` がフォルダを作り直すのは、前回 Octavo が書いたファイル（`build/` に記録する）しか入っていないときだけで、それ以外は何も変えずに止まる。
 
 ---
 
@@ -812,7 +831,7 @@ octavo documents [--json]
 octavo outline [documents...] [--paragraphs] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
-octavo analysis [--json] | run [QMD...] | mark-fresh QMD | missing QMD | install QMD
+octavo analysis [--json] | run [QMD...] [--keep-cache] | mark-fresh QMD | prose QMD | missing QMD | install QMD
 octavo env
 octavo check [--strict] [--anonymous] [--json]
 octavo check values [--unused] [--diff [REF]] [--json]
@@ -823,7 +842,7 @@ octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
 octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
-octavo bundle [name] [--anonymous] [--replication] [--with-raw-data]
+octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
 octavo data hash|status|track

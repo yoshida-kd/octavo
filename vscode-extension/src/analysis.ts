@@ -20,6 +20,8 @@ export interface AnalysisUnit {
 
 export interface AnalysisReport { quarto: string | null; units: AnalysisUnit[]; stale: number }
 
+export interface ProseResult { status: 'rendered' | 'needs-run' | 'skipped' | 'failed'; message: string }
+
 function lastJson<T>(text: string): T | undefined {
     const s = text.trim();
     const at = s.lastIndexOf('\n{');
@@ -33,6 +35,12 @@ function lastJson<T>(text: string): T | undefined {
 export async function fetchAnalysis(cwd: string): Promise<AnalysisReport | undefined> {
     const r = await runCapture(cwd, ['analysis', '--json'], 30000);
     return lastJson<AnalysisReport>(r.stdout);
+}
+
+/** 地の文だけが変わっていれば、コードを実行せずに HTML を組み直す（判断は CLI がする）。 */
+export async function renderProse(cwd: string, qmd: string): Promise<ProseResult | undefined> {
+    const r = await runCapture(cwd, ['analysis', 'prose', qmd, '--json'], 300000);
+    return lastJson<ProseResult>(r.stdout);
 }
 
 /** 古い分析の名前（プレビューの帯・通知に出す）。 */
@@ -50,9 +58,12 @@ export async function runAnalysisWithProgress(cwd: string, names: string[],
         ? vscode.l10n.t('Octavo: running {0}', names.join(', '))
         : vscode.l10n.t('Octavo: running the analysis');
     output.appendLine(`\n== ${title}`);
+    // 保存で組み直す設定のときは、そのための実行結果も残す（argparse の都合で、名前より後ろに置く）
+    const keep = vscode.workspace.getConfiguration('octavo').get<boolean>('qmdPreviewOnSave', false)
+        ? ['--keep-cache'] : [];
     const code = await vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title, cancellable: true },
-        (progress, token) => runStreaming(cwd, ['analysis', 'run', ...names], (text) => {
+        (progress, token) => runStreaming(cwd, ['analysis', 'run', ...names, ...keep], (text) => {
             output.append(text);
             const last = text.trim().split('\n').pop()?.trim();
             if (last) {

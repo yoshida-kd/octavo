@@ -44,6 +44,8 @@ octavo/
     extract.py             octavo extract (one PDF per session, cut from the handout)
     audit.py               octavo check (gathers every check)
     bundle.py              octavo bundle (submission and replication packages)
+    standalone.py          octavo bundle --standalone (.qmd files without the helpers)
+    translate.py           octavo bundle --replication (translation files; --verify runs the package)
     review.py              reads tracked changes out of a coauthor's .docx
     ghrelease.py           octavo release (tag a version, PDF to a GitHub Release)
     dataset.py             data fingerprints (data/HASHES.json)

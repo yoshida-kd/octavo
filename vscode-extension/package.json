@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.6.12",
+  "version": "0.7.0",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -107,6 +107,18 @@
         "title": "%command.analysisRunOne.title%",
         "category": "Octavo",
         "icon": "$(play)"
+      },
+      {
+        "command": "octavo.fixMissingReferences",
+        "title": "%command.fixMissingReferences.title%",
+        "category": "Octavo",
+        "icon": "$(warning)"
+      },
+      {
+        "command": "octavo.showQmdHtml",
+        "title": "%command.showQmdHtml.title%",
+        "category": "Octavo",
+        "icon": "$(open-preview)"
       },
       {
         "command": "octavo.editTable",
@@ -326,6 +338,8 @@
       "commandPalette": [
         { "command": "octavo.editSetting", "when": "false" },
         { "command": "octavo.editTable", "when": "resourceExtname == .csv" },
+        { "command": "octavo.showQmdHtml", "when": "resourceExtname == .qmd" },
+        { "command": "octavo.fixMissingReferences", "when": "octavo.hasConfig" },
         { "command": "octavo.previewDoc", "when": "false" },
         { "command": "octavo.buildDoc", "when": "false" },
         { "command": "octavo.writingShow", "when": "octavo.hasConfig && editorLangId == markdown" },
@@ -460,6 +474,11 @@
           "group": "navigation"
         },
         {
+          "command": "octavo.showQmdHtml",
+          "when": "resourceExtname == .qmd && octavo.hasConfig",
+          "group": "navigation"
+        },
+        {
           "command": "octavo.editTable",
           "when": "resourceExtname == .csv && octavo.hasConfig && activeCustomEditorId != octavo.tableEditor",
           "group": "navigation"
@@ -566,6 +585,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.qmdPreview.description%"
+        },
+        "octavo.qmdPreviewOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.qmdPreviewOnSave.description%"
         },
         "octavo.priorworkWorkspace": {
           "type": "string",

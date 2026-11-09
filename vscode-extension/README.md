@@ -108,7 +108,7 @@ the one the file you are editing belongs to.
   extensions are installed with Octavo (an extension pack — each can be
   uninstalled on its own).
 - **Follows the cursor.** Moving the cursor in a manuscript scrolls the PDF preview to the same place; the preview can still be scrolled on its own, and the ⇅ button (or `octavo.previewFollowCursor`) turns the following off.
-- **A `.qmd` shows its HTML.** Opening one in an Octavo project shows the HTML it last rendered beside it, and reloads when the analysis runs again (`octavo.qmdPreview` turns it off). Nothing is rendered by opening or saving.
+- **A `.qmd` shows its HTML.** Opening one in an Octavo project shows the HTML it last rendered beside it, or a note if there is none yet; running the analysis opens or reloads it. The button in the title bar brings the view back after you close it. `octavo.qmdPreview` turns off the automatic opening. Nothing is rendered by opening or saving, unless you turn on `octavo.qmdPreviewOnSave`: then a save that changed only the prose updates the HTML without running the code.
 - **Citations.** Completion on `@` (with author and year), hover for the
   full entry (also on `\poscite{key}`), `Ctrl+Alt+@` to search and insert,
   squiggles on missing keys, and `.bib`-side problems (missing year, an

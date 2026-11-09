@@ -480,6 +480,13 @@ def cmd_analysis(args) -> int:
     cfg = configmod.load(args.config)
     if args.action in ('missing', 'install'):
         return analysis_packages(cfg, args)
+    if args.action == 'prose':
+        import json as _json
+        if len(args.names) != 1:
+            sys.exit(t('name one .qmd: octavo analysis prose <qmd>'))
+        got = analysismod.render_prose(cfg, args.names[0])
+        print(_json.dumps(got, ensure_ascii=False) if args.json else got['message'])
+        return 1 if got['status'] == 'failed' else 0
     if args.json and args.action != 'run':
         import json as _json
         print(_json.dumps(analysismod.status_json(cfg), ensure_ascii=False))
@@ -506,7 +513,7 @@ def cmd_analysis(args) -> int:
         _, ok = analysismod.run(
             cfg, force=args.force, report=report, names=args.names or None,
             on_start=lambda k: print('  ' + t('running {unit}…', unit=k), flush=True),
-            on_note=lambda m: print('  ' + m, flush=True))
+            on_note=lambda m: print('  ' + m, flush=True), keep_cache=args.keep_cache)
         for line in report:
             print('  ' + line)
         return 0 if ok else 1
@@ -962,7 +969,8 @@ def cmd_bundle(args) -> int:
     return bundlemod.run(cfg, targets[0], out=args.out, as_dir=args.dir,
                          anonymous=args.anonymous,
                          as_replication=args.replication,
-                         with_raw=args.with_raw_data, document=args.document)
+                         with_raw=args.with_raw_data, document=args.document,
+                         standalone=args.standalone, lang=args.lang, verify=args.verify)
 
 
 def cmd_review(args) -> int:
@@ -1667,15 +1675,19 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('analysis', help=t('run the analysis (.qmd)')))
     p.add_argument('action', nargs='?', default='status',
-                   choices=['status', 'run', 'mark-fresh', 'missing', 'install'],
+                   choices=['status', 'run', 'mark-fresh', 'prose', 'missing', 'install'],
                    help=t('status=see whether it is up to date (default) / run=run it / '
                           'mark-fresh=record the named .qmd as up to date without running it / '
+                          'prose=if only the prose of the named .qmd changed, update its HTML without '
+                          'running the code / '
                           'missing=list the R packages the named .qmd use but are not installed / '
                           'install=install them'))
     p.add_argument('names', nargs='*',
                    help=t('with run: only these .qmd (run even if not stale)'))
     p.add_argument('--force', action='store_true',
                    help=t('run it again even if it is not stale'))
+    p.add_argument('--keep-cache', action='store_true',
+                   help=t('with run: keep the results for analysis prose (Python needs jupyter-cache)'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_analysis)
 
@@ -1763,6 +1775,14 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('make the post-acceptance replication package (a different set of files)'))
     p.add_argument('--with-raw-data', action='store_true',
                    help=t('put data/raw in the --replication package too (check it may be shared)'))
+    p.add_argument('--standalone', action='store_true',
+                   help=t('in the --replication package, rewrite the .qmd files so they do not need the helpers'))
+    p.add_argument('--lang', choices=['en', 'ja'],
+                   help=t('the language of the --replication package (default: en). en lists the Japanese lines of the '
+                          'analysis in translation files and applies what is translated; ja translates nothing'))
+    p.add_argument('--verify', action='store_true',
+                   help=t('with --replication: run the package itself in a temporary folder and compare the values '
+                          'with the record'))
     p.set_defaults(func=cmd_bundle)
 
     p = sub.add_parser('review', help=t("read a coauthor's tracked changes out of a .docx"))

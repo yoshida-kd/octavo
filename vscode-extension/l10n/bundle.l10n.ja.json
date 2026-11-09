@@ -219,7 +219,8 @@
   "Which language is the analysis written in?": "分析は何の言語で書きますか？",
   "The analysis environment (.venv, and renv for R) is set up right after. The first time it takes a few minutes.": "続けて分析の環境（.venv と、R なら renv）を整えます。初回は数分かかります。",
   "Octavo: the analysis environment is ready. Commit the records: requirements.txt, and renv.lock if you use R.": "Octavo: 分析の環境が整いました。記録（requirements.txt と、R を使うなら renv.lock）をコミットしてください。",
-  "{0} has not been rendered yet. Run the analysis (the ▶ button in the title bar) and the result appears here.": "{0} はまだ出力されていません。分析を実行する（タイトルバーの ▶ ボタン）と、結果がここに出ます。",
+  "{0} has no HTML yet. Run the analysis (the ▶ button in the title bar) and the result appears here. A .qmd that makes no HTML has nothing to show: the setting octavo.qmdPreview turns this view off.": "{0} の HTML はまだありません。分析を実行する（タイトルバーの ▶ ボタン）と、結果がここに出ます。HTML を出力しない .qmd では何も表示されません。この画面は設定 octavo.qmdPreview で止められます。",
+  "Open a .qmd file first.": "先に .qmd ファイルを開いてください。",
   "Scroll along with the cursor in the manuscript": "原稿のカーソルに合わせてスクロール",
   "Octavo: the octavo command is older than this extension and does not know this yet. Update it (Tools → Install or Update the Tools), then try again.": "Octavo: octavo コマンドがこの拡張機能より古く、この操作にまだ対応していません。更新してから（ツール → ツールのインストール・更新）、もう一度試してください。",
   "Octavo: the analysis environment needs uv (and R for an R analysis), which is not installed yet. Install the tools first; then set it up from Tools → Set Up This Project's Analysis Environment.": "Octavo: 分析の環境には uv（R の分析なら R も）が要りますが、まだ入っていません。先にツールを入れてから、「ツール → このプロジェクトの分析環境を用意する」で整えてください。",
@@ -415,5 +416,17 @@
   "turned off": "使わない",
   "{0} is turned off for the whole project. Change Writing rules turned off in the project settings.": "{0} はプロジェクト全体で使わないことになっています。プロジェクトの設定の「使わない文章のルール」で変えてください。",
   "{0} of {1} files used here": "{1} ファイルのうち {0} を使う",
-  "system libraries for R packages": "R のパッケージが使うシステムのライブラリ"
+  "system libraries for R packages": "R のパッケージが使うシステムのライブラリ",
+  "Octavo: no citation key is missing.": "Octavo: 不足している文献はありません。",
+  "How to fix them": "対処のしかた",
+  "If you have added them in Zotero": "Zotero に追加したあとに",
+  "If they are in Zotero but outside the main collection": "Zotero にはあるが、メインのコレクションの外にあるときに",
+  "Open the .bib": ".bib を開く",
+  "If you keep the .bib by hand": ".bib を手で管理しているときに",
+  "Missing keys: choose one to go to its citation": "不足しているキー: 選ぶと引用の場所へ移動します",
+  "did you mean @{0}?": "@{0} の間違いではありませんか？",
+  "{0} citation keys are not in the .bib": ".bib にない引用キーが {0} 件あります",
+  "Click to see which ones and how to fix them": "クリックすると、不足している文献と対処のしかたが表示されます",
+  "Octavo: updating the HTML…": "Octavo: HTML を更新しています…",
+  "Octavo: could not update the HTML. See the Octavo output.": "Octavo: HTML を更新できませんでした。Octavo の出力をご覧ください。"
 }

@@ -6,6 +6,8 @@
 
 import * as vscode from 'vscode';
 import { BibCache, BibEntry } from './bib';
+import { missingKeyPatterns } from './diagnostics';
+import { dirOf, resolvePathFromTool } from './runner';
 
 // citation key の1文字。パーサ（md.py）の CITE_KEY と揃えてある。
 const KEY_CHAR = String.raw`[\w:.#$%&+?<>~/-]`;
@@ -106,6 +108,72 @@ export class CitationHoverProvider implements vscode.HoverProvider {
             entryMarkdown(key, entry, report.missing.includes(key), report.suggestions[key]),
             wordRange);
     }
+}
+
+/** 原稿の中の、そのキーの最初の引用へ移る。 */
+async function goToCitation(file: vscode.Uri, key: string): Promise<void> {
+    const doc = await vscode.workspace.openTextDocument(file);
+    const text = doc.getText();
+    const at = missingKeyPatterns(key)
+        .map((pattern) => text.search(pattern))
+        .filter((i) => i >= 0);
+    const pos = doc.positionAt(at.length ? Math.min(...at) : 0);
+    await vscode.window.showTextDocument(doc, { selection: new vscode.Range(pos, pos) });
+}
+
+/**
+ * ステータスバーの「文献が不足」を押したとき: 足りないキーの一覧（選ぶと引用の場所へ）と、
+ * 直す操作（Zotero から取得・コレクションの整理・.bib を開く）を出す。
+ * どのキーが足りないか、どの原稿にあるかは checkbib の結果のまま（ここで判定しない）。
+ */
+export async function fixMissingReferences(cache: BibCache): Promise<void> {
+    const report = await cache.refresh(true);
+    const config = cache.lastConfig;
+    if (!report || !config) {
+        return;
+    }
+    if (report.missing.length === 0) {
+        void vscode.window.showInformationMessage(vscode.l10n.t('Octavo: no citation key is missing.'));
+        return;
+    }
+    type Item = vscode.QuickPickItem & { run?: () => Thenable<unknown> };
+    const toFile = (rel: string): vscode.Uri | undefined => (/^([\\/]|[A-Za-z]:)/.test(rel)
+        ? resolvePathFromTool(rel)
+        : vscode.Uri.joinPath(vscode.Uri.file(dirOf(config)), rel));
+    const bib = resolvePathFromTool(report.bib_file);
+    const items: Item[] = [
+        { label: vscode.l10n.t('How to fix them'), kind: vscode.QuickPickItemKind.Separator },
+        { label: '$(cloud-download) ' + vscode.l10n.t('Pull References from Zotero (bib pull)'),
+          detail: vscode.l10n.t('If you have added them in Zotero'),
+          run: () => vscode.commands.executeCommand('octavo.bibPull') },
+        { label: '$(sparkle) ' + vscode.l10n.t('Tidy the Main Zotero Collection (bib tidy)'),
+          detail: vscode.l10n.t('If they are in Zotero but outside the main collection'),
+          run: () => vscode.commands.executeCommand('octavo.bibTidy') },
+    ];
+    if (bib) {
+        items.push({ label: '$(book) ' + vscode.l10n.t('Open the .bib'),
+                     detail: vscode.l10n.t('If you keep the .bib by hand'),
+                     run: () => vscode.window.showTextDocument(bib) });
+    }
+    items.push({ label: vscode.l10n.t('Missing keys: choose one to go to its citation'),
+                 kind: vscode.QuickPickItemKind.Separator });
+    for (const key of report.missing) {
+        const docs = Object.entries(report.cited_by_doc)
+            .filter(([, keys]) => keys.includes(key)).map(([rel]) => rel);
+        const suggestion = report.suggestions[key];
+        const file = docs.length ? toFile(docs[0]) : undefined;
+        items.push({
+            label: '$(warning) @' + (key.startsWith('PRIORWORK:') ? `{${key}}` : key),
+            description: suggestion ? vscode.l10n.t('did you mean @{0}?', suggestion) : undefined,
+            detail: docs.join(', '),
+            run: file ? () => goToCitation(file, key) : undefined,
+        });
+    }
+    const picked = await vscode.window.showQuickPick(items, {
+        title: vscode.l10n.t('{0} citation keys are not in the .bib', report.missing.length),
+        matchOnDetail: true,
+    });
+    await picked?.run?.();
 }
 
 export async function insertCitationCommand(cache: BibCache): Promise<void> {

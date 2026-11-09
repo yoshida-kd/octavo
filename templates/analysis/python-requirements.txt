@@ -1,6 +1,7 @@
 # what Quarto needs to run Python chunks
 ipykernel
 nbformat
+jupyter-cache
 nbclient
 pyyaml
 # what the helper and the examples use

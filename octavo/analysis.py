@@ -29,6 +29,7 @@ pandoc だけでできるため）。入っているのに render が失敗し�
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -43,6 +44,21 @@ from . import values as valmod
 from .i18n import language, t, tag
 
 STAMP_NAME = '.analysis-stamp.json'
+
+
+def _digest(paths) -> str:
+    """ファイルの名前と中身のハッシュ値（sha256）。"""
+    h = hashlib.sha256()
+    for p in paths:
+        h.update(p.name.encode('utf-8') + b'\0')
+        try:
+            with open(p, 'rb') as f:
+                for chunk in iter(lambda: f.read(1 << 20), b''):
+                    h.update(chunk)
+        except OSError:
+            h.update(b'\0missing')
+        h.update(b'\0')
+    return h.hexdigest()
 
 
 @dataclass
@@ -63,18 +79,7 @@ class Unit:
         更新時刻は git の切り替え・pull・clone で中身が同じでも新しくなるので、
         時刻が新しいときはこれで本当に変わったかを確かめる。
         """
-        import hashlib
-        h = hashlib.sha256()
-        for p in (self.src,) + tuple(sorted(self.deps, key=str)):
-            h.update(p.name.encode('utf-8') + b'\0')
-            try:
-                with open(p, 'rb') as f:
-                    for chunk in iter(lambda: f.read(1 << 20), b''):
-                        h.update(chunk)
-            except OSError:
-                h.update(b'\0missing')
-            h.update(b'\0')
-        return h.hexdigest()
+        return _digest((self.src,) + tuple(sorted(self.deps, key=str)))
 
     def record(self) -> dict:
         """刻印に残す、いまの状態。"""
@@ -320,11 +325,12 @@ def syslib_notes(output: str) -> list:
     return out
 
 
-def render(cfg, u: Unit, report: list) -> bool:
+def render(cfg, u: Unit, report: list, extra=()) -> bool:
     cmd = [quarto_exe(), 'render', str(u.src)]
     if cfg['analysis_to']:
         cmd += ['--to', str(cfg['analysis_to'])]
     cmd += [str(a) for a in (cfg['analysis_args'] or ())]
+    cmd += list(extra)
 
     Path(cfg['values_dir']).mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -348,7 +354,7 @@ def render(cfg, u: Unit, report: list) -> bool:
     return True
 
 
-def render_installing(cfg, u: Unit, report: list, on_note=None) -> bool:
+def render_installing(cfg, u: Unit, report: list, on_note=None, extra=()) -> bool:
     """実行する。R の .qmd が失敗したら、その .qmd が使っているのに入っていない
     パッケージ（外から持ち込んだ .qmd の library(x) など）を renv に入れて、1回だけやり直す。
 
@@ -356,7 +362,7 @@ def render_installing(cfg, u: Unit, report: list, on_note=None) -> bool:
     renv のプロジェクトでなければ入れない（環境を作るのは octavo env）。
     """
     first: list = []
-    if render(cfg, u, first):
+    if render(cfg, u, first, extra):
         report.extend(first)
         return True
     if 'r' not in engine(u.src).split('+'):
@@ -404,7 +410,136 @@ def render_installing(cfg, u: Unit, report: list, on_note=None) -> bool:
     if on_note:
         on_note(t('installed {pkgs}; running {unit} again…',
                   pkgs=', '.join(installed), unit=key(cfg, u)))
-    return render(cfg, u, report)
+    return render(cfg, u, report, extra)
+
+
+# ---------------------------------------------------------------- 地の文だけの組み直し
+#
+# 保存のたびに分析をやり直さず、地の文の変更だけを HTML に反映する（VS Code の設定
+# octavo.qmdPreviewOnSave）。コードは実行せず、前回の結果を Quarto のキャッシュから使う。
+#   - キャッシュを作るのは `octavo analysis run --keep-cache` だけ（--cache-refresh で全部実行する）。
+#     そのとき刻印に、コードと入力のハッシュ値（cache）を残す。ふつうの実行は刻印を書き直すので
+#     この記録が消え、古いキャッシュを使うことがない
+#   - knitr はチャンク単位なので、コードが変わったまま --cache で組むと、変えたチャンクの
+#     値だけで assets/values/<qmd>.json を書き直す。だから記録と同じときだけ組む
+
+_CODE_FENCE = re.compile(r'^\s*(`{3,}|~{3,})\s*(.*)$')
+_INLINE_CODE = re.compile(r'`(?:\{(?:r|python)\}|r)\s[^`\n]*`')
+_NO_CACHE = re.compile(r'^\s*#\|\s*cache\s*:\s*false\b|^\s*`{3,}\s*\{[^}\n]*cache\s*=\s*(?:FALSE|F)\b',
+                       re.M | re.I)
+
+
+def code_parts(src: Path) -> list:
+    """.qmd のうち、実行に関わるところ: 前書き、実行するチャンク、地の文の中のインラインコード。
+    実行しないコードの囲み（```r や ```）は文章の一部なので、入れない。"""
+    text = src.read_text(encoding='utf-8', errors='replace').replace('\r\n', '\n').lstrip('\ufeff')
+    parts: list = []
+    m = re.match(r'---[ \t]*\n.*?\n---[ \t]*(?:\n|\Z)', text, re.S)
+    if m:
+        parts.append(m.group(0))
+        text = text[m.end():]
+    fence, run, chunk = None, False, []
+    for line in text.split('\n'):
+        f = _CODE_FENCE.match(line)
+        if fence is None:
+            if f:
+                fence, run, chunk = f.group(1), re.match(r'\{[A-Za-z]', f.group(2)) is not None, [line]
+            else:
+                parts += _INLINE_CODE.findall(line)
+        elif f and f.group(1).startswith(fence) and not f.group(2).strip():
+            if run:
+                parts.append('\n'.join(chunk))
+            fence = None
+        else:
+            chunk.append(line)
+    return parts
+
+
+def cache_mark(u: Unit) -> dict:
+    """キャッシュを作ったときのコードと入力の記録。"""
+    code = hashlib.sha256('\0'.join(code_parts(u.src)).encode('utf-8')).hexdigest()
+    return {'code': code, 'deps': _digest(sorted(u.deps, key=str))}
+
+
+def cache_dir(u: Unit) -> Path:
+    """Quarto がキャッシュを置くフォルダ（knitr は .qmd ごと、jupyter-cache はフォルダに1つ）。"""
+    return u.src.parent / ('.jupyter_cache' if engine(u.src) == 'python' else f'{u.src.stem}_cache')
+
+
+def _can_cache(cfg, u: Unit, report: list) -> bool:
+    """Python の .qmd は jupyter-cache が要る。なければ、キャッシュなしでふつうに実行する。"""
+    if engine(u.src) != 'python':
+        return True
+    py = _env(cfg).get('QUARTO_PYTHON') or shutil.which('python3') or 'python'
+    try:
+        found = subprocess.run([py, '-c', 'import jupyter_cache'], capture_output=True).returncode == 0
+    except OSError:
+        found = False
+    if not found:
+        report.append(f'{tag("analysis")}{tag("note")} ' + t(
+            '{unit} ran without keeping its results, because jupyter-cache is not installed: add '
+            'jupyter-cache to requirements.txt and run octavo env', unit=key(cfg, u)))
+    return found
+
+
+def _hide_cache(u: Unit) -> None:
+    """キャッシュのフォルダを git から隠す。.gitignore が古いプロジェクトでも、これで足りる。"""
+    d = cache_dir(u)
+    if d.is_dir() and not (d / '.gitignore').exists():
+        (d / '.gitignore').write_text('*\n', encoding='utf-8')
+
+
+def render_prose(cfg, name: str) -> dict:
+    """地の文しか変わっていなければ、コードを実行せずに HTML を組み直す。"""
+    def out(status: str, message: str) -> dict:
+        return {'status': status, 'message': message}
+    hits = _named(cfg, units(cfg), name)
+    if not hits or not hits[0].src.is_file():
+        return out('skipped', t('no registered analysis called {name}', name=name))
+    u = hits[0]
+    k = key(cfg, u)
+    stamp = read_stamp(cfg)
+    rec = stamp.get(k) if isinstance(stamp.get(k), dict) else {}
+    if rec.get('hash') == u.digest():
+        return out('skipped', t('{unit} has not changed', unit=k))
+    mark = rec.get('cache')
+    if not mark or not cache_dir(u).is_dir():
+        return out('needs-run', t('{unit} has no kept results yet: run the analysis once with this '
+                                  'setting on, and saving will update the HTML', unit=k))
+    if mark != cache_mark(u):
+        return out('needs-run', t('the code or the inputs of {unit} changed: run the analysis '
+                                  'to update the HTML', unit=k))
+    if _NO_CACHE.search(u.src.read_text(encoding='utf-8', errors='replace')):
+        return out('needs-run', t('{unit} has a chunk with cache: false, which would run on every '
+                                  'save: run the analysis to update the HTML', unit=k))
+    if not shutil.which('quarto'):
+        return out('skipped', t('no quarto, so {units} cannot be run. The numbers in {dir}/ may be '
+                                'stale (octavo doctor says how to install it)',
+                                units=k, dir=Path(cfg['values_dir']).name))
+    # 何かの拍子にチャンクが動いても、一部の値だけのファイルで前回の値を消さない
+    values = Path(cfg['values_dir']) / f'{u.src.stem}.json'
+    before = values.read_bytes() if values.is_file() else None
+    report: list = []
+    if not render(cfg, u, report, ('--cache',)):
+        return out('failed', '\n'.join(report))
+    after = values.read_bytes() if values.is_file() else None
+    if after != before:
+        if before is None:
+            values.unlink()
+        else:
+            values.write_bytes(before)
+        return out('rendered', t('{unit}: a chunk ran although its code did not change. Its values '
+                                 'were not kept: run the analysis', unit=k))
+    # 結果は前回のままなので、地の文の変更で「古い」にしない（ビルドがやり直さない）
+    stamp[k] = {**rec, **u.record()}
+    write_stamp(cfg, stamp)
+    return out('rendered', t('{unit}: updated the HTML without running the code', unit=k))
+
+
+def _named(cfg, us: list, name) -> list:
+    want = str(name).replace('\\', '/')
+    return [u for u in us if want in (key(cfg, u), u.src.name, u.src.stem)
+            or Path(want).resolve() == u.src]
 
 
 def pick(cfg, names) -> list:
@@ -412,9 +547,7 @@ def pick(cfg, names) -> list:
     us = units(cfg)
     out = []
     for n in names:
-        want = str(n).replace('\\', '/')
-        hit = [u for u in us if want in (key(cfg, u), u.src.name, u.src.stem)
-               or Path(want).resolve() == u.src]
+        hit = _named(cfg, us, n)
         if not hit:
             sys.exit(t('no registered analysis called {name}', name=n) + '\n  '
                      + t('registered: {names}',
@@ -424,7 +557,8 @@ def pick(cfg, names) -> list:
 
 
 def run(cfg, force: bool = False, report: list | None = None,
-        names=None, auto: bool = False, on_start=None, on_note=None) -> tuple:
+        names=None, auto: bool = False, on_start=None, on_note=None,
+        keep_cache: bool = False) -> tuple:
     """古い .qmd を実行する。(実行した本数, 失敗がなかったか) を返す。
 
     names  実行する .qmd を名指しする。**名指ししたものは古くなくても実行する**
@@ -432,6 +566,7 @@ def run(cfg, force: bool = False, report: list | None = None,
     auto   octavo build から呼ぶとき。manual の .qmd は実行せず、古ければ言うだけ。
     on_start  1本実行する直前に key を渡して呼ぶ（長い分析の進み具合を見せる）。
     on_note   途中で知らせること（足りない R のパッケージを入れている、など）を渡して呼ぶ。
+    keep_cache  全部実行したうえで、結果をキャッシュに残す（render_prose が使う）。
     """
     report = report if report is not None else []
     us = units(cfg)
@@ -489,8 +624,13 @@ def run(cfg, force: bool = False, report: list | None = None,
         ran += 1
         if on_start:
             on_start(key(cfg, u))
-        if render_installing(cfg, u, report, on_note):
+        # 実行の途中で保存された変更を、実行済みと記録しないよう、先に取る
+        mark = cache_mark(u) if keep_cache and _can_cache(cfg, u, report) else None
+        if render_installing(cfg, u, report, on_note, ('--cache-refresh',) if mark else ()):
             stamp[key(cfg, u)] = {**u.record(), 'rendered_at': time.time()}
+            if mark:
+                stamp[key(cfg, u)]['cache'] = mark
+                _hide_cache(u)
             write_stamp(cfg, stamp)
         else:
             ok = False

@@ -382,8 +382,15 @@ environment** — its own R and Python packages (renv and `.venv`), recorded in 
 `requirements.txt` so a coauthor gets the same ones. Later, **Tools → Set Up This Project's
 Analysis Environment** does it again (after adding a package to `requirements.txt`, say).
 
-Opening a `.qmd` shows the HTML it last rendered beside it, following the cursor; it is
-updated when the analysis runs, never by opening or saving.
+Opening a `.qmd` shows the HTML it last rendered beside it, following the cursor, or a note if there
+is none yet. Running the analysis opens or reloads the view; opening or saving renders nothing. To see prose edits
+without running the analysis, turn on the setting `octavo.qmdPreviewOnSave` and run the analysis once:
+a save that changed only the prose then updates the view, and the code does not run. After
+you close the view, "Show the HTML of This Analysis" in the title bar brings it back.
+
+Over a tunnel or another remote connection, this view uses no port, so it just works. Quarto's own
+preview runs on a port on the remote machine: if you cannot see it, fix the port in a terminal with
+`quarto preview <file> --no-browser --port 4311` and forward it in VS Code's Ports panel.
 
 ### 4.2 Handing over numbers, figures and tables
 
@@ -613,7 +620,10 @@ Ask your AI assistant for these; each is one command it knows.
 - **Revisions**: which numbers moved since the version you sent.
 - **Data**: a record of what `data/` held, and whether it has changed since.
 - **A replication package**: the analysis, the values, the figures and tables, the settings and
-  the record of the data (raw data only if you say so).
+  the record of the data (raw data only if you say so). With `--standalone`, its `.qmd` files no longer
+  need Octavo's helpers, for readers who do not know Octavo. It is in English: the Japanese lines of
+  the analysis come from a translation file you or an AI fill in (`--lang ja` keeps Japanese). `--verify` runs
+  the package itself and compares the numbers.
 
 ---
 
