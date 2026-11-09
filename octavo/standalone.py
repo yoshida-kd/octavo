@@ -411,7 +411,11 @@ class _Chunk:
             for f in fmts:
                 path = self.path(*where, f'{label}.{f}')
                 if f == 'pdf':
-                    lines.append(f'if (capabilities("cairo")) cairo_pdf({path}, width = {w}, height = {h}) '
+                    # The device octavo.R picks: on macOS, CRAN's cairo makes no file without
+                    # XQuartz, so the system's quartz writes the PDF there.
+                    lines.append(f'if (Sys.info()[["sysname"]] == "Darwin") '
+                                 f'quartz(file = {path}, type = "pdf", width = {w}, height = {h}) '
+                                 f'else if (capabilities("cairo")) cairo_pdf({path}, width = {w}, height = {h}) '
                                  f'else pdf({path}, width = {w}, height = {h})')
                 elif f == 'png':
                     lines.append(f'png({path}, width = {w}, height = {h}, units = "in", res = {dpi})')

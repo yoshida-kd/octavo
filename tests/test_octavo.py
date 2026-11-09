@@ -4485,7 +4485,6 @@ class MissingRPackages(unittest.TestCase):
         doctor.LAST_R_REPOS.clear()
 
 
-@unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')
 class ReplicationLanguage(unittest.TestCase):
     """再現用パッケージの言語。Octavo は訳さず、翻訳ファイルの行を複製に当てるだけ。"""
     QMD = ('---\ntitle: "題"\n---\n\n本文です。\n\n```{r}\n# 準備\nx <- 1  # 説明\n'
@@ -4586,8 +4585,8 @@ class ReplicationLanguage(unittest.TestCase):
         res = self.package()
         self.assertEqual(self.text(res, 'requirements.txt'), 'pandas==2.0\n')
         self.assertIn('# 説明', requirements.read_text(encoding='utf-8'))
-        self.assertIn('Written by ov_table() in octavo.R', self.text(res, tables.relative_to(self.d / 'p').as_posix() + '/old.typ'))
-        self.assertIn('Written by octavo from hand.csv', self.text(res, tables.relative_to(self.d / 'p').as_posix() + '/hand.md'))
+        self.assertIn('Written by ov_table() in octavo.R', self.text(res, tables.relative_to((self.d / 'p').resolve()).as_posix() + '/old.typ'))
+        self.assertIn('Written by octavo from hand.csv', self.text(res, tables.relative_to((self.d / 'p').resolve()).as_posix() + '/hand.md'))
         said = '\n'.join(res.report)
         self.assertIn('label.md (1)', said)
         self.assertNotIn('old.typ', said)
@@ -4897,6 +4896,7 @@ def _trial_prose(test, cfg, marker):
     test.assertEqual(analysis.render_prose(cfg, analysis.key(cfg, analysis.units(cfg)[0]))['status'], 'needs-run')
 
 
+@unittest.skipUnless(HAVE_QUARTO and HAVE_R, 'Quarto と R が要る')
 class AnalysisEndToEnd(unittest.TestCase):
     """**octavo.R を実際に実行する。**
 
