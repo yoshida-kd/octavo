@@ -86,20 +86,27 @@ export function editorPath(toolPath: string | null | undefined): string | undefi
 
 // --------------------------------------------------------------------- 表示
 /** PDF を1つ映す webview。中身の差し替えでスクロール位置は保つ。 */
-class PdfPanel {
+export class PdfPanel {
     readonly panel: vscode.WebviewPanel;
     private ready = false;
     private queued: unknown[] = [];
 
-    constructor(private readonly media: vscode.Uri, column: vscode.ViewColumn,
+    /** place: 新しく開く列、または VS Code が渡した画面（PDF のエディタ、pdfView.ts）。
+     *  原稿のないとき（PDF のエディタ）は「カーソルに合わせる」のボタンを出さない。 */
+    constructor(private readonly media: vscode.Uri, place: vscode.ViewColumn | vscode.WebviewPanel,
                 title: string, onDispose: () => void, onToggleFollow: () => void,
-                onStale: (action: 'mark' | 'dismiss') => void) {
-        this.panel = vscode.window.createWebviewPanel(
-            'octavo.preview', title, { viewColumn: column, preserveFocus: true },
-            // enableFindWidget: 画面をクリックして Ctrl+F（Mac は Cmd+F）で、PDF の文字（pdf.js の
-            // 文字の層）を探せる。retainContextWhenHidden が要る（付けている）
-            { enableScripts: true, retainContextWhenHidden: true, enableFindWidget: true,
-              localResourceRoots: [media] });
+                onStale: (action: 'mark' | 'dismiss') => void, private readonly followable = true) {
+        if (typeof place === 'number') {
+            this.panel = vscode.window.createWebviewPanel(
+                'octavo.preview', title, { viewColumn: place, preserveFocus: true },
+                // enableFindWidget: 画面をクリックして Ctrl+F（Mac は Cmd+F）で、PDF の文字（pdf.js の
+                // 文字の層）を探せる。retainContextWhenHidden が要る（付けている）
+                { enableScripts: true, retainContextWhenHidden: true, enableFindWidget: true,
+                  localResourceRoots: [media] });
+        } else {
+            this.panel = place;
+            this.panel.webview.options = { enableScripts: true, localResourceRoots: [media] };
+        }
         this.panel.webview.html = this.html();
         this.panel.webview.onDidReceiveMessage((m: { type?: string; url?: string }) => {
             if (m?.type === 'open' && typeof m.url === 'string'
@@ -206,7 +213,7 @@ class PdfPanel {
 <div id="bar">
   <span id="label"></span>
   <span id="spacer"></span>
-  <button id="follow" title="${vscode.l10n.t('Scroll along with the cursor in the manuscript')}">⇅</button>
+  <button id="follow" title="${vscode.l10n.t('Scroll along with the cursor in the manuscript')}"${this.followable ? '' : ' style="display:none"'}>⇅</button>
   <button id="out" title="${vscode.l10n.t('Zoom out')}">−</button>
   <button id="fit" title="${vscode.l10n.t('Fit to width')}">⤢</button>
   <button id="in" title="${vscode.l10n.t('Zoom in')}">＋</button>

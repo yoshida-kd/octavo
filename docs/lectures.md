@@ -77,7 +77,9 @@ Text for both the handout and the slides.
 - The part between the `---` lines makes the cover. `date: today` is the day it was built.
 - Headings come in three levels: **`#` is a session**, **`##` a section** and **`###` one
   slide**. `####` and below are small headings inside a slide (in the A4 handout they are all
-  numbered headings: 1, 1.1, 1.1.1).
+  numbered headings: 1, 1.1, 1.1.1). A different split is a setting: `slide_level: 2` at the top
+  of the notes makes each `##` one slide, and `slide_deeper_headings: slide` makes `####` a slide
+  of its own instead of a small heading.
 - A `##` section is shown in the slides' top-left corner (a setting adds a divider slide for
   each section).
 - A session without sections may skip `##`: if a session has only `##` headings, each `##` is

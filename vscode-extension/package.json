@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -188,6 +188,12 @@
         "title": "%command.envSetup.title%",
         "category": "Octavo",
         "icon": "$(package)"
+      },
+      {
+        "command": "octavo.migrate",
+        "title": "%command.migrate.title%",
+        "category": "Octavo",
+        "icon": "$(arrow-circle-up)"
       },
       {
         "command": "octavo.selftest",
@@ -381,6 +387,10 @@
         },
         {
           "command": "octavo.envSetup",
+          "when": "octavo.hasConfig"
+        },
+        {
+          "command": "octavo.migrate",
           "when": "octavo.hasConfig"
         },
         {
@@ -625,6 +635,12 @@
       }
     },
     "customEditors": [
+      {
+        "viewType": "octavo.pdf",
+        "displayName": "%customEditor.pdf%",
+        "selector": [{ "filenamePattern": "*.pdf" }],
+        "priority": "option"
+      },
       {
         "viewType": "octavo.tableEditor",
         "displayName": "%customEditor.table%",

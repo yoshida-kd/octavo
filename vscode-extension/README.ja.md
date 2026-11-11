@@ -60,7 +60,7 @@ Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex
 ## できること
 
 - **コマンドパレット**（`Octavo:`）から `build`・`watch`・`check`・`checkbib`・
-  `doctor`・`selftest`・`init`・`new`・`analysis run`・`env`・`setup`。
+  `doctor`・`selftest`・`init`・`new`・`analysis run`・`env`・`migrate`・`setup`。
 - **セットアップ**: 最初に起動したときにツールを確かめ（`octavo doctor --json`）、足りない
   ものをインストールするかを聞く。セットアップ用のスクリプトを同梱しているので、手でインストールするのは
   拡張機能だけ。プロジェクトごとの分析の環境（uv の `.venv`、knitr と rmarkdown
@@ -68,8 +68,9 @@ Beamer の出力にだけ要る（ターミナルから `octavo setup --with-tex
 - **サイドバー**（上から）: **原稿**（クリックで開く。それぞれに PDF と組版のボタン。
   講義ノートは回の一覧、論文は付録か付録を足すボタン。「**この文書の設定**」で
   引用の書式・出力形式・スライドの体裁・投稿規定の上限をその原稿の冒頭に書く）、
-  **分析**（`.qmd` ごとの状態）、使う順に並んだ**ツール**（入れる → 診断 → 分析の環境 →
-  分析を実行する → 書誌の確認 → 投稿前の点検）、畳んである**設定**（プロジェクトの
+  **分析**（`.qmd` ごとの状態）、**文献**（Zotero: メインと関連のコレクション・取得・整える・
+  書誌の確認。Priorwork: ワークスペース・依頼・届いたもの）、使う順に並んだ**ツール**（入れる → 診断 →
+  今の形にする → 分析の環境 → 分析を実行する → 投稿前の点検）、畳んである**設定**（プロジェクトの
   既定）。引用の書式は一覧から選ぶか打ち込み、出力形式はチェックで選ぶ。変更は
   `octavo config set` を通り、その1行（原稿か `octavo.config.py`。コメントは残す）だけを
   書き換え、設定として通らない値なら書き換えない。
@@ -141,7 +142,7 @@ Octavo は Linux と macOS で動く（拡張は `octavo` を呼び、セット�
 | `octavo.defaultTargets` | `[]` | 「変換する…」で毎回聞かずに使う形式 |
 | `octavo.previewLectureColumn` | `"slides"` | 講義ノートのプレビューの3列目: `"slides"`・`"notes"`（台本）・`"none"` |
 | `octavo.typstCommand` | `"typst"` | 「この Typst ファイルをプレビューする」で実行するコマンド |
-| `octavo.typstAutoOpenPdf` | `true` | Typst ファイルのプレビュー開始時に `.pdf` を開く（[LaTeX Workshop] があればそれで） |
+| `octavo.typstAutoOpenPdf` | `true` | Typst ファイルのプレビュー開始時に、`.pdf` を Octavo の PDF ビューアで横に開く |
 
 引用の書式・スライドの見た目・投稿規定の上限といった**プロジェクトの**設定は
 `octavo.config.py` にあり、サイドバーから変えられる。
@@ -170,9 +171,6 @@ Octavo は Linux と macOS で動く（拡張は `octavo` を呼び、セット�
   検査する」を手で実行する。
 - 同じく `wsl.exe` 経由のとき、`/mnt/` の外にある PDF は `base64` を通して
   読むので、長い文書だと遅い。Remote-WSL なら起きない。
-- Typst ファイルのプレビューは LaTeX Workshop の `latex-workshop-pdf-hook`
-  エディタで PDF を開くが、これは公開 API ではない。将来の版で変わっても、
-  止まるのは自動で開く部分だけで、`typst watch` は動き続ける。
 
 ## ソースからビルドする
 
@@ -192,4 +190,3 @@ npx @vscode/vsce package    # -> octavo-<version>.vsix
 MIT
 
 [pdf.js]: https://mozilla.github.io/pdf.js/
-[LaTeX Workshop]: https://marketplace.visualstudio.com/items?itemName=James-Yu.latex-workshop

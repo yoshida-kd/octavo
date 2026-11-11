@@ -1,0 +1,34 @@
+{
+  "standard": {
+    "head": "{author}（{year}）",
+    "article_title": "「{title}」",
+    "book_title": "『{title}』",
+    "container": "『{container}』",
+    "editor": "{editor}編",
+    "volume": "{volume}",
+    "issue": "（{issue}）",
+    "issue_alone": "{issue}",
+    "pages": "{pages}",
+    "pages_sep": ": ",
+    "chapter_pages": ", {pages}",
+    "stop": "."
+  },
+  "fullwidth": {
+    "head": "{author}（{year}）",
+    "article_title": "「{title}」",
+    "book_title": "『{title}』",
+    "container": "『{container}』",
+    "editor": "{editor}編",
+    "volume": "{volume}巻",
+    "issue": "{issue}号",
+    "issue_alone": "{issue}号",
+    "pages": "{pages}頁",
+    "pages_sep": "、",
+    "chapter_pages": "、{pages}頁",
+    "stop": "。"
+  },
+  "period": {
+    "base": "fullwidth",
+    "head": "{author}．{year}．"
+  }
+}

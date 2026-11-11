@@ -68,8 +68,8 @@ the one the file you are editing belongs to.
 ## Features
 
 - **Command palette** (`Octavo:`) for `build`, `watch`, `check`,
-  `checkbib`, `doctor`, `selftest`, `init`, `new`, `analysis run`, `env` and
-  `setup`.
+  `checkbib`, `doctor`, `selftest`, `init`, `new`, `analysis run`, `env`,
+  `migrate` and `setup`.
 - **Setup.** Checks the tools on first start (`octavo doctor --json`) and
   offers to install what is missing; the setup script is bundled, so the
   extension is the only thing you install by hand. The per-project analysis
@@ -79,9 +79,10 @@ the one the file you are editing belongs to.
   appendix or a button to add one; **Settings for this document** — citation
   style, output formats, slide look or submission limits, written at the top
   of that manuscript), **Analysis** (each `.qmd` and whether it is stale),
-  **Tools** in the order you use them (install → diagnose → analysis
-  environment → run the analysis → check the bibliography → check before
-  submitting), and **Settings**, the project's defaults, folded away. The
+  **Literature** (Zotero: the main and linked collections, pull, tidy, check
+  the bibliography; Priorwork: the workspace, requests and what arrived),
+  **Tools** in the order you use them (install → diagnose → bring up to date → analysis
+  environment → run the analysis → check before submitting), and **Settings**, the project's defaults, folded away. The
   citation style is picked from a list (or typed), output formats are ticked.
   A change goes through `octavo config set`, which rewrites just that one line
   (of the manuscript, or of `octavo.config.py`, keeping its comment) and
@@ -166,7 +167,7 @@ Windows too, and WSL is recommended there (as in the guide). With VS Code on Win
 | `octavo.defaultTargets` | `[]` | formats for "Build…" without prompting each time |
 | `octavo.previewLectureColumn` | `"slides"` | the third preview column for lecture notes: `"slides"`, `"notes"` (the speaker script) or `"none"` |
 | `octavo.typstCommand` | `"typst"` | the command run by "Preview This Typst File" |
-| `octavo.typstAutoOpenPdf` | `true` | open the `.pdf` when the Typst file preview starts (via [LaTeX Workshop] if installed) |
+| `octavo.typstAutoOpenPdf` | `true` | open the `.pdf` beside it, in Octavo's PDF viewer, when the Typst file preview starts |
 
 Settings of the *project* — citation style, slide look, submission limits —
 live in `octavo.config.py` and are editable from the sidebar.
@@ -196,10 +197,6 @@ The extension registers a `$octavo` problem matcher:
   so.
 - The same Windows-through-`wsl.exe` setup reads a PDF outside `/mnt/`
   through `base64`, which is slower for a long document. Remote-WSL avoids it.
-- The Typst file preview opens the PDF through LaTeX Workshop's
-  `latex-workshop-pdf-hook` editor, which is not a public API. If a future
-  release of that extension changes it, only the auto-open stops; `typst
-  watch` keeps running.
 
 ## Building from source
 
@@ -219,4 +216,3 @@ Extension Development Host.
 MIT
 
 [pdf.js]: https://mozilla.github.io/pdf.js/
-[LaTeX Workshop]: https://marketplace.visualstudio.com/items?itemName=James-Yu.latex-workshop

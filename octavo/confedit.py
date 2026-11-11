@@ -89,13 +89,14 @@ KNOBS = (
          docs=SLIDE_DOCS),
     Knob('slides_numbering', 'slides', 'choice', 'Heading numbers',
          (None, '1.', '1.1'), docs=SLIDE_DOCS),
+    Knob('slide_level', 'slides', 'int', 'Heading level of one slide (# count; empty = from the manuscript)',
+         docs=SLIDE_DOCS),
+    Knob('slide_deeper_headings', 'slides', 'choice', 'Headings deeper than a slide (subheading = inside it, slide = one each)',
+         ('subheading', 'slide'), docs=SLIDE_DOCS),
     Knob('citations_by_language', 'document', 'bool',
          'Japanese and English works in their own forms', docs=ALL_DOCS),
-    Knob('japanese_citation_form', 'document', 'choice', 'Form of Japanese works',
-         configmod.JA_FORMS, docs=ALL_DOCS,
-         samples=('山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.',
-                  '山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。',
-                  '山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。')),
+    # 選択肢と見本はプロジェクトの形から作る（choices_of。jaforms.py）
+    Knob('japanese_citation_form', 'document', 'choice', 'Form of Japanese works', docs=ALL_DOCS),
     Knob('date_format', 'document', 'suggest', 'Date format',
          ('%Y年%-m月%-d日', '%Y-%m-%d', '%B %-d, %Y', '%-d %B %Y'), docs=('slides', 'handout')),
     Knob('first_section', 'handout', 'int', 'Number of the first section', docs=('handout',),
@@ -136,6 +137,15 @@ def knob(key: str) -> Knob:
             return k
     raise EditError(t('{key} cannot be changed from here — edit octavo.config.py',
                       key=key))
+
+
+def choices_of(k: Knob, cfg) -> tuple:
+    """(選択肢, 見本)。日本語の文献の形は、プロジェクトで足した形も入れる。"""
+    if k.key == 'japanese_citation_form':
+        from . import jaforms
+        got = jaforms.of(cfg)
+        return tuple(got), tuple(jaforms.sample(f) for f in got.values())
+    return k.choices, k.samples
 
 
 def parse_value(k: Knob, raw: str):
@@ -196,6 +206,8 @@ def parse_value(k: Knob, raw: str):
             raise EditError(t('{key} takes one or more of {allowed}', key=k.key,
                               allowed=' / '.join(k.choices)))
         return got
+    if k.kind == 'choice' and not k.choices:
+        return s                      # 選択肢がプロジェクトで決まる（書く前の確かめで調べる）
     if k.kind == 'choice' and s not in k.choices:
         shown = ' / '.join('None' if c is None else c for c in k.choices)
         raise EditError(t('{key} takes one of {allowed}', key=k.key, allowed=shown))
@@ -227,8 +239,8 @@ def show(cfg, doc=None) -> list:
             rows.append({
                 'key': k.key, 'section': k.section,
                 'section_label': t(SECTIONS[k.section]),
-                'label': t(k.label), 'kind': k.kind, 'choices': list(k.choices),
-                'samples': list(k.samples),
+                'label': t(k.label), 'kind': k.kind, 'choices': list(choices_of(k, cfg)[0]),
+                'samples': list(choices_of(k, cfg)[1]),
                 'value': value,
                 'default': default,
                 'explicit': k.key in view.doc_explicit
@@ -245,8 +257,8 @@ def show(cfg, doc=None) -> list:
             'section_label': t(SECTIONS[k.section]),
             'label': t(k.label),
             'kind': k.kind,
-            'choices': list(k.choices),
-            'samples': list(k.samples),
+            'choices': list(choices_of(k, cfg)[0]),
+            'samples': list(choices_of(k, cfg)[1]),
             'value': cfg[k.key],
             'default': configmod.DEFAULTS.get(k.key),
             'explicit': k.key in cfg.explicit,

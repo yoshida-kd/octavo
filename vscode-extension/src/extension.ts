@@ -22,10 +22,12 @@ import { askPriorwork, chooseCollection, choosePriorworkWorkspace, currentCollec
          priorworkRequest, priorworkResolve, tidyCollection, whenRequestSent } from './literature';
 import { DocInfo, PreviewManager } from './preview';
 import { TableEditorProvider } from './tableEditor';
+import { PdfViewProvider, openPdfWhenReady } from './pdfView';
 import { showProjectForm } from './projectForm';
 import { QmdPreview } from './qmdPreview';
 import { RPackageCheck } from './rpackages';
 import { quietVenvActivation } from './venvActivation';
+import { migrateProject } from './migrate';
 import { AddKind, addToProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
 import {
@@ -35,12 +37,6 @@ import {
 import { SetupManager } from './setup';
 import { ValuesCache } from './values';
 import { ValueCompletionProvider, ValueDiagnostics, ValueHoverProvider } from './valueui';
-
-/** LaTeX Workshop がPDFに登録しているカスタムエディタのviewType。
- *  公式APIではなく拡張機能側の内部実装なので、LaTeX Workshopの将来のバージョンで
- *  変わる可能性がある。失敗しても watch 自体は動き続けるので、失敗は静かに無視する。 */
-const LATEX_WORKSHOP_PDF_VIEWTYPE = 'latex-workshop-pdf-hook';
-const LATEX_WORKSHOP_EXTENSION_ID = 'james-yu.latex-workshop';
 
 // octavo/config.py::OUTPUTS（出力の名前）と手で合わせる（自動生成ではない）。
 // 翻訳を引くので定数ではなく関数にしてある。
@@ -72,7 +68,8 @@ export function activate(context: vscode.ExtensionContext): void {
     whenRequestSent(() => tree.refresh());
     context.subscriptions.push(valuesCache, valueDiagnostics, preview, qmdPreview, handouts, rPackages, cards, tree,
         vscode.window.registerTreeDataProvider('octavo.project', tree),
-        TableEditorProvider.register(context));
+        TableEditorProvider.register(context),
+        PdfViewProvider.register(context));
     // 原稿・分析を足したあと: 一覧・値・引用を読み直す（見本なら値と書誌も増える）
     const afterAdding = (): void => {
         tree.refresh();
@@ -292,25 +289,12 @@ export function activate(context: vscode.ExtensionContext): void {
                 .get<boolean>('typstAutoOpenPdf', true);
             if (!autoOpen) return;
 
-            const pdfUri = vscode.Uri.file(fileUri.fsPath.replace(/\.typ$/i, '.pdf'));
-            if (vscode.extensions.getExtension(LATEX_WORKSHOP_EXTENSION_ID)) {
-                // 初回コンパイルがPDFを書き出すまで少し待つ。まだなくても
-                // LaTeX Workshop 側のファイルウォッチャーが後から拾って表示する。
-                setTimeout(() => {
-                    void vscode.commands.executeCommand(
-                        'vscode.openWith', pdfUri, LATEX_WORKSHOP_PDF_VIEWTYPE)
-                        .then(undefined, () => { /* 失敗しても watch 自体は継続する */ });
-                }, 1500);
-            } else {
-                const choice = await vscode.window.showInformationMessage(
-                    vscode.l10n.t(
-                        'Octavo: to watch the PDF refresh on every save, the LaTeX Workshop '
-                        + 'extension (with its built-in PDF viewer) is handy.'),
-                    vscode.l10n.t('Find the extension'), vscode.l10n.t('Not now'));
-                if (choice === vscode.l10n.t('Find the extension')) {
-                    void vscode.commands.executeCommand(
-                        'workbench.extensions.search', LATEX_WORKSHOP_EXTENSION_ID);
-                }
+            // PDF は Octavo のビューアで横に開き、typst が書き換えるたびに読み直す（pdfView.ts）
+            const pdfUri = fileUri.with({ path: fileUri.path.replace(/\.typ$/i, '.pdf') });
+            if (!await openPdfWhenReady(pdfUri)) {
+                void vscode.window.showWarningMessage(vscode.l10n.t(
+                    'Octavo: {0} has not been written yet. The terminal "typst-watch" says why.',
+                    path.basename(pdfUri.fsPath)));
             }
         }),
 
@@ -553,6 +537,14 @@ export function activate(context: vscode.ExtensionContext): void {
 
         vscode.commands.registerCommand('octavo.setup', () => setup.runSetup()),
 
+        vscode.commands.registerCommand('octavo.migrate', async () => {
+            const configUri = await requireConfig();
+            if (!configUri) return;
+            if (await migrateProject(dirOf(configUri), output)) {
+                tree.refresh();
+                await preview.rebuildIfOpen();
+            }
+        }),
         vscode.commands.registerCommand('octavo.envSetup', async () => {
             const configUri = await requireConfig();
             if (!configUri) return;

@@ -33,6 +33,7 @@ bundled version since you copied it.
 | `paper/csl-preamble.tex` | — | the `CSLReferences` definition, for a journal's own `main.tex` |
 | `slides/` | `octavo build` | the Typst deck and speaker script, and the Beamer header |
 | `handout/` | `octavo build` | the A4 handout's layout: `handout.typ` (Typst; cover, contents, jsarticle-style type) and `handout-header.tex` (the LaTeX header) |
+| `citations/japanese-forms.json` | `octavo build` | the forms of Japanese works in the reference list, part by part (`japanese_citation_form`; `japanese_citation_forms` in the config adds or changes forms) |
 | `citations/japanese.lua` | `octavo build` | a pandoc filter for Japanese documents: English works formatted in English, Japanese works (`langid = {japanese}`) as 山田・田中, ほか, 「」 and 『』 (`citations_by_language`) |
 | `typst/crossref.typ` | `octavo build` | how figures, tables, equations and sections are numbered and how `@fig-…` references read, in every Typst output (papers import it as `crossref.typ`) |
 | `replication/<lang>/` | `octavo bundle --replication` | the README that goes into the replication package (`README-standalone.md` with `--standalone`, when no helper is left) |

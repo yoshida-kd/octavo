@@ -253,17 +253,23 @@ def _build(cfg, doc) -> dict:
     return _outputs(res)
 
 
-def run(cfg, dry_run: bool = False, check: bool = True, allow_dirty: bool = False) -> int:
-    import shutil
-    from . import config as configmod
-    from .relocate import _git
-    plans = []              # [(doc, [Plan])]
+def plan_all(cfg) -> list:
+    """文書ごとの書き換えの計画 [(doc, [Plan])]。何も書き換えない。"""
+    out = []
     for doc in cfg.documents.values():
         ok, why = handout_rule(cfg, doc)
         ps = []
         for p in [doc.src] + ([doc.appendix] if doc.appendix and Path(doc.appendix).is_file() else []):
             ps.append(plan(Path(p), mdlib.read(p), ok, why))
-        plans.append((doc, ps))
+        out.append((doc, ps))
+    return out
+
+
+def run(cfg, dry_run: bool = False, check: bool = True, allow_dirty: bool = False) -> int:
+    import shutil
+    from . import config as configmod
+    from .relocate import _git
+    plans = plan_all(cfg)
     total = sum(len(p.changes) for _, ps in plans for p in ps)
     for doc, ps in plans:
         for p in ps:

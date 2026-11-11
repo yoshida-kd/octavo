@@ -3,6 +3,51 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.7.1
+
+- **The sidebar has a Literature section** in place of "From Priorwork" and the five bibliography rows in
+  Tools. **Zotero**: the main collection and the linked ones, one row each (the collection's name first, its
+  parents after it, so a long path does not hide the name), the web API key if needed, pull, tidy and check.
+  **Priorwork**: the workspace (or a row to choose one), asking for a survey, what arrived, and every request
+  sent (folded, with a count; it used to show the last five only). Zotero rows no longer sit under Priorwork.
+- **Zotero, more dependable.**
+  - `bib pull` gives the same citation keys whichever way Zotero is read: the local API now uses pinned keys and
+    the requested format (biblatex) like the web API. With Better BibTeX installed, a failure stops with the
+    reason instead of quietly switching to the local API, whose keys could differ. An empty collection is no
+    longer taken for a failure.
+  - The local API read only part of a collection of more than 100 items with attachments or notes; it now reads
+    every page.
+  - A busy Zotero web API (429, 5xx) is tried again, waiting as it asks.
+  - Collections in Zotero's trash (deleted in the desktop app, trash not yet emptied) and those under them
+    no longer count: `bib tidy` had been planning to take entries out of deleted subcollections.
+  - A pull that brings no entries leaves a `.bib` with entries as it is.
+  - `bib tidy` reads only the main and the linked collections; it no longer searches the whole library for a
+    cited work found in neither (`octavo bib tidy --library` still does). It keeps a copy and, after the first
+    run, reads only what changed. On a lecture library of 3,357 items the plan took 195 s, past the sidebar's
+    limit, which then failed with an empty reason; the sidebar now waits up to 10 minutes and shows the reason.
+- **Forms of Japanese works can be added or changed.** The three forms are now parts in
+  `templates/citations/japanese-forms.json`; `japanese_citation_forms` in `octavo.config.py` adds forms (`base`
+  plus the parts to change) or changes parts of a built-in one, and the sidebar lists them with a sample. Only
+  the reference list follows the form.
+- **The `standard` form uses full-width brackets for Japanese works:**
+  山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20. (was `(2020)` and `12(3)`). Rebuilding a Japanese document
+  with the default form changes its reference list accordingly.
+- **`slide_level` and `slide_deeper_headings`.** Which heading level is one slide (`slide_level: 3` = `###`;
+  unset, the manuscript decides as before) and whether headings below it are subheadings (default) or slides
+  of their own. They apply to lecture notes, decks and Beamer, in the config, the front matter or the sidebar.
+- **A rules section you edited no longer counts as an update.** The sidebar's count (and `octavo migrate --json`)
+  includes an `AGENTS.md` section only when it is exactly a version Octavo shipped; an edited one is mentioned
+  instead. `octavo migrate --rules` still offers to replace it, showing the difference first.
+- **Octavo's PDF viewer opens any PDF**, and "Preview This Typst File" uses it: the PDF opens beside the `.typ`
+  file and reloads every time `typst watch` rewrites it. LaTeX Workshop is no longer needed or suggested. For
+  other PDFs, choose **Octavo PDF Viewer** under "Open With…"; the usual way of opening PDFs does not change.
+- **`octavo migrate --helper` brings `analysis/octavo.R` and `octavo_helper.py` up to date.** A project keeps the
+  copy it was made with. Only a copy identical to a version Octavo shipped is replaced; one you edited is left and
+  reported. Plain `octavo migrate` says when a helper is older.
+- **Tools → Bring This Project Up to Date** in the sidebar does what `octavo migrate` does in the terminal: it lists
+  what can be updated (manuscript locations, notation, the rules file, the analysis helper), shows what would
+  change in the output panel, and runs the one you pick. `octavo migrate --json` is the list it reads.
+
 ## 0.7.0
 
 - **Prose edits reach the HTML without running the analysis**, if you turn on `octavo.qmdPreviewOnSave`

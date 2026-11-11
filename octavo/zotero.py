@@ -52,6 +52,11 @@ from .i18n import t
 
 PORT = 23119
 TIMEOUT = 30
+# Better BibTeX は大きなコレクションの初めての書き出しに時間がかかる（キャッシュを作る）
+BBT_TIMEOUT = 120
+# 混んでいる・一時的に落ちているときに、やり直す回数と、待つ長さの上限（秒）
+RETRIES = 3
+MAX_WAIT = 30
 
 
 class ZoteroError(RuntimeError):
@@ -88,20 +93,61 @@ def hosts() -> list:
     return out
 
 
-def _get(url: str, timeout: int = TIMEOUT) -> str:
+def _wait_for(e) -> float:
+    """やり直す前に待つ秒数（Retry-After か Backoff の見出し。無ければ少し）。"""
+    headers = getattr(e, 'headers', None) or {}
+    for name in ('Retry-After', 'Backoff'):
+        try:
+            return min(MAX_WAIT, float(headers.get(name) or ''))
+        except (TypeError, ValueError):
+            continue
+    return 2.0
+
+
+def _transient(e) -> bool:
+    """やり直せば通るかもしれない失敗か（混雑・一時的な停止・時間切れ・つながらない）。"""
+    if isinstance(e, urllib.error.HTTPError):
+        return e.code in (429, 500, 502, 503, 504)
+    return isinstance(e, (urllib.error.URLError, TimeoutError, ConnectionError))
+
+
+def _open(req, timeout: int, retries: int = RETRIES) -> tuple:
+    """(本文, 見出し)。一時的な失敗は、言われた時間（上限あり）だけ待ってやり直す。"""
+    import time
+    for attempt in range(retries + 1):
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as r:
+                return r.read().decode('utf-8', 'replace'), r.headers
+        except (urllib.error.URLError, OSError) as e:
+            if attempt == retries or not _transient(e):
+                raise
+            time.sleep(_wait_for(e))
+    raise AssertionError('unreachable')
+
+
+def _get_full(url: str, timeout: int = TIMEOUT, retries: int = 1) -> tuple:
     req = urllib.request.Request(url, headers={'User-Agent': f'octavo/{__version__}',
                                                'Accept': '*/*'})
-    with urllib.request.urlopen(req, timeout=timeout) as r:
-        return r.read().decode('utf-8', 'replace')
+    return _open(req, timeout, retries)
 
 
-def _try(urls: list) -> tuple:
+def _get(url: str, timeout: int = TIMEOUT, retries: int = 1) -> str:
+    return _get_full(url, timeout, retries)[0]
+
+
+def _try(urls: list, timeout: int = TIMEOUT) -> tuple:
+    """順に試して、最初に答えたものの (本文, URL)。どれもだめなら、いちばん意味のある失敗で ZoteroError。
+
+    「その書き方の口は無い」（404 など）は次を試す。時間切れ・つながらないは、ほかの書き方を
+    試しても同じなので、そこで止める（やり直しは _get がする）。"""
     last = None
     for u in urls:
         try:
-            return _get(u), u
-        except (urllib.error.URLError, OSError) as e:
+            return _get(u, timeout), u
+        except urllib.error.HTTPError as e:
             last = f'{u}: {e}'
+        except (urllib.error.URLError, OSError) as e:
+            raise ZoteroError(f'{u}: {e}')
     raise ZoteroError(last or t('nothing to connect to'))
 
 
@@ -109,7 +155,7 @@ def alive() -> str | None:
     """Zotero が応答するホストを返す。"""
     for h in hosts():
         try:
-            _get(f'http://{h}:{PORT}/connector/ping', timeout=4)
+            _get(f'http://{h}:{PORT}/connector/ping', timeout=4, retries=0)
             return h
         except (urllib.error.URLError, OSError):
             continue
@@ -118,18 +164,20 @@ def alive() -> str | None:
 
 # ---------------------------------------------------------------- Better BibTeX
 
-def bbt_urls(host: str, kind: str, name: str, fmt: str) -> list:
-    q = urllib.parse.quote(name)
-    return [
-        f'http://{host}:{PORT}/better-bibtex/export/{kind}?/1/{q}.{fmt}',
-        f'http://{host}:{PORT}/better-bibtex/{kind}?/1/{q}.{fmt}',
-        f'http://{host}:{PORT}/better-bibtex/export/{kind}?/0/{q}.{fmt}',
-    ]
+def bbt_urls(host: str, kind: str, name: str, fmt: str, key: str = '') -> list:
+    """Better BibTeX の書き出しの口（版によって書き方が違うので、いくつか）。key はコレクションのキー
+    （名前に / を含むコレクションも、キーなら1つに決まる）。"""
+    out = []
+    for q in [urllib.parse.quote(name)] + ([urllib.parse.quote(key)] if key else []):
+        out += [f'http://{host}:{PORT}/better-bibtex/export/{kind}?/1/{q}.{fmt}',
+                f'http://{host}:{PORT}/better-bibtex/{kind}?/1/{q}.{fmt}',
+                f'http://{host}:{PORT}/better-bibtex/export/{kind}?/0/{q}.{fmt}']
+    return out
 
 
 def bbt_available(host: str) -> bool:
     try:
-        _get(f'http://{host}:{PORT}/better-bibtex/cayw?probe=probe', timeout=5)
+        _get(f'http://{host}:{PORT}/better-bibtex/cayw?probe=probe', timeout=5, retries=0)
         return True
     except (urllib.error.URLError, OSError):
         return False
@@ -150,9 +198,18 @@ def api_collections(host: str) -> list:
 def tree(raw: list) -> list:
     """ローカル API のコレクションを、Zotero と同じ木の順（親の直後に子、同じ親の中は名前順）の
     [{key, name, parent, path, depth, items}] にする。items はそのコレクションだけの文献の数。"""
+    # ごみ箱に入れたコレクション（Zotero 7。data.deleted）と、その下のコレクションは無いものとする。
+    # デスクトップで消しても、ごみ箱を空にするまでは API が返してくる
+    trashed = {c['key'] for c in raw if c.get('key') and (c.get('data') or {}).get('deleted')}
+    parent_of = {c['key']: (c.get('data') or {}).get('parentCollection') or '' for c in raw if c.get('key')}
+
+    def gone(k, seen=()):
+        return k in trashed or (parent_of.get(k) in parent_of and k not in seen
+                                and gone(parent_of[k], (*seen, k)))
     cols = {c['key']: {'name': c.get('data', {}).get('name', ''),
                        'parent': c.get('data', {}).get('parentCollection') or '',
-                       'items': (c.get('meta') or {}).get('numItems', 0)} for c in raw if c.get('key')}
+                       'items': (c.get('meta') or {}).get('numItems', 0)}
+            for c in raw if c.get('key') and not gone(c['key'])}
     children: dict = {}
     for k, c in cols.items():
         children.setdefault(c['parent'] if c['parent'] in cols else '', []).append(k)
@@ -198,45 +255,59 @@ def subtree(key: str, cols: list) -> list:
     return [c for c in cols if c['key'] in keys]
 
 
+ENTRY = re.compile(r'@\w+\s*[{(]\s*([^,\s]+)\s*,.*?(?=\n@\w+\s*[{(]|\Z)', re.S)
+
+
 def merge_bib(texts: list) -> str:
     """いくつかの .bib を1つにする。同じキーの文献は最初のものだけ残す。"""
     seen, out = set(), []
     for text in texts:
-        for m in re.finditer(r'@\w+\s*\{\s*([^,\s]+)\s*,.*?(?=\n@|\Z)', text, re.S):
+        for m in ENTRY.finditer(text):
             if m.group(1) not in seen:
                 seen.add(m.group(1))
                 out.append(m.group(0).strip())
     return '\n\n'.join(out) + ('\n' if out else '')
 
 
-def api_collection_bib(host: str, key: str) -> str:
-    out, start = [], 0
-    while True:
-        url = (f'http://{host}:{PORT}/api/users/0/collections/{key}/items'
-               f'?format=bibtex&limit=100&start={start}')
-        chunk = _get(url)
-        if not chunk.strip():
-            break
-        out.append(chunk)
-        if chunk.count('@') < 100:
-            break
-        start += 100
-    return '\n'.join(out)
+def count_entries(text: str) -> int:
+    return sum(1 for m in ENTRY.finditer(text) if not m.group(0).lower().startswith(('@comment', '@string', '@preamble')))
 
 
-def api_library_bib(host: str) -> str:
+def _pinned(item: dict, fmt: str) -> tuple:
+    """(1件の書誌, キーを固定してあるか)。固定したキー（Better BibTeX の citationKey か、Extra の
+    Citation Key:）があれば、書誌のキーをそれに替える。どの口から取っても同じキーになるように。"""
+    entry = (item.get(fmt) or '').strip()
+    stable = _stable_key(item.get('data') or {})
+    if stable and entry.startswith('@'):
+        entry = re.sub(r'^(@\w+\s*\{)\s*[^,\s]+', lambda m: m.group(1) + stable, entry, count=1)
+    return entry, bool(stable)
+
+
+def _local_bib(host: str, path: str, fmt: str) -> str:
+    """ローカル API の文献（添付・メモを除いた、いちばん上の文献）を、件数の見出しを見て最後まで。"""
+    base = f'http://{host}:{PORT}/api/users/0{path}'
     out, start = [], 0
     while True:
-        url = (f'http://{host}:{PORT}/api/users/0/items'
-               f'?format=bibtex&limit=100&start={start}&itemType=-attachment||note')
-        chunk = _get(url)
-        if not chunk.strip():
-            break
-        out.append(chunk)
-        if chunk.count('@') < 100:
-            break
-        start += 100
-    return '\n'.join(out)
+        text, headers = _get_full(f'{base}?format=json&include=data,{fmt}&limit=100&start={start}')
+        chunk = json.loads(text)
+        if chunk and not any(fmt in it for it in chunk):
+            # 書誌を一緒に返さない版: 書誌だけを、同じ並びで取り直す（キーは Zotero の付けたもの）
+            text, _ = _get_full(f'{base}?format={fmt}&limit=100&start={start}')
+            out.append(text.strip())
+        else:
+            out += [e for e, _ in (_pinned(it, fmt) for it in chunk) if e.startswith('@')]
+        start += len(chunk)
+        total = int(headers.get('Total-Results') or 0)
+        if not chunk or start >= total:
+            return '\n\n'.join(x for x in out if x) + ('\n' if out else '')
+
+
+def api_collection_bib(host: str, key: str, fmt: str = 'biblatex') -> str:
+    return _local_bib(host, f'/collections/{key}/items/top', fmt)
+
+
+def api_library_bib(host: str, fmt: str = 'biblatex') -> str:
+    return _local_bib(host, '/items/top', fmt)
 
 
 # ---------------------------------------------------------------- ウェブ API
@@ -283,8 +354,8 @@ def _web_get(path: str, params: dict) -> tuple:
     req = urllib.request.Request(url, headers={'User-Agent': f'octavo/{__version__}',
                                                'Zotero-API-Key': key, 'Zotero-API-Version': '3'})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
-            return r.read().decode('utf-8', 'replace'), int(r.headers.get('Total-Results') or 0)
+        text, headers = _open(req, TIMEOUT)
+        return text, int(headers.get('Total-Results') or 0)
     except urllib.error.HTTPError as e:
         if e.code in (403, 404):
             raise ZoteroError(t('the Zotero web API refused ({why}). Check the API key and the user ID '
@@ -322,14 +393,10 @@ def web_bib(collection_key: str | None, fmt: str) -> tuple:
                                       'start': start})
         chunk = json.loads(text)
         for item in chunk:
-            entry = (item.get(fmt) or '').strip()
+            entry, pinned = _pinned(item, fmt)
             if not entry.startswith('@'):
                 continue                       # メモ・添付だけのもの
-            stable = _stable_key(item.get('data') or {})
-            if stable:
-                entry = re.sub(r'^(@\w+\s*\{)\s*[^,\s]+', lambda m: m.group(1) + stable, entry, count=1)
-            else:
-                unpinned += 1
+            unpinned += not pinned
             entries.append(entry)
         start += len(chunk)
         if not chunk or start >= total:
@@ -345,8 +412,8 @@ def _web_patch(item_key: str, version: int, data: dict) -> None:
                                           'Zotero-API-Version': '3', 'Content-Type': 'application/json',
                                           'If-Unmodified-Since-Version': str(version)})
     try:
-        with urllib.request.urlopen(req, timeout=TIMEOUT):
-            return
+        _open(req, TIMEOUT)
+        return
     except urllib.error.HTTPError as e:
         if e.code == 403:
             raise WriteRefused(t('the Zotero API key cannot write. At zotero.org/settings/keys, allow '
@@ -362,38 +429,105 @@ class WriteRefused(ZoteroError):
     """キーに書き込みの権限が無い。1つで分かるので、残りも試さない。"""
 
 
-def web_items(collection_key: str | None) -> list:
-    """コレクションだけの文献（下のコレクションは含まない）。collection_key が None ならライブラリ全体。
-    [{item, version, collections, cite, pinned, title}]。cite は固定したキー、無ければ Zotero の書き出しのキー。"""
+def _cache_path() -> Path:
+    import os
+    base = os.environ.get('XDG_CACHE_HOME') or (Path.home() / '.cache')
+    return Path(base) / 'octavo' / f'zotero-{credentials()[1] or "unknown"}.json'
+
+
+def _entry(it: dict) -> dict | None:
+    data = it.get('data') or {}
+    if data.get('itemType') in ('note', 'attachment', 'annotation') or data.get('deleted'):
+        return None                            # メモ・添付・ごみ箱の文献
+    stable = _stable_key(data)
+    return {'item': it.get('key') or data.get('key', ''),
+            'version': it.get('version') or data.get('version') or 0,
+            'collections': list(data.get('collections') or []),
+            'cite': stable, 'pinned': bool(stable), 'title': data.get('title') or ''}
+
+
+def _read_all(path: str, params: dict) -> list:
     out, start = [], 0
-    path = f'/collections/{collection_key}/items/top' if collection_key else '/items/top'
     while True:
-        text, total = _web_get(path,
-                               {'format': 'json', 'include': 'data,biblatex', 'limit': 100, 'start': start})
+        text, total = _web_get(path, {**params, 'format': 'json', 'include': 'data', 'limit': 100,
+                                      'start': start})
         chunk = json.loads(text)
-        for it in chunk:
-            data = it.get('data') or {}
-            entry = (it.get('biblatex') or '').strip()
-            if not entry.startswith('@'):
-                continue                       # メモ・添付だけのもの
-            stable = _stable_key(data)
-            m = re.match(r'@\w+\s*\{\s*([^,\s]+)', entry)
-            out.append({'item': it.get('key') or data.get('key', ''),
-                        'version': it.get('version') or data.get('version') or 0,
-                        'collections': list(data.get('collections') or []),
-                        'cite': stable or (m.group(1) if m else ''), 'pinned': bool(stable),
-                        'title': data.get('title') or ''})
+        out += chunk
         start += len(chunk)
         if not chunk or start >= total:
             return out
 
 
-def tidy_plan(main, linked, cited) -> dict:
+def synced_items(collection_keys, whole_library: bool = False) -> list:
+    """文献 [{item, version, collections, cite, pinned, title}]。cite は固定したキー、無ければ Zotero の
+    書き出しのキー。読むのは collection_keys のコレクション（whole_library ならライブラリ全体）。
+
+    手元に写しを持つ（~/.cache/octavo/。消してもよい）。初めてのコレクションはまるごと読み、そのあとは
+    ライブラリの中で前の版より後に変わった文献と、消えた文献だけを読む（Zotero の同期と同じ since）。
+    コレクションに足した・外した文献も版が上がるので、それで写しの所属が今のものになる。"""
+    path = _cache_path()
+    try:
+        cache = json.loads(path.read_text(encoding='utf-8'))
+        since, items = int(cache['version']), dict(cache['items'])
+        read, whole = set(cache.get('read', [])), bool(cache.get('whole'))
+    except (OSError, ValueError, KeyError, TypeError):
+        since, items, read, whole = 0, {}, set(), False
+    newest, changed = since, []
+
+    def take(raw):
+        nonlocal newest
+        for it in raw:
+            newest = max(newest, int(it.get('version') or 0))
+            e = _entry(it)
+            key = it.get('key') or ''
+            if e is None:
+                items.pop(key, None)
+            else:
+                items[key] = e
+                changed.append(e)
+
+    if since:                                   # 前の写しからの変わり目
+        take(_read_all('/items/top', {'since': since}))
+        text, _ = _web_get('/deleted', {'since': since})
+        for key in (json.loads(text) or {}).get('items', []):
+            items.pop(key, None)
+    if whole_library and not whole:
+        take(_read_all('/items/top', {}))
+        whole = True
+    for key in collection_keys:
+        if not whole and key not in read:       # 初めてのコレクションは、まるごと
+            take(_read_all(f'/collections/{key}/items/top', {}))
+        read.add(key)
+    # キーを固定していない文献は、Zotero の書き出しのキーを（読んだものだけ）まとめて読む
+    loose = list({e['item']: e for e in changed if not e['pinned']}.values())
+    for i in range(0, len(loose), 50):         # itemKey は一度に 50 まで
+        batch = loose[i:i + 50]
+        text, _ = _web_get('/items', {'format': 'json', 'include': 'biblatex', 'limit': 50,
+                                      'itemKey': ','.join(x['item'] for x in batch)})
+        keys = {}
+        for it in json.loads(text):
+            m = re.match(r'\s*@\w+\s*\{\s*([^,\s]+)', it.get('biblatex') or '')
+            if m:
+                keys[it.get('key')] = m.group(1)
+        for x in batch:
+            x['cite'] = keys.get(x['item'], '')
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix('.tmp')
+        tmp.write_text(json.dumps({'version': newest, 'read': sorted(read), 'whole': whole, 'items': items},
+                                  ensure_ascii=False), encoding='utf-8')
+        tmp.replace(path)
+    except OSError:
+        pass                                   # 写しを書けなくても、今回の計画は立てられる
+    return list(items.values())
+
+
+def tidy_plan(main, linked, cited, whole_library: bool = False) -> dict:
     """メインのコレクションを「引いている文献とぴったり同じ」にする計画（Zotero は書き換えない）。
 
     main / linked は設定の zotero_collection / zotero_linked、cited は原稿が引いているキー。
-    返すもの: add（引いているのにメインに無く、関連にある文献。関連にも無ければライブラリ全体から探す。
-    where は 'linked' か 'library'）、remove（メインにあって引いていない
+    返すもの: add（引いているのにメインに無く、関連にある文献。where は 'linked'。whole_library なら、
+    関連にも無いものをライブラリ全体から探す: where は 'library'）、remove（メインにあって引いていない
     文献。キーを固定したものだけ）、unpinned（メインにあってキーを固定していない文献）、
     not_found（引いているが、メインにも関連にも無いキー）。
     """
@@ -409,34 +543,31 @@ def tidy_plan(main, linked, cited) -> dict:
     in_main = _targets(names, cols)
     main_keys = {c['key'] for c in in_main}
     in_linked = [c for c in _targets(as_list(linked), cols) if c['key'] not in main_keys]
+    library = synced_items([c['key'] for c in in_main + in_linked], whole_library)
 
-    main_items: dict = {}                      # 文献の key -> 文献（メインのどこかにある）
-    for c in in_main:
-        for it in web_items(c['key']):
-            main_items.setdefault(it['item'], it)
+    main_items = {it['item']: it for it in library if main_keys & set(it['collections'])}
     main_cites = {it['cite'] for it in main_items.values()}
 
     cited = set(cited)
     add, found = [], set()
-    for c in in_linked:
-        for it in web_items(c['key']):
+    for c in in_linked:                        # 関連のコレクションの順に（どこから来たかを示す）
+        for it in library:
             k = it['cite']
-            if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
+            if (c['key'] in it['collections'] and k in cited and k not in main_cites and k not in found
+                    and it['item'] not in main_items):
                 found.add(k)
                 add.append({'key': k, 'item': it['item'], 'version': it['version'],
                             'collections': it['collections'], 'title': it['title'], 'from': c['path'],
                             'pinned': it['pinned'], 'where': 'linked'})
-    # 関連にも無ければ、ライブラリ全体から探す（全体を読むので、残っているときだけ）
-    if cited - main_cites - found:
-        for it in web_items(None):
-            k = it['cite']
-            if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
-                found.add(k)
-                paths = [by_key[x]['path'] for x in it['collections'] if x in by_key]
-                add.append({'key': k, 'item': it['item'], 'version': it['version'],
-                            'collections': it['collections'], 'title': it['title'],
-                            'from': ', '.join(paths) or t('the library (in no collection)'),
-                            'pinned': it['pinned'], 'where': 'library'})
+    for it in (library if whole_library else ()):   # 関連にも無ければ、ライブラリ全体から（頼まれたときだけ）
+        k = it['cite']
+        if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
+            found.add(k)
+            paths = [by_key[x]['path'] for x in it['collections'] if x in by_key]
+            add.append({'key': k, 'item': it['item'], 'version': it['version'],
+                        'collections': it['collections'], 'title': it['title'],
+                        'from': ', '.join(paths) or t('the library (in no collection)'),
+                        'pinned': it['pinned'], 'where': 'library'})
     remove, unpinned = [], []
     for it in main_items.values():
         if it['cite'] in cited:
@@ -555,24 +686,31 @@ def fetch(collection=None, fmt: str = 'biblatex', source: str = 'auto') -> tuple
         targets = _targets(names, cols) if cols is not None else []
 
     if bbt_available(host):
+        # Better BibTeX が入っているなら、それで取る。答えなかったからといって内蔵の API に
+        # 落とすと、文献のキーが（固定していないものは）変わり、原稿の引用が切れる。止めて知らせる
         try:
             if names and targets:
-                texts, url = [], ''
-                for c in targets:
-                    text, url = _try(bbt_urls(host, 'collection', c['path'].replace(' / ', '/'), fmt))
-                    texts.append(text)
-                text = merge_bib(texts)
-                url = url if len(targets) == 1 else t('{path} and {n} subcollections',
-                                                      path=shown, n=len(targets) - len(names))
+                texts = [_try(bbt_urls(host, 'collection', c['path'].replace(' / ', '/'), fmt, c['key']),
+                              BBT_TIMEOUT)[0] for c in targets]
+                url = shown if len(targets) == len(names) else t(
+                    '{path} and {n} subcollections', path=shown, n=len(targets) - len(names))
             elif names:
-                texts = [_try(bbt_urls(host, 'collection', n.replace(' / ', '/'), fmt))[0] for n in names]
-                text, url = merge_bib(texts), shown
+                texts = [_try(bbt_urls(host, 'collection', n.replace(' / ', '/'), fmt), BBT_TIMEOUT)[0]
+                         for n in names]
+                url = shown
             else:
-                text, url = _try(bbt_urls(host, 'library', 'library', fmt))
-            if text.strip().startswith('@'):
-                return text, f'Better BibTeX ({url})'
-        except ZoteroError:
-            pass
+                texts = [_try(bbt_urls(host, 'library', 'library', fmt), BBT_TIMEOUT)[0]]
+                url = t('the whole library')
+        except ZoteroError as e:
+            raise ZoteroError(t('Better BibTeX did not export the references ({why}).', why=e) + '\n  '
+                              + t('Octavo does not switch to another way of reading Zotero here, because the '
+                                  'citation keys could change. Try again (a large collection can take a '
+                                  'while the first time), or use --source web.'))
+        bad = [x for x in texts if x.strip() and not x.lstrip().startswith('@')]
+        if bad:
+            raise ZoteroError(t('Better BibTeX answered with something that is not BibTeX: {start}',
+                                start=bad[0].strip()[:120]))
+        return merge_bib(texts), f'Better BibTeX ({url})'
 
     # 内蔵 API に落とす
     try:
@@ -580,17 +718,17 @@ def fetch(collection=None, fmt: str = 'biblatex', source: str = 'auto') -> tuple
             if cols is None:
                 cols = tree(api_collections(host))
                 targets = _targets(names, cols)
-            text = merge_bib([api_collection_bib(host, c['key']) for c in targets])
+            text = merge_bib([api_collection_bib(host, c['key'], fmt) for c in targets])
             src = t('Zotero local API / collection {name}', name=shown)
         else:
-            text = api_library_bib(host)
+            text = api_library_bib(host, fmt)
             src = t('Zotero local API / the whole library')
     except urllib.error.HTTPError as e:
         raise ZoteroError(t('the Zotero local API is unavailable ({why}).', why=e)
                           + '\n  ' + t('it needs Zotero 7 or newer, with Settings '
                                        '-> Advanced -> "Allow other applications" '
                                        'turned on'))
-    if not text.strip().startswith('@'):
+    if text.strip() and not text.strip().startswith('@'):
         raise ZoteroError(t('no BibTeX came back (check the Zotero version and '
                             'settings)'))
     return text, src
@@ -600,7 +738,12 @@ def pull(dest: Path, collection=None, fmt: str = 'biblatex',
          backup: bool = True, source: str = 'auto') -> tuple:
     """.bib を取ってきて dest に書く。前の版は .bak に退避する。"""
     text, src = fetch(collection, fmt, source)
-    n = text.count('\n@') + text.strip().startswith('@')
+    n = count_entries(text)
+    if n == 0 and dest.exists() and count_entries(dest.read_text(encoding='utf-8', errors='replace')):
+        # 一時的な失敗や設定の誤りで、今ある .bib を空にしないように
+        raise ZoteroError(t('Zotero gave no references ({source}), so {path} was left as it is. If the '
+                            'collection really is empty now, delete the file and pull again.',
+                            source=src, path=dest))
     dest.parent.mkdir(parents=True, exist_ok=True)
     if backup and dest.exists():
         bak = dest.with_suffix(dest.suffix + '.bak')

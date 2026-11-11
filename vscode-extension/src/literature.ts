@@ -206,9 +206,21 @@ export async function tidyCollection(onChange?: () => void): Promise<void> {
         return;
     }
     const cwd = dirOf(configUri);
-    const tidy = (args: string[]): Thenable<TidyReport | undefined> => vscode.window.withProgress(
+    // 大きなライブラリでは Zotero のウェブ API を読むのに何分かかかる。答えが読めなければ、その理由を
+    // （時間切れか、CLI の言ったこと）エラーとして返す（理由の無い「整えられません」にしない）
+    const tidy = (args: string[]): Thenable<TidyReport> => vscode.window.withProgress(
         { location: vscode.ProgressLocation.Notification, title: vscode.l10n.t('Reading Zotero (web API)…') },
-        async () => lastJson<TidyReport>((await runCapture(cwd, ['bib', 'tidy', '--json', ...args], 180000)).stdout));
+        async () => {
+            const r = await runCapture(cwd, ['bib', 'tidy', '--json', ...args], 600000);
+            const got = lastJson<TidyReport>(r.stdout);
+            if (got) {
+                return got;
+            }
+            const said = r.stderr.trim().split('\n').slice(-3).join(' ');
+            return { ok: false, error: r.code === null && !said
+                ? vscode.l10n.t('Zotero did not answer within 10 minutes. Try again later; the Zotero web API is sometimes slow.')
+                : said || vscode.l10n.t('the octavo command gave no answer (exit code {0})', String(r.code)) };
+        });
     const plan = await tidy([]);
     if (!plan?.ok) {
         const web = vscode.l10n.t('Use the Web API…');
@@ -225,7 +237,7 @@ export async function tidyCollection(onChange?: () => void): Promise<void> {
     const leftAlone = [
         plan.unpinned?.length ? vscode.l10n.t('{0} not cited but left alone (citation key not pinned): {1}',
                                               plan.unpinned.length, plan.unpinned.map((x) => x.key).join(', ')) : '',
-        plan.not_found?.length ? vscode.l10n.t('{0} cited but nowhere in the Zotero library: {1}',
+        plan.not_found?.length ? vscode.l10n.t('{0} cited but in neither the main nor the linked collections: {1}',
                                                plan.not_found.length, plan.not_found.join(', ')) : '',
     ].filter(Boolean).join('\n');
     if (!plan.add?.length && !plan.remove?.length) {

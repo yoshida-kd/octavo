@@ -88,7 +88,7 @@ CONFIG = {
     # How `date:` is shown on title slides and handouts; `date: today` is the build day.
     # None: 2026年10月14日 in Japanese, October 14, 2026 in English
     # 'date_format': '%Y-%m-%d',
-    # Japanese works in a Japanese document: 'standard' (2020)「…」 | 'fullwidth' （2020）…巻…号、…頁。 | 'period' ．2020．…
+    # Japanese works in a Japanese document: 'standard' （2020）「…」12（3）: … | 'fullwidth' （2020）…巻…号、…頁。 | 'period' ．2020．…
     # 'japanese_citation_form': 'standard',
 
     # ================================================================

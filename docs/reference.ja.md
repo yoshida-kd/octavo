@@ -109,10 +109,11 @@ octavo env                                    # 分析の環境（.venv・renv�
 octavo migrate --docs --dry-run    # papers/<n>/paper.md、slides/、lectures/ -> docs/<n>/<n>.md
 octavo migrate --syntax --dry-run  # ::: {.session}、::: {.slide}、.handout-only -> \session{}、\newslide、.no-slides
 octavo migrate --rules --dry-run   # AGENTS.md の Octavo の節 -> 今の文章（差分を表示）
+octavo migrate --helper --dry-run  # analysis/octavo.R、octavo_helper.py -> 今の版
 octavo migrate                     # CLAUDE.md だけのプロジェクトの決まりを AGENTS.md へ
 ```
 
-どれも、コミットしていない変更があれば `--allow-dirty` なしでは断る。`--docs` は文書の名前を保ち、図のパスを直し、`outputs`/`sessions` を書き、設定に `docs/*/` を足す。`--syntax` は前後ですべての文書を組み、すべての出力が同じときだけ書き換えを残す。`--rules` は `<!-- octavo:section X -->` の部分をテンプレートのものに置き換える（その中に書いたものも置き換わる。最初の節より前は残る）。古い設定（`profile` / `targets` のある `papers/*/paper.md`）もそのまま組める。
+`--docs`・`--syntax`・`--rules` は、コミットしていない変更があれば `--allow-dirty` なしでは断る。`--docs` は文書の名前を保ち、図のパスを直し、`outputs`/`sessions` を書き、設定に `docs/*/` を足す。`--syntax` は前後ですべての文書を組み、すべての出力が同じときだけ書き換えを残す。`--rules` は `<!-- octavo:section X -->` の部分をテンプレートのものに置き換える（その中に書いたものも置き換わる。最初の節より前は残る）。古い設定（`profile` / `targets` のある `papers/*/paper.md`）もそのまま組める。`--helper` は、Octavo が出したどれかの版と同じ中身のヘルパーだけを置き換える。手を入れたコピーはそのままにして知らせ、なくなっているものは分析が使っていれば置き直す。`octavo migrate --json` は今の形にできるものを並べるだけで、何も変えない（サイドバーの「**このプロジェクトを今の形にする**」がこれを読み、何が変わるかを見せてから、選んだものを実行する）。
 
 ---
 
@@ -411,6 +412,8 @@ octavo extract course --pages 12-19                # 印刷されたページ番
 | `slides_accent` | `'#0e2f92'` | `None` で黒だけ |
 | `slides_numbering` | `None` | 見出しの番号（`'1.'`、`'1.1'`） |
 | `slides_section_slides` | `False` | `#` の節ごとに区切りのスライド |
+| `slide_level` | `None` | 1枚のスライドになる見出しの段（`3` なら `###`）。`None` なら原稿から決める（講義ノートは `###`、ほかは いちばん浅い段の1つ下）。Beamer にも効く |
+| `slide_deeper_headings` | `'subheading'` | それより深い見出し: `'subheading'` は1枚の中の小見出し、`'slide'` はそれぞれ1枚 |
 | `slides_running_header` | `True` | 左上に節の名前 |
 | `slides_font` | BIZ UDゴシック + Inter | |
 | `slides_bibliography` | 講義のスライドは `slide`、発表は `off` | `slide`、`off`、`sheet`（A4 の `<deck>-references.pdf`）、`both` |
@@ -496,7 +499,7 @@ poster_rows: [2, 1]
 
 ### 5.2 文書ごとの設定
 
-次のキーは原稿の冒頭にも書け、そのときはその文書だけに効く（名前は設定と同じ）: `outputs`、`sessions`、`lang`、`csl`、`csl_locale`、`reference_section_title`、`japanese_citation_form`、`citations_by_language`、`crossref_numbering`、`word_limit`、`char_limit`、`abstract_word_limit`、`abstract_char_limit`、`slides_*`、`poster_*`、`first_section`、`pagebreak`、`font`、`fontsize`、`toc`、`date_format`、`appendix_separate`、`appendix_after_references`、`writing`、`writing_off`。綴りを誤ったキーはビルドのときに知らせる。ビルドは `[settings] 原稿から: …` と表示する。
+次のキーは原稿の冒頭にも書け、そのときはその文書だけに効く（名前は設定と同じ）: `outputs`、`sessions`、`lang`、`csl`、`csl_locale`、`reference_section_title`、`japanese_citation_form`、`citations_by_language`、`crossref_numbering`、`word_limit`、`char_limit`、`abstract_word_limit`、`abstract_char_limit`、`slides_*`、`slide_level`、`slide_deeper_headings`、`poster_*`、`first_section`、`pagebreak`、`font`、`fontsize`、`toc`、`date_format`、`appendix_separate`、`appendix_after_references`、`writing`、`writing_off`。綴りを誤ったキーはビルドのときに知らせる。ビルドは `[settings] 原稿から: …` と表示する。
 
 ### 5.3 コマンドで設定を変える
 
@@ -647,7 +650,18 @@ format:
 
 - `bib_file`（新しいプロジェクトは `literature/literature.bib`）は文献管理ソフトからエクスポートする（Zotero なら Better BibTeX の「自動更新」でキーが変わらない）。Octavo は書かない。
 - `csl` がすべての出力のスタイル。`octavo csl get <id>` で取得し、`octavo csl list` で手元にあるものを示す。
-- 日本語の文書では、`langid = {japanese}` の文献はスタイルによらず1つの日本語の形になる。`japanese_citation_form`: `standard`（山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.）、`fullwidth`（（2020）…12巻3号、1–20頁。）、`period`（．2020．…）。`citations_by_language: False` で全体を `csl_locale` で組む。`.bib` の日本語の名前にはカンマが要る（`山田, 太郎`）。
+- 日本語の文書では、`langid = {japanese}` の文献はスタイルによらず1つの日本語の形になる。`japanese_citation_form`: `standard`（山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20.）、`fullwidth`（（2020）…12巻3号、1–20頁。）、`period`（．2020．…）。`citations_by_language: False` で全体を `csl_locale` で組む。`.bib` の日本語の名前にはカンマが要る（`山田, 太郎`）。
+- 形は部品の組（`templates/citations/japanese-forms.json`）。`octavo.config.py` の `japanese_citation_forms` で形を足したり、組み込みの形の部品を変えたりできる。足した名前は、見本と一緒にサイドバーに出る。変わるのは文献一覧だけで、本文中の引用はスタイルのまま。
+
+  ```python
+  'japanese_citation_forms': {
+      'mine': {'base': 'fullwidth', 'head': '{author}［{year}］'},   # fullwidth の括弧だけ変える
+      'standard': {'stop': ''},                                     # 部品を1つだけ変える
+  },
+  'japanese_citation_form': 'mine',
+  ```
+
+  部品（と使える差し込み口）: `head`（`{author}`・`{year}`）、`article_title` と `book_title`（`{title}`）、`container`（`{container}`）、`editor`（`{editor}`）、`volume`（`{volume}`）、`issue`（`{issue}`、巻のあと）と `issue_alone`（巻がないとき）、`pages`（`{pages}`）、`pages_sep`（巻・号と頁のあいだ）、`chapter_pages`（`{pages}`、章の頁）、`stop`（終わり）。値のない部品はまるごと出ないので、号のない論文に「号」は残らない。
 
 ### 7.2 Zotero
 
@@ -660,7 +674,8 @@ octavo bib tidy --apply --keys smith2020,doe2019
 ```
 
 - `zotero_collection` はメインのコレクション（名前、パス `'A / B'`、またはその並び）で、`.bib` に入るのはこれ。`zotero_linked` はそれに材料を出すコレクション（サーベイごとに1つ）で、`.bib` には入らない。
-- 同じ機械の Zotero はローカル API で読む（Better BibTeX が先）。なければウェブ API で、キーは `~/.config/octavo/zotero.env`（プロジェクトには置かない）。
+- 同じ機械の Zotero はローカル API で読む（Better BibTeX が先）。なければウェブ API で、キーは `~/.config/octavo/zotero.env`（プロジェクトには置かない）。どの読み方でも、固定した引用キーを使う。Better BibTeX が入っているのに答えないときは、`bib pull` はほかの読み方に切り替えずに止まる（キーが変わりうるため）。ウェブ API が混んでいるときはやり直す。文献が1つも来なかったときは、中身のある `.bib` をそのままにする。
+- `bib tidy` が読むのはメインと関連のコレクションだけ。どちらにもない引用はそう示す（`--library` を付けるとライブラリ全体も探す。1回目は時間がかかる）。写しを `~/.cache/octavo/` に持ち、2回目からは変わったところだけを読む。
 - `bib tidy --apply` には `'zotero_write': True` と書き込みのできるキーが要る。メインのコレクションへの出し入れだけで、項目を消したり直したりしない。Better BibTeX で引用キーを固定していない項目は外さない。実行する前に利用者に尋ねる。
 
 ### 7.3 Priorwork
@@ -849,7 +864,7 @@ octavo data hash|status|track
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
 octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--appendix] [--tex] [--engine r|python] [--env] [--json]
 octavo template list|copy|diff [name] [--user]
-octavo migrate [--docs|--syntax|--rules] [--dry-run] [--allow-dirty]
+octavo migrate [--docs|--syntax|--rules|--helper] [--dry-run] [--allow-dirty] [--json]
 octavo setup [--with-tex] [--check] [--r-editor]
 octavo doctor [--json]
 octavo selftest

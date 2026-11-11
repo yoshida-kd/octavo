@@ -65,7 +65,9 @@ class BeamerBackend(Backend):
         cfg = ctx.cfg
         args = ['-t', 'beamer', '--wrap=preserve', '--standalone',
                 f'--pdf-engine={cfg["latex_engine"]}',
-                f'--slide-level={cfg["beamer_slide_level"]}']
+                # slide_level は原稿の `#` の数で書く。pandoc は段をずらしたあとの数で受ける
+                '--slide-level=' + str(max(1, cfg['slide_level'] + ctx.shift_headings)
+                                       if cfg['slide_level'] else cfg['beamer_slide_level'])]
         if cfg['beamer_theme']:
             args += ['-V', f'theme={cfg["beamer_theme"]}']
         if cfg['beamer_colortheme']:

@@ -64,6 +64,8 @@ octavo/
     selftest.py            octavo selftest
     scaffold.py            octavo init (the research project tree; --example adds the examples) and octavo new (add a manuscript)
     relocate.py            octavo migrate --docs (move manuscripts from papers/, slides/, lectures/ into docs/<name>/)
+    jaforms.py             the forms of Japanese works in the reference list (japanese-forms.json + config)
+    helpers.py             octavo migrate --helper (a project's octavo.R / octavo_helper.py to the current version)
     backends/
       base.py              the Backend base class and shared cross-reference logic
       latex.py  typst.py  typst_slides.py  typst_notes.py  beamer.py  docx.py

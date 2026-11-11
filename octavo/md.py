@@ -460,6 +460,32 @@ def heading_levels(md: str) -> set:
     return levels
 
 
+def deck_slide_level(md: str) -> int:
+    """講義ノートでないデッキの、1枚になる見出しの段（Markdown の `#` の数）。
+    いちばん浅い段とその1つ下があれば下の段、なければいちばん浅い段。"""
+    levels = heading_levels(md)
+    top = min(levels) if levels else 1
+    return top + 1 if (top + 1 in levels or not levels) else top
+
+
+def deeper_headings_to_slides(md: str, level: int) -> str:
+    """1枚の段より深い見出しを、1枚の段に上げる（slide_deeper_headings: 'slide'）。
+
+    そうすると、深い見出しも1枚ずつのスライドになる。属性（`{#sec-x}` など）は残し、
+    コードブロックの中は見ない。
+    """
+    out, fence = [], None
+    for line in md.split('\n'):
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+        m = None if fence or f else re.match(r'^(#{1,6})([ 　].*)$', line)
+        if m and len(m.group(1)) > level:
+            line = '#' * level + m.group(2)
+        out.append(line)
+    return '\n'.join(out)
+
+
 def lecture_slide_level(md: str) -> int:
     """講義ノート全体から決める、スライド1枚の見出しの段（Markdown の `#` の数）。
 
@@ -519,9 +545,7 @@ def slide_marks(md: str, slides: bool, lang: str = 'ja', level: int | None = Non
     # その1つ下があれば下の段、なければいちばん浅い段。講義の回は `#` が題になって
     # いるので、`##` 節・`###` スライドなら `###`、`##` だけなら `##`。
     # 講義ノートの回ごとのスライドは、講義ノート全体から決めた段（level）を使う
-    levels = heading_levels(md)
-    top = min(levels) if levels else 1
-    depth = level or (top + 1 if (top + 1 in levels or not levels) else top)
+    depth = level or deck_slide_level(md)
     cont = '（続き）' if lang == 'ja' else ' (cont.)'
     out, last_title, fence = [], '', None
     i = 0

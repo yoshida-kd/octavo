@@ -31,8 +31,8 @@ The Octavo icon on the far left opens the sidebar. It has five sections:
 |---|---|
 | **Manuscripts** | every manuscript, with a **Preview** and a **Build to PDF** button on each; open one to see its sessions (lecture notes), its appendix, **Settings for this document** and **Writing rules** |
 | **Analysis** | every `.qmd`, marked up to date, out of date or manual, with ▶ to run it; **Run the stale ones** and **Add an analysis** |
-| **Tools** | in the order you need them: install the tools, check the environment, set up the project's analysis environment, run the analysis, check the bibliography, **Check before submitting** |
-| **From Priorwork** | only when a literature survey has delivered something ([5.5](#55-with-a-literature-survey-priorwork)) |
+| **Tools** | in the order you need them: install the tools, check the environment, **Bring This Project Up to Date** (only for a project made with an earlier version; it says how many updates are waiting), set up the project's analysis environment, run the analysis, **Check before submitting** |
+| **Literature** | **Zotero**: the main and the linked collections, pull, tidy, check the bibliography ([5.4](#54-zotero)); **Priorwork**: the workspace, asking for a survey, what arrived and the requests sent ([5.5](#55-with-a-literature-survey-priorwork)) |
 | **Settings** | the project's defaults, folded |
 
 The **+** at the top of the sidebar adds a manuscript, an analysis, a figure or a table. A
@@ -137,10 +137,11 @@ with it.
 
 ### 2.6 A project made with an earlier version
 
-It keeps building as before. **Check before submitting** says when its manuscripts, its
-notation or its `AGENTS.md` can be brought up to date; ask your AI assistant to do it. It first
-shows what it would change, and keeps a rewrite of the notation only if every output comes out
-the same.
+It keeps building as before. **Bring This Project Up to Date** under **Tools** says how many
+things can be brought up to date — where the manuscripts live, the notation, `AGENTS.md`, the
+analysis helpers (`analysis/octavo.R`, `analysis/octavo_helper.py`) — and updates the one you
+pick. You can also ask your AI assistant. Either way you first see what would change, and a rewrite of the notation is kept only
+if every output comes out the same. A helper you have edited yourself is left as it is.
 
 ---
 
@@ -495,7 +496,7 @@ at a PDF.
 
 Export your library from your reference manager (Zotero or any other) as BibTeX or BibLaTeX to
 `literature/literature.bib`. With Zotero, Better BibTeX's "Keep updated" export keeps it current
-and the keys stable. **Octavo never edits the `.bib`.** **Tools → Check the Bibliography** finds
+and the keys stable. **Octavo never edits the `.bib`.** **Literature → Zotero → Check the Bibliography** finds
 keys you cite that are not in it, and entries that look incomplete.
 
 ### 5.2 The style
@@ -518,7 +519,7 @@ Form of Japanese works** chooses the form:
 
 | Choice | Japanese works look like |
 |---|---|
-| standard (default) | 山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20. |
+| standard (default) | 山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20. |
 | full-width | 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。 |
 | period | 山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。 |
 
@@ -530,9 +531,9 @@ journal's own instructions where it has them.
 
 If Zotero runs on the same machine:
 
-- **Settings → Main Zotero collection (the .bib)** chooses the collection the `.bib` is fetched from, from
-  the same tree as in Zotero (the collections under it come too).
-- **Tools → Pull References from Zotero** fetches it.
+- **Literature → Zotero → Main collection (the .bib)** shows the collection the `.bib` is fetched from;
+  click it to choose another from the same tree as in Zotero (the collections under it come too).
+- **Pull References from Zotero** just below fetches it.
 
 If Zotero does not run on this machine (a server over SSH, say), **Use the Zotero Web API (API
 Key)…** asks for an API key from <https://www.zotero.org/settings/keys> once; the key is kept in
@@ -540,10 +541,11 @@ your own settings, not in the project. Pin the citation keys in Better BibTeX so
 same through the web.
 
 **Keeping the main collection tidy.** Collections that only feed the paper — one per literature
-survey, say — are **linked collections** (**Choose the Linked Zotero Collections**); they never go
-into the `.bib`. **Tidy the Main Zotero Collection** compares the main collection with what the
-manuscripts cite and lists, as a tick list, the papers to add (cited, found in a linked collection
-or the library) and to take out (in it, but cited nowhere). Untick what to leave and confirm. It
+survey, say — are **linked collections** (**Linked collections (surveys)**, under the main one); they
+never go into the `.bib`. **Tidy the Main Zotero Collection** compares the main collection with what the
+manuscripts cite and lists, as a tick list, the papers to add (cited, found in a linked collection)
+and to take out (in it, but cited nowhere). It reads only those collections, and after the first time
+only what changed. Untick what to leave and confirm. It
 only changes which collections an entry is in; it never deletes or edits one. It needs the setting
 **Let octavo bib tidy change the Zotero collection** and a key with write access; the button asks.
 
@@ -552,12 +554,13 @@ only changes which collections an entry is in; it never deletes or edits one. It
 If you gather the literature with [Priorwork](https://yoshida-kd.github.io/priorwork/):
 
 1. Right-click the paper → **Ask Priorwork for the Literature**. The request is copied; paste it
-   to the agent in your Priorwork window. (Set your Priorwork workspace once in **From Priorwork**,
-   and the request is sent there as a file instead.)
+   to the agent in your Priorwork window. (Choose your Priorwork workspace once under **Literature →
+   Priorwork**, and the request is sent there as a file instead; Priorwork lists it under "Requests from
+   Octavo", and its progress shows in **Requests sent**.)
 2. Priorwork reads the manuscript (never changing it), gathers the included papers in a Zotero
    collection of the survey's own, and delivers its writing — a draft, a synthesis, or additions
    to the manuscript in progress — into `literature/priorwork/`.
-3. **From Priorwork** in the sidebar lists what arrived. **Copy a Request to Take It into the
+3. **Literature → Priorwork** in the sidebar lists what arrived. **Copy a Request to Take It into the
    Manuscript** gives you a request for your AI assistant: it reads the delivery with the
    manuscript, proposes where each part goes, and waits for your answer.
 4. A paper not in your `.bib` yet is cited as `@PRIORWORK:<DOI>`. Put it in Zotero, pull, then

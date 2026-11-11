@@ -1298,4 +1298,54 @@ MESSAGES: dict = {
     'some analyses still use the helper, so it stays in the package and they run as they are': 'ヘルパーを使う分析が残っているので、ヘルパーはパッケージに残した（そのまま実行できる）',
     '--standalone goes with --replication': '--standalone は --replication と一緒に使う',
     'in the --replication package, rewrite the .qmd files so they do not need the helpers': '--replication のパッケージの中の .qmd を、ヘルパーなしで動くように書き換える',
+    # octavo migrate --helper / --json
+    'This project has no analysis, so there is no helper to update.': 'このプロジェクトには分析がないので、更新するヘルパーはない。',
+    '{file}: already the current version': '{file}: すでに今の版',
+    '{file}: left as it is — it matches no version Octavo has shipped, so it has been edited. To take the current version anyway, delete it and run this again (the current one, to compare: {template})':
+        '{file}: そのままにした — Octavo が出したどの版とも違うので、手を入れてある。それでも今の版にするなら、消してからもう一度実行する（見比べるための今の版: {template}）',
+    '{file}: would be put back (an analysis here uses it)': '{file}: 置き直す（ここの分析が使っている）',
+    '{file}: put back (an analysis here uses it)': '{file}: 置き直した（ここの分析が使っている）',
+    '{file}: would be replaced with the current version': '{file}: 今の版に置き換える',
+    '{file}: replaced with the current version': '{file}: 今の版に置き換えた',
+    'note: the old copy wrote values to results/ and figures and tables to figures/ and tables/; the current one writes where octavo.config.py says (assets/ unless set)':
+        '注意: 前の版は数値を results/ に、図表を figures/・tables/ に書いていた。今の版は octavo.config.py の置き場（指定がなければ assets/）に書く',
+    'The results on disk were made by the old copy; to make them again: {cmd}': 'いまある結果は前の版で作ったもの。作り直すなら: {cmd}',
+    '{files}: an older copy of the analysis helper; to update it: {cmd}': '{files}: 分析のヘルパーが前の版。更新するなら: {cmd}',
+    'replace analysis/octavo.R and octavo_helper.py with the current version, unless you have edited them':
+        'analysis/octavo.R と octavo_helper.py を今の版に置き換える（手を入れてあるものはそのまま）',
+    'list what could be brought up to date, as JSON, and change nothing': '今の形にできるものを JSON で出す（何も変えない）',
+    'Move the rules from CLAUDE.md to AGENTS.md': '約束事を CLAUDE.md から AGENTS.md に移す',
+    'Move the manuscripts into docs/': '原稿を docs/ に移す',
+    'Rewrite the older notation in the manuscripts': '原稿の前からの書き方を今の書き方に書き換える',
+    "Replace Octavo's sections of {file} with the current ones": '{file} の Octavo の節を今の版に差し替える',
+    'Update the analysis helper': '分析のヘルパーを今の版にする',
+    '{file}: an edited copy of the analysis helper, so it is left as it is': '{file}: 分析のヘルパーに手を入れてあるので、そのままにする',
+    '{file}: the {names} {n|section has|sections have} your own edits, so {n|it is|they are} not counted; octavo migrate --rules --dry-run shows what replacing {n|it|them} would change':
+        '{file}: {names} の節には手が入っているので数えない（差し替えると何が変わるかは octavo migrate --rules --dry-run で見られる）',
+    # 日本語の文献の形（jaforms.py）
+    'japanese_citation_forms: {name} is its own base': 'japanese_citation_forms: {name} の base をたどると {name} に戻る',
+    'japanese_citation_forms: {name} must be a dictionary': 'japanese_citation_forms: {name} は辞書（{…}）で書く',
+    'japanese_citation_forms: the base of {name} ({base}) is not a form': 'japanese_citation_forms: {name} の base（{base}）という形はない',
+    'japanese_citation_forms: {name} has an unknown part {part} (the parts: {parts})':
+        'japanese_citation_forms: {name} の {part} という部品はない（部品: {parts}）',
+    'japanese_citation_forms: {name}.{part} must be a string': 'japanese_citation_forms: {name}.{part} は文字列で書く',
+    'japanese_citation_forms: {name}.{part} cannot use {slot} (it can use: {slots})':
+        'japanese_citation_forms: {name}.{part} には {slot} を使えない（使えるもの: {slots}）',
+    'japanese_citation_forms: {name} lacks {parts} (give a base, or write them)':
+        'japanese_citation_forms: {name} に {parts} がない（base を書くか、その部品を書く）',
+    'japanese_citation_forms must be a dictionary of forms': 'japanese_citation_forms は、形の名前と中身の辞書で書く',
+    # 見出しの段（slide_level / slide_deeper_headings）
+    'Heading level of one slide (# count; empty = from the manuscript)': '1枚のスライドになる見出しの段（# の数。空なら原稿から決める）',
+    'Headings deeper than a slide (subheading = inside it, slide = one each)': 'それより深い見出し（subheading = 1枚の中の小見出し、slide = それぞれ1枚）',
+    'a whole number from 1 to 6, or None': '1 から 6 の整数か None',
+    # Zotero（zotero.py）
+    'Better BibTeX did not export the references ({why}).': 'Better BibTeX が文献を書き出しませんでした（{why}）。',
+    'Octavo does not switch to another way of reading Zotero here, because the citation keys could change. Try again (a large collection can take a while the first time), or use --source web.':
+        'ここでほかの読み方に切り替えると引用キーが変わることがあるので、切り替えない。やり直すか（大きなコレクションは、初めての書き出しに時間がかかる）、--source web を使う。',
+    'Better BibTeX answered with something that is not BibTeX: {start}': 'Better BibTeX が BibTeX でないものを返した: {start}',
+    'Zotero gave no references ({source}), so {path} was left as it is. If the collection really is empty now, delete the file and pull again.':
+        'Zotero から文献が1つも来なかった（{source}）ので、{path} はそのままにした。コレクションが本当に空なら、ファイルを消してからもう一度取ってくる。',
+    'cited but in neither the main nor the linked collections ({n}): {keys} (octavo bib tidy --library looks in the whole library)':
+        '引いているが、メインにも関連のコレクションにもない（{n}）: {keys}（octavo bib tidy --library でライブラリ全体を探す）',
+    'tidy: also look in the whole library for cited works (slow the first time)': 'tidy: 引いている文献をライブラリ全体からも探す（1回目は時間がかかる）',
 }

@@ -15,6 +15,7 @@ import { AnalysisReport, AnalysisUnit, fetchAnalysis } from './analysis';
 import { priorworkWorkspace } from './literature';
 import { DocInfo, Part } from './preview';
 import { dirOf, findConfig, resolvePathFromTool, runCapture } from './runner';
+import { MigrateReport, fetchUpdates } from './migrate';
 import { choosePacks, fetchWriting, showHere, toggleItem, WritingFile, WritingItem, WritingReport } from './writing';
 
 export interface Setting {
@@ -50,7 +51,11 @@ export interface PriorworkRequest {
 interface RequestsReport { ok: boolean; requests?: PriorworkRequest[] }
 
 type Node =
-    | { kind: 'group'; id: 'docs' | 'analysis' | 'priorwork' | 'settings' | 'tools' }
+    | { kind: 'group'; id: 'docs' | 'analysis' | 'literature' | 'settings' | 'tools' }
+    // 文献の欄の中の見出し: Zotero / メインのコレクション / 関連のコレクション / Priorwork / 送った依頼
+    | { kind: 'sub'; id: 'zotero' | 'main' | 'linked' | 'priorwork' | 'requests' }
+    // コレクション1つ（名前が行の名前、親のパスは後ろに。長いパスでも名前が切れないように）
+    | { kind: 'collection'; path: string; role: 'main' | 'linked' }
     | { kind: 'survey'; s: Survey }
     | { kind: 'request'; q: PriorworkRequest }
     | { kind: 'info'; label: string; description?: string; icon: string; tooltip?: string;
@@ -66,7 +71,8 @@ type Node =
     | { kind: 'pack'; doc: DocInfo; name: string; report: WritingReport }
     | { kind: 'wfile'; doc: DocInfo; f: WritingFile; report: WritingReport }
     | { kind: 'witem'; doc: DocInfo; f: WritingFile; it: WritingItem; report: WritingReport }
-    | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[]; tooltip?: string }
+    | { kind: 'action'; label: string; command: string; icon: string; args?: unknown[]; tooltip?: string;
+        description?: string }
     | { kind: 'message'; label: string };
 
 function lastJson<T>(text: string): T | undefined {
@@ -101,6 +107,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     private surveys?: Survey[];
     private connection?: Connection;
     private requests?: PriorworkRequest[];
+    private updates?: MigrateReport | null;         // null = 読めなかった（古い CLI）
     private readonly writing = new Map<string, WritingReport | null>();     // null = 読めなかった
     private readonly subs: vscode.Disposable[] = [];
 
@@ -135,6 +142,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         this.analysis = undefined;
         this.surveys = undefined;
         this.requests = undefined;
+        this.updates = undefined;
         this.writing.clear();
         this.changed.fire(undefined);
     }
@@ -212,6 +220,18 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         return this.analysis;
     }
 
+    /** octavo migrate で今の形にできるもの。プロジェクトがない・古い CLI なら null。 */
+    private async loadUpdates(): Promise<MigrateReport | null> {
+        const cwd = await this.cwd();
+        if (!cwd) {
+            return null;
+        }
+        if (this.updates === undefined) {
+            this.updates = await fetchUpdates(cwd) ?? null;
+        }
+        return this.updates;
+    }
+
     /** Priorwork から受け取ったもの（無ければ空）。 */
     private async loadSurveys(): Promise<Survey[]> {
         const cwd = await this.cwd();
@@ -246,38 +266,51 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         return this.requests;
     }
 
-    /** 「どの Priorwork とつながっているか」の行: ワークスペース、Zotero のコレクション、キー。 */
-    private connectionRows(): Node[] {
-        const rows: Node[] = [];
+    /** 文献の欄の Zotero: メイン・関連のコレクション、ウェブ API のキー、取ってくる・整える・検査する。 */
+    private zoteroRows(): Node[] {
+        const c = this.connect();
+        const rows: Node[] = [{ kind: 'sub', id: 'main' }, { kind: 'sub', id: 'linked' }];
+        if (c && (c.main.length || c.linked.length) && !c.zotero_key) {
+            rows.push({ kind: 'info', icon: 'key', command: 'octavo.zoteroLogin',
+                        label: vscode.l10n.t('Set the Zotero Web API Key…'),
+                        tooltip: vscode.l10n.t('needed when Zotero is not running on this machine') });
+        }
+        rows.push(
+            { kind: 'action', label: vscode.l10n.t('Pull References from Zotero (bib pull)'),
+              command: 'octavo.bibPull', icon: 'cloud-download',
+              tooltip: vscode.l10n.t('Write the main collection to the .bib') },
+            { kind: 'action', label: vscode.l10n.t('Tidy the Main Zotero Collection (bib tidy)'),
+              command: 'octavo.bibTidy', icon: 'sparkle',
+              tooltip: vscode.l10n.t('Make the main collection hold exactly what the manuscripts cite') },
+            { kind: 'action', label: vscode.l10n.t('Check the Bibliography (checkbib)'),
+              command: 'octavo.checkbib', icon: 'book' });
+        return rows;
+    }
+
+    /** 文献の欄の Priorwork: ワークスペース、受け取ったもの、送った依頼。 */
+    private async priorworkRows(): Promise<Node[]> {
         const ws = priorworkWorkspace();
-        if (!ws) {
-            rows.push({ kind: 'info', icon: 'debug-disconnect', command: 'octavo.setPriorworkWorkspace',
-                        label: vscode.l10n.t('Priorwork workspace: not set'),
-                        description: vscode.l10n.t('click to choose'),
-                        tooltip: vscode.l10n.t('Requests go to the Priorwork workspace you choose here; until then they are copied to the clipboard') });
-        } else {
+        const rows: Node[] = [];
+        if (ws) {
             const ok = fs.existsSync(path.join(ws, '.priorwork'));
             rows.push({ kind: 'info', icon: ok ? 'plug' : 'warning', command: 'octavo.setPriorworkWorkspace',
-                        label: vscode.l10n.t('Priorwork workspace'), description: path.basename(ws) || ws,
-                        tooltip: ok ? ws : vscode.l10n.t('{0} has no .priorwork/ folder — is it a Priorwork workspace?', ws) });
+                        label: path.basename(ws) || ws, description: vscode.l10n.t('workspace'),
+                        tooltip: ok ? vscode.l10n.t('{0}\nRequests go here as files; Priorwork lists them under "Requests from Octavo". Click to change.', ws)
+                            : vscode.l10n.t('{0} has no .priorwork/ folder — is it a Priorwork workspace?', ws) });
+        } else {
+            rows.push({ kind: 'info', icon: 'debug-disconnect', command: 'octavo.setPriorworkWorkspace',
+                        label: vscode.l10n.t('Choose the Priorwork Workspace…'), description: vscode.l10n.t('not set'),
+                        tooltip: vscode.l10n.t('With a workspace, requests go to Priorwork as files and their progress shows here; without one they are copied to the clipboard') });
         }
-        const c = this.connect();
-        if (c) {
-            const main = c.main.join(', ');
-            rows.push({ kind: 'info', icon: 'library', command: 'octavo.chooseZoteroCollection',
-                        label: vscode.l10n.t('Main Zotero collection (the .bib)'),
-                        description: main || vscode.l10n.t('not set'),
-                        tooltip: vscode.l10n.t('The collection octavo bib pull fetches the .bib from (Priorwork uses it too)') });
-            if (c.linked.length) {
-                rows.push({ kind: 'info', icon: 'link', command: 'octavo.chooseLinkedCollections',
-                            label: vscode.l10n.t('Linked Zotero collections (surveys)'),
-                            description: c.linked.join(', ') });
-            }
-            if ((c.main.length || c.linked.length) && !c.zotero_key) {
-                rows.push({ kind: 'info', icon: 'info', command: 'octavo.zoteroLogin',
-                            label: vscode.l10n.t('Zotero web API key: not set'),
-                            description: vscode.l10n.t('needed when Zotero is not running on this machine') });
-            }
+        rows.push({ kind: 'action', label: vscode.l10n.t('Ask Priorwork for the Literature…'),
+                    command: 'octavo.askPriorwork', icon: 'comment-discussion',
+                    tooltip: vscode.l10n.t('For the manuscript open in the editor (or right-click a paper above)') });
+        for (const s of await this.loadSurveys()) {
+            rows.push(s.survey ? { kind: 'survey', s }
+                : { kind: 'message', label: `${s.json.split(/[\\/]/).pop()}: ${s.warnings.join('; ')}` });
+        }
+        if ((await this.loadRequests()).length) {
+            rows.push({ kind: 'sub', id: 'requests' });
         }
         return rows;
     }
@@ -290,21 +323,36 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             if (!this.configUri) {
                 return [];
             }
-            // Priorwork から受け取ったものがあるときだけ「Priorwork から」を出す
-            // 受け取ったもの・送った依頼・つなぐ設定（ワークスペースかコレクション）のどれかがあるとき
-            const got = (await this.loadSurveys()).length || (await this.loadRequests()).length;
-            const c = this.connect();
-            const linked = !!priorworkWorkspace() || !!(c && (c.main.length || c.linked.length));
-            const priorwork: Node[] = got || linked ? [{ kind: 'group', id: 'priorwork' }] : [];
-            return [{ kind: 'group', id: 'docs' }, { kind: 'group', id: 'analysis' }, ...priorwork,
+            await this.loadSurveys();       // コレクションの設定（connection）もここで読む
+            return [{ kind: 'group', id: 'docs' }, { kind: 'group', id: 'analysis' }, { kind: 'group', id: 'literature' },
                     { kind: 'group', id: 'tools' }, { kind: 'group', id: 'settings' }];
         }
-        if (node.kind === 'group' && node.id === 'priorwork') {
-            const surveys = (await this.loadSurveys()).map((s): Node => s.survey ? { kind: 'survey', s }
-                : { kind: 'message', label: `${s.json.split(/[\\/]/).pop()}: ${s.warnings.join('; ')}` });
-            // 送った依頼は新しいものから5つ
-            const requests = (await this.loadRequests()).slice(0, 5).map((q): Node => ({ kind: 'request', q }));
-            return [...this.connectionRows(), ...surveys, ...requests];
+        if (node.kind === 'group' && node.id === 'literature') {
+            await this.loadSurveys();
+            return [{ kind: 'sub', id: 'zotero' }, { kind: 'sub', id: 'priorwork' }];
+        }
+        if (node.kind === 'sub') {
+            const c = this.connect();
+            switch (node.id) {
+                case 'zotero':
+                    return this.zoteroRows();
+                case 'priorwork':
+                    return this.priorworkRows();
+                case 'requests':        // 新しいものから、全部
+                    return (await this.loadRequests()).map((q): Node => ({ kind: 'request', q }));
+                case 'main':
+                case 'linked': {
+                    const list = (node.id === 'main' ? c?.main : c?.linked) ?? [];
+                    if (list.length) {
+                        return list.map((p): Node => ({ kind: 'collection', path: p, role: node.id as 'main' | 'linked' }));
+                    }
+                    return [node.id === 'main'
+                        ? { kind: 'action', label: vscode.l10n.t('Choose the Main Zotero Collection'),
+                            command: 'octavo.chooseZoteroCollection', icon: 'add' }
+                        : { kind: 'action', label: vscode.l10n.t('Choose the Linked Zotero Collections'),
+                            command: 'octavo.chooseLinkedCollections', icon: 'add' }];
+                }
+            }
         }
         if (node.kind === 'survey') {
             const s = node.s;
@@ -448,29 +496,28 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
             return node.items.map((s) => ({ kind: 'setting', s }));
         }
         if (node.kind === 'group' && node.id === 'tools') {
-            // 使う順: 道具を入れる → 確かめる → 分析の環境 → 分析 → 書誌 → 投稿前の点検
+            // 使う順: 道具を入れる → 確かめる → プロジェクトを今の形に → 分析の環境 → 分析 →
+            // 書誌 → 投稿前の点検
+            const up = await this.loadUpdates();
+            const migrate: Node[] = up ? [
+                { kind: 'action', label: vscode.l10n.t('Bring This Project Up to Date (migrate)'),
+                  command: 'octavo.migrate', icon: 'arrow-circle-up',
+                  description: up.updates.length ? vscode.l10n.t('{0} to update', up.updates.length)
+                      : vscode.l10n.t('up to date'),
+                  tooltip: up.updates.length
+                      ? up.updates.map((u) => u.detail ? `${u.label} (${u.detail})` : u.label).join('\n')
+                      : vscode.l10n.t('What an older project can take from the current Octavo: where the manuscripts are, the notation, the rules file, the analysis helper') },
+            ] : [];
             return [
                 { kind: 'action', label: vscode.l10n.t('Install or Update the Tools (setup)'),
                   command: 'octavo.setup', icon: 'tools' },
                 { kind: 'action', label: vscode.l10n.t('Diagnose the Environment (doctor)'),
                   command: 'octavo.doctor', icon: 'pulse' },
+                ...migrate,
                 { kind: 'action', label: vscode.l10n.t('Set Up This Project\'s Analysis Environment (env)'),
                   command: 'octavo.envSetup', icon: 'package' },
                 { kind: 'action', label: vscode.l10n.t('Run the analysis (analysis run)'),
                   command: 'octavo.analysisRun', icon: 'graph' },
-                { kind: 'action', label: vscode.l10n.t('Choose the Main Zotero Collection'),
-                  command: 'octavo.chooseZoteroCollection', icon: 'library',
-                  tooltip: vscode.l10n.t('The collection octavo bib pull fetches the .bib from (Priorwork uses it too)') },
-                { kind: 'action', label: vscode.l10n.t('Choose the Linked Zotero Collections'),
-                  command: 'octavo.chooseLinkedCollections', icon: 'references',
-                  tooltip: vscode.l10n.t('Collections of your surveys: never in the .bib, but octavo bib tidy finds cited papers there') },
-                { kind: 'action', label: vscode.l10n.t('Tidy the Main Zotero Collection (bib tidy)'),
-                  command: 'octavo.bibTidy', icon: 'sparkle',
-                  tooltip: vscode.l10n.t('Make the main collection hold exactly what the manuscripts cite') },
-                { kind: 'action', label: vscode.l10n.t('Pull References from Zotero (bib pull)'),
-                  command: 'octavo.bibPull', icon: 'cloud-download' },
-                { kind: 'action', label: vscode.l10n.t('Check the Bibliography (checkbib)'),
-                  command: 'octavo.checkbib', icon: 'book' },
                 { kind: 'action', label: vscode.l10n.t('Check before submitting (check)'),
                   command: 'octavo.check', icon: 'checklist' },
             ];
@@ -485,7 +532,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         switch (node.kind) {
             case 'group': {
                 const label = { docs: vscode.l10n.t('Manuscripts'), analysis: vscode.l10n.t('Analysis'),
-                                priorwork: vscode.l10n.t('From Priorwork'),
+                                literature: vscode.l10n.t('Literature'),
                                 settings: vscode.l10n.t('Settings'), tools: vscode.l10n.t('Tools') }[node.id];
                 // 設定は普段は使わないので畳んでおく（プロジェクト全体の既定。文書ごとの
                 // 設定は各文書の下）
@@ -495,10 +542,8 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 }
                 // プロジェクトがいくつもあるワークスペースでは、どれを見ているかを出す
                 // （開いているファイルのプロジェクト。runner.pickConfig）
-                if (node.id === 'priorwork') {
-                    const ws = priorworkWorkspace();
-                    it.description = ws ? path.basename(ws) || ws : vscode.l10n.t('no workspace set');
-                    it.tooltip = ws ?? vscode.l10n.t('Not connected to a Priorwork workspace yet');
+                if (node.id === 'literature') {
+                    it.description = 'Zotero · Priorwork';
                 }
                 if (node.id === 'docs' && this.configUri) {
                     const rel = vscode.workspace.asRelativePath(dirOf(this.configUri));
@@ -523,6 +568,42 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                     it.resourceUri = uri;
                     it.command = { command: 'vscode.open', title: '', arguments: [uri] };
                 }
+                return it;
+            }
+            case 'sub': {
+                const c = this.connect();
+                const n = (node.id === 'main' ? c?.main : node.id === 'linked' ? c?.linked : undefined)?.length ?? 0;
+                const label = {
+                    zotero: 'Zotero', priorwork: 'Priorwork',
+                    main: vscode.l10n.t('Main collection (the .bib)'),
+                    linked: vscode.l10n.t('Linked collections (surveys)'),
+                    requests: vscode.l10n.t('Requests sent'),
+                }[node.id];
+                // 関連と送った依頼は、数が多くなりうるので畳んでおく
+                const folded = node.id === 'linked' || node.id === 'requests';
+                const it = new vscode.TreeItem(label, folded ? C : E);
+                it.iconPath = new vscode.ThemeIcon({ zotero: 'library', priorwork: 'telescope', main: 'book',
+                                                     linked: 'references', requests: 'mail' }[node.id]);
+                if (node.id === 'linked' || node.id === 'main') {
+                    it.description = n ? String(n) : vscode.l10n.t('not set');
+                    it.tooltip = node.id === 'main'
+                        ? vscode.l10n.t('The collection octavo bib pull fetches the .bib from (Priorwork uses it too)')
+                        : vscode.l10n.t('Collections of your surveys: never in the .bib, but octavo bib tidy finds cited papers there');
+                } else if (node.id === 'requests') {
+                    it.description = String(this.requests?.length ?? 0);
+                }
+                return it;
+            }
+            case 'collection': {
+                const parts = node.path.split('/').map((x) => x.trim()).filter(Boolean);
+                const it = new vscode.TreeItem(parts.pop() ?? node.path, N);
+                it.description = parts.join(' / ');
+                it.tooltip = node.path + '\n' + (node.role === 'main'
+                    ? vscode.l10n.t('Click to choose another main collection')
+                    : vscode.l10n.t('Click to choose the linked collections'));
+                it.iconPath = new vscode.ThemeIcon('folder-library');
+                it.command = { command: node.role === 'main' ? 'octavo.chooseZoteroCollection'
+                                                             : 'octavo.chooseLinkedCollections', title: '' };
                 return it;
             }
             case 'request': {
@@ -666,6 +747,7 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 const it = new vscode.TreeItem(node.label, N);
                 it.iconPath = new vscode.ThemeIcon(node.icon);
                 it.tooltip = node.tooltip;
+                it.description = node.description;
                 it.command = { command: node.command, title: node.label,
                                arguments: node.args ?? [] };
                 return it;

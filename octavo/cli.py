@@ -1069,7 +1069,8 @@ def bib_tidy(cfg, args) -> int:
     keys = [k.strip() for k in (args.keys or '').split(',') if k.strip()] or None
     cited = checkmod.collect(cfg).cited
     try:
-        plan = zoteromod.tidy_plan(cfg['zotero_collection'], cfg['zotero_linked'], cited)
+        plan = zoteromod.tidy_plan(cfg['zotero_collection'], cfg['zotero_linked'], cited,
+                                   whole_library=args.library)
     except zoteromod.ZoteroError as e:
         if args.json:
             print(_json.dumps({'ok': False, 'error': str(e)}, ensure_ascii=False))
@@ -1112,8 +1113,13 @@ def bib_tidy(cfg, args) -> int:
         for x in plan['unpinned']:
             print(f"  ? {x['key']:<28} {x['title'][:50]}")
     if plan['not_found']:
-        print('\n' + t('cited but nowhere in the Zotero library ({n}): {keys}',
-                        n=len(plan['not_found']), keys=', '.join(plan['not_found'])))
+        if args.library:
+            print('\n' + t('cited but nowhere in the Zotero library ({n}): {keys}',
+                            n=len(plan['not_found']), keys=', '.join(plan['not_found'])))
+        else:
+            print('\n' + t('cited but in neither the main nor the linked collections ({n}): {keys} '
+                            '(octavo bib tidy --library looks in the whole library)',
+                            n=len(plan['not_found']), keys=', '.join(plan['not_found'])))
     if not (plan['add'] or plan['remove']):
         print('\n' + t('the main collection matches the manuscripts'))
         return 0
@@ -1210,6 +1216,11 @@ def cmd_migrate(args) -> int:
     """前からのプロジェクトを今の形に: 引数なしは CLAUDE.md -> AGENTS.md、
     --docs は原稿を docs/<名前>/ へ。"""
     cfg = configmod.load(args.config)
+    if args.json:
+        import json
+        updates, notes = pending_updates(cfg)
+        print(json.dumps({'updates': updates, 'notes': notes}, ensure_ascii=False))
+        return 0
     if args.docs:
         from . import relocate
         return relocate.run(cfg, dry_run=args.dry_run, allow_dirty=args.allow_dirty)
@@ -1218,11 +1229,65 @@ def cmd_migrate(args) -> int:
         return syntax.run(cfg, dry_run=args.dry_run, allow_dirty=args.allow_dirty)
     if args.rules:
         return migrate_rules(cfg, args.dry_run, args.allow_dirty)
+    if args.helper:
+        from . import helpers
+        return helpers.run(cfg, dry_run=args.dry_run)
     moved, line = scaffold.migrate_instructions(Path(cfg.root), cfg['lang'], args.dry_run)
     print(('(' + t('dry run') + ') ' if args.dry_run and moved else '') + line)
     if not moved and (Path(cfg.root) / scaffold.INSTRUCTIONS).is_file():
         print(t('to bring its Octavo sections up to date: {cmd}', cmd='octavo migrate --rules'))
+    from . import helpers
+    old = helpers.outdated(cfg)
+    if old:
+        print(t('{files}: an older copy of the analysis helper; to update it: {cmd}',
+                files=', '.join(old), cmd='octavo migrate --helper'))
     return 0
+
+
+def pending_updates(cfg) -> tuple:
+    """octavo migrate で今の形にできるもの（octavo migrate --json。拡張のサイドバーが読む）。
+
+    それぞれの移行の「何が変わるか」を調べる関数を呼ぶだけで、何も書き換えない。
+    戻り値は ([{key, args, label, detail}], [自動では直さないものの説明])。
+    args は octavo migrate に足す引数。
+    """
+    from . import helpers, relocate, syntax
+    root = Path(cfg.root)
+    updates, notes = [], []
+
+    def add(key, args, label, detail=''):
+        updates.append({'key': key, 'args': args, 'label': label, 'detail': detail})
+
+    if scaffold.migrate_instructions(root, cfg['lang'], dry_run=True)[0]:
+        add('instructions', [], t('Move the rules from CLAUDE.md to AGENTS.md'))
+    moves, _ = relocate.plan(cfg)
+    if moves:
+        add('docs', ['--docs'], t('Move the manuscripts into docs/'),
+            ', '.join(mv.name for mv in moves))
+    files = [cfg.rel(p.path) for _, ps in syntax.plan_all(cfg) for p in ps if p.changes]
+    if files:
+        add('syntax', ['--syntax'], t('Rewrite the older notation in the manuscripts'), ', '.join(files))
+    got = scaffold.rules_update(root, cfg['lang'])
+    if got and got[3]:
+        # 手を入れた節だけが違うなら、数えない（ずっと「更新できる」と出続けないように）
+        edited = scaffold.rules_edited(root, cfg['lang'])
+        if [n for n in got[3] if n not in edited]:
+            add('rules', ['--rules'], t("Replace Octavo's sections of {file} with the current ones",
+                                        file=got[0].name), ', '.join(got[3]))
+        if edited:
+            notes.append(t('{file}: the {names} {n|section has|sections have} your own edits, so '
+                           '{n|it is|they are} not counted; octavo migrate --rules --dry-run shows '
+                           'what replacing {n|it|them} would change',
+                           file=got[0].name, names=', '.join(edited), n=len(edited)))
+    state = helpers.status(cfg)
+    old = [h.name for h in state if h.state in ('old', 'missing')]
+    if old:
+        add('helper', ['--helper'], t('Update the analysis helper'), ', '.join(old))
+    for h in state:
+        if h.state == 'edited':
+            notes.append(t('{file}: an edited copy of the analysis helper, so it is left as it is',
+                           file=cfg.rel(h.path)))
+    return updates, notes
 
 
 def migrate_rules(cfg, dry_run: bool, allow_dirty: bool) -> int:
@@ -1821,6 +1886,8 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--apply', action='store_true',
                    help=t('tidy: change Zotero as planned (needs zotero_write: True)'))
     p.add_argument('--keys', help=t('tidy: only these citation keys (comma-separated)'))
+    p.add_argument('--library', action='store_true',
+                   help=t('tidy: also look in the whole library for cited works (slow the first time)'))
     p.set_defaults(func=cmd_bib)
 
     p = with_config(sub.add_parser('csl', help=t("the journal's style (CSL)")))
@@ -1856,8 +1923,13 @@ def make_parser() -> argparse.ArgumentParser:
                           'every output stays the same'))
     p.add_argument('--rules', action='store_true',
                    help=t("replace Octavo's sections of AGENTS.md with the current ones"))
+    p.add_argument('--helper', action='store_true',
+                   help=t('replace analysis/octavo.R and octavo_helper.py with the current version, '
+                          'unless you have edited them'))
     p.add_argument('--allow-dirty', action='store_true',
                    help=t('go ahead even with uncommitted changes'))
+    p.add_argument('--json', action='store_true',
+                   help=t('list what could be brought up to date, as JSON, and change nothing'))
     p.set_defaults(func=cmd_migrate)
 
     p = with_config(sub.add_parser('env', help=t("set up this project's R and Python packages "

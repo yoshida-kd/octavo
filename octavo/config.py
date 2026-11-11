@@ -152,10 +152,13 @@ DEFAULTS: dict = {
     # 日本語の文書で、英語の文献は英語の決まりで、日本語の文献（.bib の langid = {japanese}）
     # は日本語の形（山田・田中、ほか、「」『』）で組む。False なら書誌全体を csl_locale で
     'citations_by_language': True,
-    # その日本語の文献の形: 'standard'  山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.
+    # その日本語の文献の形: 'standard'  山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20.
     #                      'fullwidth' 山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。
     #                      'period'    山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。
     'japanese_citation_form': 'standard',
+    # 形を足す・組み込みの形の部品を変える（部品と差し込み口は octavo docs の参考文献の節）。
+    # 例: {'mine': {'base': 'fullwidth', 'head': '{author}［{year}］'}}
+    'japanese_citation_forms': {},
     # 書誌一覧の直前に入れる見出し。None なら lang に応じた既定
     #（日本語なら「参考文献」、英語なら "References"）。'' なら見出し無し。
     'reference_section_title': None,
@@ -251,6 +254,11 @@ DEFAULTS: dict = {
     # ::: {.on-slides} / {.on-poster} の囲み、見出しに付けた {.on-slides} の節、[…]{.on-slides}）
     'slides_select': 'all',
     'poster_select': 'all',
+    # 1枚のスライドになる見出しの段（`###` なら 3）。None なら原稿から決める（講義ノートは
+    # `#` 回・`##` 節・`###` 1枚、ほかは いちばん浅い段の1つ下）。Beamer にも効く
+    'slide_level': None,
+    # それより深い見出し: 'subheading' 1枚の中の小見出し / 'slide' それぞれ1枚
+    'slide_deeper_headings': 'subheading',
 
     # ---- Beamer -----------------------------------------------------------
     'beamer_theme': 'default',     # 'metropolis' 等（TeX Live に入っているもの）
@@ -314,10 +322,9 @@ DOC_KEYS = ('csl', 'outputs', 'targets', 'sessions', 'toc', 'word_limit', 'char_
             'fontsize', 'pagebreak', 'citations_by_language',
             'japanese_citation_form',
             'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows', 'poster_font',
-            'slides_select', 'poster_select', 'slides_bibliography', 'crossref_numbering',
+            'slides_select', 'poster_select', 'slides_bibliography', 'slide_level', 'slide_deeper_headings', 'crossref_numbering',
             'appendix_separate', 'appendix_after_references', 'lang', 'csl_locale',
             'reference_section_title', 'writing', 'writing_off')
-JA_FORMS = ('standard', 'fullwidth', 'period')
 SLIDE_BIB = ('slide', 'off', 'sheet', 'both')
 
 
@@ -350,7 +357,7 @@ def slide_bib(value) -> str | None:
     return value
 LIST_DOC_KEYS = ('poster_grid', 'poster_rows')
 INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit',
-                'first_section')
+                'first_section', 'slide_level')
 BOOL_DOC_KEYS = ('slides_running_header', 'slides_section_slides',
                  'citations_by_language', 'sessions', 'toc', 'appendix_separate',
                  'appendix_after_references')
@@ -763,8 +770,19 @@ class Config:
             bad('first_section', t('a whole number, 0 or more'))
         if v['slides_bibliography'] is not None and slide_bib(v['slides_bibliography']) not in SLIDE_BIB:
             bad('slides_bibliography', "'" + "'/'".join(SLIDE_BIB) + "'")
-        if v['japanese_citation_form'] not in JA_FORMS:
-            bad('japanese_citation_form', "'" + "'/'".join(JA_FORMS) + "'")
+        from . import jaforms
+        try:
+            names = list(jaforms.forms(self.root, v['japanese_citation_forms']))
+        except jaforms.FormError as e:
+            sys.exit(str(e))
+        if v['japanese_citation_form'] not in names:
+            bad('japanese_citation_form', "'" + "'/'".join(names) + "'")
+        if v['slide_level'] is not None and (not isinstance(v['slide_level'], int)
+                                             or isinstance(v['slide_level'], bool)
+                                             or not 1 <= v['slide_level'] <= 6):
+            bad('slide_level', t('a whole number from 1 to 6, or None'))
+        if v['slide_deeper_headings'] not in ('subheading', 'slide'):
+            bad('slide_deeper_headings', "'subheading'/'slide'")
         for k in ('slides_select', 'poster_select'):
             if v[k] not in ('all', 'marked'):
                 bad(k, "'all'/'marked'")

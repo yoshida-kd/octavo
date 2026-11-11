@@ -372,6 +372,39 @@ def migrate_instructions(root: Path, lang: str, dry_run: bool = False) -> tuple:
 SECTION_LINE = re.compile(r'^<!-- octavo:section ([\w-]+) -->\s*$', re.M)
 
 
+def section_fingerprint(text: str, name: str = '') -> str:
+    """節の中身のハッシュ値（rules_known.KNOWN と比べる）。プロジェクトの名前は @@NAME@@ に戻す。
+
+    戻すのは、ひな型が名前を入れる形（"名前" と「名前」）だけ。名前そのものを探すと、
+    proj のような名前が project の中で見つかってしまう。
+    """
+    import hashlib
+    text = text.replace('\r\n', '\n').rstrip()
+    if name:
+        text = text.replace(f'"{name}"', '"@@NAME@@"').replace(f'「{name}」', '「@@NAME@@」')
+    return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def rules_edited(root: Path, lang: str) -> list:
+    """差し替えると変わる節のうち、Octavo の出したどの版とも違う（持ち主が手を入れた）もの。"""
+    from .rules_known import KNOWN
+    p = instruction_file(root)
+    got = rules_update(root, lang)
+    if p is None or got is None:
+        return []
+    old = got[1]
+    marks = list(SECTION_LINE.finditer(old))
+    edited = []
+    for i, m in enumerate(marks):
+        name = m.group(1)
+        if name not in got[3]:
+            continue
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(old)
+        if section_fingerprint(old[m.start():end], root.name) not in KNOWN.get(f'{_lang(lang)}/{name}', ()):
+            edited.append(name)
+    return edited
+
+
 def rules_update(root: Path, lang: str) -> tuple:
     """約束事のファイル（AGENTS.md か、前からの CLAUDE.md）の Octavo の節を、今のひな型に
     差し替えた全文。(ファイル, 前の全文, 新しい全文, [差し替えた節]) か、ファイルがなければ None。

@@ -84,7 +84,8 @@ def citation_form_args(cfg, ctx: Ctx) -> list:
     """日本語の文献の形（japanese_citation_form）を、フィルターにメタデータで渡す。"""
     if citation_filter(cfg, ctx) is None:
         return []
-    return ['-M', f'octavo-ja-form={cfg["japanese_citation_form"]}']
+    from . import jaforms
+    return jaforms.meta_args(jaforms.of(cfg)[cfg['japanese_citation_form']])
 
 
 def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
@@ -124,6 +125,10 @@ def preprocess(cfg, doc, backend, ctx: Ctx, raw: str) -> tuple:
                              notes_wrap=backend.notes_wrap,
                              notes_mark=backend.notes_mark)
     # スライドの区切りと題（`::: {.slide}`、`{.same-slide}`、`{slide-title=…}`）
+    if backend.is_slides and cfg['slide_deeper_headings'] == 'slide':
+        # 1枚の段より深い見出しも、それぞれ1枚に（既定は1枚の中の小見出し）
+        body = mdlib.deeper_headings_to_slides(
+            body, ctx.slide_level or mdlib.deck_slide_level(valmod.mask_code(body)[0]))
     body = mdlib.slide_marks(body, backend.is_slides, ctx.lang, level=ctx.slide_level)
     # 改ページ（`\newpage`）。スライドでは何もしない（区切りは `\newslide`）
     body = mdlib.page_breaks(body, backend.fmt_pagebreak(ctx))
@@ -537,10 +542,12 @@ def _build_one(cfg, doc, target: str, appendix: bool, do_compile: bool,
         handout = handout_numbers(cfg, doc, ctx)
         ctx.fixed_numbers = {lab: it.number for lab, it in handout.items()}
         ctx.crossrefs = {**ctx.crossrefs, **handout}
+    if cfg['slide_level'] and backend.is_slides:
+        ctx.slide_level = cfg['slide_level']        # 決めてあれば、デッキもその段（slide_level）
     if doc.part is not None and not appendix:
         # 1枚の見出しの段は、回に分ける前の講義ノート全体で決める（回の区切りを
         # 書いても変わらないように）
-        ctx.slide_level = mdlib.lecture_slide_level(valmod.mask_code(raw)[0])
+        ctx.slide_level = cfg['slide_level'] or mdlib.lecture_slide_level(valmod.mask_code(raw)[0])
         raw = mdlib.section_part(raw, doc.part)
         if raw is None:
             res.ok = False

@@ -127,15 +127,20 @@ it made and whether the environment is still to be set up (`env_needed`).
 octavo migrate --docs --dry-run    # papers/<n>/paper.md, slides/, lectures/ -> docs/<n>/<n>.md
 octavo migrate --syntax --dry-run  # ::: {.session}, ::: {.slide}, .handout-only -> \session{}, \newslide, .no-slides
 octavo migrate --rules --dry-run   # Octavo's sections of AGENTS.md -> the current text (shows the diff)
+octavo migrate --helper --dry-run  # analysis/octavo.R, octavo_helper.py -> the current version
 octavo migrate                     # a CLAUDE.md-only project's rules into AGENTS.md
 ```
 
-All refuse an uncommitted project unless `--allow-dirty`. `--docs` keeps the document names,
+`--docs`, `--syntax` and `--rules` refuse an uncommitted project unless `--allow-dirty`. `--docs` keeps the document names,
 fixes figure paths, writes `outputs`/`sessions` and adds `docs/*/` to the config. `--syntax`
 builds every document before and after and keeps the rewrite only if every output is
 identical. `--rules` replaces each `<!-- octavo:section X -->` part with the template's
 (anything written inside it is replaced; text before the first section is kept). Old configs
-(`papers/*/paper.md` with `profile` / `targets`) still build unchanged.
+(`papers/*/paper.md` with `profile` / `targets`) still build unchanged. `--helper` replaces a
+helper only if it is identical to a version Octavo shipped; a copy you edited is left and
+reported, and a missing one is put back if an analysis uses it. `octavo migrate --json` lists
+what could be brought up to date and changes nothing (the sidebar's **Bring This Project Up to
+Date** reads it, shows what would change, and runs the one you pick).
 
 ---
 
@@ -493,6 +498,8 @@ octavo extract course --pages 12-19                # by printed page numbers
 | `slides_accent` | `'#0e2f92'` | `None`: black only |
 | `slides_numbering` | `None` | heading numbers (`'1.'`, `'1.1'`) |
 | `slides_section_slides` | `False` | a divider slide per `#` section |
+| `slide_level` | `None` | the heading level of one slide (`3` = `###`); `None` = from the manuscript (lecture notes `###`, other decks one below the shallowest). Beamer too |
+| `slide_deeper_headings` | `'subheading'` | headings deeper than that: `'subheading'` inside the slide, `'slide'` a slide each |
 | `slides_running_header` | `True` | the section in the top-left corner |
 | `slides_font` | BIZ UDGothic + Inter | |
 | `slides_bibliography` | lecture decks `slide`, talks `off` | `slide`, `off`, `sheet` (an A4 `<deck>-references.pdf`), `both` |
@@ -586,7 +593,8 @@ These keys can also go in a manuscript's front matter, and then apply to it alon
 names as in the config): `outputs`, `sessions`, `lang`, `csl`, `csl_locale`,
 `reference_section_title`, `japanese_citation_form`, `citations_by_language`,
 `crossref_numbering`, `word_limit`, `char_limit`, `abstract_word_limit`,
-`abstract_char_limit`, `slides_*`, `poster_*`, `first_section`, `pagebreak`, `font`,
+`abstract_char_limit`, `slides_*`, `slide_level`, `slide_deeper_headings`, `poster_*`,
+`first_section`, `pagebreak`, `font`,
 `fontsize`, `toc`, `date_format`, `appendix_separate`, `appendix_after_references`,
 `writing`, `writing_off`. A misspelt key is reported when building. A build prints
 `[settings] from the manuscript: …`.
@@ -770,9 +778,26 @@ figures (`.pdf` and `.png`) into `assets/figures/`, tables into `assets/tables/`
 - `csl` sets the style for every output; `octavo csl get <id>` fetches one,
   `octavo csl list` lists what is cached.
 - In a Japanese document, works with `langid = {japanese}` take one Japanese form whatever the
-  style; `japanese_citation_form`: `standard` (山田太郎・田中花子 (2020)「題」『誌名』12(3): 1–20.),
+  style; `japanese_citation_form`: `standard` (山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20.),
   `fullwidth` （2020）…12巻3号、1–20頁。, `period` ．2020．…. `citations_by_language: False` sets
   everything in `csl_locale`. Japanese names in the `.bib` need a comma (`山田, 太郎`).
+- A form is a set of parts (`templates/citations/japanese-forms.json`). `japanese_citation_forms`
+  in `octavo.config.py` adds forms, or changes parts of a built-in one; the new names appear in the
+  sidebar with a sample. Only the reference list changes; citations in the text follow the style.
+
+  ```python
+  'japanese_citation_forms': {
+      'mine': {'base': 'fullwidth', 'head': '{author}［{year}］'},   # fullwidth, other brackets
+      'standard': {'stop': ''},                                     # only one part changed
+  },
+  'japanese_citation_form': 'mine',
+  ```
+
+  Parts (and what each may use): `head` (`{author}`, `{year}`), `article_title` and `book_title`
+  (`{title}`), `container` (`{container}`), `editor` (`{editor}`), `volume` (`{volume}`), `issue`
+  (`{issue}`, after a volume) and `issue_alone` (without one), `pages` (`{pages}`), `pages_sep`
+  (between volume/issue and pages), `chapter_pages` (`{pages}`, a chapter's), `stop` (the end). A
+  part whose value is missing is left out whole, so a work without an issue gets no 号.
 
 ### 7.2 Zotero
 
@@ -788,7 +813,13 @@ octavo bib tidy --apply --keys smith2020,doe2019
   goes into the `.bib`. `zotero_linked` are collections that feed it (one per survey), never in
   the `.bib`.
 - Zotero on the same machine is read through its local API (Better BibTeX first); otherwise
-  the web API with the key in `~/.config/octavo/zotero.env` (never in the project).
+  the web API with the key in `~/.config/octavo/zotero.env` (never in the project). Pinned
+  citation keys are used whichever way it is read. If Better BibTeX is installed but does not
+  answer, `bib pull` stops rather than switch to another way (keys could change); a busy web API
+  is tried again. A pull that brings no entries leaves a non-empty `.bib` as it is.
+- `bib tidy` reads the main and the linked collections only; a cited work in neither is listed
+  as such (`--library` also looks in the whole library, slow the first time). It keeps a copy in
+  `~/.cache/octavo/` and, after the first run, reads only what changed since.
 - `bib tidy --apply` needs `'zotero_write': True` and a key with write access. It only adds
   entries to, or takes them out of, the main collection; it never deletes or edits an entry,
   and never takes out an entry whose citation key is not pinned in Better BibTeX. Ask the
@@ -1053,7 +1084,7 @@ octavo data hash|status|track
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
 octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--appendix] [--tex] [--engine r|python] [--env] [--json]
 octavo template list|copy|diff [name] [--user]
-octavo migrate [--docs|--syntax|--rules] [--dry-run] [--allow-dirty]
+octavo migrate [--docs|--syntax|--rules|--helper] [--dry-run] [--allow-dirty] [--json]
 octavo setup [--with-tex] [--check] [--r-editor]
 octavo doctor [--json]
 octavo selftest

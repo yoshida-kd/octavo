@@ -1402,6 +1402,10 @@ class ZoteroCollectionSetting(unittest.TestCase):
         with self.assertRaises(zotero.ZoteroError):            # 同じ名前が2つ: パスで指定してもらう
             zotero.resolve('Theory', cols)
         self.assertEqual([c['key'] for c in zotero.subtree('P', cols)], ['P', 'M', 'T'])
+        # ごみ箱に入れたコレクション（とその下）は無いものとする
+        raw = [*self.RAW, {'key': 'X', 'data': {'name': 'Old', 'parentCollection': 'P', 'deleted': True}},
+               {'key': 'X1', 'data': {'name': 'Older', 'parentCollection': 'X'}}]
+        self.assertEqual([c['key'] for c in zotero.subtree('P', zotero.tree(raw))], ['P', 'M', 'T'])
 
     def test_pull_takes_the_subcollections_too(self):
         from octavo import zotero
@@ -1410,7 +1414,7 @@ class ZoteroCollectionSetting(unittest.TestCase):
         with unittest.mock.patch.object(zotero, 'alive', lambda: '127.0.0.1'), \
                 unittest.mock.patch.object(zotero, 'api_collections', lambda host: self.RAW), \
                 unittest.mock.patch.object(zotero, 'bbt_available', lambda host: False), \
-                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key: bibs[key]):
+                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key, fmt='biblatex': bibs[key]):
             text, src = zotero.fetch('Make or buy')
         self.assertEqual(re.findall(r'@article\{(\w+)', text), ['a2020', 'b2021'])
         self.assertIn('Make or buy', src)
@@ -1422,7 +1426,7 @@ class ZoteroCollectionSetting(unittest.TestCase):
         with unittest.mock.patch.object(zotero, 'alive', lambda: '127.0.0.1'), \
                 unittest.mock.patch.object(zotero, 'api_collections', lambda host: self.RAW), \
                 unittest.mock.patch.object(zotero, 'bbt_available', lambda host: False), \
-                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key: bibs[key]):
+                unittest.mock.patch.object(zotero, 'api_collection_bib', lambda host, key, fmt='biblatex': bibs[key]):
             text, _ = zotero.fetch(['Make or buy / Theory', 'Another'])
         self.assertEqual(re.findall(r'@article\{(\w+)', text), ['c2022', 'a2020', 'b2021'])
 
@@ -1452,6 +1456,97 @@ class ZoteroCollectionSetting(unittest.TestCase):
                 unittest.mock.patch.object(zotero, 'credentials', lambda: ('', '')):
             with self.assertRaises(zotero.ZoteroError):
                 zotero.fetch('Make or buy')
+
+    def test_better_bibtex_failing_does_not_switch_to_other_keys(self):
+        """Better BibTeX が答えなければ止める（内蔵の API に落とすと、キーが変わって引用が切れる）。
+        空のコレクションは失敗ではない。"""
+        from octavo import zotero
+
+        def bbt(urls, timeout=30):
+            if 'Methods' in urls[0]:
+                return '', urls[0]                                       # 空のコレクション
+            if 'Theory' in urls[0]:
+                raise zotero.ZoteroError('timed out')
+            return '@article{a2020,\n title={A}}\n', urls[0]
+        with unittest.mock.patch.object(zotero, 'alive', lambda: '127.0.0.1'), \
+                unittest.mock.patch.object(zotero, 'api_collections', lambda host: self.RAW), \
+                unittest.mock.patch.object(zotero, 'bbt_available', lambda host: True), \
+                unittest.mock.patch.object(zotero, '_try', bbt), \
+                unittest.mock.patch.object(zotero, 'api_collection_bib',
+                                           lambda *a, **k: self.fail('fell back to the local API')), \
+                unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+            with self.assertRaises(zotero.ZoteroError) as e:
+                zotero.fetch('Make or buy')
+            self.assertIn('Better BibTeX', str(e.exception))
+            text, src = zotero.fetch('Make or buy / Methods')
+        self.assertEqual(text, '')
+        self.assertIn('Better BibTeX', src)
+
+    def test_the_local_api_reads_every_page_with_pinned_keys(self):
+        """件数の見出しで最後のページまで（添付やメモでページが短くても止めない）。キーは固定したもの。"""
+        from octavo import zotero
+        pages = {0: [{'key': f'K{i}', 'data': {'citationKey': f'pin{i}'},
+                      'biblatex': f'@article{{zot{i},\n title={{T}}}}'} for i in range(60)],
+                 60: [{'key': 'K60', 'data': {}, 'biblatex': '@book{zot60,\n title={B}}'}]}
+        seen = []
+
+        def get_full(url, timeout=30, retries=1):
+            start = int(re.search(r'start=(\d+)', url).group(1))
+            seen.append(url)
+            return json.dumps(pages.get(start, [])), {'Total-Results': '61'}
+        with unittest.mock.patch.object(zotero, '_get_full', get_full):
+            text = zotero.api_collection_bib('127.0.0.1', 'P')
+        self.assertEqual(len(seen), 2)
+        self.assertTrue(all('/items/top?' in u and 'include=data,biblatex' in u for u in seen))
+        keys = re.findall(r'@\w+\{(\w+)', text)
+        self.assertEqual(keys[:2] + keys[-1:], ['pin0', 'pin1', 'zot60'])
+        self.assertEqual(len(keys), 61)
+
+    def test_a_busy_zotero_is_tried_again(self):
+        from octavo import zotero
+        import urllib.error
+        import urllib.request
+        calls, waits = [], []
+
+        class Busy(urllib.error.HTTPError):
+            def __init__(self):
+                super().__init__('u', 429, 'Too Many Requests', {'Retry-After': '1'}, None)
+
+        class Answer(io.BytesIO):
+            headers = {'Total-Results': '0'}
+            def __enter__(self):
+                return self
+            def __exit__(self, *a):
+                return False
+
+        def urlopen(req, timeout=30):
+            calls.append(1)
+            if len(calls) < 3:
+                raise Busy()
+            return Answer(b'[]')
+        with unittest.mock.patch('urllib.request.urlopen', urlopen), \
+                unittest.mock.patch('time.sleep', waits.append):
+            self.assertEqual(zotero._open(urllib.request.Request('http://x'), 5)[0], '[]')
+        self.assertEqual((len(calls), waits), (3, [1.0, 1.0]))
+        calls.clear()
+
+        def refused(req, timeout=30):
+            calls.append(1)
+            raise urllib.error.HTTPError('u', 403, 'Forbidden', {}, None)
+        with unittest.mock.patch('urllib.request.urlopen', refused), \
+                self.assertRaises(urllib.error.HTTPError):
+            zotero._open(urllib.request.Request('http://x'), 5)
+        self.assertEqual(len(calls), 1)                                 # 断られたらやり直さない
+
+    def test_an_empty_answer_does_not_empty_the_bib(self):
+        from octavo import zotero
+        bib = self.d / 'refs.bib'
+        bib.write_text('@article{a2020,\n title={A}}\n', encoding='utf-8')
+        with unittest.mock.patch.object(zotero, 'fetch', lambda *a, **k: ('', 'test')):
+            with self.assertRaises(zotero.ZoteroError):
+                zotero.pull(bib)
+        self.assertIn('a2020', bib.read_text(encoding='utf-8'))
+        self.assertEqual(zotero.count_entries('@comment{x}\n@article{a,\n t={x@y.z}}\n@book{b,\n t={B}}\n'), 2)
 
     def test_login_keeps_the_key_out_of_the_project(self):
         from octavo import zotero
@@ -1505,14 +1600,28 @@ class ZoteroTidy(unittest.TestCase):
                              self.item('F', 'nowhere', [])]
         self.patches = []
         self.reads = []
+        self.deleted = []
+        # ライブラリの写し（~/.cache/octavo/）は、この試しのフォルダに
+        cache = unittest.mock.patch.dict(os.environ, {'XDG_CACHE_HOME': str(self.d / 'cache')})
+        cache.start()
+        self.addCleanup(cache.stop)
 
     def tearDown(self):
         shutil.rmtree(self.d, ignore_errors=True)
 
     def web_get(self, path, params):
-        self.reads.append(path)
+        self.reads.append((path, params.get('since')))
+        if path == '/deleted':
+            return json.dumps({'items': self.deleted}), 0
+        if path == '/items/top' and params.get('since'):
+            got = [it for it in self.items['top'] if it['version'] > params['since']]
+            return json.dumps(got), len(got)
         if path == '/collections':
             return json.dumps(self.COLS), len(self.COLS)
+        if path == '/items':                       # キーを固定していない文献の書き出しのキー
+            want = params['itemKey'].split(',')
+            got = list({it['key']: it for it in self.items['top'] if it['key'] in want}.values())
+            return json.dumps(got), len(got)
         got = self.items.get(path.split('/')[2], [])
         return json.dumps(got), len(got)
 
@@ -1536,21 +1645,39 @@ class ZoteroTidy(unittest.TestCase):
         code, got = self.run_cli()
         self.assertEqual(code, 0)
         self.assertEqual(got['main'], 'Paper')
-        self.assertEqual([x['key'] for x in got['add']], ['nowhere', 'wanted'])
-        self.assertEqual([(x['from'], x['where']) for x in got['add']][1], ('Survey', 'linked'))
-        self.assertEqual(got['add'][0]['where'], 'library')                   # 関連に無ければライブラリ全体から
+        self.assertEqual([(x['key'], x['from'], x['where']) for x in got['add']], [('wanted', 'Survey', 'linked')])
         self.assertEqual([x['key'] for x in got['remove']], ['kept2', 'stale'])   # 下のコレクションも見る
         self.assertEqual([x['key'] for x in got['unpinned']], ['loose'])         # 固定していないキーは外さない
-        self.assertEqual(got['not_found'], ['ghost'])
+        self.assertEqual(got['not_found'], ['ghost', 'nowhere'])                 # ライブラリ全体は読まない
+        self.assertNotIn(('/items/top', None), self.reads)
         self.assertEqual(self.patches, [])
 
-    def test_the_library_is_read_only_when_something_is_left(self):
+    def test_the_whole_library_when_asked(self):
+        code, got = self.run_cli('--library')
+        self.assertEqual(code, 0)
+        self.assertEqual([(x['key'], x['where']) for x in got['add']], [('nowhere', 'library'), ('wanted', 'linked')])
+        self.assertEqual(got['not_found'], ['ghost'])
+        self.assertIn(('/items/top', None), self.reads)
+
+    def test_collections_are_read_once_then_only_what_changed(self):
+        """初めてのコレクションはまるごと、そのあとはライブラリの中で変わった文献と消えた文献だけを読む。"""
         from octavo import zotero
         with unittest.mock.patch.object(zotero, 'credentials', lambda: ('k', '42')), \
                 unittest.mock.patch.object(zotero, '_web_get', self.web_get):
-            plan = zotero.tidy_plan('Paper', 'Survey', ['kept', 'wanted'])
-        self.assertEqual([x['key'] for x in plan['add']], ['wanted'])
-        self.assertNotIn('/items/top', self.reads)
+            first = zotero.tidy_plan('Paper', 'Survey', ['kept', 'wanted'])
+            self.assertEqual([x['key'] for x in first['add']], ['wanted'])
+            self.assertIn(('/collections/S/items/top', None), self.reads)
+            # Zotero 側で: E を消し、G（引いている）を Survey に足した
+            self.items['top'] = [it for it in self.items['top'] if it['key'] != 'E']
+            g = self.item('G', 'newone', ['S'])
+            g['version'] = g['data']['version'] = 9
+            self.items['top'].append(g)
+            self.deleted = ['E']
+            self.reads.clear()
+            second = zotero.tidy_plan('Paper', 'Survey', ['kept', 'wanted', 'newone'])
+        self.assertEqual(sorted(self.reads), [('/collections', None), ('/deleted', 7), ('/items/top', 7)])
+        self.assertEqual([x['key'] for x in second['add']], ['newone'])
+        self.assertEqual(second['not_found'], ['wanted'])
 
     def test_apply_needs_zotero_write(self):
         code, got = self.run_cli('--apply')
@@ -1559,7 +1686,7 @@ class ZoteroTidy(unittest.TestCase):
         self.assertEqual(self.patches, [])
 
     def test_apply_changes_only_the_collections(self):
-        code, got = self.run_cli('--apply', write=True)
+        code, got = self.run_cli('--apply', '--library', write=True)
         self.assertEqual(code, 0)
         self.assertEqual(sorted(got['done']), ['kept2', 'nowhere', 'stale', 'wanted'])
         self.assertIn(('F', 7, {'collections': ['M']}), self.patches)
@@ -2690,6 +2817,19 @@ class PreviewContract(unittest.TestCase):
         got = self.cli_json('analysis', 'prose', 'nothing-registered', '--json')
         self.assertEqual(self.fields('ProseResult', self.ANALYSIS) - set(got), set())
         self.assertEqual(got['status'], 'skipped')
+
+    MIGRATE = ROOT / 'vscode-extension' / 'src' / 'migrate.ts'
+
+    def test_migrate_json_has_every_field_the_sidebar_reads(self):
+        """「今の形にする」は octavo migrate --json の args をそのまま渡して実行する。"""
+        from octavo import cli
+        got = self.cli_json('migrate', '--json')
+        self.assertEqual(self.fields('MigrateReport', self.MIGRATE) - set(got), set())
+        self.assertIn('docs', [u['key'] for u in got['updates']])       # 前からの置き場所のプロジェクト
+        for u in got['updates']:
+            self.assertEqual(self.fields('Update', self.MIGRATE) - set(u), set())
+            # 拡張はこの引数に --dry-run を足して実行する。どれも octavo migrate が受け取れること
+            cli.make_parser().parse_args(['migrate', *u['args'], '--dry-run'])
 
     def test_new_json_has_every_field_the_extension_reads(self):
         """「足す」は octavo new --json の open を開く。パスは拡張機能が組み立てない。"""
@@ -6469,8 +6609,9 @@ class CitationsByLanguage(unittest.TestCase):
                 style.write_text(csl, encoding='utf-8')
             lua = tmpl.find('citations/japanese.lua')
             args = pandocrun.citeproc_args(bib, style, 'ja-JP', '参考文献', lua_filter=lua)
-            if form:
-                args += ['-M', f'octavo-ja-form={form}']
+            from octavo import jaforms
+            spec = form if isinstance(form, dict) else jaforms.forms(None)[form or 'standard']
+            args += jaforms.meta_args(spec)
             self.assertIn('--lua-filter', args)
             self.assertNotIn('--citeproc', args)
             return pandocrun.run(text, ['-f', 'markdown', '-t', 'plain', '--wrap=none', *args],
@@ -6482,9 +6623,9 @@ class CitationsByLanguage(unittest.TestCase):
                               self.APA_LIKE)
         self.assertIn('(山田・田中, 2020)', out)              # & も ・ に。年の前の , は書式のまま
         self.assertIn('(佐藤ほか, 2018)', out)
-        self.assertIn('山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12: 1–20.', out)
-        self.assertIn('加藤五郎 (2015)「論文集の章」中村六郎編『論文集の名前』見本出版, 10–20.', out)
-        self.assertIn('伊藤七子 (2021)「号と DOI」『見本学会誌』3(2): 5–9. '
+        self.assertIn('山田太郎・田中花子（2020）「日本語論文の例」『見本学会誌』12: 1–20.', out)
+        self.assertIn('加藤五郎（2015）「論文集の章」中村六郎編『論文集の名前』見本出版, 10–20.', out)
+        self.assertIn('伊藤七子（2021）「号と DOI」『見本学会誌』3（2）: 5–9. '
                       'https://doi.org/10.1234/abcd', out)
         self.assertNotIn('山田太郎.', out)                     # 書式の書誌の形（名前. 題）は使わない
 
@@ -6509,9 +6650,65 @@ class CitationsByLanguage(unittest.TestCase):
             cfg = config.load(root / 'octavo.config.py')
             cfg._v['japanese_citation_form'] = 'period'
             ctx = Ctx(cfg=cfg, backend=be.get('typst'), out_dir=root, profile='paper')
-            self.assertEqual(build.citation_form_args(cfg, ctx), ['-M', 'octavo-ja-form=period'])
+            got = build.citation_form_args(cfg, ctx)
+            self.assertIn('octavo-ja-head={author}．{year}．', got)
+            self.assertIn('octavo-ja-stop=。', got)
             cfg._v['citations_by_language'] = False
             self.assertEqual(build.citation_form_args(cfg, ctx), [])
+
+    def test_the_samples_are_made_from_the_forms(self):
+        from octavo import jaforms
+        got = {k: jaforms.sample(f) for k, f in jaforms.forms(None).items()}
+        self.assertEqual(got, {
+            'standard': '山田太郎・田中花子（2020）「題」『誌名』12（3）: 1–20.',
+            'fullwidth': '山田太郎・田中花子（2020）「題」『誌名』12巻3号、1–20頁。',
+            'period': '山田太郎・田中花子．2020．「題」『誌名』12巻3号、1–20頁。'})
+
+    def test_a_project_adds_a_form_and_changes_a_part(self):
+        from octavo import confedit, jaforms
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / 'p'
+            make_project(root, docs=(), lang='ja', analysis=False)
+            p = root / 'octavo.config.py'
+            p.write_text(p.read_text(encoding='utf-8').replace(
+                'CONFIG = {', "CONFIG = {\n    'japanese_citation_forms': {"
+                "'mine': {'base': 'fullwidth', 'head': '{author}［{year}］'}, 'standard': {'stop': ''}},\n"
+                "    'japanese_citation_form': 'mine',", 1), encoding='utf-8')
+            cfg = config.load(p)
+            forms = jaforms.of(cfg)
+            self.assertEqual(list(forms), ['standard', 'fullwidth', 'period', 'mine'])
+            self.assertEqual(jaforms.sample(forms['mine']), '山田太郎・田中花子［2020］「題」『誌名』12巻3号、1–20頁。')
+            self.assertTrue(jaforms.sample(forms['standard']).endswith('1–20'))     # 部品だけ変えた
+            row = next(r for r in confedit.show(cfg) if r['key'] == 'japanese_citation_form')
+            self.assertEqual(row['choices'][-1], 'mine')
+            self.assertEqual(len(row['samples']), 4)
+            confedit.set_value(p, 'japanese_citation_form', 'period')
+            with self.assertRaises(confedit.EditError):
+                confedit.set_value(p, 'japanese_citation_form', 'nenpo')
+
+    def test_a_form_with_a_mistake_is_refused(self):
+        from octavo import jaforms
+        for extra, says in (({'x': {'head': '{author}'}}, 'lacks'),
+                            ({'x': {'base': 'nope'}}, 'nope'),
+                            ({'x': {'base': 'standard', 'heading': ''}}, 'heading'),
+                            ({'x': {'base': 'standard', 'stop': '{year}'}}, '{year}'),
+                            ({'x': {'base': 'y'}, 'y': {'base': 'x'}}, 'its own base')):
+            with self.assertRaises(jaforms.FormError) as e, unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+                jaforms.forms(None, extra)
+            self.assertIn(says, str(e.exception))
+
+    @unittest.skipUnless(HAVE_PANDOC and pandocrun.at_least(2, 19, 1), 'needs pandoc 2.19.1+')
+    def test_the_filter_uses_the_parts_it_is_given(self):
+        from octavo import jaforms
+        mine = jaforms.forms(None, {'mine': {'base': 'fullwidth', 'head': '{author}［{year}］',
+                                             'book_title': '〈{title}〉', 'pages_sep': ' '}})['mine']
+        out = self.run_filter('[@yamada2020]、[@sato2018]、[@ito2021]。\n', form=mine)
+        self.assertIn('山田太郎・田中花子［2020］「日本語論文の例」『見本学会誌』12巻 1–20頁。', out)
+        self.assertIn('〈日本語の本〉見本出版。', out)
+        self.assertIn('『見本学会誌』3巻2号 5–9頁。 https://doi.org/10.1234/abcd', out)
+        self.assertIn('(山田・田中 2020)', out)                 # 本文中の引用は書式（CSL）のまま
+        # 見本（Python）とフィルター（Lua）は同じ組み方
+        self.assertEqual(jaforms.sample(mine), '山田太郎・田中花子［2020］「題」『誌名』12巻3号 1–20頁。')
 
     def test_an_unknown_form_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -6528,8 +6725,8 @@ class CitationsByLanguage(unittest.TestCase):
         self.assertIn('佐藤ほか (2018)', out)
         self.assertIn('Ann Taylor, Bob Brown, and Carl Green. 2003.', out)
         self.assertIn('“An Example Article.”', out)
-        self.assertIn('山田太郎・田中花子 (2020)「日本語論文の例」『見本学会誌』12: 1–20.', out)
-        self.assertIn('伊藤四郎 (2018)『日本語の本』見本出版.', out)
+        self.assertIn('山田太郎・田中花子（2020）「日本語論文の例」『見本学会誌』12: 1–20.', out)
+        self.assertIn('伊藤四郎（2018）『日本語の本』見本出版.', out)
         self.assertNotIn('年', out)                          # ja-JP の「2003年」にならない
         self.assertNotIn('ほか (2003', out)
 
@@ -9804,6 +10001,65 @@ class MigrateSyntax(unittest.TestCase):
             shutil.rmtree(d, ignore_errors=True)
 
 
+class SlideLevelSetting(unittest.TestCase):
+    """slide_level（1枚になる見出しの段）と slide_deeper_headings（それより深い見出し）。"""
+
+    def setUp(self):
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        self.root = make_project(self.d / 'p', docs=(('slides', 'talk'),), example=False, legacy=False)
+        self.src = self.root / 'docs' / 'talk' / 'talk.md'
+
+    def deck(self, front: str) -> str:
+        if not pandocrun.at_least(3, 1):
+            self.skipTest('pandoc 3.1 以上が要る')
+        self.src.write_text(f'---\ntitle: x\noutputs: [slides]\n{front}---\n\n'
+                            '# 節\n\n## 1枚\n\n本文。\n\n### 深い見出し\n\n本文。\n', encoding='utf-8')
+        cfg = config.load(self.root / 'octavo.config.py')
+        r = build.build_one(cfg, cfg.document('talk'), 'typst-slides', citations=False, offline=True)
+        self.assertTrue(r.ok, '\n'.join(r.report))
+        return r.outputs[0].read_text(encoding='utf-8')
+
+    def test_by_default_the_manuscript_decides(self):
+        typ = self.deck('')
+        self.assertIn('slide-level: 2,', typ)
+        self.assertIn('=== 深い見出し', typ)              # 1枚の中の小見出し
+
+    def test_the_level_can_be_set(self):
+        typ = self.deck('slide_level: 3\n')
+        self.assertIn('slide-level: 3,', typ)
+        self.assertIn('=== 深い見出し', typ)              # これが1枚の題
+
+    def test_deeper_headings_can_be_slides_of_their_own(self):
+        typ = self.deck('slide_deeper_headings: slide\n')
+        self.assertIn('slide-level: 2,', typ)
+        self.assertIn('== 深い見出し', typ)
+        self.assertNotIn('=== 深い見出し', typ)
+
+    def test_deeper_headings_to_slides_leaves_code_alone(self):
+        src = '## 1枚\n\n#### 深い {#sec-x}\n\n```\n#### コード\n```\n'
+        out = md.deeper_headings_to_slides(src, 2)
+        self.assertIn('\n## 深い {#sec-x}\n', out)
+        self.assertIn('#### コード', out)
+
+    def test_beamer_takes_the_same_level(self):
+        cfg = config.load(self.root / 'octavo.config.py')
+        ctx = Ctx(cfg=cfg, backend=be.get('beamer'), out_dir=self.root, profile='slides')
+        ctx.shift_headings = -1                       # `#` のない原稿（`##` が最上位）
+        self.assertIn(f'--slide-level={cfg["beamer_slide_level"]}', be.get('beamer').pandoc_args(ctx))
+        cfg._v['slide_level'] = 3
+        self.assertIn('--slide-level=2', be.get('beamer').pandoc_args(ctx))
+
+    def test_a_wrong_value_is_refused(self):
+        p = self.root / 'octavo.config.py'
+        text = p.read_text(encoding='utf-8')
+        for bad in ("'slide_level': 0", "'slide_level': True", "'slide_level': '3'",
+                    "'slide_deeper_headings': 'box'"):
+            p.write_text(text.replace('CONFIG = {', 'CONFIG = {\n    ' + bad + ',', 1), encoding='utf-8')
+            with self.assertRaises(SystemExit), contextlib_redirect():
+                config.load(p)
+
+
 class MigrateRules(unittest.TestCase):
     """octavo migrate --rules: AGENTS.md の Octavo の節を今の版に。"""
 
@@ -9824,6 +10080,219 @@ class MigrateRules(unittest.TestCase):
             self.assertNotIn('.handout-only', after)
         finally:
             shutil.rmtree(d.parent, ignore_errors=True)
+
+    def test_only_a_section_octavo_shipped_counts_as_an_update(self):
+        """サイドバーの数: 前の版のままの節は「更新できる」、手を入れた節は数えずに知らせる。"""
+        from octavo import cli, rules_known
+        d = Path(tempfile.mkdtemp()) / 'proj'
+        self.addCleanup(shutil.rmtree, d.parent, ignore_errors=True)
+        make_project(d, docs=(('slides', 'talk'),), analysis=False, legacy=False)
+        agents = d / 'AGENTS.md'
+        agents.write_text(agents.read_text(encoding='utf-8').replace('.pdf-only', '.handout-only'),
+                          encoding='utf-8')
+        cfg = config.load(d / 'octavo.config.py')
+
+        def pending():
+            with unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+                updates, notes = cli.pending_updates(cfg)
+            return [u['key'] for u in updates], notes
+
+        keys, notes = pending()                     # どの版とも違う = 手を入れた
+        self.assertNotIn('rules', keys)
+        self.assertEqual(len(notes), 1)
+        self.assertIn('slides', notes[0])
+        # 同じ中身を Octavo が出したことにすると、更新できるものに数える
+        text = agents.read_text(encoding='utf-8')
+        start = text.index('<!-- octavo:section slides -->')
+        nxt = text.find('<!-- octavo:section', start + 1)
+        mark = scaffold.section_fingerprint(text[start:nxt if nxt >= 0 else len(text)], d.name)
+        lang = scaffold._lang(cfg['lang'])
+        with unittest.mock.patch.dict(rules_known.KNOWN,
+                                      {f'{lang}/slides': set(rules_known.KNOWN[f'{lang}/slides']) | {mark}}):
+            self.assertEqual(pending(), (['rules'], []))
+
+    def test_a_new_project_section_is_known(self):
+        """今のひな型の節は rules_known.KNOWN にある（ひな型を変えたら、ここが足し忘れを見つける）。"""
+        from octavo import rules_known
+        for lang in ('ja', 'en'):
+            d = Path(tempfile.mkdtemp()) / 'proj'
+            self.addCleanup(shutil.rmtree, d.parent, ignore_errors=True)
+            make_project(d, docs=(('slides', 'talk'), ('paper', 'pp')), lang=lang, legacy=False)
+            text = (d / 'AGENTS.md').read_text(encoding='utf-8')
+            marks = list(scaffold.SECTION_LINE.finditer(text))
+            self.assertTrue(marks)
+            for i, m in enumerate(marks):
+                end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
+                self.assertIn(scaffold.section_fingerprint(text[m.start():end], d.name),
+                              rules_known.KNOWN[f'{scaffold._lang(lang)}/{m.group(1)}'],
+                              f'{lang}/{m.group(1)}: 今の版が rules_known.KNOWN にない')
+
+    @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'git の履歴がない')
+    def test_every_section_octavo_shipped_is_known(self):
+        """ひな型の節を変えたら、変える前の版のハッシュ値を rules_known.KNOWN に足す。足し忘れると、
+        その版で作ったプロジェクトの節が「手を入れてある」と見なされ、更新できると数えられない。"""
+        from octavo import rules_known
+        for lang in ('ja', 'en'):
+            for f in sorted((ROOT / 'templates' / 'claude' / lang).glob('*.md')):
+                path = f'templates/claude/{lang}/{f.name}'
+                log = subprocess.run(['git', 'log', '--follow', '--format=%H', '--name-only', '--', path],
+                                     cwd=ROOT, capture_output=True, text=True, encoding='utf-8').stdout.split()
+                for commit, was in zip(log[::2], log[1::2]):
+                    if Path(was).name != f.name:
+                        continue
+                    blob = subprocess.run(['git', 'show', f'{commit}:{was}'], cwd=ROOT,
+                                          capture_output=True).stdout.decode('utf-8')
+                    mark = scaffold.section_fingerprint(scaffold.render(blob, {}, True))
+                    self.assertIn(mark, rules_known.KNOWN[f'{lang}/{f.stem}'],
+                                  f'{path} の {commit[:8]} の版が rules_known.KNOWN にない')
+
+
+class MigrateHelper(unittest.TestCase):
+    """octavo migrate --helper: 分析のヘルパーを今の版に。手を入れたコピーには触らない。"""
+
+    OLD = b'# an older octavo.R\nov_value <- function(...) NULL\n'
+
+    def setUp(self):
+        from octavo import helpers
+        self.helpers = helpers
+        self.d = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.d, ignore_errors=True)
+        self.root = make_project(self.d / 'p', docs=(('paper', 'pp'),), legacy=False)
+        self.r = self.root / 'analysis' / 'octavo.R'
+        self.now = self.r.read_bytes()
+        known = unittest.mock.patch.dict(
+            helpers.KNOWN, {'octavo.R': helpers.KNOWN['octavo.R'] | {helpers.fingerprint(self.OLD)}})
+        known.start()
+        self.addCleanup(known.stop)
+
+    def run_it(self, **kw):
+        out = io.StringIO()
+        cfg = config.load(self.root / 'octavo.config.py')
+        with contextlib.redirect_stdout(out), unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+            rc = self.helpers.run(cfg, **kw)
+        return rc, out.getvalue()
+
+    def states(self):
+        return {h.name: h.state for h in self.helpers.status(config.load(self.root / 'octavo.config.py'))}
+
+    def test_a_new_project_has_the_current_helper(self):
+        self.assertEqual(self.states(), {'octavo.R': 'current', 'octavo_helper.py': 'unused'})
+        rc, said = self.run_it()
+        self.assertEqual(rc, 0)
+        self.assertIn('already the current version', said)
+        self.assertNotIn('octavo_helper.py', said)
+        self.assertEqual(self.r.read_bytes(), self.now)
+
+    def test_a_copy_octavo_shipped_is_replaced(self):
+        self.r.write_bytes(self.OLD)
+        self.assertEqual(self.states()['octavo.R'], 'old')
+        rc, said = self.run_it(dry_run=True)
+        self.assertEqual(rc, 0)
+        self.assertIn('would be replaced', said)
+        self.assertEqual(self.r.read_bytes(), self.OLD)                  # --dry-run は変えない
+        rc, said = self.run_it()
+        self.assertEqual(rc, 0)
+        self.assertIn('analysis/octavo.R: replaced', said)
+        self.assertIn('octavo analysis run', said)
+        self.assertNotIn('results/', said)
+        self.assertEqual(self.r.read_bytes(), self.now)
+
+    def test_windows_line_endings_are_recognised_and_kept(self):
+        self.r.write_bytes(self.OLD.replace(b'\n', b'\r\n'))
+        self.assertEqual(self.states()['octavo.R'], 'old')
+        self.run_it()
+        got = self.r.read_bytes()
+        self.assertEqual(got.replace(b'\r\n', b'\n'), self.now.replace(b'\r\n', b'\n'))
+        self.assertEqual(got.count(b'\r\n'), got.count(b'\n'))
+
+    def test_an_edited_copy_is_left_and_reported(self):
+        mine = self.now + b'\nmy_own <- function() 1\n'
+        self.r.write_bytes(mine)
+        self.assertEqual(self.states()['octavo.R'], 'edited')
+        rc, said = self.run_it()
+        self.assertEqual(rc, 0)
+        self.assertIn('left as it is', said)
+        self.assertIn('octavo.R', said.split('to compare:')[1])          # 見比べる今の版の場所
+        self.assertEqual(self.r.read_bytes(), mine)
+        self.assertNotIn('octavo analysis run', said)
+
+    def test_a_missing_helper_is_put_back_only_where_an_analysis_uses_it(self):
+        self.r.unlink()
+        self.assertEqual(self.states(), {'octavo.R': 'missing', 'octavo_helper.py': 'unused'})
+        rc, said = self.run_it()
+        self.assertIn('put back', said)
+        self.assertNotIn('octavo analysis run', said)                    # 前の版で作った結果はない
+        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertFalse((self.root / 'analysis' / 'octavo_helper.py').exists())
+
+    def test_the_python_helper_too(self):
+        scaffold.new(self.root / 'octavo.config.py', 'analysis', 'py', quiet=True, engine='python')
+        py = self.root / 'analysis' / 'octavo_helper.py'
+        now = py.read_bytes()
+        self.assertEqual(self.states()['octavo_helper.py'], 'current')
+        old = b'# older\n'
+        with unittest.mock.patch.dict(self.helpers.KNOWN, {'octavo_helper.py': {self.helpers.fingerprint(old)}}):
+            py.write_bytes(old)
+            rc, said = self.run_it()
+        self.assertIn('analysis/octavo_helper.py: replaced', said)
+        self.assertEqual(py.read_bytes(), now)
+
+    def test_a_copy_from_before_assets_says_where_the_outputs_go_now(self):
+        self.r.write_bytes(self.OLD)
+        with unittest.mock.patch.object(self.helpers, 'WROTE_TO_RESULTS', {self.helpers.fingerprint(self.OLD)}):
+            _, said = self.run_it(dry_run=True)
+        self.assertIn('results/', said)
+
+    def test_a_project_without_an_analysis_has_nothing_to_update(self):
+        root = make_project(self.d / 'q', docs=(('paper', 'pp'),), legacy=False, analysis=False, example=False)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+            self.assertEqual(self.helpers.run(config.load(root / 'octavo.config.py')), 0)
+        self.assertIn('no analysis', out.getvalue())
+        self.assertFalse(list((root / 'analysis').glob('octavo*')))
+
+    def test_the_command_and_the_list_of_updates(self):
+        from octavo import cli
+
+        def call(*argv):
+            out = io.StringIO()
+            args = cli.make_parser().parse_args(['migrate', *argv, '-c', str(self.root / 'octavo.config.py')])
+            with contextlib.redirect_stdout(out), unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+                rc = args.func(args)
+            return rc, out.getvalue()
+
+        self.assertEqual(json.loads(call('--json')[1]), {'updates': [], 'notes': []})
+        self.r.write_bytes(self.OLD)
+        got = json.loads(call('--json')[1])
+        self.assertEqual([(u['key'], u['args'], u['detail']) for u in got['updates']],
+                         [('helper', ['--helper'], 'octavo.R')])
+        self.assertEqual(self.r.read_bytes(), self.OLD)                  # 一覧は何も変えない
+        self.assertIn('octavo migrate --helper', call()[1])              # 引数なしでも気づける
+        self.assertEqual(call('--helper')[0], 0)
+        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertEqual(json.loads(call('--json')[1])['updates'], [])
+        # 手を入れたコピーは「更新できるもの」には数えず、そう知らせる
+        self.r.write_bytes(self.now + b'# mine\n')
+        got = json.loads(call('--json')[1])
+        self.assertEqual(got['updates'], [])
+        self.assertIn('analysis/octavo.R', got['notes'][0])
+
+    @unittest.skipUnless(shutil.which('git') and (ROOT / '.git').exists(), 'git の履歴がない')
+    def test_every_version_octavo_shipped_is_known(self):
+        """ひな型を変えたら、変える前の版のハッシュ値を helpers.KNOWN に足す。足し忘れると、
+        その版で作ったプロジェクトのヘルパーが「手を入れてある」と見なされて更新されない。"""
+        for name, (_, template) in self.helpers.HELPERS.items():
+            path = 'templates/' + template
+            now = self.helpers.fingerprint((ROOT / path).read_bytes())
+            log = subprocess.run(['git', 'log', '--follow', '--format=%H', '--name-only', '--', path],
+                                 cwd=ROOT, capture_output=True, text=True, encoding='utf-8').stdout.split()
+            for commit, was in zip(log[::2], log[1::2]):
+                if Path(was).name != name:          # 名前を変える前（galley.R など）は別のファイル
+                    continue
+                blob = subprocess.run(['git', 'show', f'{commit}:{was}'], cwd=ROOT, capture_output=True).stdout
+                mark = self.helpers.fingerprint(blob)
+                self.assertTrue(mark == now or mark in self.helpers.KNOWN[name],
+                                f'{name} の {commit[:8]} の版（{mark}）が helpers.KNOWN にない')
 
 
 # =====================================================================
