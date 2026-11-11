@@ -10165,6 +10165,10 @@ class MigrateHelper(unittest.TestCase):
         known.start()
         self.addCleanup(known.stop)
 
+    def same(self, data: bytes) -> str:
+        """改行の違いを除いた中身（Windows ではひな型が CRLF で取り出され、置き換えは前のファイルの改行に従う）。"""
+        return self.helpers.fingerprint(data)
+
     def run_it(self, **kw):
         out = io.StringIO()
         cfg = config.load(self.root / 'octavo.config.py')
@@ -10181,7 +10185,7 @@ class MigrateHelper(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn('already the current version', said)
         self.assertNotIn('octavo_helper.py', said)
-        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertEqual(self.same(self.r.read_bytes()), self.same(self.now))
 
     def test_a_copy_octavo_shipped_is_replaced(self):
         self.r.write_bytes(self.OLD)
@@ -10195,7 +10199,7 @@ class MigrateHelper(unittest.TestCase):
         self.assertIn('analysis/octavo.R: replaced', said)
         self.assertIn('octavo analysis run', said)
         self.assertNotIn('results/', said)
-        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertEqual(self.same(self.r.read_bytes()), self.same(self.now))
 
     def test_windows_line_endings_are_recognised_and_kept(self):
         self.r.write_bytes(self.OLD.replace(b'\n', b'\r\n'))
@@ -10222,7 +10226,7 @@ class MigrateHelper(unittest.TestCase):
         rc, said = self.run_it()
         self.assertIn('put back', said)
         self.assertNotIn('octavo analysis run', said)                    # 前の版で作った結果はない
-        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertEqual(self.same(self.r.read_bytes()), self.same(self.now))
         self.assertFalse((self.root / 'analysis' / 'octavo_helper.py').exists())
 
     def test_the_python_helper_too(self):
@@ -10235,7 +10239,7 @@ class MigrateHelper(unittest.TestCase):
             py.write_bytes(old)
             rc, said = self.run_it()
         self.assertIn('analysis/octavo_helper.py: replaced', said)
-        self.assertEqual(py.read_bytes(), now)
+        self.assertEqual(self.same(py.read_bytes()), self.same(now))
 
     def test_a_copy_from_before_assets_says_where_the_outputs_go_now(self):
         self.r.write_bytes(self.OLD)
@@ -10269,7 +10273,7 @@ class MigrateHelper(unittest.TestCase):
         self.assertEqual(self.r.read_bytes(), self.OLD)                  # 一覧は何も変えない
         self.assertIn('octavo migrate --helper', call()[1])              # 引数なしでも気づける
         self.assertEqual(call('--helper')[0], 0)
-        self.assertEqual(self.r.read_bytes(), self.now)
+        self.assertEqual(self.same(self.r.read_bytes()), self.same(self.now))
         self.assertEqual(json.loads(call('--json')[1])['updates'], [])
         # 手を入れたコピーは「更新できるもの」には数えず、そう知らせる
         self.r.write_bytes(self.now + b'# mine\n')
