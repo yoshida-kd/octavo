@@ -18,8 +18,12 @@ env:
 jobs:
   test:
     if: github.repository == 'yoshida-kd/octavo' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    # Pinned: ubuntu-latest moved to an image for which setup-python has no Python 3.9,
+    # and Octavo still supports 3.9 (requires-python in pyproject.toml).
+    runs-on: ubuntu-24.04
     strategy:
+      # One version failing to install must not cancel the others.
+      fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
