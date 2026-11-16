@@ -208,6 +208,34 @@ MESSAGES: dict = {
     '({n} turned off)': '（{n} 個を使わない）',
     'Writing rules turned off': '使わない文章のルール',
     'every section': 'すべての節',
+    'continues nothing (no mark above it under this heading)':
+        '続きの相手がない（この見出しの下で、前に印がない）',
+    'only the files for this section; the rules and phrases read for every section are left out (run without --section-only for those)':
+        'この節のファイルだけ。どの節でも読むルールとフレーズは除いてある（それを読むには --section-only を付けずに実行する）',
+    'leave out what is read for every section: only the files for this section (when moving on to another section)':
+        'どの節でも読むものを除き、この節のファイルだけにする（別の節に移ったとき）',
+    "the lines a rule's Flag: matches, rule by rule (places to reread)":
+        'ルールの Flag: に当たった行を、ルールごとに（読み直す所）',
+    '--section-only needs the section: --section NAME, or --file FILE --line N':
+        '--section-only には節が要る: --section NAME か、--file FILE --line N',
+    '{file}: the Flag under "{title}" is not a regular expression ({pattern}: {why})':
+        '{file}: 「{title}」の Flag が正規表現になっていない（{pattern}: {why}）',
+    '{doc}: no line matches a Flag of the writing rules': '{doc}: 文章のルールの Flag に当たる行はない',
+    '{doc}: {n} {n|place|places} to reread (a Flag marks where a word appears, not that it is wrong)':
+        '{doc}: 読み直す所が {n} 件（Flag は語が出ている所を示すだけで、誤りとは限らない）',
+    'places to reread': '読み直す所',
+    'the heading "{heading}" names no section, so the rules and phrases of a section are not included. Say the section with --section NAME, or label the heading with #sec-NAME (sections: {names})':
+        '見出し「{heading}」からは節が決まらないので、節ごとのルールとフレーズは入っていない。--section NAME で節を言うか、見出しに #sec-NAME のラベルを付ける（節: {names}）',
+    '--contains and --lines go with --paragraphs': '--contains と --lines は --paragraphs と一緒に使う',
+    '--lines takes a range of lines: 60-120 (or 60- for the rest)':
+        '--lines には行の範囲を書く: 60-120（60- なら最後まで）',
+    'contains': '含むもの',
+    'with --paragraphs: under each paragraph, the Contains: line of its kind (to check the paragraph against; nothing is compared for you)':
+        '--paragraphs と一緒に: 各段落の下に、その種類の Contains: の行を添える（段落と照らすため。照合はしない）',
+    'with --paragraphs: only the paragraphs in these lines (60-120)':
+        '--paragraphs と一緒に: この行の範囲の段落だけ（60-120）',
+    '{doc}: {n} {n|line matches|lines match} a Flag of the writing rules (octavo writing --for {doc} --flags)':
+        '{doc}: 文章のルールの Flag に当たる行が {n} 件（octavo writing --for {doc} --flags）',
     'the writing rules and phrase bank to follow': '従う文章のルールとフレーズバンク',
     'Typst slides (handout)': 'Typst スライド（配布用）',
     'Appendix as a separate PDF': '付録を別の PDF にする',
@@ -1223,8 +1251,33 @@ MESSAGES: dict = {
     'added to .gitignore:': '.gitignore に足した:',
     '.gitignore already lets these through': '.gitignore はすでにこれらを通している',
     '{path} is still ignored — check .gitignore': '{path} はまだ除外されている。.gitignore を確かめる',
-    'status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv)': 'status=記録と照らす（既定）/ hash=記録を書く / track=data/ の中のファイルを git に入れる（octavo data track data/raw/x.csv）',
-    'track: the files to put in git': 'track: git に入れるファイル',
+    'status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv) / inputs=the declared inputs (other projects and folders)': 'status=記録と照らす（既定）/ hash=記録を書く / track=data/ の中のファイルを git に入れる（octavo data track data/raw/x.csv）/ inputs=宣言した入力（ほかのプロジェクトやフォルダー）',
+    'track: the files to put in git / inputs: one name, to print its folder': 'track: git に入れるファイル / inputs: 名前を1つ（その場所を表示する）',
+    'inputs: machine-readable JSON': 'inputs: 機械可読な JSON',
+    'inputs:': '入力:',
+    'folder': 'フォルダー',
+    'Octavo project': 'Octavo のプロジェクト',
+    'no such folder (set {env}, or fix inputs in octavo.config.py)': 'フォルダーがありません（{env} を設定するか、octavo.config.py の inputs を直す）',
+    'input {name}: {n} {n|file|files}': '入力 {name}: {n} 件',
+    'no inputs are declared. To use data from another project or folder, write this in octavo.config.py:': '入力は宣言されていません。ほかのプロジェクトやフォルダーのデータを使うには、octavo.config.py にこう書きます:',
+    'from {env} (octavo.config.py says {declared})': '{env} から（octavo.config.py では {declared}）',
+    '{n} of the deps {n|matches|match} no file': 'deps のうち {n} 件が、どのファイルにも当たりません',
+    '{dep}: matches no file': '{dep}: どのファイルにも当たりません',
+    'every one of the deps matches a file': 'deps はすべてファイルに当たっています',
+    'input {name}: its folder is not there, so nothing of it goes in': '入力 {name}: フォルダーが無いので、何も入れません',
+    '{dep}: no input of that name is declared (inputs in octavo.config.py)': '{dep}: その名前の入力は宣言されていません（octavo.config.py の inputs）',
+    'no input named {name} (inputs in octavo.config.py)': '{name} という入力はありません（octavo.config.py の inputs）',
+    'analysis inputs': '分析の入力',
+    '(with uncommitted changes)': '（コミットしていない変更あり）',
+    'input name {name}: use two or more letters, digits, - or _, starting with a letter': '入力の名前 {name}: 英字で始まる2文字以上の英数字・-・_ にしてください',
+    'data/HASHES.json does not record the inputs yet: octavo data hash records them': 'data/HASHES.json に入力の記録がまだありません。octavo data hash で記録できます',
+    'commit {commit}': 'コミット {commit}',
+    "inputs takes names and folders: {{'prep': '../survey-prep'}}": "inputs には名前とフォルダーを書きます: {{'prep': '../survey-prep'}}",
+    'input {name}: give the folder as text': '入力 {name}: フォルダーを文字列で書いてください',
+    '{dep}: the folder of input {name} is not there (set {env}, or fix inputs in octavo.config.py)': '{dep}: 入力 {name} のフォルダーがありません（{env} を設定するか、octavo.config.py の inputs を直す）',
+    '{unit} there has changed since it last ran (run it in that project; octavo does not run it from here)': 'そちらの {unit} は、最後の実行のあとで変わっています（そのプロジェクトで実行してください。ここからは実行しません）',
+    'check the spelling, or run the analysis that makes the file': '綴りを確かめるか、そのファイルを作る分析を実行してください',
+    'the files of input {name} are not included ({n} named in deps; --with-raw-data adds them, once you have checked they may be shared)': '入力 {name} のファイルは入れていません（deps にあるのは {n} 件。配ってよいか確かめたうえで --with-raw-data を付けると入ります）',
     'let git take a file under data/ (it is ignored by default)': 'data/ の中のファイルを git に入れる（既定では除外されている）',
     'R could not load {lib}, a system library an R package needs. Install it with: {cmd} (octavo setup installs it too)': 'R のパッケージが使うシステムのライブラリ {lib} を読み込めなかった。{cmd} で入れる（octavo setup でも入る）',
     'R could not load {lib}, a system library an R package needs. Install the apt package that has it (apt-file search {lib} names it; the -dev one brings it too)': 'R のパッケージが使うシステムのライブラリ {lib} を読み込めなかった。それを含む apt のパッケージを入れる（apt-file search {lib} でわかる。-dev の付いたものを入れても入る）',

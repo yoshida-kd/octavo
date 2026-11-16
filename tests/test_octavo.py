@@ -32,6 +32,8 @@ ROOT = Path(__file__).resolve().parent.parent
 # 開発者自身の ~/.config/octavo/templates（ひな型の上書き）をテストに効かせない。
 # 上書きを見るテストは、それぞれ XDG_CONFIG_HOME を自分の一時フォルダに向ける。
 os.environ['XDG_CONFIG_HOME'] = tempfile.mkdtemp(prefix='octavo-test-config-')
+# データのハッシュ値の控えなどを、開発者自身の ~/.cache/octavo に書かない
+os.environ['XDG_CACHE_HOME'] = tempfile.mkdtemp(prefix='octavo-test-cache-')
 sys.path.insert(0, str(ROOT))
 
 import octavo                                                        # noqa: E402
@@ -2035,6 +2037,146 @@ class WritingPacks(unittest.TestCase):
         self.assertEqual(got['when'], 'w')
 
 
+class WritingFlags(unittest.TestCase):
+    """ルールの `Flag:`（読み直す所）と、--section-only。"""
+
+    setUp = WritingPacks.setUp
+    tearDown = WritingPacks.tearDown
+    put = WritingPacks.put
+    cfg = WritingPacks.cfg
+
+    def run_cli(self, *argv):
+        from octavo import cli
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = cli.main(list(argv[:1]) + ['-c', str(self.root / 'octavo.config.py')] + list(argv[1:]))
+        return code or 0, out.getvalue(), err.getvalue()
+
+    def flagged(self):
+        w = self.home / 'octavo' / 'writing' / 'polisci' / 'rules'
+        self.put(w / 'causal.md',
+                 '## Causal words\n\nRule: "effect" for a causal estimate only.\n'
+                 'Flag: \\beffects?\\b\nFlag: `^(Moreover|Additionally),`\n\n'
+                 '## Broken\n\nRule: x.\nFlag: (unclosed\n\n'
+                 '```\nFlag: in-code\n```\n\n## Off\n\nRule: y.\n検出: 効果\n')
+        self.put(w / 'results.md', '---\nsection: results\n---\n\n## Significant\n\n'
+                                   'Rule: statistical only.\nFlag: (?i)\\bsignificant(ly)?\\b\n')
+        self.src.write_text(
+            '---\ntitle: The effect of X\nlang: en\n---\n\n# Introduction\n\n'
+            'The effect is large.\nMoreover, it is significant.\nIt is, moreover, robust.\n'
+            'See `effect` and {{effect_size}} and [@effect2020] and @fig-effect.\n'
+            '<!-- the effect\nof effects -->\n\n```\neffect <- 1\n```\n\n'
+            '## The effect {#sec-effect}\n\nNo hit: [a link](effect.html){.effect}.\n\n'
+            '# Results\n\nSignificantly more. 効果がある。\n', encoding='utf-8')
+
+    def test_flags_list_the_lines_rule_by_rule(self):
+        self.flagged()
+        code, out, err = self.run_cli('writing', '--for', 'mypaper', '--flags', '--json')
+        self.assertEqual(code, 0)
+        got = json.loads(out)
+        rules = {r['id']: [(h['line'], h['match']) for h in r['hits']] for r in got['rules']}
+        lines = self.src.read_text(encoding='utf-8').split('\n')
+        at = lambda text: lines.index(text) + 1
+        self.assertEqual(rules, {
+            # 冒頭・コード・値・引用・ラベル・コメント・見出し・リンクの先には当てない
+            'polisci/causal#causal-words': [(at('The effect is large.'), 'effect'),
+                                            (at('Moreover, it is significant.'), 'Moreover,')],
+            'polisci/causal#off': [(at('Significantly more. 効果がある。'), '効果')],
+            # 節を決めたルールは、その節の行だけ（序論の significant には当てない）
+            'polisci/results#significant': [(at('Significantly more. 効果がある。'), 'Significantly')]})
+        self.assertEqual(got['count'], 4)
+        self.assertEqual(len(got['warnings']), 1)                    # 壊れた正規表現は知らせて、続ける
+        self.assertIn('Broken', got['warnings'][0])
+        code, text, err = self.run_cli('writing', '--for', 'mypaper', '--flags')
+        self.assertIn('Causal words  (polisci/causal#causal-words) — 2', text)
+        self.assertIn('The effect is large.', text)
+        self.assertIn('Broken', err)
+        # 使わない項目の Flag は当てない
+        cfg_file = self.root / 'octavo.config.py'
+        cfg_file.write_text(cfg_file.read_text(encoding='utf-8').replace(
+            'CONFIG = {', "CONFIG = {\n    'writing_off': ['polisci/causal#off'],", 1), encoding='utf-8')
+        code, out, err = self.run_cli('writing', '--for', 'mypaper', '--flags', '--json')
+        self.assertNotIn('polisci/causal#off', [r['id'] for r in json.loads(out)['rules']])
+
+    def test_check_counts_them_without_failing(self):
+        from octavo import audit
+        self.flagged()
+        items = audit.collect(self.cfg())
+        row = next(i for i in items if i.label == 'places to reread')
+        self.assertTrue(row.ok)                                      # --strict でも止めない
+        self.assertIn('4 lines match', row.detail)
+        self.assertIn('octavo writing --for mypaper --flags', row.detail)
+        rules = next(i for i in items if i.label == 'writing rules')
+        self.assertFalse(rules.ok)                                   # 壊れた Flag は警告
+        self.assertIn('Broken', rules.detail)
+
+    def test_nothing_flagged_says_so(self):
+        code, text, err = self.run_cli('writing', '--for', 'mypaper', '--flags')
+        self.assertEqual(code, 0)
+        self.assertIn('no line matches', text)
+        self.assertFalse([i for i in __import__('octavo.audit', fromlist=['x']).collect(self.cfg())
+                          if i.label == 'places to reread'])
+
+    def test_a_heading_names_its_section_by_its_label(self):
+        from octavo import writing
+        known = writing.known_sections(writing.packs(self.root))
+        text = ('# Adding Capacity When Work Rises {#sec-literature}\n\nA.\n\n'
+                '## How Offices Respond {#sec-theory-2}\n\nB.\n\n'
+                '# Where It All Comes From {#sec-data}\n\nC.\n\n'
+                '# What We Did First {#sec-intro}\n\nD.\n\n'
+                '# Results {#sec-design}\n\nE.\n\n'
+                '# A Title With No Hint {#sec-other}\n\n## Deeper\n\nF.\n')
+        at = lambda body: text.split('\n').index(body) + 1
+        self.assertEqual([writing.section_at(text, at(x + '.'), known)[0] for x in 'ABCDEF'],
+                         ['literature', 'theory', 'design', 'introduction',
+                          'design',                      # ラベルは見出しの言葉より先
+                          None])
+
+    def test_a_heading_that_names_no_section_is_reported(self):
+        self.src.write_text('---\ntitle: T\nlang: en\n---\n\nBefore any heading.\n\n'
+                            '# A Title With No Hint\n\nText.\n\n# Results\n\nText.\n', encoding='utf-8')
+        lines = self.src.read_text(encoding='utf-8').split('\n')
+        n = lines.index('# A Title With No Hint') + 3
+        code, out, err = self.run_cli('writing', '--file', str(self.src), '--line', str(n), '--print')
+        self.assertIn('"A Title With No Hint" names no section', err)
+        self.assertIn('--section NAME', err)
+        self.assertIn('names no section', out.split('\n# ')[0])        # 出力の頭にも（AI が読む）
+        code, out, err = self.run_cli('writing', '--file', str(self.src), '--line', str(n), '--json')
+        self.assertIn('names no section', json.loads(out)['no_section'])
+        # 節を言えば出ない。節が決まる行、見出しより前の行でも出ない
+        for extra in (['--line', str(n), '--section', 'results'], ['--line', str(len(lines) - 1)],
+                      ['--line', '6']):
+            code, out, err = self.run_cli('writing', '--file', str(self.src), *extra, '--json')
+            self.assertIsNone(json.loads(out)['no_section'], extra)
+            self.assertEqual(err, '')
+
+    def test_section_only_leaves_out_what_is_always_read(self):
+        code, full, _ = self.run_cli('writing', '--for', 'mypaper', '--section', 'results', '--print')
+        code, only, _ = self.run_cli('writing', '--for', 'mypaper', '--section', 'results',
+                                     '--section-only', '--print')
+        self.assertIn('Rule: careful.', full)
+        self.assertIn('## Effect', full)
+        self.assertNotIn('Rule: careful.', only)
+        self.assertNotIn('Rule: one.', only)
+        self.assertIn('## Effect', only)
+        self.assertIn('only the files for this section', only)
+        self.assertLess(len(only), len(full))
+        code, out, _ = self.run_cli('writing', '--for', 'mypaper', '--section', 'results',
+                                    '--section-only', '--json')
+        got = json.loads(out)
+        self.assertTrue(got['section_only'])
+        self.assertEqual({f['skipped'] for f in got['files'] if f['section'] == ['all'] and not f['excluded']},
+                         {'always'})
+        # 行から節を選んでもよい。節が決まらなければ言う
+        n = self.src.read_text(encoding='utf-8').split('\n').index('## Main table') + 3
+        code, only, _ = self.run_cli('writing', '--file', str(self.src), '--line', str(n),
+                                     '--section-only', '--print')
+        self.assertIn('## Effect', only)
+        code, _, err = self.run_cli('writing', '--for', 'mypaper', '--section-only', '--print')
+        self.assertEqual(code, 2)
+        self.assertIn('--section-only needs the section', err)
+
+
 class ParagraphPlan(unittest.TestCase):
     """段落の構成表: <!-- para: 種類 | 主張 -->、octavo writing --kind / --line、outline --paragraphs。"""
 
@@ -2181,6 +2323,103 @@ class ParagraphPlan(unittest.TestCase):
         code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
         rows = json.loads(out)[0]['paragraphs']
         self.assertEqual([r['problems'] for r in rows], [[], [], ['same-kind']])
+
+    def test_a_kind_that_says_repeat_is_not_noted(self):
+        self.write_plan()
+        f = self.home / 'octavo' / 'writing' / 'polisci' / 'phrases' / 'results.md'
+        f.write_text(f.read_text(encoding='utf-8').replace('When: an estimate.\n',
+                                                           'When: an estimate.\nRepeat: yes\n'),
+                     encoding='utf-8')
+        mark = '<!-- para: polisci/results#effect | c -->\nText {}.\n\n'
+        self.src.write_text('# Results\n\n' + ''.join(mark.format(i) for i in range(4)), encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        self.assertEqual([r['problems'] for r in json.loads(out)[0]['paragraphs']], [[], [], [], []])
+        from octavo import paragraphs as P
+        self.assertTrue(P.entry_fields('## X\n\n繰り返し: はい\n- a\n')['repeat'])
+        self.assertFalse(P.entry_fields('## X\n\nRepeat: no\n- a\n')['repeat'])
+
+    def test_a_continuation_mark_takes_the_kind_above_it(self):
+        self.write_plan()
+        self.src.write_text(
+            '# Results\n\n<!-- para: + -->\nNothing above.\n\n## Main\n\n'
+            '<!-- para: polisci/results#effect | c -->\nFirst, a.\n\n'
+            '<!-- para: + -->\nSecond, b.\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n'
+            '<!-- para: + | and the table shows it -->\nAfter the table.\n\n'
+            '<!-- para: polisci/results#effect | c -->\nAgain.\n\n'
+            '<!-- para: polisci/results#effect | c -->\nThird of the kind.\n', encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        rows = json.loads(out)[0]['paragraphs']
+        self.assertEqual([(r['kind'], r['continues'], r['problems']) for r in rows], [
+            ('', True, ['continues-nothing']),                      # 見出しをまたいでは引き継がない
+            ('polisci/results#effect', False, []),
+            ('polisci/results#effect', True, []),                   # 種類なしにならない
+            ('polisci/results#effect', True, []),                   # 表をはさんでも。数には入れない
+            ('polisci/results#effect', False, []),
+            ('polisci/results#effect', False, ['same-kind'])])
+        self.assertEqual(rows[3]['claim'], 'and the table shows it')
+        code, text = self.run_cli('outline', 'mypaper', '--paragraphs')
+        self.assertIn('+ polisci/results#effect', text)
+        self.assertIn('[continues nothing', text)
+        # その行で読むフレーズも、引き継いだ種類のもの
+        n = self.src.read_text(encoding='utf-8').split('\n').index('Second, b.') + 1
+        code, out = self.run_cli('writing', '--file', str(self.src), '--line', str(n), '--json')
+        self.assertEqual(json.loads(out)['paragraph_kinds'], ['polisci/results#effect'])
+
+    def test_a_marked_quotation_is_a_paragraph(self):
+        self.write_plan()
+        self.src.write_text(
+            '# Results\n\n> An unmarked quotation.\n\n'
+            '<!-- para: polisci/results#other | H1 -->\n> **H1.** More X, more output.\n> It holds. Always.\n',
+            encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        rows = json.loads(out)[0]['paragraphs']
+        self.assertEqual([(r['kind'], r['problems'], r['first_sentence']) for r in rows],
+                         [('polisci/results#other', [], '**H1.** More X, more output.')])
+
+    def test_a_section_whose_phrases_are_sentences_asks_for_no_kind(self):
+        self.write_plan()
+        w = self.home / 'octavo' / 'writing' / 'polisci' / 'phrases'
+        self.put(w / 'abstract.md', '---\nsection: abstract\nentries: sentences\n---\n\n'
+                                    '## Open with the question\n\n- We examine 〈X〉.\n')
+        self.src.write_text('# Abstract\n\nWe examine it.\n\n# Results\n\nNo mark here.\n',
+                            encoding='utf-8')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        rows = json.loads(out)[0]['paragraphs']
+        self.assertEqual([(r['heading'], r['problems']) for r in rows],
+                         [('Abstract', []), ('Results', ['no-kind'])])
+        # その節に段落の種類のファイルもあれば、今までどおり
+        self.put(w / 'abstract2.md', '---\nsection: abstract\n---\n\n## A kind\n\n- Body: x y z.\n')
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--json')
+        self.assertEqual(json.loads(out)[0]['paragraphs'][0]['problems'], ['no-kind'])
+
+    def test_contains_is_listed_under_each_paragraph_and_lines_narrow(self):
+        self.write_plan()
+        f = self.home / 'octavo' / 'writing' / 'polisci' / 'phrases' / 'results.md'
+        f.write_text(f.read_text(encoding='utf-8').replace(
+            'When: an estimate.\n', 'When: an estimate.\nContains: the estimate; what it means\n'),
+            encoding='utf-8')
+        self.src.write_text('# Results\n\n<!-- para: polisci/results#effect | a -->\nOne.\n\n'
+                            '<!-- para: polisci/results#effect | b -->\nTwo.\n\n'
+                            '<!-- para: polisci/results#effect | c -->\nThree.\n<!-- ask: n? -->\n',
+                            encoding='utf-8')
+        code, text = self.run_cli('outline', 'mypaper', '--paragraphs')
+        self.assertNotIn('contains:', text)
+        code, text = self.run_cli('outline', 'mypaper', '--paragraphs', '--contains')
+        self.assertEqual(text.count('contains: the estimate; what it means'), 3)
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--lines', '9-', '--json')
+        got = json.loads(out)[0]
+        # 3つ目だけ。印（同じ種類の3つ目）は原稿全体で数えたまま
+        self.assertEqual([(r['line'], r['problems'], r['contains']) for r in got['paragraphs']],
+                         [(9, ['same-kind'], 'the estimate; what it means')])
+        self.assertEqual(len(got['asks']), 1)
+        code, out = self.run_cli('outline', 'mypaper', '--paragraphs', '--lines', '3-7', '--json')
+        got = json.loads(out)[0]
+        self.assertEqual([r['line'] for r in got['paragraphs']], [3, 6])
+        self.assertEqual(got['asks'], [])
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            self.assertEqual(self.run_cli('outline', 'mypaper', '--paragraphs', '--lines', 'x')[0], 2)
+            self.assertEqual(self.run_cli('outline', 'mypaper', '--contains')[0], 2)
 
     def test_questions_for_the_author_are_listed(self):
         from octavo import audit
@@ -10483,6 +10722,279 @@ class LanguagePerDocument(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             scaffold.new(cfgp, 'paper', 'jap')
         self.assertNotIn('lang:', (p / 'docs/jap/jap.md').read_text(encoding='utf-8'))
+
+
+class Inputs(unittest.TestCase):
+    """ほかのプロジェクトやフォルダーのデータを、名前を付けた入力として使う。"""
+
+    DEPS = "['prep:data/derived/panel.csv']"
+
+    def setUp(self):
+        self.top = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.top, ignore_errors=True)
+        cache = unittest.mock.patch.dict(os.environ, {'XDG_CACHE_HOME': str(self.top / 'cache')})
+        cache.start()
+        self.addCleanup(cache.stop)
+        for name in [k for k in os.environ if k.startswith('OCTAVO_INPUT_')]:
+            self.addCleanup(os.environ.__setitem__, name, os.environ.pop(name))
+        self.prep = self.top / 'prep'
+        (self.prep / 'data' / 'derived').mkdir(parents=True)
+        (self.prep / 'data' / 'derived' / 'panel.csv').write_text('a\n1\n', encoding='utf-8')
+        (self.prep / 'data' / 'derived' / 'unused.csv').write_text('z\n', encoding='utf-8')
+        self.d = self.top / 'use'
+        (self.d / 'analysis').mkdir(parents=True)
+        (self.d / 'data' / 'raw').mkdir(parents=True)
+        (self.d / 'data' / 'derived').mkdir()
+        (self.d / 'data' / 'raw' / 'own.csv').write_text('b\n2\n', encoding='utf-8')
+        (self.d / 'draft.md').write_text('# x\n', encoding='utf-8')
+        (self.d / 'analysis' / 'model.qmd').write_text('---\ntitle: m\n---\n', encoding='utf-8')
+
+    def cfg(self, deps=None, inputs="{'prep': '../prep'}", more=''):
+        (self.d / 'octavo.config.py').write_text(
+            "CONFIG = {'lang': 'en', 'inputs': " + inputs + ",\n"
+            " 'analysis': [{'src': 'analysis/model.qmd', 'deps': " + (deps or self.DEPS) + "}],\n"
+            + more + "}\n", encoding='utf-8')
+        return config.load(self.d / 'octavo.config.py')
+
+    def cli(self, *argv):
+        from octavo import cli
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), \
+                unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+            try:
+                code = cli.main([*argv, '--config', str(self.d / 'octavo.config.py')])
+            except SystemExit as e:
+                code = e.code
+        return code, out.getvalue(), err.getvalue()
+
+    # -- 何にも当たらない deps ------------------------------------------
+    def test_deps_that_match_nothing_are_named(self):
+        cfg = self.cfg("['data/raw/own.csv', 'data/raw/typo.csv', 'data/raw/nope*.csv', "
+                       "'data/derived/*', 'data/gone/*', 'other:x.csv', 'prep:data/derived/zz.csv']")
+        got = {(d, why) for _, d, why in analysis.unmatched(cfg)}
+        self.assertEqual(got, {('data/raw/typo.csv', 'nothing'), ('data/raw/nope*.csv', 'nothing'),
+                               ('data/gone/*', 'nothing'), ('other:x.csv', 'no-input'),
+                               ('prep:data/derived/zz.csv', 'nothing')})
+
+    def test_everything_in_an_empty_folder_is_not_a_complaint(self):
+        """作ったばかりのプロジェクトのひな型は `data/derived/*` を見張っている。"""
+        cfg = self.cfg("['data/raw/*', 'data/derived/*']")
+        self.assertEqual(analysis.unmatched(cfg), [])
+
+    def test_check_and_the_status_say_which(self):
+        cfg = self.cfg("['data/raw/typo.csv']")
+        row = next(i for i in audit.collect(cfg) if i.label == 'analysis inputs')
+        self.assertFalse(row.ok)
+        self.assertFalse(row.fatal)
+        self.assertIn('data/raw/typo.csv', row.lines[0])
+        code, out, _ = self.cli('analysis')
+        self.assertIn('data/raw/typo.csv: matches no file', out)
+        unit = analysis.status_json(cfg)['units'][0]
+        self.assertEqual(unit['unmatched'], [{'dep': 'data/raw/typo.csv', 'why': 'nothing'}])
+
+    def test_a_missing_input_folder_is_named(self):
+        cfg = self.cfg(inputs="{'prep': '../nowhere'}")
+        self.assertEqual([(d, why) for _, d, why in analysis.unmatched(cfg)],
+                         [('prep:data/derived/panel.csv', 'no-folder')])
+        code, out, _ = self.cli('data', 'inputs')
+        self.assertEqual(code, 1)
+        self.assertIn('OCTAVO_INPUT_PREP', out)
+
+    # -- 宣言と場所 -------------------------------------------------------
+    def test_a_dep_in_an_input_is_watched(self):
+        cfg = self.cfg()
+        u = analysis.units(cfg)[0]
+        self.assertEqual([p.resolve() for p in u.deps],
+                         [(self.prep / 'data/derived/panel.csv').resolve()])
+        self.assertEqual(u.unmatched, ())
+        before = u.digest()
+        (self.prep / 'data/derived/panel.csv').write_text('a\n9\n', encoding='utf-8')
+        self.assertNotEqual(analysis.units(cfg)[0].digest(), before)
+
+    def test_the_environment_moves_an_input(self):
+        other = self.top / 'elsewhere'
+        (other / 'data' / 'derived').mkdir(parents=True)
+        (other / 'data' / 'derived' / 'panel.csv').write_text('a\n', encoding='utf-8')
+        cfg = self.cfg()
+        with unittest.mock.patch.dict(os.environ, {'OCTAVO_INPUT_PREP': str(other)}):
+            from octavo import inputs
+            got = inputs.declared(cfg)['prep']
+            self.assertEqual(got.path, other.resolve())
+            self.assertTrue(got.from_env)
+            self.assertEqual(analysis._env(cfg)['OCTAVO_INPUT_PREP'], str(other.resolve()))
+        self.assertEqual(analysis._env(cfg)['OCTAVO_INPUT_PREP'], str(self.prep.resolve()))
+
+    def test_a_copy_inside_the_project_comes_first(self):
+        """再現パッケージの形。設定の `../prep` がそこにあっても、中の写しを読む。"""
+        (self.d / 'inputs' / 'prep').mkdir(parents=True)
+        from octavo import inputs
+        self.assertEqual(inputs.declared(self.cfg())['prep'].path,
+                         (self.d / 'inputs' / 'prep').resolve())
+
+    def test_names_that_could_be_a_drive_are_refused(self):
+        with self.assertRaises(SystemExit), contextlib.redirect_stderr(io.StringIO()):
+            self.cfg(inputs="{'c': '../prep'}")
+        from octavo import inputs
+        self.assertEqual(inputs.split('C:/data/x.csv', {}), (None, 'C:/data/x.csv'))
+        self.assertEqual(inputs.split('prep:data/x.csv', {'prep': 1}), ('prep', 'data/x.csv'))
+        self.assertEqual(inputs.split('prep:data/x.csv', {}), ('?prep', 'data/x.csv'))
+
+    def test_the_cli_prints_one_folder_for_the_helper(self):
+        self.cfg()
+        code, out, _ = self.cli('data', 'inputs', 'prep')
+        self.assertEqual((code, Path(out.strip())), (0, self.prep.resolve()))
+        code, _, err = self.cli('data', 'inputs', 'nope')
+        self.assertEqual(code, 1)
+        self.assertIn('nope', err)
+        code, out, _ = self.cli('data', 'inputs', '--json')
+        row = json.loads(out)['inputs'][0]
+        self.assertEqual((row['name'], row['exists'], row['project'], row['env']),
+                         ('prep', True, False, 'OCTAVO_INPUT_PREP'))
+
+    def test_a_stale_analysis_in_the_other_project_is_reported_not_run(self):
+        (self.prep / 'analysis').mkdir()
+        (self.prep / 'analysis' / 'clean.qmd').write_text('---\ntitle: c\n---\n', encoding='utf-8')
+        (self.prep / 'octavo.config.py').write_text(
+            "CONFIG = {'lang': 'en', 'analysis': ['analysis/*.qmd']}\n", encoding='utf-8')
+        self.cfg()
+        with unittest.mock.patch('octavo.analysis.render') as render:
+            code, out, _ = self.cli('analysis')
+        render.assert_not_called()
+        self.assertIn('analysis/clean.qmd there has changed', out)
+
+    # -- 記録 -------------------------------------------------------------
+    def test_the_record_holds_only_the_input_files_in_deps(self):
+        cfg = self.cfg()
+        n, p = dataset.write(cfg)
+        doc = json.loads(p.read_text(encoding='utf-8'))
+        self.assertEqual(n, 2)
+        self.assertEqual(doc['inputs']['prep']['path'], '../prep')
+        self.assertEqual(list(doc['inputs']['prep']['files']), ['data/derived/panel.csv'])
+        self.assertEqual(dataset.compare(cfg), [])
+        (self.prep / 'data/derived/panel.csv').write_text('a\n1\n2\n', encoding='utf-8')
+        self.assertEqual([(x.kind, x.path) for x in dataset.compare(cfg)],
+                         [('changed', 'prep:data/derived/panel.csv')])
+        code, out, _ = self.cli('data', 'status')
+        self.assertEqual(code, 1)
+        self.assertIn('prep:data/derived/panel.csv', out)
+
+    @unittest.skipUnless(shutil.which('git'), 'git がない')
+    def test_the_commit_of_the_other_project_is_recorded(self):
+        def git(*a):
+            subprocess.run(['git', '-C', str(self.prep), '-c', 'user.name=t', '-c', 'user.email=t@example.com',
+                            *a], check=True, capture_output=True)
+        git('init', '-q')
+        (self.prep / 'README.md').write_text('x\n', encoding='utf-8')
+        git('add', 'README.md')
+        git('commit', '-q', '-m', 'one')
+        cfg = self.cfg()
+        _, p = dataset.write(cfg)
+        row = json.loads(p.read_text(encoding='utf-8'))['inputs']['prep']
+        self.assertRegex(row['commit'], r'^[0-9a-f]{40}$')
+        self.assertNotIn('modified', row)
+
+    def test_derived_data_can_be_left_out_of_the_record(self):
+        (self.d / 'data' / 'derived' / 'made.csv').write_text('m\n', encoding='utf-8')
+        cfg = self.cfg()
+        dataset.write(cfg)                        # 派生データも入った記録
+        self.assertIn('derived/made.csv', dataset.read(cfg)[1])
+        cfg = self.cfg(more=" 'data_hash_derived': False,\n")
+        (self.d / 'data' / 'derived' / 'made.csv').write_text('changed\n', encoding='utf-8')
+        self.assertEqual(dataset.compare(cfg), [])       # 古い記録の derived/ も比べない
+        self.assertEqual(sorted(dataset.scan(cfg)), ['raw/own.csv'])
+
+    def test_check_does_not_reread_files_that_have_not_changed(self):
+        cfg = self.cfg()
+        dataset.write(cfg)
+        with unittest.mock.patch('octavo.dataset.sha256', wraps=dataset.sha256) as read:
+            self.assertEqual(dataset.compare(cfg, fast=True), [])
+            self.assertEqual(read.call_count, 0)
+            (self.d / 'data' / 'raw' / 'own.csv').write_text('b\n2\n3\n', encoding='utf-8')
+            self.assertEqual([x.path for x in dataset.compare(cfg, fast=True)], ['raw/own.csv'])
+            self.assertEqual(read.call_count, 1)
+            dataset.compare(cfg)                  # octavo data status は全部読む
+            self.assertEqual(read.call_count, 3)
+
+    # -- ヘルパー ---------------------------------------------------------
+    def test_the_python_helper_finds_the_file(self):
+        with unittest.mock.patch.dict(os.environ, {'OCTAVO_INPUT_PREP': str(self.prep)}):
+            r = run_helper(self.d, 'print(ov_input("prep", "data/derived/panel.csv"))\n'
+                                   'print(ov_input("prep"))\n')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual([Path(x) for x in r.stdout.split()],
+                         [(self.prep / 'data/derived/panel.csv').resolve(), self.prep.resolve()])
+        with unittest.mock.patch.dict(os.environ, {'OCTAVO_INPUT_PREP': str(self.prep)}):
+            r = run_helper(self.d, 'ov_input("prep", "data/derived/zz.csv")\n')
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("has no data/derived/zz.csv", r.stderr)
+        with unittest.mock.patch.dict(os.environ, {'OCTAVO_INPUT_PREP': str(self.top / 'nowhere')}):
+            r = run_helper(self.d, 'ov_input("prep")\n')
+        self.assertIn('OCTAVO_INPUT_PREP', r.stderr)
+
+    def test_the_python_helper_reads_a_copy_in_the_package(self):
+        (self.d / 'inputs' / 'prep').mkdir(parents=True)
+        (self.d / 'inputs' / 'prep' / 'x.csv').write_text('x\n', encoding='utf-8')
+        r = run_helper(self.d, 'print(ov_input("prep", "x.csv"))\n')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual(Path(r.stdout.strip()), (self.d / 'inputs/prep/x.csv').resolve())
+
+    @unittest.skipUnless(shutil.which('Rscript'), 'R がない')
+    def test_the_r_helper_finds_the_file(self):
+        helper = ROOT / 'templates' / 'analysis' / 'common' / 'analysis' / 'octavo.R'
+        code = (f'source("{helper.as_posix()}"); cat(ov_input("prep", "data/derived/panel.csv"), "\\n"); '
+                'cat(tryCatch(ov_input("prep", "zz.csv"), error = function(e) conditionMessage(e)), "\\n"); '
+                'cat(tryCatch(ov_input("other"), error = function(e) conditionMessage(e)), "\\n")')
+        env = {**os.environ, 'OCTAVO_ROOT': str(self.d), 'OCTAVO_INPUT_PREP': str(self.prep),
+               'PATH': os.pathsep.join(p for p in os.environ.get('PATH', '').split(os.pathsep)
+                                       if not (Path(p) / 'octavo').exists()
+                                       or Path(shutil.which('Rscript')).parent == Path(p))}
+        r = subprocess.run(['Rscript', '-e', code], cwd=str(self.d), env=env, capture_output=True,
+                           text=True, encoding='utf-8')
+        self.assertEqual(r.returncode, 0, r.stderr)
+        lines = r.stdout.strip().split('\n')
+        self.assertEqual(Path(lines[0].strip()).resolve(), (self.prep / 'data/derived/panel.csv').resolve())
+        self.assertIn('has no zz.csv', lines[1])
+        self.assertIn('OCTAVO_INPUT_OTHER', lines[2])
+
+    # -- 再現パッケージ ---------------------------------------------------
+    def test_the_package_takes_input_files_only_when_asked(self):
+        (self.prep / 'analysis').mkdir()
+        (self.prep / 'analysis' / 'clean.qmd').write_text('---\ntitle: c\n---\n', encoding='utf-8')
+        (self.prep / 'data' / 'HASHES.json').write_text('{"files": {}}\n', encoding='utf-8')
+        (self.prep / 'octavo.config.py').write_text(
+            "CONFIG = {'lang': 'en', 'analysis': ['analysis/*.qmd']}\n", encoding='utf-8')
+        cfg = self.cfg()
+        dataset.write(cfg)
+        with unittest.mock.patch.dict(os.environ, {'OCTAVO_LANG': 'en'}):
+            res = bundle.replication(cfg, self.top / 'without')
+            out = self.top / 'without'
+            self.assertFalse((out / 'inputs/prep/data/derived/panel.csv').exists())
+            self.assertTrue((out / 'inputs/prep/analysis/clean.qmd').is_file())
+            self.assertTrue((out / 'inputs/prep/data/HASHES.json').is_file())
+            self.assertIn('prep', json.loads((out / 'data/HASHES.json').read_text(encoding='utf-8'))['inputs'])
+            self.assertTrue(any('--with-raw-data' in line and 'prep' in line for line in res.report), res.report)
+            self.assertIn('inputs/prep/', (out / 'README.md').read_text(encoding='utf-8'))
+            bundle.replication(cfg, self.top / 'with', with_raw=True)
+        out = self.top / 'with'
+        self.assertTrue((out / 'inputs/prep/data/derived/panel.csv').is_file())
+        self.assertFalse((out / 'inputs/prep/data/derived/unused.csv').exists())
+        # パッケージの中では、入力は中の写し
+        from octavo import inputs
+        self.assertEqual(inputs.declared(config.load(out / 'octavo.config.py'))['prep'].path,
+                         (out / 'inputs/prep').resolve())
+
+    def test_standalone_reads_the_copy_by_a_plain_path(self):
+        from octavo import standalone
+        dirs = {'values': 'assets/values', 'figures': 'assets/figures', 'tables': 'assets/tables'}
+
+        def conv(lang, code):
+            return standalone.convert(f'---\ntitle: t\n---\n\n```{{{lang}}}\n{code}\n```\n', dirs, 1,
+                                      lambda name: '').text
+        self.assertIn('read.csv(file.path("..", "inputs", "prep", "data", "derived", "panel.csv"))',
+                      conv('r', 'd <- read.csv(ov_input("prep", "data/derived/panel.csv"))'))
+        self.assertIn('Path("..") / "inputs" / "prep" / "x.csv"',
+                      conv('python', 'd = pd.read_csv(ov_input("prep", "x.csv"))'))
+        self.assertIn('ov_input(which, "x.csv")', conv('r', 'd <- read.csv(ov_input(which, "x.csv"))'))
 
 
 class DataTrack(unittest.TestCase):

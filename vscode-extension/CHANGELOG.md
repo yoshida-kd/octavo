@@ -3,6 +3,55 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.7.2
+
+- **Data shared between projects, and data management as a whole.**
+  - A project can declare data in another project or folder as a named input:
+    `'inputs': {'prep': '../survey-prep'}` in `octavo.config.py`. A `.qmd` reads it with
+    `ov_input("prep", "data/derived/panel.parquet")` (R and Python), and `deps` takes
+    `'prep:data/derived/panel.parquet'`, so a change there reruns the analysis. Nothing is copied and no
+    `.qmd` holds a `../` path. Where the folder differs by machine, set `OCTAVO_INPUT_PREP`.
+    To get `ov_input()` in an existing project, bring the helper up to date (`octavo migrate --helper`, or
+    the sidebar).
+  - `octavo data inputs` lists the inputs: where each is, whether it is there, its commit, and, when it is
+    an Octavo project, which of its analyses are stale. Octavo only says so; it never runs another project's
+    analysis.
+  - `octavo data hash` records the fingerprints of the input files listed under `deps` (and the other
+    side's commit) in `data/HASHES.json`; `octavo data status` and `octavo check` compare them.
+  - A replication package takes input files into `inputs/<name>/` only with `--with-raw-data`. Their
+    fingerprints, and the other project's analysis as a record of where the data came from, always go in.
+    The package also shows how large `data/derived/` is.
+  - **A `deps` entry that matches no file is reported** by `octavo analysis` and `octavo check` (a misspelt
+    name, a file not made yet, a fresh clone without data). Until now it was silently treated as no input.
+  - `octavo check` no longer rereads every data file each time: a file whose size and modification time
+    have not changed is not read again. `octavo data status` still reads everything.
+  - `'data_hash_derived': False` keeps `data/derived/` out of `data/HASHES.json`, for projects where
+    "contents differ" after every rerun is only noise.
+  - The guide (4.8) and the reference (6.8) have a section on data: what goes where, what is in git, what
+    is recorded instead.
+
+- **Writing support, from writing two papers with it.**
+  - `octavo writing … --section-only` prints only the files for the section, without the rules and phrases
+    read for every section. Read everything once; after that, moving to another section costs about half.
+    The project's AGENTS.md says so (`octavo migrate --rules` brings it to an older project).
+  - A rule may carry `Flag:` lines, each a regular expression (`Flag: \\beffects?\\b`), for rules that can
+    only be checked where a word appears. `octavo writing --for DOC --flags` lists the matching lines rule by
+    rule. They are places to reread, not errors: `octavo check` gives the count and never fails on it.
+  - `<!-- para: + -->` continues the mark above it: one claim written over two or three paragraphs, or a
+    paragraph that goes on after a table, no longer shows as "no kind".
+  - A phrase entry with `Repeat: yes` is a kind that normally follows itself (one point of the literature per
+    paragraph); the outline no longer notes the third in a row.
+  - A phrase file with `entries: sentences` (an abstract: its entries are the sentences of one paragraph)
+    stops the outline asking that section's paragraphs for a kind.
+  - A mark above a quotation (`> **H1.** …`) shows its first sentence without the `>`.
+  - **A heading that says what its section argues no longer loses the section's rules.** "Adding Capacity
+    When the Volume of Work Rises {#sec-literature}" has none of the words a literature section is known by,
+    so `octavo writing --file … --line …` printed only the rules for every section, without a word. The
+    heading's label now names the section (`{#sec-literature}`, `{#sec-intro}`), and when a heading names
+    none, the command says so.
+  - `octavo outline DOC --paragraphs --contains` puts the `Contains:` line of each paragraph's kind under it,
+    to check the paragraph against; `--lines 60-120` keeps one stretch of the manuscript.
+
 ## 0.7.1
 
 - **The sidebar has a Literature section** in place of "From Priorwork" and the five bibliography rows in

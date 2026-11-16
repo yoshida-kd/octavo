@@ -585,6 +585,7 @@ cannot be placed stops the build.
 | `zotero_collection`, `zotero_linked`, `zotero_write` | Zotero ([7.2](#72-zotero)) |
 | `writing`, `writing_off` | writing-rule packs ([9](#9-writing-rules-for-ai-assistants)) |
 | `replication_exclude` | left out of the replication package |
+| `inputs`, `data_hash_derived` | data in other projects and folders; whether `HASHES.json` records derived data ([6.8](#68-data)) |
 | `out_dirs` | where outputs land |
 
 ### 5.2 Settings for one document
@@ -766,6 +767,88 @@ format:
 Any other language works by writing `{"name": value}` into `assets/values/<anything>.json`,
 figures (`.pdf` and `.png`) into `assets/figures/`, tables into `assets/tables/`.
 
+### 6.8 Data
+
+| Place | What goes there | Who writes it | In git |
+|---|---|---|---|
+| `data/raw/` | data as obtained | you (or a `.qmd` that fetches it). **The analysis never rewrites it** | no |
+| `data/raw/README.md` | where it came from, when, on what terms | you | yes |
+| `data/derived/` | intermediate data the analysis made | the `.qmd` files | no |
+| `data/HASHES.json` | fingerprints of what is in `data/` (sha256 and size) | `octavo data hash` | yes |
+| `assets/values/`, `assets/figures/`, `assets/tables/` | the numbers, figures and tables that go into the manuscript | the `.qmd` files (`ov_value` / `ov_figure` / `ov_table`) | yes |
+| inputs (`inputs`) | data in another project or folder | its owner. **Never written from here** | the owner's choice |
+
+```bash
+octavo data hash                       # write the fingerprints of data/ and of the input files under deps to data/HASHES.json
+octavo data status                     # compare the record with what is there now (reads everything)
+octavo data track data/raw/typed.csv   # let git take one file under data/
+octavo data inputs                     # the declared inputs: place, there or not, commit, stale analyses on the other side
+octavo data inputs prep                # that input's place alone (one line)
+octavo data inputs --json
+```
+
+- `data/` is not in git, so `data/raw/README.md` (where it came from) and `data/HASHES.json` (what it contained) are the record of the data that was used. Run `octavo data hash` when data is added or replaced. Never edit `HASHES.json` by hand.
+- The "data fingerprints" row of `octavo check` says when the record and the data differ (a warning). It does not reread a file whose size and modification time are what they were when last read (the notes are in `~/.cache/octavo/hashes/` and can be deleted). `octavo data status` reads everything.
+- `data/derived/` is recorded too by default. If "contents differ" after every rerun is a nuisance, `'data_hash_derived': False` records `data/raw/` and the inputs only.
+- **A `deps` entry that matches no file** (a misspelt name, not made yet, a fresh clone with an empty `data/`) is named by `octavo analysis` and by `octavo check` ("analysis inputs", a warning). An entry that means "everything in this folder", like `data/derived/*`, is not reported while the folder exists, even empty.
+
+**Inputs**: when several projects use the same data, neither copy it nor write `../` in a `.qmd`; the project that uses it declares it.
+
+```python
+CONFIG = {
+    'inputs': {
+        'prep': '../survey-prep',            # relative to the project
+        'census': '/mnt/share/census-2020',  # absolute
+    },
+    'analysis': [
+        {'src': 'analysis/02-model.qmd',
+         'deps': ['prep:data/derived/panel.parquet', 'census:tables/*.csv']},
+    ],
+    'data_hash_derived': False,              # keep data/derived/ out of HASHES.json
+}
+```
+
+```bash
+export OCTAVO_INPUT_PREP=/data/projects/survey-prep   # the place on this machine; the settings stay as they are
+```
+
+```r
+panel <- arrow::read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+```python
+panel = pd.read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+- A name is two or more characters starting with a letter (letters, digits, `-`, `_`). The value is a folder, and it can be **any folder**. The usual form is a project of data and preparation alone ([6.7](#67-projects-of-qmd-files-alone-other-languages)) as the owner.
+- `ov_input(name, path)` only returns where the file is (the folder when `path` is left out). When the input is not declared, or its folder or the file is not there, it stops and says which, and how to fix it. When `octavo` runs the analysis it passes the places in environment variables; under Run Cell or `quarto render` the helper asks `octavo data inputs <name>`.
+- `name:path` under `deps` watches a file inside the input (globs work). When its contents change, that `.qmd` becomes stale.
+- `octavo data hash` records **only the input files listed under `deps`**, under `inputs` in `HASHES.json` (it does not read the whole input folder). When the other side is a git repository, its commit (and whether it had uncommitted changes) is recorded too. `octavo data status` and `octavo check` list them as `prep:data/derived/panel.parquet`.
+- When the other side is an Octavo project, `octavo analysis` and `octavo data inputs` say when one of its `.qmd` files has changed since it last ran. **They only say so; its analysis is never run from here.** Run it in the owner's project. The inputs of an input are not looked at.
+- A missing input folder is reported by `octavo analysis`, `octavo data inputs` and `octavo check` as well.
+- An `inputs/<name>/` folder inside the project is read before the place in the settings (a replication package has this form).
+- To use a number the other side produced in your text, read it in your own `.qmd` and register it again. With the other side's `.json` under `deps`, your analysis is rerun when that number changes.
+
+```python
+import json
+
+prep = json.loads(ov_input("prep", "assets/values/01-prep.json").read_text(encoding="utf-8"))
+ov_value("n_firms", prep["n_firms"]["value"])   # {{n_firms}} in the text
+```
+
+What goes into a **replication package** (`octavo bundle --replication`, [8.3](#83-after-sending-it)):
+
+| What | Goes in |
+|---|---|
+| `analysis/`, `assets/`, hand-made figures and tables, the `.bib`, the environment records | yes |
+| `data/derived/` | always (its size is shown; `replication_exclude` leaves things out) |
+| `data/raw/` | only with `--with-raw-data` |
+| `data/HASHES.json` | always |
+| the input files listed under `deps` | in `inputs/<name>/…`, only with `--with-raw-data` |
+| when the other side is an Octavo project, its `analysis/` and `data/HASHES.json` | always (in `inputs/<name>/`, as a record of where the data came from; never run inside the package) |
+
+Inside the package `ov_input()` reads `inputs/<name>/`, and `--standalone` rewrites it into a relative path. `--verify` passes only when the input files were included.
+
 ---
 
 ## 7. Bibliography, Zotero and Priorwork
@@ -900,7 +983,7 @@ octavo bundle --replication --standalone --verify   # and run the package itself
   Apply the changes to the manuscript.
 - `release` refuses uncommitted changes, placeholder values and an analysis out of date; it
   never runs the analysis. Ask the user first.
-- `--replication` leaves raw data out unless `--with-raw-data`.
+- `--replication` leaves raw data out unless `--with-raw-data` (the files of inputs likewise; [6.8](#68-data)).
 - `--standalone` rewrites the copies in the package, never the project's `.qmd` files: `ov_value()` prints
   the value, `ov_figure()` becomes `ggsave()` / `savefig()`, `ov_table()` writes a CSV, `ov_root()` a relative
   path, and `ov_pval()` / `ov_tint()` small functions defined in the file. It replaces calls it can be sure of:
@@ -948,9 +1031,15 @@ what it prints.** How to set packs up, with examples: [Writing support](https://
   `slides`, `lecture`, `poster`, `all`; default `all`), `section` (none = always read). Each `##`
   heading is one entry; its id is `pack/file#slug` (lower case, non-alphanumeric runs -> `-`, a repeat
   gets `-2`).
-- Rules are printed as written. In phrases, `When:` / `Note:` / `Source:` (場面 / 注意 / 出典) become
-  JSON fields, as does `Contains:`; list items are frames (`- Open:` / `- Body:` / `- Close:` give their
+- Rules are printed as written; only `Flag: <regex>` (検出) is read: one Python `re` expression per
+  line, any number of lines, case-sensitive unless it starts with `(?i)`, optionally wrapped in
+  `` ` ``. In phrases, `When:` / `Note:` / `Source:` (場面 / 注意 / 出典) become
+  JSON fields, as do `Contains:` and `Repeat: yes` (繰り返し; `repeat` true: a run of this kind is not
+  noted); list items are frames (`- Open:` / `- Body:` / `- Close:` give their
   position), 〈 〉 are slots and `〈A / B〉` a choice; other lines are printed and not read.
+- A phrase file with `entries: sentences` in its front matter holds the sentences of one paragraph, not
+  kinds of paragraph. Where every phrase file naming a section says so, paragraphs of that section get
+  no `no-kind`.
 
 ### 9.2 What a manuscript reads
 
@@ -966,6 +1055,11 @@ what it prints.** How to set packs up, with examples: [Writing support](https://
   `abstract`, `introduction`, `literature`, `theory`, `design`, `results`, `discussion`,
   `conclusion`, `appendix` (a `{.appendix}` heading, what follows it, the appendix file). The words for
   each are in the table in [Writing support 3.4](https://yoshida-kd.github.io/octavo/writing/#34-the-section-of-a-line).
+- A heading names a section by its label first (`{#sec-literature}`, `{#sec-literature-2}`, a
+  shortening of four letters or more such as `{#sec-intro}`), then by its words, then by the label's
+  words (`{#sec-data}` -> `design`). When `--line` is under a heading that names no section and
+  section files exist, a warning says so (also `no_section` in the JSON and a comment at the top of
+  `--print`).
 
 ### 9.3 Commands
 
@@ -974,12 +1068,23 @@ octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 octavo writing --for my-paper --kind field/results#the-main-result --print
+octavo writing --for my-paper --section discussion --section-only --print
+octavo writing --for my-paper --flags
 octavo outline my-paper --paragraphs
+octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
 
 - `--for DOC` or `--file F` names the manuscript; `--line N` (with `--file`) finds the section and the
   paragraph's mark; `--section S` overrides the section; `--all` takes every section; `--kind K`
   (repeatable, comma-separated) names paragraph kinds; `--print` prints the layered text; `--json`.
+- `--section-only` (with a section, from `--section` or `--line`) leaves out the files with no
+  `section:`; read everything once, then use it when moving to another section.
+- `--flags` lists the manuscript lines (appendix included; one file with `--file`) matched by a `Flag:`
+  of the rules this manuscript uses, rule by rule. A rule in a file with `section:` flags only that
+  section's lines. Not searched: front matter, headings, code, comments, display math, `{{values}}`,
+  citations, `{…}` attributes, link targets. Places to reread, not errors: `octavo check` gives the
+  count in an OK row ("places to reread") that `--strict` does not fail on; a `Flag:` that is not a
+  regular expression is a warning in "writing rules".
 - With a kind (from `--kind`, or from the mark on `--line`), rules are unchanged and phrases are only
   those entries, from the phrase files this manuscript uses (chosen packs, matching `applies` / `lang`,
   not turned off; any section). A kind from another file is left out with a warning.
@@ -990,12 +1095,20 @@ octavo outline my-paper --paragraphs
   mark followed by a blank line is an unwritten paragraph; leave a blank line before a mark (otherwise
   pandoc joins it to the paragraph above). Kinds resolve like `writing_off` ids (`file#slug` from the
   later pack).
+- `<!-- para: + -->` (or `<!-- para: + | <claim> -->`) continues the nearest mark above it under the
+  same heading and takes its kind (one claim over several paragraphs; a paragraph after a table).
+  `--line` on it reads that kind's phrases. A mark above a quotation (`> …`) or a list makes that block
+  a paragraph; unmarked ones are not counted.
 - `octavo outline … --paragraphs` problems: `no-kind`, `unknown-kind` (+ `near`), `unused-kind` (in a
   file this manuscript does not use), `no-text`, `joined`,
-  `same-kind` (the third in a row under one heading, a note). Repeats: a frame matched in two sentences
+  `same-kind` (the third in a row under one heading, a note; a `+` paragraph counts with the one it
+  continues, and a kind with `Repeat: yes` is never noted), `continues-nothing`. Repeats: a frame matched in two sentences
   under one heading (every word outside 〈 〉 in order within one sentence; a capitalised frame starts
   the sentence, one ending in `.` ends it; fewer than two fixed words are not looked for; only frames of
   that heading's section or with no `section:`, among the files this manuscript uses).
+- `--contains` prints each paragraph's kind's `Contains:` under it (nothing is compared); `--lines A-B`
+  (`A-` to the end) keeps the paragraphs, repeats and questions in those lines, after the whole file
+  was marked.
 - `<!-- ask: … -->`: listed by the outline; `octavo check` warns ("questions for the author") until
   deleted. Marks in code blocks are not read.
 
@@ -1005,15 +1118,18 @@ octavo outline my-paper --paragraphs
   `applies`, `section`, `entries`, `where`, `pack`, `kind`), `packs` (`name`, `title`, `path`, `where`,
   `extends`, `sections`, `description`, `files`), `sections`, `warnings`.
 - `octavo writing --for|--file … --json`: `doc`, `packs`, `chosen`, `chosen_here`, `kinds`, `lang`,
-  `section`, `heading`, `sections`, `off`, `off_here`, `paragraph_kinds` (null without kinds),
+  `section`, `section_only`, `no_section` (the message, or null), `heading`, `sections`, `off`, `off_here`, `paragraph_kinds` (null without kinds),
   `paragraph` (`line`, `kind`, `claim`, `body_line`, `first_sentence`; null without `--line`),
   `warnings`, `text` (with `--print`) and `files`: `id`, `pack`, `kind`, `path`, `title`, `lang`,
-  `applies`, `section`, `where`, `used`, `skipped` (`applies`, `lang`, `off`, `section`, `kind` or
+  `applies`, `section`, `entry_kind` (`paragraphs` or `sentences`), `where`, `used`, `skipped`
+  (`applies`, `lang`, `off`, `section`, `kind`, `always` — left out by `--section-only` — or
   null), `items` (`id`, `title`, `slug`, `line`, `off`; phrases also `when`, `note`, `source`, `lines`
-  = [`position`, `text`], `contains`, and `picked` when kinds are given).
+  = [`position`, `text`], `contains`, `repeat`, and `picked` when kinds are given).
+- `octavo writing --for|--file … --flags --json`: `doc`, `count`, `warnings`, `rules` (only those with
+  a hit: `id`, `title`, `file`, `patterns`, `hits` = [`file`, `line`, `match`, `text`]).
 - `octavo outline … --paragraphs --json`: a list per manuscript file: `doc`, `file`, `appendix`,
   `paragraphs` (`line`, `body_line`, `kind`, `id`, `title`, `claim`, `first_sentence`, `heading`,
-  `heading_line`, `heading_level`, `problems`, `near`), `repeats` (`heading`, `heading_line`, `id`,
+  `heading_line`, `heading_level`, `problems`, `near`, `continues`, `contains`), `repeats` (`heading`, `heading_line`, `id`,
   `text`, `lines`, `section`), `asks` (`line`, `text`).
 
 ### 9.6 When nothing comes out
@@ -1063,7 +1179,7 @@ octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions]
 octavo watch [documents...] [--to outputs]
 octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]
 octavo documents [--json]
-octavo outline [documents...] [--paragraphs] [--json]
+octavo outline [documents...] [--paragraphs [--contains] [--lines A-B]] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
 octavo analysis [--json] | run [QMD...] [--keep-cache] | mark-fresh QMD | prose QMD | missing QMD | install QMD
@@ -1076,11 +1192,11 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
-octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
+octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--section-only] [--print] [--flags] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
-octavo data hash|status|track
+octavo data hash|status|track|inputs [NAME] [--json]
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
 octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--appendix] [--tex] [--engine r|python] [--env] [--json]
 octavo template list|copy|diff [name] [--user]

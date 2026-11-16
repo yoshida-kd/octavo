@@ -43,10 +43,13 @@ import json
 import math
 import os
 import platform
+import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
-__all__ = ['ov_root', 'ov_dir', 'ov_value', 'ov_values', 'ov_pval', 'ov_figure',
+__all__ = ['ov_root', 'ov_dir', 'ov_input', 'ov_value', 'ov_values', 'ov_pval', 'ov_figure',
            'ov_table', 'ov_palette', 'ov_tint', 'ov_style', 'ov_cud']
 
 
@@ -62,6 +65,48 @@ def ov_root() -> Path:
         if (p / 'octavo.config.py').exists():
             return p
     return d
+
+
+def ov_input(name: str, path: str | None = None) -> Path:
+    """A file in an input: a folder (often another project) declared under `inputs` in
+    octavo.config.py, as in 'inputs': {'prep': '../survey-prep'}.
+
+        d = pd.read_csv(ov_input("prep", "data/derived/panel.csv"))
+
+    Read only; write what you make into this project's data/derived/. octavo passes the folder
+    in OCTAVO_INPUT_<NAME> (set that yourself when the folder is somewhere else on this
+    machine). Run outside octavo, it asks the octavo command. A copy at inputs/<name>/ in the
+    project comes first (a replication package has the input there).
+    """
+    env = 'OCTAVO_INPUT_' + re.sub(r'[^A-Za-z0-9]', '_', name).upper()
+    d = os.environ.get(env, '').strip()
+    if not d and (ov_root() / 'inputs' / name).is_dir():
+        d = str(ov_root() / 'inputs' / name)
+    if not d:
+        exe = shutil.which('octavo')
+        if exe:
+            try:
+                r = subprocess.run([exe, 'data', 'inputs', name], cwd=str(ov_root()),
+                                   capture_output=True, text=True, encoding='utf-8',
+                                   errors='replace', timeout=60)
+                lines = (r.stdout or '').strip().splitlines()
+                if r.returncode == 0 and lines:
+                    d = lines[-1].strip()
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+    if not d:
+        raise LookupError(f"ov_input: no input named '{name}'. Declare it under inputs in "
+                          f"octavo.config.py, or set {env} to its folder.")
+    folder = Path(d)
+    if not folder.is_dir():
+        raise FileNotFoundError(f"ov_input: the folder of input '{name}' is not there: {d}\n"
+                                f"  Set {env} to where it is, or fix inputs in octavo.config.py.")
+    if path is None:
+        return folder.resolve()
+    f = folder / path
+    if not f.exists():
+        raise FileNotFoundError(f"ov_input: input '{name}' has no {path} (looked in {d})")
+    return f.resolve()
 
 
 def ov_dir(kind: str = 'values') -> Path:

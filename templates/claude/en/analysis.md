@@ -152,6 +152,26 @@ octavo data status    # does anything differ from the record?
 `data/` isn't in git, so `data/HASHES.json` is the only record of which data was
 used. **Drift you didn't cause is an accident, not a nuisance.**
 
+## Data from another project or folder
+
+Data that several projects share is not copied, and a `.qmd` never reads it by a `../` path.
+The project declares it as a named input in `octavo.config.py`
+(`'inputs': {'prep': '../survey-prep'}`), the `.qmd` reads it with
+`ov_input("prep", "data/derived/panel.parquet")`, and the file goes under `deps` as
+`'prep:data/derived/panel.parquet'` so a change there reruns the analysis.
+
+```bash
+octavo data inputs    # the declared inputs: where they are, whether they are there
+```
+
+- **Never write into an input.** What this project makes goes in its own `data/derived/`.
+- **Never run the other project's analysis from here**, and do not edit its files. If
+  `octavo analysis` says something there is stale, tell the user.
+- If the folder is somewhere else on this machine, the user sets `OCTAVO_INPUT_<NAME>`;
+  do not rewrite the place in the settings to make it work.
+- A `deps` entry that matches no file is reported by `octavo analysis` and `octavo check`.
+  Fix the name, or run the analysis that makes the file; do not delete the entry.
+
 ## Never, in the analysis
 
 - **Never hand-edit what the analysis generates: `assets/values/`, `assets/tables/`,

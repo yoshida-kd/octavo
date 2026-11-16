@@ -476,6 +476,26 @@ def analysis_packages(cfg, args) -> int:
     return 0 if got is not None and not failed else 1
 
 
+def _say_inputs(cfg) -> None:
+    """宣言した入力の様子（octavo analysis の終わりに添える）。"""
+    from . import inputs as inputmod
+    rows = inputmod.declared(cfg)
+    if not rows:
+        return
+    print('\n' + t('inputs:'))
+    for i in rows.values():
+        if not i.exists:
+            print(f'  {i.name}: {i.path}  ' + tag('warning') + ' ' + t(
+                'no such folder (set {env}, or fix inputs in octavo.config.py)',
+                env=inputmod.env_name(i.name)))
+            continue
+        print(f'  {i.name}: {i.path}')
+        for k in inputmod.upstream_stale(i):
+            print('      ' + tag('note') + ' ' + t(
+                '{unit} there has changed since it last ran (run it in that project; '
+                'octavo does not run it from here)', unit=k))
+
+
 def cmd_analysis(args) -> int:
     cfg = configmod.load(args.config)
     if args.action in ('missing', 'install'):
@@ -540,6 +560,9 @@ def cmd_analysis(args) -> int:
             mark += ' · ' + t('manual')
         deps = '  ' + t('({n} watched {n|input|inputs})', n=len(u.deps)) if u.deps else ''
         print(f'  [{mark}] {analysismod.key(cfg, u)}{deps}')
+        for dep, why in u.unmatched:
+            print('      ' + tag('warning') + ' ' + analysismod.unmatched_note(dep, why))
+    _say_inputs(cfg)
 
     vals, warn = valmod.load(cfg)
     for line in warn:
@@ -699,8 +722,18 @@ def cmd_writing(args) -> int:
             return 2
     if args.for_doc:
         doc = cfg.document(args.for_doc)
-    if doc is None and (args.section or args.line or args.print or args.all or args.kind):
+    if doc is None and (args.section or args.line or args.print or args.all or args.kind
+                        or args.section_only or args.flags):
         print(t('say which manuscript: --for DOC or --file FILE'), file=sys.stderr)
+        return 2
+    if args.flags:
+        only = None
+        if args.file and not args.for_doc:
+            only = Path(args.file) if Path(args.file).is_absolute() else Path.cwd() / args.file
+        return _writing_flags(cfg, doc, only, args.json)
+    if args.section_only and not (args.section or args.line):
+        print(t('--section-only needs the section: --section NAME, or --file FILE --line N'),
+              file=sys.stderr)
         return 2
     if doc is None:
         got = writingmod.collect(root)
@@ -743,11 +776,22 @@ def cmd_writing(args) -> int:
         if para and para['kind'] and kinds is None:
             kinds = [para['kind']]
     try:
-        sel = writingmod.select(cfg, doc, section, every=args.all, kinds=kinds)
+        sel = writingmod.select(cfg, doc, section, every=args.all, kinds=kinds,
+                                section_only=args.section_only)
     except SystemExit as e:
         print(e.code, file=sys.stderr)
         return 2
     sel['heading'] = heading
+    # 行から節を選ばせたのに決まらなかった。節のファイルが黙って抜けるので、知らせる
+    sel['no_section'] = None
+    if args.line and not section and not args.all and any(f['skipped'] == 'section' for f in sel['files']):
+        above = writingmod.heading_at(text, args.line)
+        if above:
+            sel['no_section'] = t('the heading "{heading}" names no section, so the rules and phrases '
+                                  'of a section are not included. Say the section with --section NAME, '
+                                  'or label the heading with #sec-NAME (sections: {names})',
+                                  heading=above, names=', '.join(sel['sections']))
+            sel['warnings'].append(sel['no_section'])
     if para:
         sel['paragraph'] = {'line': para['line'] or para['body_line'], 'kind': para['kind'],
                             'claim': para['claim'], 'body_line': para['body_line'],
@@ -776,6 +820,35 @@ def cmd_writing(args) -> int:
         print(f"{mark}{where}  {f['title']} — " + t('{n} {n|entry|entries}', n=f['entries'])
               + (' ' + t('({n} picked)', n=picked) if picked else '')
               + (' ' + t('({n} turned off)', n=off) if off and not picked else ''))
+    return 0
+
+
+def _writing_flags(cfg, doc, only, as_json: bool) -> int:
+    """ルールの `Flag:` に当たった行を、ルールごとに。読み直す所の一覧で、誤りの一覧ではない。"""
+    import json as _json
+    from . import writing as writingmod
+    try:
+        got = writingmod.flag_report(cfg, doc, only)
+    except SystemExit as e:
+        print(e.code, file=sys.stderr)
+        return 2
+    if as_json:
+        print(_json.dumps(got, ensure_ascii=False))
+        return 0
+    for w in got['warnings']:
+        print(tag('warning') + ' ' + w, file=sys.stderr)
+    if not got['rules']:
+        print(t('{doc}: no line matches a Flag of the writing rules', doc=doc.name))
+        return 0
+    print(t('{doc}: {n} {n|place|places} to reread (a Flag marks where a word appears, '
+            'not that it is wrong)', doc=doc.name, n=got['count']))
+    several = len({h['file'] for r in got['rules'] for h in r['hits']}) > 1
+    for r in got['rules']:
+        print()
+        print(f"{r['title']}  ({r['id']}) — {len(r['hits'])}")
+        for h in r['hits']:
+            where = f"{h['file']}:{h['line']}" if several else f"{h['line']:>5}"
+            print(f"  {where}  {h['text']}")
     return 0
 
 
@@ -989,7 +1062,54 @@ def cmd_review(args) -> int:
 
 def cmd_data(args) -> int:
     cfg = configmod.load(args.config)
+    if args.action == 'inputs':
+        return _data_inputs(cfg, args)
     return dataset.run(cfg, args.action, args.files)
+
+
+def _data_inputs(cfg, args) -> int:
+    """octavo data inputs [名前]: 宣言した入力と、その場所。
+
+    名前を1つ渡すと、場所だけを1行で出す（ヘルパーの ov_input() が読む）。
+    """
+    from . import inputs as inputmod
+    rows = inputmod.declared(cfg)
+    if args.files:
+        name = args.files[0]
+        if name not in rows:
+            print(t('no input named {name} (inputs in octavo.config.py)', name=name),
+                  file=sys.stderr)
+            return 1
+        print(rows[name].path)
+        return 0
+    if args.json:
+        import json as _json
+        print(_json.dumps({'inputs': inputmod.describe(cfg)}, ensure_ascii=False))
+        return 0
+    if not rows:
+        print(t('no inputs are declared. To use data from another project or folder, '
+                'write this in octavo.config.py:') + "\n    'inputs': {'prep': '../survey-prep'},")
+        return 0
+    bad = 0
+    for row in inputmod.describe(cfg):
+        kind = t('Octavo project') if row['project'] else t('folder')
+        print(f"{row['name']}: {row['path']}  ({kind})")
+        if row['from_env']:
+            print('    ' + t('from {env} (octavo.config.py says {declared})',
+                             env=row['env'], declared=row['declared']))
+        if not row['exists']:
+            bad += 1
+            print('    ' + tag('warning') + ' ' + t(
+                'no such folder (set {env}, or fix inputs in octavo.config.py)', env=row['env']))
+            continue
+        if row.get('commit'):
+            print('    ' + t('commit {commit}', commit=row['commit'][:12])
+                  + ('  ' + t('(with uncommitted changes)') if row.get('modified') else ''))
+        for k in row.get('stale') or ():
+            print('    ' + tag('note') + ' ' + t(
+                '{unit} there has changed since it last ran (run it in that project; '
+                'octavo does not run it from here)', unit=k))
+    return 1 if bad else 0
 
 
 def cmd_checkbib(args) -> int:
@@ -1410,6 +1530,9 @@ def cmd_outline(args) -> int:
     cfg = configmod.load(args.config)
     if args.paragraphs:
         return _outline_paragraphs(cfg, args)
+    if args.contains or args.lines:
+        print(t('--contains and --lines go with --paragraphs'), file=sys.stderr)
+        return 2
     for name, src, is_appendix in cfg.sources():
         if args.documents and name not in args.documents:
             continue
@@ -1423,6 +1546,7 @@ def cmd_outline(args) -> int:
 
 PARA_PROBLEMS = {
     'no-kind': lambda: t('no kind'),
+    'continues-nothing': lambda: t('continues nothing (no mark above it under this heading)'),
     'unknown-kind': lambda: t('unknown kind'),
     'unused-kind': lambda: t('a kind this manuscript does not use'),
     'no-text': lambda: t('no text yet'),
@@ -1437,13 +1561,28 @@ def _outline_paragraphs(cfg, args) -> int:
     from . import paragraphs as paramod
     from . import writing as writingmod
     out = []
+    first, last_line = 1, None
+    if args.lines:
+        m = re.match(r'(\d+)(?:\s*[-–:,]\s*(\d*))?$', args.lines.strip())
+        if not m:
+            print(t('--lines takes a range of lines: 60-120 (or 60- for the rest)'), file=sys.stderr)
+            return 2
+        first = int(m.group(1))
+        last_line = int(m.group(2)) if m.group(2) else (first if m.group(2) is None else None)
+    inside = lambda n: n is not None and first <= n and (last_line is None or n <= last_line)
     for name, src, is_appendix in cfg.sources():
         if args.documents and name not in args.documents:
             continue
         doc = cfg.documents[name]
         sel = writingmod.select(cfg, doc, every=True)
         got = paramod.review(mdlib.read(src), writingmod.kind_index(sel), sel['sections'], is_appendix,
-                             every=writingmod.kind_index(sel, usable=False))
+                             every=writingmod.kind_index(sel, usable=False),
+                             unplanned=writingmod.sentence_sections(sel))
+        if args.lines:
+            # 小節ごとに点検するため。印は原稿全体で付けてから（続きの印・連続の数え方を変えない）絞る
+            got['paragraphs'] = [r for r in got['paragraphs'] if inside(r['line'])]
+            got['repeats'] = [r for r in got['repeats'] if any(inside(n) for n in r['lines'])]
+            got['asks'] = [a for a in got['asks'] if inside(a['line'])]
         out.append({'doc': name, 'file': cfg.rel(src), 'appendix': is_appendix, **got})
     if args.json:
         print(_json.dumps(out, ensure_ascii=False))
@@ -1462,11 +1601,14 @@ def _outline_paragraphs(cfg, args) -> int:
             marks = ''.join(' [' + PARA_PROBLEMS[m]() + ']' for m in r['problems'])
             if r['near']:
                 marks += ' ' + t('(did you mean {names}?)', names=', '.join(r['near']))
-            print(f"{pad}{r['line']:>4}  {r['kind'] or ''}{marks}")
+            kind = (paramod.CONTINUES + ' ' if r['continues'] else '') + (r['kind'] or '')
+            print(f"{pad}{r['line']:>4}  {kind.strip()}{marks}")
             if r['claim']:
                 print(f"{pad}      {t('claim')}: {r['claim']}")
             if r['first_sentence']:
                 print(f"{pad}      {t('first')}: {r['first_sentence']}")
+            if args.contains and r['contains']:
+                print(f"{pad}      {t('contains')}: {r['contains']}")
         for rp in d['repeats']:
             print('  ' + tag('note') + ' ' + t('the same phrase-bank line {n|once|# times} under "{heading}": {text} ({id}) at lines {lines}',
                                               n=len(rp['lines']), heading=rp['heading'] or '',
@@ -1779,6 +1921,11 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('the line being written: its heading picks the section'))
     p.add_argument('--section', metavar='NAME', help=t('the section being written (introduction, results, …)'))
     p.add_argument('--all', action='store_true', help=t('every section'))
+    p.add_argument('--section-only', action='store_true',
+                   help=t('leave out what is read for every section: only the files for this section '
+                          '(when moving on to another section)'))
+    p.add_argument('--flags', action='store_true',
+                   help=t('the lines a rule\'s Flag: matches, rule by rule (places to reread)'))
     p.add_argument('--kind', action='append', metavar='KIND',
                    help=t('only this kind of paragraph from the phrase bank (pack/file#heading); '
                           'with --line, read from the paragraph\'s <!-- para: … --> mark'))
@@ -1859,9 +2006,10 @@ def make_parser() -> argparse.ArgumentParser:
 
     p = with_config(sub.add_parser('data', help=t('data fingerprints')))
     p.add_argument('action', nargs='?', default='status',
-                   choices=['status', 'hash', 'track'],
-                   help=t('status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv)'))
-    p.add_argument('files', nargs='*', help=t('track: the files to put in git'))
+                   choices=['status', 'hash', 'track', 'inputs'],
+                   help=t('status=check against the record (default) / hash=write the record / track=let git take files under data/ (octavo data track data/raw/x.csv) / inputs=the declared inputs (other projects and folders)'))
+    p.add_argument('files', nargs='*', help=t('track: the files to put in git / inputs: one name, to print its folder'))
+    p.add_argument('--json', action='store_true', help=t('inputs: machine-readable JSON'))
     p.set_defaults(func=cmd_data)
 
     p = with_config(sub.add_parser('checkbib', help=t('cross-check citation keys against the .bib')))
@@ -1982,6 +2130,11 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('documents', nargs='*')
     p.add_argument('--paragraphs', action='store_true',
                    help=t('each paragraph: its kind, the claim in its <!-- para: … --> mark and its first sentence'))
+    p.add_argument('--contains', action='store_true',
+                   help=t('with --paragraphs: under each paragraph, the Contains: line of its kind '
+                          '(to check the paragraph against; nothing is compared for you)'))
+    p.add_argument('--lines', metavar='A-B',
+                   help=t('with --paragraphs: only the paragraphs in these lines (60-120)'))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_outline)
 

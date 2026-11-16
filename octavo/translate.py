@@ -28,6 +28,7 @@ from pathlib import Path
 
 from . import analysis as anamod
 from . import dataset
+from . import inputs as inputmod
 from . import standalone as standmod
 from .i18n import t, tag
 
@@ -216,7 +217,7 @@ def others_in_japanese(dest: Path) -> dict:
     found = {}
     for p in sorted(dest.rglob('*')):
         rel = p.relative_to(dest)
-        if not p.is_file() or p.suffix not in TEXT_SUFFIXES or rel.parts[0] in ('analysis', 'data') \
+        if not p.is_file() or p.suffix not in TEXT_SUFFIXES or rel.parts[0] in ('analysis', 'data', 'inputs') \
                 or rel.as_posix() == 'README.md':
             continue
         n = sum(1 for line in p.read_text(encoding='utf-8', errors='replace').split('\n') if has_japanese(line))
@@ -273,6 +274,10 @@ class _Trial:
         self.env = dict(anamod._env(cfg))
         for name in ('OCTAVO_ROOT', 'OCTAVO_VALUES_DIR', 'OCTAVO_FIGURE_DIR', 'OCTAVO_TABLE_DIR'):
             self.env.pop(name, None)
+        # 入力は、パッケージに入れた写しだけを見せる（手元のフォルダーが見えると、入力を
+        # 入れていないパッケージでも通ってしまう）
+        for name in inputmod.declared(cfg):
+            self.env[inputmod.env_name(name)] = str(self.root / 'inputs' / name)
         if not plain:
             self.env['OCTAVO_ROOT'] = str(self.root)
             for name, key in (('OCTAVO_VALUES_DIR', 'values_dir'), ('OCTAVO_FIGURE_DIR', 'figure_dir'),

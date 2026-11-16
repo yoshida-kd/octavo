@@ -47,6 +47,48 @@ ov_root <- function() {
   normalizePath(getwd(), winslash = "/")
 }
 
+# A file in an input: a folder (often another project) declared under `inputs` in
+# octavo.config.py, as in 'inputs': {'prep': '../survey-prep'}.
+#
+#     d <- read.csv(ov_input("prep", "data/derived/panel.csv"))
+#
+# Read only; write what you make into this project's data/derived/. octavo passes the folder in
+# OCTAVO_INPUT_<NAME> (set that yourself when the folder is somewhere else on this machine). Run
+# outside octavo, it asks the octavo command. A copy at inputs/<name>/ in the project comes
+# first (a replication package has the input there).
+ov_input <- function(name, path = NULL) {
+  env <- paste0("OCTAVO_INPUT_", toupper(gsub("[^A-Za-z0-9]", "_", name)))
+  d <- Sys.getenv(env)
+  if (!nzchar(d)) {
+    p <- file.path(ov_root(), "inputs", name)
+    if (dir.exists(p)) d <- p
+  }
+  if (!nzchar(d)) {
+    exe <- Sys.which("octavo")
+    if (nzchar(exe)) {
+      old <- setwd(ov_root())
+      on.exit(setwd(old), add = TRUE)
+      out <- tryCatch(suppressWarnings(system2(exe, c("data", "inputs", name),
+                                               stdout = TRUE, stderr = FALSE)),
+                      error = function(e) character(0))
+      if (length(out) && is.null(attr(out, "status"))) d <- out[[length(out)]]
+    }
+  }
+  if (!nzchar(d))
+    stop("ov_input: no input named '", name, "'. Declare it under inputs in ",
+         "octavo.config.py, or set ", env, " to its folder.", call. = FALSE)
+  if (!dir.exists(d))
+    stop("ov_input: the folder of input '", name, "' is not there: ", d,
+         "\n  Set ", env, " to where it is, or fix inputs in octavo.config.py.",
+         call. = FALSE)
+  if (is.null(path)) return(normalizePath(d, winslash = "/"))
+  f <- file.path(d, path)
+  if (!file.exists(f))
+    stop("ov_input: input '", name, "' has no ", path, " (looked in ", d, ")",
+         call. = FALSE)
+  normalizePath(f, winslash = "/")
+}
+
 # Where to write. octavo passes it in environment variables (values_dir in octavo.config.py and
 # so on). When Quarto renders directly, it is under the default place, assets/.
 ov_dir <- function(kind = c("values", "figures", "tables")) {

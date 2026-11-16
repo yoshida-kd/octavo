@@ -488,6 +488,67 @@ live in `analysis/`, and Octavo looks after its environment and runs it (▶). I
 beside the `.qmd`, as Quarto always writes it; use the Quarto extension's **Preview** to look
 at a PDF.
 
+### 4.8 Data
+
+Data has set places, and each place is either kept in git or stood for by a record.
+
+| Place | What goes there | In git |
+|---|---|---|
+| `data/raw/` | data as obtained. **The analysis never rewrites it** | no |
+| `data/raw/README.md` | where it came from, when, on what terms | yes |
+| `data/derived/` | intermediate data the analysis made | no |
+| `data/HASHES.json` | fingerprints of the data that was used (a record of its contents) | yes |
+| `assets/` | the numbers, figures and tables that go into the manuscript | yes |
+
+The data itself is large and often cannot be shared, so it stays out of git. What goes into
+git instead is `README.md` (where it came from) and `HASHES.json` (what it contained), and
+those two are the record of the data that was used. Record it again whenever you add or
+replace data (ask the AI assistant to "record the data fingerprints"). When the record and
+the data differ, **Check** says so.
+
+List the data a `.qmd` reads under `deps` in the settings. When the data changes, that `.qmd`
+becomes stale and is run again at the next build. When a file under `deps` is not there (a
+misspelt name, not made yet, a fresh copy on another machine without the data), the sidebar's
+**Analysis** and **Check** say so.
+
+**When several projects use the same data**, do not copy it, and do not write places that
+start with `../` in a `.qmd`. The project that uses the data declares it as a named **input**:
+
+```python
+CONFIG = {
+    'inputs': {
+        'prep': '../survey-prep',
+        'census': '/mnt/share/census-2020',
+    },
+    'analysis': [
+        {'src': 'analysis/02-model.qmd', 'deps': ['prep:data/derived/panel.parquet']},
+    ],
+}
+```
+
+- The other side can be any folder (a data store on a shared drive, say). It can also be an
+  Octavo project that only prepares data ([4.7](#47-using-octavo-with-qmd-files-alone)), and
+  then you are also told when its analysis is stale. **You are only told; its analysis is
+  never run from here.**
+- A `.qmd` reads it with `ov_input()`. Under `deps`, write `name:place`.
+
+```r
+panel <- arrow::read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+```python
+panel = pd.read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+- **Never write into an input.** Read only, and put what you make in your own `data/derived/`.
+- When the place differs from machine to machine, leave the settings alone and put that
+  machine's place in the environment variable `OCTAVO_INPUT_PREP`.
+- `HASHES.json` also keeps the fingerprints of the input files listed under `deps`, and the
+  commit of the other side when it is kept in git.
+- A replication package ([6.3](#63-after-you-send-it)) takes the input files only when you say
+  so, as with raw data. Their fingerprints, and the other side's analysis (as a record of
+  where the data came from), always go in.
+
 ---
 
 ## 5. Citations

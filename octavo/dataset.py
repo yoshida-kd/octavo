@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import sys
 from dataclasses import dataclass
@@ -71,65 +72,210 @@ def sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def scan(cfg) -> dict:
+# ---------------------------------------------------------------- 読み直さないための控え
+
+def cache_path(cfg) -> Path:
+    """ハッシュ値の控え（`~/.cache/octavo/hashes/`。消してもよい）。
+
+    大きさと更新時刻が前に読んだときと同じファイルは、読み直さずに済ませるためのもの。
+    マシンごとの時刻が入るので、プロジェクト（git）には置かない。
+    """
+    base = os.environ.get('XDG_CACHE_HOME') or (Path.home() / '.cache')
+    name = hashlib.sha256(str(Path(cfg.root).resolve()).encode('utf-8')).hexdigest()[:16]
+    return Path(base) / 'octavo' / 'hashes' / f'{name}.json'
+
+
+class Cache:
+    """{絶対パス: [大きさ, 更新時刻(ns), sha256]}。fast のときだけ信じ、いつも書き足す。"""
+
+    def __init__(self, cfg, fast: bool):
+        self.path, self.fast, self.dirty = cache_path(cfg), fast, False
+        try:
+            d = json.loads(self.path.read_text(encoding='utf-8'))
+            self.data = d if isinstance(d, dict) else {}
+        except (OSError, ValueError):
+            self.data = {}
+        self.seen: dict = {}
+
+    def entry(self, p: Path) -> dict:
+        st = p.stat()
+        k = str(p)
+        old = self.data.get(k)
+        if self.fast and isinstance(old, list) and len(old) == 3 \
+                and old[0] == st.st_size and old[1] == st.st_mtime_ns:
+            digest = old[2]
+        else:
+            digest = sha256(p)
+        self.seen[k] = [st.st_size, st.st_mtime_ns, digest]
+        if self.seen[k] != old:
+            self.dirty = True
+        return {'sha256': digest, 'bytes': st.st_size}
+
+    def save(self) -> None:
+        if not (self.dirty or set(self.seen) != set(self.data)):
+            return
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps(self.seen), encoding='utf-8')
+        except OSError:
+            pass                      # 控えが書けなくても、判定は変わらない
+
+
+# ---------------------------------------------------------------- 中身を読む
+
+def counted(cfg, rel: str) -> bool:
+    """この相対パス（data/ から）を記録に入れるか。
+
+    `.` で始まるものと HASHES.json 自身は数えない。`data_hash_derived: False` なら、
+    分析が作り直せる data/derived/ も数えない。
+    """
+    parts = rel.split('/')
+    if parts[-1] == MANIFEST_NAME and len(parts) == 1:
+        return False
+    if any(part.startswith('.') for part in parts):
+        return False
+    return cfg['data_hash_derived'] or parts[0] != 'derived'
+
+
+def scan(cfg, fast: bool = False, cache: Cache | None = None) -> dict:
     """data/ の中身を {相対パス: {sha256, bytes}} にする。
 
-    `.` で始まるものと HASHES.json 自身は数えない。
+    fast: 大きさと更新時刻が前に読んだときと同じファイルは読み直さない（octavo check 用。
+    数 GB のデータを毎回読まないため）。octavo data hash / status は全部読む。
     """
     root = data_dir(cfg)
     if not root.is_dir():
         return {}
+    own = cache or Cache(cfg, fast)
     out: dict = {}
     for p in sorted(root.rglob('*')):
         if not p.is_file():
             continue
         rel = p.relative_to(root).as_posix()
-        if p.name == MANIFEST_NAME or any(part.startswith('.')
-                                          for part in rel.split('/')):
-            continue
-        out[rel] = {'sha256': sha256(p), 'bytes': p.stat().st_size}
+        if counted(cfg, rel):
+            out[rel] = own.entry(p.resolve())
+    if cache is None:
+        own.save()
     return out
+
+
+def input_files(cfg) -> dict:
+    """{入力の名前: {相対パス: Path}}。**deps に書いた入力のファイルだけ**。
+
+    入力のフォルダー全体は読まない（共有ドライブのデータ置き場は大きく、ほとんどは
+    このプロジェクトに関係がない）。
+    """
+    from . import analysis as anamod
+    from . import inputs as inputmod
+    known = inputmod.declared(cfg)
+    out: dict = {name: {} for name in known}
+    if not known:
+        return out
+    for u in anamod.units(cfg):
+        for p in u.deps:
+            for name, inp in known.items():
+                try:
+                    rel = Path(p).relative_to(inp.path).as_posix()
+                except ValueError:
+                    continue
+                out[name][rel] = Path(p)
+                break
+    return out
+
+
+def scan_inputs(cfg, fast: bool = False, cache: Cache | None = None) -> dict:
+    """{名前: {'path': 設定に書いた場所, 'commit': …, 'files': {相対パス: {sha256, bytes}}}}。"""
+    from . import inputs as inputmod
+    known = inputmod.declared(cfg)
+    own = cache or Cache(cfg, fast)
+    out: dict = {}
+    for name, files in input_files(cfg).items():
+        row = {'path': known[name].declared, **inputmod.commit(known[name].path),
+               'files': {rel: own.entry(p) for rel, p in sorted(files.items())
+                         if p.is_file()}}
+        out[name] = row
+    if cache is None:
+        own.save()
+    return out
+
+
+def _manifest(cfg) -> dict:
+    try:
+        d = json.loads(manifest_path(cfg).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return {}
+    return d if isinstance(d, dict) else {}
 
 
 def read(cfg) -> tuple:
     """(記録した日時, {相対パス: {...}}) を返す。なければ ('', {})。"""
-    try:
-        d = json.loads(manifest_path(cfg).read_text(encoding='utf-8'))
-    except (OSError, ValueError):
-        return '', {}
-    if not isinstance(d, dict) or not isinstance(d.get('files'), dict):
+    d = _manifest(cfg)
+    if not isinstance(d.get('files'), dict):
         return '', {}
     return str(d.get('_recorded', '')), d['files']
 
 
+def read_inputs(cfg) -> dict:
+    """記録にある入力（{名前: {'path', 'commit', 'files'}}）。"""
+    got = _manifest(cfg).get('inputs')
+    if not isinstance(got, dict):
+        return {}
+    return {k: v for k, v in got.items()
+            if isinstance(v, dict) and isinstance(v.get('files'), dict)}
+
+
 def write(cfg) -> tuple:
-    """いまの中身を記録して (件数, パス) を返す。"""
-    files = scan(cfg)
+    """いまの中身を記録して (件数, パス) を返す。入力のファイルも数に入る。"""
+    cache = Cache(cfg, False)
+    files = scan(cfg, cache=cache)
+    inputs = scan_inputs(cfg, cache=cache)
+    cache.save()
     p = manifest_path(cfg)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(
-        {'_recorded': datetime.now().isoformat(timespec='seconds'),
-         '_note': NOTE['ja' if cfg['lang'] == 'ja' else 'en'],
-         'files': files}, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
-    return len(files), p
+    body = {'_recorded': datetime.now().isoformat(timespec='seconds'),
+            '_note': NOTE['ja' if cfg['lang'] == 'ja' else 'en'],
+            'files': files}
+    if inputs:
+        body['inputs'] = inputs
+    p.write_text(json.dumps(body, ensure_ascii=False, indent=1) + '\n', encoding='utf-8')
+    return len(files) + sum(len(v['files']) for v in inputs.values()), p
 
 
-def compare(cfg) -> list:
-    """記録といまの中身の食い違い。記録がなければ空を返す（未記録は別に扱う）。"""
-    _, recorded = read(cfg)
-    if not recorded:
+def recorded_anything(cfg) -> bool:
+    return bool(read(cfg)[1] or read_inputs(cfg))
+
+
+def compare(cfg, fast: bool = False) -> list:
+    """記録といまの中身の食い違い。記録がなければ空を返す（未記録は別に扱う）。
+
+    入力のファイルは `名前:相対パス` で並ぶ。
+    """
+    if not recorded_anything(cfg):
         return []
-    now = scan(cfg)
+    _, recorded = read(cfg)
+    recorded = {rel: v for rel, v in recorded.items() if counted(cfg, rel)}
+    cache = Cache(cfg, fast)
+    now = scan(cfg, cache=cache)
+    now_in = scan_inputs(cfg, cache=cache)
+    cache.save()
     out: list = []
-    for rel in sorted(recorded):
-        if rel not in now:
-            out.append(Drift('missing', rel))
-        elif now[rel]['sha256'] != recorded[rel].get('sha256'):
-            out.append(Drift('changed', rel,
-                             f"{recorded[rel].get('bytes', 0):,} -> "
-                             f"{now[rel]['bytes']:,} bytes"))
-    for rel in sorted(set(now) - set(recorded)):
-        out.append(Drift('untracked', rel))
+
+    def diff(was: dict, got: dict, prefix: str = '') -> None:
+        for rel in sorted(was):
+            if rel not in got:
+                out.append(Drift('missing', prefix + rel))
+            elif got[rel]['sha256'] != was[rel].get('sha256'):
+                out.append(Drift('changed', prefix + rel,
+                                 f"{was[rel].get('bytes', 0):,} -> "
+                                 f"{got[rel]['bytes']:,} bytes"))
+        for rel in sorted(set(got) - set(was)):
+            out.append(Drift('untracked', prefix + rel))
+
+    diff(recorded, now)
+    was_in = read_inputs(cfg)
+    # 宣言から外した入力の記録は比べない（もう使っていない）
+    for name in sorted(now_in):
+        diff(was_in.get(name, {}).get('files', {}), now_in[name]['files'], f'{name}:')
     return out
 
 
@@ -208,14 +354,21 @@ def run(cfg, action: str = 'status', files: list | None = None) -> int:
         return 0
 
     recorded_at, recorded = read(cfg)
-    if not recorded:
+    if not recorded_anything(cfg):
         print(t('Nothing recorded yet. Make it with: octavo data hash'))
         n = len(scan(cfg))
         print('  ' + t('files under data/ right now: {n}', n=n))
         return 0
 
     drift = compare(cfg)
-    print(t('Recorded {when}: {n} {n|file|files}', when=recorded_at, n=len(recorded)))
+    was_in = read_inputs(cfg)
+    print(t('Recorded {when}: {n} {n|file|files}', when=recorded_at,
+            n=len(recorded) + sum(len(v['files']) for v in was_in.values())))
+    for name, row in sorted(was_in.items()):
+        print('  ' + t('input {name}: {n} {n|file|files}', name=name, n=len(row['files']))
+              + (' · ' + t('commit {commit}', commit=str(row['commit'])[:12])
+                 if row.get('commit') else '')
+              + ('  ' + t('(with uncommitted changes)') if row.get('modified') else ''))
     if not drift:
         print(t('No drift. This is the same data as when it was recorded'))
         return 0

@@ -184,17 +184,30 @@ def collect(cfg, anonymous: bool = False) -> list:
     wr = writingmod.collect(Path(cfg.root))
     if wr['packs']:
         warns = list(wr['warnings'])
+        reread = []
         for d in cfg.documents.values():
             if d.exists():
                 try:
                     warns += [f'{d.name}: {w}' for w in writingmod.select(cfg, d)['warnings']
                               if w not in wr['warnings']]
+                    fl = writingmod.flag_report(cfg, d)
+                    warns += [w for w in fl['warnings'] if w not in warns]
+                    if fl['count']:
+                        reread.append((d.name, fl['count']))
                 except SystemExit as e:
                     warns.append(f'{d.name}: {e.code}')
         items.append(Item(
             ok=not warns, fatal=False, label=t('writing rules'),
             detail='; '.join(warns) if warns else t('{n} {n|pack|packs}: {names}', n=len(wr['packs']),
                                                     names=', '.join(p['name'] for p in wr['packs']))))
+        # ルールの Flag に当たった行は「読み直す所」で、誤りではない（正しい使い方にも当たる）。
+        # 件数だけを知らせ、--strict でも止めない。一覧は octavo writing --flags
+        if reread:
+            items.append(Item(
+                ok=True, fatal=False, label=t('places to reread'),
+                detail='; '.join(t('{doc}: {n} {n|line matches|lines match} a Flag of the writing rules '
+                                   '(octavo writing --for {doc} --flags)', doc=name, n=n)
+                                 for name, n in reread)))
     # -- 分析 ---------------------------------------------------------------
     # 分析のないプロジェクト（スライドだけ、など）には分析の行を出さない
     rows = anamod.status(cfg) if cfg['analysis'] else []
@@ -207,6 +220,15 @@ def collect(cfg, anonymous: bool = False) -> list:
                    else t('{n|the one is|all # are} up to date', n=len(rows)),
             lines=[anamod.key(cfg, u) for u in stale],
             hint='octavo analysis run'))
+
+        gone = anamod.unmatched(cfg)
+        if gone or any(u.deps for u, _, _ in rows):
+            items.append(Item(
+                ok=not gone, fatal=False, label=t('analysis inputs'),
+                detail=t('{n} of the deps {n|matches|match} no file', n=len(gone)) if gone
+                       else t('every one of the deps matches a file'),
+                lines=[f'{k}: {anamod.unmatched_note(d, why)}' for k, d, why in gone],
+                hint=t('check the spelling, or run the analysis that makes the file')))
 
         orphans = anamod.orphan_results(cfg)
         items.append(Item(
@@ -381,12 +403,14 @@ def collect(cfg, anonymous: bool = False) -> list:
     # -- データのハッシュ値 -------------------------------------------------------
     if dataset.data_dir(cfg).is_dir():
         recorded_at, recorded = dataset.read(cfg)
-        drift = dataset.compare(cfg)
+        has_record = dataset.recorded_anything(cfg)
+        # 大きさと更新時刻が前に読んだときと同じファイルは読み直さない（数 GB を毎回読まない）
+        drift = dataset.compare(cfg, fast=True)
         items.append(Item(
-            ok=bool(recorded) and not drift, fatal=False, label=t('data fingerprints'),
+            ok=has_record and not drift, fatal=False, label=t('data fingerprints'),
             detail=(t('nothing recorded ({n} {n|file|files} under data/)',
-                      n=len(dataset.scan(cfg)))
-                    if not recorded else
+                      n=len(dataset.scan(cfg, fast=True)))
+                    if not has_record else
                     (t('{n} {n|differs|differ} from the record', n=len(drift)) if drift
                      else t('matches the record from {when} ({n} {n|file|files})',
                             when=recorded_at, n=len(recorded)))),

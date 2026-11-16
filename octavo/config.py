@@ -98,6 +98,14 @@ DEFAULTS: dict = {
     #   'analysis': [{'src': 'analysis/main.qmd', 'deps': ['data/*.csv']}],
     'analysis': [],
     'analysis_deps': [],           # 全部の .qmd に共通の依存（データ等）
+    # ほかのプロジェクトやフォルダーのデータを、名前を付けて入力にする（読むだけ）。
+    #   'inputs': {'prep': '../survey-prep'},
+    # .qmd では ov_input('prep', 'data/derived/x.parquet')、deps では 'prep:data/derived/x.parquet'。
+    # 場所がマシンごとに違うときは、環境変数 OCTAVO_INPUT_PREP で差し替える。
+    'inputs': {},
+    # data/HASHES.json に data/derived/ も記録するか。分析が作り直すたびに「中身が違う」と
+    # 出るのが煩わしければ False（記録するのは data/raw/ と入力だけになる）。
+    'data_hash_derived': True,
     'analysis_to': None,           # quarto render --to（None なら .qmd 任せ）
     'analysis_args': [],           # Quarto に渡す追加の引数
     'analysis_auto': True,         # octavo build のとき、古ければ自動で実行する
@@ -819,6 +827,10 @@ class Config:
                   'lint_accepted', 'anonymous_drop_meta', 'replication_exclude'):
             if not isinstance(v[k], (list, tuple)):
                 sys.exit(t('{key} must be a list (got {got})', key=k, got=repr(v[k])))
+        from . import inputs as inputmod
+        wrong = inputmod.problems(self)
+        if wrong:
+            sys.exit('\n'.join(wrong))
 
     def describe(self) -> str:
         v = self._v

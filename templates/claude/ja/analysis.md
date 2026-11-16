@@ -144,6 +144,25 @@ octavo data status    # 記録と食い違っていないか
 `data/` は git に入らないので、`data/HASHES.json` が「そのとき使ったデータ」の
 唯一の記録になる。**差し替えた覚えがないのに食い違うなら、原データが書き換えられている。**
 
+## ほかのプロジェクトやフォルダーのデータ
+
+いくつものプロジェクトで使うデータは、複製しない。`.qmd` から `../` で始まるパスで読むこともしない。
+`octavo.config.py` に名前を付けて入力として宣言し（`'inputs': {'prep': '../survey-prep'}`）、
+`.qmd` では `ov_input("prep", "data/derived/panel.parquet")` で読み、`deps` に
+`'prep:data/derived/panel.parquet'` と書く（そこが変われば分析がやり直される）。
+
+```bash
+octavo data inputs    # 宣言した入力: どこにあるか、あるかどうか
+```
+
+- **入力には書かない。** このプロジェクトが作るものは、自分の `data/derived/` に置く
+- **相手のプロジェクトの分析をここから実行しない。** 相手のファイルも直さない。
+  `octavo analysis` が相手の分析が古いと言ったら、利用者に伝える
+- フォルダーがこの機械では別の場所にあるなら、利用者が `OCTAVO_INPUT_<NAME>` を設定する。
+  通すために設定の場所を書き換えない
+- どのファイルにも当たらない `deps` は、`octavo analysis` と `octavo check` が知らせる。
+  名前を直すか、そのファイルを作る分析を実行する。項目を消して済ませない
+
 ## 分析でやらないこと
 
 - **`assets/values/*.json`・`assets/tables/`・`assets/figures/` を手で書き換えない。**

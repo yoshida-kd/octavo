@@ -115,8 +115,8 @@ Bad: Staff numbers fell, but at different speeds across municipalities, which �
 
 ### 2.2 ルール
 
-ルールの項目は、書いたとおりに出る。Octavo はどの行も読み取らない。下の行は、アシスタントに伝えてある
-決まり（AGENTS.md の「各ルールの Rule に従う」）。
+ルールの項目は、書いたとおりに出る。Octavo が読み取るのは `Flag:` の行だけ（下）。ほかの行は、
+アシスタントに伝えてある決まり（AGENTS.md の「各ルールの Rule に従う」）。
 
 | 英語 | 日本語 | |
 |---|---|---|
@@ -124,8 +124,28 @@ Bad: Staff numbers fell, but at different speeds across municipalities, which �
 | `Why:` | `理由:` | なぜか。ルールが想定していない場合にアシスタントが判断できるように |
 | `Good:` | `良い例:` | ルールに沿った例 |
 | `Bad:` | `悪い例:` | ルールに反する例 |
+| `Flag:` | `検出:` | 正規表現。当たった原稿の行が、読み直す所として一覧に出る |
 
 ほかの行（`Source:` や自分のメモ）も、そのまま出る。
+
+**`Flag:`** は、語が出ている所でしか確かめられないルールのためのもの（"effect"、"significant"、
+"Moreover," で始まる文など）。
+
+```markdown
+## "Effect" for a causal estimate only
+
+Rule: Write "effect" only where the design identifies one; otherwise "association" or "difference".
+Flag: \beffects?\b
+Flag: (?i)\bimpacts?\b
+```
+
+- 1行に正規表現を1つ。`Flag:` の行は何行書いてもよい。書き方は Python の `re`。大文字と小文字は
+  区別する（区別しないなら頭に `(?i)`）。原稿の1行ごとに当てるので、`^` は行の頭（1文1行で
+  書いていれば文の頭）。Markdown で書いたとおりに見えるよう、`` ` `` で囲んでもよい。
+- `section:` のあるファイルのルールは、その節の行にだけ当てる。
+- 見出し、コード、コメント、別行立ての数式、`{{値}}`、引用とラベル（`@key`、`{#sec-x}`）、リンクの先には
+  当てない。
+- 当たった所は**読み直す所で、誤りではない**。正しい使い方にも当たる。一覧の出し方は 5.3。
 
 ### 2.3 フレーズ
 
@@ -159,10 +179,15 @@ Source: own
 | `- Open:` / `- Body:` / `- Close:` | （同じ） | そのまま出す。段落の中の位置つきの型になる（`--json` の `position`） |
 | ほかの箇条書き `- ` | | そのまま出す。位置のない型になる |
 | `Contains:` | | そのまま出す。`--json` の `contains` にもなる |
+| `Repeat: yes` | `繰り返し: yes` | そのまま出す。この種類の段落は続くのがふつうなので、続いても一覧は注を付けない（5.1） |
 | ほかの行 | | そのまま出すだけで、読み取らない |
 
 行の名前は行の頭で、`:` か `：` が続くときに当たる。箇条書きの型は、`octavo outline --paragraphs` が
 本文の中から探すものになる（5.1）。
+
+項目が**1つの段落の中の文の順**になっているフレーズのファイル（要旨: 問い、根拠、結果、意義）は、
+冒頭に `entries: sentences` と書く。その項目は段落の種類ではないので、ある節のフレーズのファイルが
+どれもそうなら、一覧はその節の段落に種類を求めない。
 
 ---
 
@@ -222,6 +247,7 @@ sentence` → `one-claim-per-sentence`。同じ見出しの2つ目は `-2` が�
 |---|---|
 | `section:` がない | いつも |
 | `section: results` | 結果の節を書くときだけ |
+| `section:` がなく、`--section-only` を付けた | 読まない（最初の節で読んである） |
 | 原稿に合わない `applies:` | その原稿では読まない |
 | 原稿と違う `lang:` | その原稿では読まない |
 
@@ -232,7 +258,7 @@ sentence` → `one-claim-per-sentence`。同じ見出しの2つ目は `-2` が�
 ### 3.4 行の節の決まり方
 
 アシスタントが行を指して聞く（`--file … --line …`）と、Octavo はその行のすぐ上の見出しから浅い見出しへ
-さかのぼり、節の名前に当たる最初の見出しを使う。1つの見出しの中では、先に出てくる言葉が勝つ（`Results
+さかのぼり、節の名前に当たる最初の見出しを使う。見出しは、ラベルか言葉で節に当たる。1つの見出しの中では、先に出てくる言葉が勝つ（`Results
 and robustness` → `results`）。パックが足した節は、組み込みの節より先に見る。`{.appendix}` の付いた
 見出しとその後ろ、付録のファイルは `appendix`。
 
@@ -251,16 +277,30 @@ and robustness` → `results`）。パックが足した節は、組み込みの
 パックが足した節（`sections: [puzzle]`）は、その名前の言葉で当たる（`puzzle`。`case-selection` なら
 「case selection」）。どの節にも当たらない見出しの下では、`section:` のないファイルだけを読む。
 
+**節の主張を言う見出し**には、これらの言葉が入らない。そのときは、ラベルで節を言う。ラベルは
+言葉より先に見る。
+
+```markdown
+# Adding Capacity When the Volume of Work Rises {#sec-literature}
+```
+
+`{#sec-literature}`、`{#sec-literature-2}`、`{#sec-intro}` のような短い形は、どれもその節になる。
+ほかのラベルは、見出しの言葉と同じに読む（`{#sec-data}` → `design`）。行の見出しから節が決まらない
+ときは、`octavo writing --file … --line …` がそう知らせる（黙っていると、その節のルールとフレーズが
+抜けたままになる）。`--section NAME` で節を手で言える。
+
 ### 3.5 読まれるものを見る
 
 ```bash
 octavo writing --for my-paper
 octavo writing --for my-paper --section results --print
+octavo writing --for my-paper --section discussion --section-only --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 ```
 
 1つ目は原稿が使うパックとファイルの一覧。`--print` を付けると重ねた本文が出る。これがアシスタントの
-読むもの。`--all` ならすべての節。VS Code では、原稿にカーソルを置いて「**カーソルの所のルールを見る**」
+読むもの。`--all` ならすべての節。`--section-only` を付けると、`section:` のないファイル（分量の
+大半で、どの節でも同じ）を除くので、別の節に移ったときに、その節で加わる分だけが出る。VS Code では、原稿にカーソルを置いて「**カーソルの所のルールを見る**」
 （エディターの右クリック、またはサイドバーの原稿の「**文章のルール**」）。
 
 ---
@@ -290,12 +330,27 @@ Divisions whose composition of work had shifted more were redrawn more often (@t
 - **印の前には空行を入れる。** 本文の行のすぐ後に印を書くと、pandoc はそれを上の段落の一部として読み、
   2つの段落がつながる。
 - 印はコメントなので、PDF にもスライドにも Word にも出ない。
+- **1つの主張を2〜3段落で書くとき**（"First, … / Second, …" を段落に分けた、表のあとに段落が続く）は、
+  後ろの段落に `<!-- para: + -->` を付ける。同じ見出しの下の、すぐ上の印の続きになり、その種類を
+  引き継ぐ。主張を足してもよい（`<!-- para: + | 主張 -->`）。
+
+```markdown
+<!-- para: field/theory#the-mechanism | Shifts in work make the old divisions costly -->
+First, a division built for one kind of work ...
+
+<!-- para: + -->
+Second, the people who know the old work ...
+```
+
+- 印は、引用（`> **H1.** …` のような仮説の表示）や箇条書きの上にも置ける。そのときは、その塊を段落として
+  数える。印がなければ、引用や箇条書きは段落に数えない。
 
 ### 4.2 段階ごとのコマンド
 
 | 段階 | コマンド | 出るフレーズ |
 |---|---|---|
 | 節の構成を決める | `octavo writing --for DOC --section S --print` | その節の種類すべて（選ぶため） |
+| 別の節に移る | `octavo writing --for DOC --section S --section-only --print` | その節のファイルだけ（もう読んだルールとフレーズは出ない） |
 | 段落を1つ書く | 印の行で `octavo writing --file F --line N --print` | その種類の項目だけ |
 | 種類を直接言う | `octavo writing --for DOC --kind field/results#the-main-result --print` | その項目 |
 
@@ -311,6 +366,7 @@ Divisions whose composition of work had shifted more were redrawn more often (@t
 
 ```bash
 octavo outline my-paper --paragraphs
+octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
 
 で、見出しごとに各段落の種類・主張・本文の最初の文が並ぶ。本文が構成表どおりのことを言っているかを
@@ -318,12 +374,17 @@ octavo outline my-paper --paragraphs
 
 | 印 | 意味 |
 |---|---|
-| 種類なし | 印のない本文の段落か、種類のない印 |
+| 種類なし | 印のない本文の段落か、種類のない印（フレーズが `entries: sentences` の節では付けない。2.3） |
+| 続きの相手がない | 同じ見出しの下で、上に印がない `<!-- para: + -->` |
 | 不明な種類 | 選んだパックのどれにもない種類（近い名前を出す） |
 | この原稿では使わない種類 | 種類はあるが、そのファイルの `applies` か `lang` が合わないか、外してある |
 | 本文がまだない | 下に段落のない印 |
 | 印の前に空行が要る | 本文の行のすぐ後にある印 |
-| 同じ種類の段落が3つ目 | 注意だけ。1つの見出しの下で同じ種類が3つ続いた（2つ続くのはふつう） |
+| 同じ種類の段落が3つ目 | 注意だけ。1つの見出しの下で同じ種類が3つ続いた（2つ続くのはふつう）。`+` の段落は、続きの相手と合わせて1つに数える。`Repeat: yes` のある種類には付けない |
+
+`--contains` を付けると、各段落の下に、その種類の `Contains:` の行が添えられる。書いたあとで段落と
+照らすため（それぞれが入っているか）。Octavo は並べるだけで、照合はしない。`--lines 60-120` は、
+その行の範囲の段落だけにする（節ごとに点検するとき）。
 
 1つの見出しの下で同じ型が2回使われていれば、それも知らせる。型が使われたと見なすのは、〈 〉の外の
 言葉がすべて、1つの文の中に同じ順で出るとき（`〈A / B〉` はどれか1つ）。大文字で始まる型は文の頭で、
@@ -342,6 +403,16 @@ octavo outline my-paper --paragraphs
 `octavo outline … --paragraphs` が問いを行番号つきで並べ、`octavo check` は答えて消すまで「**著者への
 問い**」を警告として出す。
 
+### 5.3 読み直す所
+
+```bash
+octavo writing --for my-paper --flags
+```
+
+ルールの `Flag:`（2.2）に当たった原稿と付録の行を、ルールごとに行番号つきで並べる。1つずつルールと
+照らして読む。たいていは問題ない。`octavo check` は件数だけを出し（「**読み直す所**」）、警告には
+しない。`--strict` でも止まらない。`--for` の代わりに `--file F` と書けば、そのファイルだけ。
+
 ---
 
 ## 6. アシスタントに使わせる
@@ -358,8 +429,8 @@ octavo migrate --rules
 - **サイドバー**：各原稿の「**文章のルール**」に、その原稿が使うパックと、そのファイル・項目が並ぶ。
   「**パックを選ぶ…**」でその原稿の `writing:` を決め、項目を右クリックして外したり戻したりできる。
   「**カーソルの所のルールを見る**」で、アシスタントがカーソルの所で読むものが見られる。
-- パックがあると、`octavo check` に「**文章のルール**」の行が出る。不明なパック名・節名と、何にも
-  当たらない `writing_off` を知らせる。
+- パックがあると、`octavo check` に「**文章のルール**」の行が出る。不明なパック名・節名、何にも
+  当たらない `writing_off`、正規表現になっていない `Flag:` を知らせる。
 
 ---
 

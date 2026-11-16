@@ -215,7 +215,11 @@ the sections are abstract, introduction, literature, theory, design, results, di
 conclusion, appendix and any a pack adds). It gives the packs the manuscript uses (setting
 `writing`, or `writing:` at the top of the manuscript), general first, with the files for
 other kinds of document, other languages and other sections, and the items turned off
-(`writing_off`), already left out. Run it again when you move on to another section.
+(`writing_off`), already left out. When you move on to another section, run it again with
+`--section-only`: it prints only that section's files, without the rules and phrases for every
+section that you have already read (they still apply). If it says a heading names no section,
+the section's rules and phrases are missing from what it printed: run it again with
+`--section <section>`, and propose labelling the heading `{#sec-<section>}`.
 
 - Follow each rule's Rule. When a sentence does not, propose a fix and name the rule
 - Where two items disagree, the later one in the output wins (it is the more specific pack)
@@ -223,6 +227,9 @@ other kinds of document, other languages and other sections, and the items turne
   context; most sentences need none. Do not add a sentence only because a kind of paragraph has
   a line for it
 - Do not edit the rule and phrase files unless asked (the user refines them elsewhere)
+- After drafting or revising, run `octavo writing --for <document> --flags`: it lists the lines
+  where a word some rule is about appears (the rule's `Flag:`). Read each against its rule; a
+  match is a place to reread, not an error, so do not rewrite a correct use to clear the list
 
 ### The paragraph plan
 
@@ -236,11 +243,19 @@ one mark per paragraph, directly above the paragraph, with its kind (an entry of
 - A mark may stand alone before its paragraph is written (that is the plan). The paragraph's
   text starts on the line right after the mark; leave a blank line before the mark
 - `octavo writing --file … --line …` on a marked paragraph prints only that kind's phrases
+- When one claim takes two or three paragraphs (a "First, … / Second, …" set apart, or a paragraph
+  that goes on after a table or figure), mark the later ones `<!-- para: + -->`: each continues
+  the mark above it and takes its kind. A mark may also stand above a quotation (`> **H1.** …`)
 - `octavo outline <document> --paragraphs` lists each paragraph's kind, claim and first sentence,
   and marks paragraphs without a kind, unknown kinds, marks with no text yet and a phrase-bank
   line used twice under one heading. Check it after drafting: the first sentence should say what
   the claim says. Several paragraphs of the same kind in a row are normal (it notes only the
-  third): keep the kind that fits rather than switching to one that does not
+  third, and never for a kind whose entry says `Repeat: yes`): keep the kind that fits rather
+  than switching to one that does not. Where a section's phrases are the sentences of one
+  paragraph (an abstract), its paragraphs need no kind
+- After drafting a section, run `octavo outline <document> --paragraphs --contains --lines <from>-<to>`
+  and read each paragraph against the `Contains:` of its kind: add what is missing, or say why
+  it does not apply
 - When the text needs a number or a source that is in neither the manuscript nor the analysis,
   don't guess or write around it: leave `<!-- ask: what you need -->` at that place, write no
   sentence there, and tell the author. `octavo outline … --paragraphs` and `octavo check` list

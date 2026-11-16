@@ -116,8 +116,8 @@ Bad: Staff numbers fell, but at different speeds across municipalities, which �
 
 ### 2.2 Rules
 
-A rule entry is printed as it is written; Octavo reads none of its lines. The lines below are the
-convention the assistant is told about (AGENTS.md: "follow each rule's Rule").
+A rule entry is printed as it is written; Octavo reads only its `Flag:` lines (below). The other lines
+are the convention the assistant is told about (AGENTS.md: "follow each rule's Rule").
 
 | English | Japanese | |
 |---|---|---|
@@ -125,8 +125,30 @@ convention the assistant is told about (AGENTS.md: "follow each rule's Rule").
 | `Why:` | `理由:` | why, so the assistant can judge a case the rule did not foresee |
 | `Good:` | `良い例:` | an example that follows it |
 | `Bad:` | `悪い例:` | an example that breaks it |
+| `Flag:` | `検出:` | a regular expression; the manuscript lines it matches are listed as places to reread |
 
 Any other line (a `Source:`, a note of your own) is printed too.
+
+**`Flag:`** is for a rule about a word that can only be checked where the word appears ("effect",
+"significant", a sentence opening with "Moreover,").
+
+```markdown
+## "Effect" for a causal estimate only
+
+Rule: Write "effect" only where the design identifies one; otherwise "association" or "difference".
+Flag: \beffects?\b
+Flag: (?i)\bimpacts?\b
+```
+
+- One regular expression per line, as many `Flag:` lines as needed; Python's `re` syntax. Upper and
+  lower case differ unless the expression starts with `(?i)`. It is tried on each line of the
+  manuscript, so `^` is the start of a line (with one sentence per line, the start of a sentence).
+  It may be wrapped in `` ` `` so that Markdown shows it as written.
+- A rule in a file with `section:` flags only lines of that section.
+- Headings, code, comments, display math, `{{values}}`, citations and labels (`@key`, `{#sec-x}`) and
+  link targets are not searched.
+- A match is **a place to reread, not an error**: the word is flagged wherever it appears, right or
+  wrong. The list is in 5.3.
 
 ### 2.3 Phrases
 
@@ -160,10 +182,16 @@ Source: own
 | `- Open:` / `- Body:` / `- Close:` | (the same) | printed; each is a frame with its place in the paragraph (`position` in `--json`) |
 | `- ` any other list item | | printed; a frame with no place |
 | `Contains:` | | printed; also `contains` in `--json` |
+| `Repeat: yes` | `繰り返し: yes` | printed; paragraphs of this kind normally follow one another, so the outline does not note a run of them (5.1) |
 | any other line | | printed as it is; not read |
 
 The field names are matched at the start of a line, with `:` or `：`. Frames — the list items — are
 what `octavo outline --paragraphs` looks for in the text (5.1).
+
+A phrase file whose entries are **the sentences of one paragraph, in order** (an abstract: the
+question, the evidence, the finding, why it matters) says so at the top with `entries: sentences`.
+Its entries are not kinds of paragraph, so where every phrase file for a section says this, the outline
+does not ask that section's paragraphs for a kind.
 
 ---
 
@@ -225,6 +253,7 @@ entry → **Turn Off for This Manuscript**.
 |---|---|
 | no `section:` | always |
 | `section: results` | only when writing the results section |
+| no `section:`, with `--section-only` | left out (it was read at the first section) |
 | `applies:` not matching the manuscript | never for this manuscript |
 | `lang:` other than the manuscript's | never for this manuscript |
 
@@ -235,7 +264,8 @@ What kind of document a manuscript is comes from its outputs: a paper or a hando
 ### 3.4 The section of a line
 
 When the assistant asks for a line (`--file … --line …`), Octavo goes up from the nearest heading
-above it to shallower ones and takes the first heading that names a section. Within a heading, the
+above it to shallower ones and takes the first heading that names a section. A heading names a
+section by its label or by its words. Within a heading, the
 word that comes first wins (`Results and robustness` → `results`). A pack's own sections are tried
 before the built-in ones. A heading with `{.appendix}`, anything after it, and the appendix file are
 `appendix`.
@@ -255,16 +285,31 @@ before the built-in ones. A heading with `{.appendix}`, anything after it, and t
 A section a pack adds (`sections: [puzzle]`) is named by its own words (`puzzle`; `case-selection`
 matches "case selection"). A heading that names no section reads only the files with no `section:`.
 
+**A heading that says what the section argues** has none of these words. Give it the section as its
+label, which comes first:
+
+```markdown
+# Adding Capacity When the Volume of Work Rises {#sec-literature}
+```
+
+`{#sec-literature}`, `{#sec-literature-2}` and a shortening such as `{#sec-intro}` all name the
+section; any other label is read like the heading's words (`{#sec-data}` → `design`). When a line's
+heading names no section, `octavo writing --file … --line …` says so — otherwise the section's rules
+and phrases would be missing without a word — and `--section NAME` gives the section by hand.
+
 ### 3.5 Seeing what is read
 
 ```bash
 octavo writing --for my-paper
 octavo writing --for my-paper --section results --print
+octavo writing --for my-paper --section discussion --section-only --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 ```
 
 The first lists the packs and files a manuscript uses; `--print` prints them layered, which is what the
-assistant reads; `--all` takes every section. In VS Code: put the cursor in the manuscript and run
+assistant reads; `--all` takes every section. `--section-only` leaves out the files with no
+`section:` — the larger part, and the same for every section — so that moving on to another section
+prints only what that section adds. In VS Code: put the cursor in the manuscript and run
 **Show the Rules for Where the Cursor Is** (the editor's right-click menu, or the manuscript's
 **Writing rules** in the sidebar).
 
@@ -295,12 +340,27 @@ Divisions whose composition of work had shifted more were redrawn more often (@t
 - **Leave a blank line before a mark.** A mark right after a line of text is read by pandoc as part of
   the paragraph above, joining the two.
 - Marks are comments: they never reach the PDF, the slides or Word.
+- **One claim over two or three paragraphs** ("First, … / Second, …" set apart, or a paragraph that
+  goes on after a table): mark the later ones `<!-- para: + -->`. Each continues the mark above it
+  under the same heading and takes its kind; a claim of its own is optional (`<!-- para: + | claim -->`).
+
+```markdown
+<!-- para: field/theory#the-mechanism | Shifts in work make the old divisions costly -->
+First, a division built for one kind of work ...
+
+<!-- para: + -->
+Second, the people who know the old work ...
+```
+
+- A mark may stand above a quotation (`> **H1.** …`, a displayed hypothesis) or a list; the block then
+  counts as a paragraph. Without a mark, quotations and lists are not paragraphs.
 
 ### 4.2 Which command for which step
 
 | Step | Command | Phrases printed |
 |---|---|---|
 | planning a section | `octavo writing --for DOC --section S --print` | every kind for that section, to choose from |
+| moving on to another section | `octavo writing --for DOC --section S --section-only --print` | that section's files only, without the rules and phrases already read |
 | writing one paragraph | `octavo writing --file F --line N --print` on its mark | that kind's entry only |
 | naming kinds directly | `octavo writing --for DOC --kind field/results#the-main-result --print` | those entries |
 
@@ -317,6 +377,7 @@ does not use is left out with a warning.
 
 ```bash
 octavo outline my-paper --paragraphs
+octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
 
 lists each paragraph under its heading: the kind, the claim and the first sentence of the text, so you
@@ -324,14 +385,19 @@ can see whether the text says what the plan says. It marks:
 
 | Mark | Meaning |
 |---|---|
-| no kind | a paragraph of text without a mark, or a mark without a kind |
+| no kind | a paragraph of text without a mark, or a mark without a kind (not in a section whose phrases are `entries: sentences`, 2.3) |
+| continues nothing | a `<!-- para: + -->` with no mark above it under its heading |
 | unknown kind | a kind no chosen pack has (a near name is suggested) |
 | a kind this manuscript does not use | the kind exists, but its file's `applies` or `lang` does not match, or it is turned off |
 | no text yet | a mark with no paragraph under it |
 | needs a blank line | a mark right after a line of text |
-| the third in a row | a note: three paragraphs of one kind in a row under one heading (two is normal) |
+| the third in a row | a note: three paragraphs of one kind in a row under one heading (two is normal). A `+` paragraph counts with the one it continues; a kind with `Repeat: yes` is never noted |
 
-and notes a frame used twice under one heading. A frame counts as used when every word outside 〈 〉
+`--contains` adds, under each paragraph, the `Contains:` line of its kind, to read the paragraph
+against after drafting (does it have each part?). Octavo only puts the two side by side.
+`--lines 60-120` keeps the paragraphs in those lines, for checking one section at a time.
+
+The outline also notes a frame used twice under one heading. A frame counts as used when every word outside 〈 〉
 appears in order within one sentence (`〈A / B〉`: one of the words); a frame starting with a capital
 must start the sentence, one ending in `.` must end it; frames with fewer than two fixed words are not
 looked for. Only frames this manuscript uses, of the heading's own section (or of files with no
@@ -348,6 +414,17 @@ assistant is told to leave a question instead of writing around it:
 
 `octavo outline … --paragraphs` lists the questions with their lines, and `octavo check` shows
 **questions for the author** as a warning until each is answered and deleted.
+
+### 5.3 Places to reread
+
+```bash
+octavo writing --for my-paper --flags
+```
+
+lists, rule by rule, the lines of the manuscript and its appendix that a rule's `Flag:` matches (2.2),
+with their line numbers. Read each against its rule; most will be fine. `octavo check` gives only the
+count (**places to reread**), never as a warning, and `--strict` does not fail on it. `--file F` in
+place of `--for` lists one file.
 
 ---
 
@@ -366,8 +443,8 @@ octavo migrate --rules
   entries. **Choose the Packs…** sets `writing:` for that manuscript; right-click an entry to turn it
   off or back on; **Show the Rules for Where the Cursor Is** shows what the assistant reads at the
   cursor.
-- `octavo check` has a **writing rules** row when there are packs: unknown pack and section names, and
-  `writing_off` entries that name nothing.
+- `octavo check` has a **writing rules** row when there are packs: unknown pack and section names,
+  `writing_off` entries that name nothing, and a `Flag:` that is not a regular expression.
 
 ---
 

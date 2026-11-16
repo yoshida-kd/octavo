@@ -10,6 +10,10 @@
 - コメントなので組版には届かない。本文がまだ無い段落もコメントだけで置ける（構成表を先に作るため）
 - 本文の行のすぐ後に（空行を挟まずに）コメントを書くと、pandoc は前の段落とつないでしまう。
   `octavo outline --paragraphs` がそれを知らせる
+- `<!-- para: + -->`（主張を足すなら `<!-- para: + | 主張 -->`）は、同じ見出しの下の直前の印の続き。
+  1つの主張を2〜3段落で書いたとき（"First, … / Second, …"、表や図をはさんだ続き）に使う。
+  種類は前の印のものを引き継ぐ
+- 印の直後が引用（`> …`）や箇条書きでも、印があればその塊を段落として数える（仮説の表示など）
 
 ここでは原稿を段落に分けて、コメントと本文を対応させるだけ。種類が実在するかは
 writing.py のパックと照らす（`kind_index`）。
@@ -25,8 +29,11 @@ PARA_START = re.compile(r'^\s*<!--\s*para\s*:', re.I)
 PARA = re.compile(r'<!--\s*para\s*:(.*?)-->', re.S | re.I)
 POSITION = re.compile(r'^\s*[-*+]\s+(Open|Body|Close)\s*:\s*(.*)$', re.I)
 ITEM = re.compile(r'^\s*[-*+]\s+(.*)$')
-FIELD = re.compile(r'^(When|Note|Source|Contains|場面|注意|出典)\s*[:：]\s*(.*)$')
-FIELD_NAMES = {'場面': 'when', '注意': 'note', '出典': 'source'}
+FIELD = re.compile(r'^(When|Note|Source|Contains|Repeat|場面|注意|出典|繰り返し)\s*[:：]\s*(.*)$')
+FIELD_NAMES = {'場面': 'when', '注意': 'note', '出典': 'source', '繰り返し': 'repeat'}
+# `Repeat: yes`: その種類の段落は続くのがふつう（先行研究の1段落1論点など）。続いても知らせない
+YES = ('yes', 'true', 'ok', 'はい', '可')
+CONTINUES = '+'                 # `<!-- para: + -->`: 前の印の続き
 # 段落ではない塊の頭（構成表の印が無くても数えない）
 NOT_PROSE = re.compile(r'^\s*(?:```|~~~|[-*+]\s|\d+[.)]\s|\||!\[|:\s|\\|\[\^[^\]]*\]:|<|>|\$\$|\{\{<)')
 ABBREV = ('e.g.', 'i.e.', 'et al.', 'cf.', 'vs.', 'etc.', 'Fig.', 'Figs.', 'Eq.', 'No.', 'pp.', 'p.',
@@ -45,6 +52,7 @@ def parse(text: str) -> list:
 
     line / end_line   コメントの行（1から。無ければ None）
     kind / claim      コメントに書いた種類と主張（コメントが無ければ None）
+    continues         `<!-- para: + -->`（前の印の続き）。kind は前の印の種類（前に印が無ければ ''）
     body_line / body_end / body   本文の行と本文（無ければ None / ''）
     prose             本文が文章の段落か（箇条書き・表・図・数式などでない）
     joined            コメントが本文の行の直後にある（pandoc は前の段落とつなぐ）
@@ -76,7 +84,7 @@ def parse(text: str) -> list:
         block, pending = [], None
 
     def new(line, end, kind, claim, joined):
-        return {'line': line, 'end_line': end, 'kind': kind, 'claim': claim,
+        return {'line': line, 'end_line': end, 'kind': kind, 'claim': claim, 'continues': False,
                 'body_line': None, 'body_end': None, 'body': '', 'prose': False,
                 'joined': joined, 'heading': heading[0], 'heading_line': heading[1],
                 'heading_level': heading[2]}
@@ -111,6 +119,11 @@ def parse(text: str) -> list:
             joined = prev_text
             flush()
             pending = new(n, j + 1, kind, claim, joined)
+            if kind == CONTINUES:
+                # 同じ見出しの下の、直前の印（間に表・図・印の無い段落があってよい）
+                lead = next((q for q in reversed(paras)
+                             if q['kind'] is not None and q['heading_line'] == heading[1]), None)
+                pending.update(continues=True, kind=lead['kind'] if lead else '')
             prev_text = False
             i = j + 1
             continue
@@ -193,7 +206,7 @@ def _cut(s: str):
 
 def first_sentence(body: str, limit: int = 240) -> str:
     """本文の最初の文（人が主張と見比べるため。厳密でなくてよい）。"""
-    s = _flat(body)
+    s = _flat('\n'.join(re.sub(r'^\s*(?:>\s?)+', '', ln) for ln in body.split('\n')))
     s = re.sub(r'^(?:[-*+]|\d+[.)])\s+', '', s)
     cut = _cut(s)
     out = s[:cut] if cut else s
@@ -202,15 +215,17 @@ def first_sentence(body: str, limit: int = 240) -> str:
 
 # ---------------------------------------------------------------- フレーズの項目
 def entry_fields(block: str) -> dict:
-    """フレーズの項目（`## 見出し` からの塊）を when / note / source / contains / lines に。
+    """フレーズの項目（`## 見出し` からの塊）を when / note / source / contains / repeat / lines に。
 
     lines は [{'position': 'open'|'body'|'close'|None, 'text': …}]（`- Open: …` の Open など）。
     """
-    out = {'when': '', 'note': '', 'source': '', 'contains': '', 'lines': []}
+    out = {'when': '', 'note': '', 'source': '', 'contains': '', 'repeat': False, 'lines': []}
     for ln in block.split('\n')[1:]:
         f = FIELD.match(ln.strip())
         if f:
-            out[FIELD_NAMES.get(f.group(1), f.group(1).lower())] = f.group(2).strip()
+            name = FIELD_NAMES.get(f.group(1), f.group(1).lower())
+            value = f.group(2).strip()
+            out[name] = value.rstrip('.。').lower() in YES if name == 'repeat' else value
             continue
         p = POSITION.match(ln)
         if p:
@@ -386,31 +401,48 @@ def asks(text: str) -> list:
 
 
 def review(text: str, index: dict, known: list | None = None, appendix: bool = False,
-           every: dict | None = None) -> dict:
+           every: dict | None = None, unplanned: set | None = None) -> dict:
     """原稿の段落を、種類・主張・本文の最初の文と、印（problems）にして並べる。
 
     index は writing.kind_index()、known は節の名前（writing.known_sections()）。
     印は人が見るためのもので、どれも致命的ではない:
-      no-kind       種類の無い段落（印が無い、または種類が空）
+      no-kind       種類の無い段落（印が無い、または種類が空）。unplanned（writing.sentence_sections()。
+                    フレーズが段落の種類でなく文の順になっている節。要旨など）の節では付けない
+      continues-nothing  `<!-- para: + -->` の前に、同じ見出しの下の印が無い
       unknown-kind  パックにない種類（打ち間違い）。near に似た名前
       unused-kind   パックにはあるが、この原稿では使わない種類（applies・lang・writing_off）。
                     every（writing.kind_index(sel, usable=False)）を渡したときだけ
       no-text       本文がまだ無いコメント
       joined        コメントが本文の行の直後（空行が無いので、組むと前の段落とつながる）
-      same-kind     同じ見出しの下で、同じ種類が SAME_RUN 個以上続いた（その3つ目から）
+      same-kind     同じ見出しの下で、同じ種類が SAME_RUN 個以上続いた（その3つ目から）。続きの印は
+                    前の段落と合わせて1つに数え、項目に `Repeat: yes` のある種類では付けない
     repeats は、同じ見出しの下で同じフレーズの行が2回以上使われている所（その節のフレーズだけ）。
     asks は、残っている著者への問い。
     """
+    from . import writing as writingmod
     paras = parse(text)
     rows, prev = [], {}
+    sections: dict = {}
+
+    def planned(p) -> bool:
+        if not unplanned or known is None:
+            return True
+        at = p['heading_line']
+        if at not in sections:
+            sections[at] = writingmod.section_at(text, p['line'] or p['body_line'], known, appendix)[0]
+        return sections[at] not in unplanned
+
     for p in paras:
         if p['kind'] is None and not p['prose']:
             continue
         kind = p['kind'] or ''
         hit = resolve(kind, index) if kind else None
         marks, near = [], []
-        if not kind:
-            marks.append('no-kind')
+        if p['continues'] and not kind:
+            marks.append('continues-nothing')
+        elif not kind:
+            if planned(p):
+                marks.append('no-kind')
         elif hit is None and every is not None and resolve(kind, every):
             marks.append('unused-kind')
         elif hit is None:
@@ -422,13 +454,14 @@ def review(text: str, index: dict, known: list | None = None, appendix: bool = F
             marks.append('joined')
         region = p['heading_line']
         last, run = prev.get(region, (None, 0))
-        run = run + 1 if hit and last == hit else 1
-        if hit and run >= SAME_RUN:
-            marks.append('same-kind')
+        if not (p['continues'] and hit and last == hit):
+            run = run + 1 if hit and last == hit else 1
+            if hit and run >= SAME_RUN and not index[hit].get('repeat'):
+                marks.append('same-kind')
         prev[region] = (hit, run)
         rows.append({'line': p['line'] or p['body_line'], 'body_line': p['body_line'],
-                     'kind': p['kind'], 'id': hit, 'title': index[hit]['title'] if hit else None,
-                     'claim': p['claim'],
+                     'kind': p['kind'], 'continues': p['continues'], 'id': hit, 'title': index[hit]['title'] if hit else None,
+                     'claim': p['claim'], 'contains': index[hit].get('contains', '') if hit else '',
                      'first_sentence': first_sentence(mdlib.strip_comments(p['body'])) if p['body'] else '',
                      'heading': p['heading'], 'heading_line': p['heading_line'],
                      'heading_level': p['heading_level'], 'problems': marks, 'near': near})

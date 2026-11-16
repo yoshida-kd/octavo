@@ -170,6 +170,9 @@ def _bind(sig: tuple, args: list) -> dict | None:
     return bound
 
 
+INPUT_CALL = re.compile(r'''\s*(["'])([A-Za-z][\w-]+)\1\s*(?:,\s*(["'])([^"'\\]+)\3\s*)?\Z''')
+
+
 def _literal(text: str) -> str | None:
     m = LITERAL.match(text)
     return m.group(2) if m else None
@@ -240,6 +243,12 @@ class _Chunk:
                 kind = _literal(inner) if inner.strip() else 'values'
                 if kind in self.dirs:
                     new = self.path(*self.dirs[kind].split('/'))
+            elif name == 'ov_input' and close:
+                # 入力の写しは、パッケージの inputs/<名前>/ にある
+                got = INPUT_CALL.match(inner)
+                if got:
+                    new = self.path('inputs', got.group(2),
+                                    *[x for x in (got.group(4) or '').split('/') if x])
             elif name == 'ov_palette' and close:
                 names = self.palette(inner)
                 if names is not None:

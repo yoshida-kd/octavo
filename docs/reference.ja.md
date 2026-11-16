@@ -495,6 +495,7 @@ poster_rows: [2, 1]
 | `zotero_collection`、`zotero_linked`、`zotero_write` | Zotero（[7.2](#72-zotero)） |
 | `writing`、`writing_off` | 文章のルールのパック（[9](#9-ai-アシスタントのための文章のルール)） |
 | `replication_exclude` | 再現用パッケージから除くもの |
+| `inputs`、`data_hash_derived` | ほかのプロジェクトやフォルダーのデータ、`HASHES.json` に派生データを入れるか（[6.8](#68-データ)） |
 | `out_dirs` | 出力の置き場 |
 
 ### 5.2 文書ごとの設定
@@ -642,6 +643,88 @@ format:
 
 ほかの言語も、`assets/values/<任意>.json` に `{"name": value}` を、`assets/figures/` に図（`.pdf` と `.png`）を、`assets/tables/` に表を書けば使える。
 
+### 6.8 データ
+
+| 置き場 | 何を置くか | 誰が書くか | git |
+|---|---|---|---|
+| `data/raw/` | 入手したままのデータ | 人（か、取得用の `.qmd`）。**分析は書き換えない** | 入れない |
+| `data/raw/README.md` | 出所、取得日、利用条件 | 人 | 入れる |
+| `data/derived/` | 分析が作った中間データ | `.qmd` | 入れない |
+| `data/HASHES.json` | `data/` の中身のハッシュ値（sha256 と大きさ） | `octavo data hash` | 入れる |
+| `assets/values/`、`assets/figures/`、`assets/tables/` | 原稿に入る数値・図・表 | `.qmd`（`ov_value` / `ov_figure` / `ov_table`） | 入れる |
+| 入力（`inputs`） | ほかのプロジェクトやフォルダーのデータ | 持ち主。**こちらからは書かない** | 持ち主の側で決まる |
+
+```bash
+octavo data hash                       # data/ と、deps にある入力のファイルのハッシュ値を data/HASHES.json に書く
+octavo data status                     # 記録と今の中身を比べる（全部読む）
+octavo data track data/raw/typed.csv   # data/ の中のファイルを1つ git に入れる
+octavo data inputs                     # 宣言した入力: 場所、あるか、コミット、相手の古い分析
+octavo data inputs prep                # その入力の場所だけ（1行）
+octavo data inputs --json
+```
+
+- `data/` は git に入らないので、`data/raw/README.md`（どこから来たか）と `data/HASHES.json`（中身は何だったか）が「そのとき使ったデータ」の記録になる。データを足した・差し替えたときに `octavo data hash`。`HASHES.json` は手で書き換えない。
+- `octavo check` の「データのハッシュ値」は、記録と今の中身が違えば知らせる（警告）。大きさと更新時刻が前に読んだときと同じファイルは読み直さない（控えは `~/.cache/octavo/hashes/`。消してよい）。`octavo data status` は全部読む。
+- 既定では `data/derived/` も記録する。分析をやり直すたびに「中身が違う」と出るのが煩わしければ、`'data_hash_derived': False` で `data/raw/` と入力だけにする。
+- **どのファイルにも当たらない `deps`**（名前の打ち間違い、まだ作っていない、clone した直後で `data/` が空）は、`octavo analysis` と `octavo check`（「分析の入力」、警告）が名指しする。`data/derived/*` のように「このフォルダーにあるもの全部」と書いたものは、フォルダーがあれば空でも知らせない。
+
+**入力**: 同じデータをいくつものプロジェクトで使うときは、複製も、`.qmd` に `../` を書くこともせず、使う側が宣言する。
+
+```python
+CONFIG = {
+    'inputs': {
+        'prep': '../survey-prep',            # プロジェクトからの相対パス
+        'census': '/mnt/share/census-2020',  # 絶対パス
+    },
+    'analysis': [
+        {'src': 'analysis/02-model.qmd',
+         'deps': ['prep:data/derived/panel.parquet', 'census:tables/*.csv']},
+    ],
+    'data_hash_derived': False,              # data/derived/ を HASHES.json に入れない
+}
+```
+
+```bash
+export OCTAVO_INPUT_PREP=/data/projects/survey-prep   # この機械での場所。設定は書き換えない
+```
+
+```r
+panel <- arrow::read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+```python
+panel = pd.read_parquet(ov_input("prep", "data/derived/panel.parquet"))
+```
+
+- 名前は英字で始まる2文字以上（英数字・`-`・`_`）。値はフォルダーで、相手は**どんなフォルダーでもよい**。データと前処理だけのプロジェクト（[6.7](#67-qmd-だけのプロジェクトほかの言語)）を「持ち主」にするのが基本の形。
+- `ov_input(name, path)` はファイルの場所を返すだけ（`path` を省けばフォルダー）。入力が宣言されていない・フォルダーが無い・ファイルが無いときは、どれが無いかと直し方を言って止まる。`octavo` が実行するときは場所を環境変数で渡す。Run Cell や `quarto render` のときは `octavo data inputs <name>` に尋ねる。
+- `deps` の `名前:パス` は、入力の中のファイルを見張る（グロブも書ける）。中身が変われば、その `.qmd` は古くなる。
+- `octavo data hash` は、**`deps` に書いた入力のファイルだけ**を `HASHES.json` の `inputs` の下に記録する（入力のフォルダー全体は読まない）。相手が git のリポジトリなら、そのコミット（とコミットしていない変更の有無）も記録する。`octavo data status` と `octavo check` では `prep:data/derived/panel.parquet` の形で並ぶ。
+- 相手が Octavo のプロジェクトなら、`octavo analysis` と `octavo data inputs` は、相手の `.qmd` が最後の実行のあとで変わっていれば知らせる。**知らせるだけで、相手の分析は実行しない。** 実行は持ち主のプロジェクトでする。入力のさらに入力は見ない。
+- 入力のフォルダーが無いときも、`octavo analysis`・`octavo data inputs`・`octavo check` が知らせる。
+- プロジェクトの中に `inputs/<name>/` があれば、設定の場所より先にそれを読む（再現用パッケージがこの形）。
+- 相手が出した数値を本文で使うには、自分の `.qmd` で読んで登録し直す。相手の `.json` を `deps` に書いておけば、相手の数値が変わったときにやり直される。
+
+```python
+import json
+
+prep = json.loads(ov_input("prep", "assets/values/01-prep.json").read_text(encoding="utf-8"))
+ov_value("n_firms", prep["n_firms"]["value"])   # 本文では {{n_firms}}
+```
+
+**再現用パッケージ**（`octavo bundle --replication`、[8.3](#83-送った後)）に入るもの:
+
+| もの | 入るか |
+|---|---|
+| `analysis/`、`assets/`、手で作った図表、`.bib`、環境の記録 | 入る |
+| `data/derived/` | いつも入る（大きさを表示する。除くには `replication_exclude`） |
+| `data/raw/` | `--with-raw-data` を付けたときだけ |
+| `data/HASHES.json` | いつも入る |
+| `deps` に書いた入力のファイル | `inputs/<name>/…` に、`--with-raw-data` を付けたときだけ |
+| 相手が Octavo のプロジェクトなら、その `analysis/` と `data/HASHES.json` | いつも入る（`inputs/<name>/` に、出所の記録として。パッケージの中では実行しない） |
+
+パッケージの中では `ov_input()` は `inputs/<name>/` を読み、`--standalone` は相対パスに書き換える。`--verify` は、入力のファイルを入れたときにだけ通る。
+
 ---
 
 ## 7. 文献・Zotero・Priorwork
@@ -740,7 +823,7 @@ octavo bundle --replication --standalone --verify   # パッケージそのも�
 
 - `review` は読むだけ。戻ってきた `.docx` を原稿に戻すことはしない（数値が手入力の文字になっている）。変更は原稿に入れ直す。
 - `release` は、コミットしていない変更・仮の値・古い分析があれば断り、分析は実行しない。先に利用者に尋ねる。
-- `--replication` は、`--with-raw-data` がなければ生データを入れない。
+- `--replication` は、`--with-raw-data` がなければ生データを入れない（入力のファイルも同じ。[6.8](#68-データ)）。
 - `--standalone` は、パッケージの中の複製だけを書き換える（プロジェクトの `.qmd` は変えない）。`ov_value()` は値の表示に、
   `ov_figure()` は `ggsave()` / `savefig()` に、`ov_table()` は CSV の書き出しに、`ov_root()` は相対パスに、`ov_pval()` / `ov_tint()` は
   ファイルの中に定義した小さな関数になる。置き換えるのは確実なものだけで、行の頭から始まる1文であること、関数やブロックの外にあること、
@@ -767,7 +850,8 @@ octavo bundle --replication --standalone --verify   # パッケージそのも�
 
 - パックはフォルダー `<パック>/` で、`rules/*.md`・`phrases/*.md` と、任意の `pack.md`（`title`、`extends`、`sections`）を入れる。置き場所は `~/.config/octavo/writing/`（すべてのプロジェクト）か `notes/writing/`（そのプロジェクト。前からの `writing/` も読む）。同じパックの同じ名前のファイルはプロジェクトのものが勝つ。`rules/`・`phrases/` に直接置いたファイルはパック `local` で、いつも最後。
 - ファイルの冒頭: `title`、`lang`（`en`/`ja`。なければどの言語でも）、`applies`（`paper`、`slides`、`lecture`、`poster`、`all`。既定 `all`）、`section`（なければいつも読む）。`##` の見出し1つが項目1つで、id は `パック/ファイル#slug`（小文字にし、英数字以外の続きを `-` に。同じ見出しの2つ目は `-2`）。
-- ルールは書いたとおりに出る。フレーズでは `When:` / `Note:` / `Source:`（場面 / 注意 / 出典）が JSON の欄になり（`Contains:` も）、箇条書きが型になる（`- Open:` / `- Body:` / `- Close:` は段落の中の位置）。〈 〉は埋める所、`〈A / B〉` は選ぶ言葉。ほかの行はそのまま出るだけで、読み取らない。
+- ルールは書いたとおりに出る。読み取るのは `Flag: <正規表現>`（検出）だけ: 1行に Python の `re` の式を1つ、何行でも。大文字小文字を区別する（しないなら頭に `(?i)`）。`` ` `` で囲んでもよい。フレーズでは `When:` / `Note:` / `Source:`（場面 / 注意 / 出典）が JSON の欄になり（`Contains:` と `Repeat: yes`（繰り返し。`repeat` が true: この種類が続いても注を付けない）も）、箇条書きが型になる（`- Open:` / `- Body:` / `- Close:` は段落の中の位置）。〈 〉は埋める所、`〈A / B〉` は選ぶ言葉。ほかの行はそのまま出るだけで、読み取らない。
+- 冒頭に `entries: sentences` と書いたフレーズのファイルは、段落の種類ではなく、1つの段落の中の文を並べたもの。ある節を名指しするフレーズのファイルがどれもそうなら、その節の段落には `no-kind` を付けない。
 
 ### 9.2 原稿が読むもの
 
@@ -775,6 +859,7 @@ octavo bundle --replication --standalone --verify   # パッケージそのも�
 - `writing_off`（設定と冒頭の分を**合わせる**）: `パック/ファイル`、`ファイル`、`パック/ファイル#slug`、`ファイル#slug`。
 - ファイルを除くのは、`applies` が原稿の種類（出力から決まる）に合わないとき、`lang` が原稿と違うとき、外されたとき、聞かれた節と違う `section` があるとき。`--all` は最後の条件だけを外す。
 - 行の節: すぐ上の見出しから浅い見出しへさかのぼり、節に当たる最初の見出しを使う（パックが足した節が先。1つの見出しの中では先に出る言葉）。組み込みの節は `abstract`、`introduction`、`literature`、`theory`、`design`、`results`、`discussion`、`conclusion`、`appendix`（`{.appendix}` の見出しとその後ろ、付録のファイル）。それぞれの言葉は [執筆支援 3.4](https://yoshida-kd.github.io/octavo/ja/writing/#34-行の節の決まり方) の表に。
+- 見出しは、まずラベルで節に当たる（`{#sec-literature}`、`{#sec-literature-2}`、`{#sec-intro}` のような4文字以上の短い形）。次に見出しの言葉、最後にラベルの言葉（`{#sec-data}` → `design`）。`--line` の行の見出しから節が決まらず、節ごとのファイルがあるときは、警告で知らせる（JSON の `no_section` と、`--print` の頭のコメントにも出る）。
 
 ### 9.3 コマンド
 
@@ -783,23 +868,31 @@ octavo writing
 octavo writing --for my-paper --section results --print
 octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 octavo writing --for my-paper --kind field/results#the-main-result --print
+octavo writing --for my-paper --section discussion --section-only --print
+octavo writing --for my-paper --flags
 octavo outline my-paper --paragraphs
+octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
 
 - `--for DOC` か `--file F` で原稿を言う。`--line N`（`--file` と）で節と段落の印を見つける。`--section S` は節を指定する。`--all` はすべての節。`--kind K`（何度でも、コンマ区切りでも）は段落の種類。`--print` は重ねた本文。`--json`。
+- `--section-only`（`--section` か `--line` で節が決まっているとき）は、`section:` のないファイルを除く。最初に1回すべてを読み、別の節に移るときに使う。
+- `--flags` は、その原稿が使うルールの `Flag:` に当たった原稿の行（付録も。`--file` ならそのファイルだけ）を、ルールごとに並べる。`section:` のあるファイルのルールは、その節の行にだけ当てる。当てない所: 冒頭、見出し、コード、コメント、別行立ての数式、`{{値}}`、引用、`{…}` の属性、リンクの先。誤りではなく読み直す所なので、`octavo check` は OK の行（「読み直す所」）に件数だけを出し、`--strict` でも止まらない。正規表現になっていない `Flag:` は「文章のルール」の警告になる。
 - 種類があるとき（`--kind` か、`--line` の行の印から）、ルールは変わらず、フレーズはその項目だけになる。その原稿が使うフレーズのファイル（選んだパックの、`applies`・`lang` が合い、外していないもの）から、節を問わず探す。ほかのファイルの種類は警告して除く。
 
 ### 9.4 段落の印と著者への問い
 
 - 段落のすぐ上に `<!-- para: <種類> | <主張> -->`。本文は次の行から。印の次が空行なら、まだ書いていない段落。印の前には空行を置く（ないと pandoc が上の段落とつなぐ）。種類は `writing_off` の id と同じに解決する（`ファイル#slug` は後ろのパックのもの）。
-- `octavo outline … --paragraphs` の印: `no-kind`、`unknown-kind`（と `near`）、`unused-kind`（この原稿では使わないファイルの種類）、`no-text`、`joined`、`same-kind`（1つの見出しの下で同じ種類の3つ目。注意だけ）。繰り返し: 1つの見出しの下の2つの文に当たった型（〈 〉の外の言葉がすべて1つの文の中に同じ順で出る。大文字で始まる型は文の頭、`.` で終わる型は文の終わり。決まった言葉が2語に満たない型は探さない。その見出しの節か、`section:` のないファイルの型で、その原稿が使うものだけ）。
+- `<!-- para: + -->`（または `<!-- para: + | <主張> -->`）は、同じ見出しの下の、いちばん近い上の印の続きで、その種類を引き継ぐ（1つの主張を数段落で書いたとき、表のあとに続く段落）。その行での `--line` は、その種類のフレーズを読む。引用（`> …`）や箇条書きの上に印を置くと、その塊を段落に数える。印がなければ数えない。
+- `octavo outline … --paragraphs` の印: `no-kind`、`unknown-kind`（と `near`）、`unused-kind`（この原稿では使わないファイルの種類）、`no-text`、`joined`、`same-kind`（1つの見出しの下で同じ種類の3つ目。注意だけ。`+` の段落は続きの相手と合わせて1つに数え、`Repeat: yes` のある種類には付けない）、`continues-nothing`。繰り返し: 1つの見出しの下の2つの文に当たった型（〈 〉の外の言葉がすべて1つの文の中に同じ順で出る。大文字で始まる型は文の頭、`.` で終わる型は文の終わり。決まった言葉が2語に満たない型は探さない。その見出しの節か、`section:` のないファイルの型で、その原稿が使うものだけ）。
+- `--contains` は、各段落の下に、その種類の `Contains:` を添える（照合はしない）。`--lines A-B`（`A-` なら最後まで）は、その行の範囲の段落・繰り返し・問いだけにする（印は原稿全体で付けてから絞る）。
 - `<!-- ask: … -->`: 一覧に出る。`octavo check` は消すまで「著者への問い」を警告する。コードブロックの中の印は読まない。
 
 ### 9.5 JSON
 
 - `octavo writing --json`（原稿を言わないとき）: `rules`、`phrases`（ファイル: `path`、`title`、`lang`、`applies`、`section`、`entries`、`where`、`pack`、`kind`）、`packs`（`name`、`title`、`path`、`where`、`extends`、`sections`、`description`、`files`）、`sections`、`warnings`。
-- `octavo writing --for|--file … --json`: `doc`、`packs`、`chosen`、`chosen_here`、`kinds`、`lang`、`section`、`heading`、`sections`、`off`、`off_here`、`paragraph_kinds`（種類がなければ null）、`paragraph`（`line`、`kind`、`claim`、`body_line`、`first_sentence`。`--line` がなければ null）、`warnings`、`text`（`--print` のとき）と `files`: `id`、`pack`、`kind`、`path`、`title`、`lang`、`applies`、`section`、`where`、`used`、`skipped`（`applies`、`lang`、`off`、`section`、`kind` か null）、`items`（`id`、`title`、`slug`、`line`、`off`。フレーズには `when`、`note`、`source`、`lines` = [`position`、`text`]、`contains`、種類を言ったときは `picked` も）。
-- `octavo outline … --paragraphs --json`: 原稿のファイルごとの並び: `doc`、`file`、`appendix`、`paragraphs`（`line`、`body_line`、`kind`、`id`、`title`、`claim`、`first_sentence`、`heading`、`heading_line`、`heading_level`、`problems`、`near`）、`repeats`（`heading`、`heading_line`、`id`、`text`、`lines`、`section`）、`asks`（`line`、`text`）。
+- `octavo writing --for|--file … --json`: `doc`、`packs`、`chosen`、`chosen_here`、`kinds`、`lang`、`section`、`section_only`、`no_section`（知らせの文か null）、`heading`、`sections`、`off`、`off_here`、`paragraph_kinds`（種類がなければ null）、`paragraph`（`line`、`kind`、`claim`、`body_line`、`first_sentence`。`--line` がなければ null）、`warnings`、`text`（`--print` のとき）と `files`: `id`、`pack`、`kind`、`path`、`title`、`lang`、`applies`、`section`、`entry_kind`（`paragraphs` か `sentences`）、`where`、`used`、`skipped`（`applies`、`lang`、`off`、`section`、`kind`、`always`（`--section-only` で除いた）か null）、`items`（`id`、`title`、`slug`、`line`、`off`。フレーズには `when`、`note`、`source`、`lines` = [`position`、`text`]、`contains`、`repeat`、種類を言ったときは `picked` も）。
+- `octavo writing --for|--file … --flags --json`: `doc`、`count`、`warnings`、`rules`（当たったものだけ: `id`、`title`、`file`、`patterns`、`hits` = [`file`、`line`、`match`、`text`]）。
+- `octavo outline … --paragraphs --json`: 原稿のファイルごとの並び: `doc`、`file`、`appendix`、`paragraphs`（`line`、`body_line`、`kind`、`id`、`title`、`claim`、`first_sentence`、`heading`、`heading_line`、`heading_level`、`problems`、`near`、`continues`、`contains`）、`repeats`（`heading`、`heading_line`、`id`、`text`、`lines`、`section`）、`asks`（`line`、`text`）。
 
 ### 9.6 何も出ないとき
 
@@ -843,7 +936,7 @@ octavo build [documents...] [--to outputs] [--compile] [--appendix] [--sessions]
 octavo watch [documents...] [--to outputs]
 octavo extract <lecture> [--session IDS] [--pages 12-19] [--cover]
 octavo documents [--json]
-octavo outline [documents...] [--paragraphs] [--json]
+octavo outline [documents...] [--paragraphs [--contains] [--lines A-B]] [--json]
 octavo targets
 octavo config [--doc NAME] [set KEY VALUE | unset KEY] [--json]
 octavo analysis [--json] | run [QMD...] [--keep-cache] | mark-fresh QMD | prose QMD | missing QMD | install QMD
@@ -856,11 +949,11 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
-octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--print] [--json]
+octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--section-only] [--print] [--flags] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
-octavo data hash|status|track
+octavo data hash|status|track|inputs [NAME] [--json]
 octavo init <dir> [--lang ja|en] [--with PARTS | --all] [--engine r|python] [--example] [--env]
 octavo new paper|slides|lecture|poster|analysis|figure|table <name> [--lang ja|en] [--example] [--appendix] [--tex] [--engine r|python] [--env] [--json]
 octavo template list|copy|diff [name] [--user]

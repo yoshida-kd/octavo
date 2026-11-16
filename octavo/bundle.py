@@ -44,6 +44,7 @@ from pathlib import Path
 from . import analysis as anamod
 from . import backends as be
 from . import dataset
+from . import inputs as inputmod
 from . import standalone as standmod
 from . import tmpl
 from . import translate as transmod
@@ -218,7 +219,10 @@ REPLICATION_NOTES = {
            'no_record': '（記録がない）',
            'no_session': ('（記録がない。`octavo analysis run` を1度実行すると '
                           '`assets/values/*.json` に `_session` として残る）'),
-           'no_raw': '（原データは含めていない）'},
+           'no_raw': '（原データは含めていない）',
+           'input_with': 'ほかのプロジェクトやフォルダーから読んだデータ',
+           'input_without': 'ほかのプロジェクトやフォルダーから読んだデータ（ファイルは含めていない）',
+           'input_project': '。出所の記録として、それを作った分析とハッシュ値'},
     'en': {'setup_any': 'Install the R or Python packages the analysis uses.',
            'setup_r': ('Install the R packages at the recorded versions (`renv.lock`). This adds `renv/` and '
                        '`.Rprofile` to this folder.'),
@@ -229,8 +233,19 @@ REPLICATION_NOTES = {
            'no_record': '(none recorded)',
            'no_session': ('(none recorded — run `octavo analysis run` once and it is '
                           'kept in `assets/values/*.json` as `_session`)'),
-           'no_raw': ' (raw data not included)'},
+           'no_raw': ' (raw data not included)',
+           'input_with': 'data read from another project or folder',
+           'input_without': 'data read from another project or folder (the files are not included)',
+           'input_project': '; the analysis that made it and its fingerprints, for the record'},
 }
+
+
+def human_size(n: int) -> str:
+    for unit in ('bytes', 'KB', 'MB', 'GB'):
+        if n < 1024 or unit == 'GB':
+            return f'{n:,} {unit}' if unit == 'bytes' else f'{n:,.1f} {unit}'
+        n /= 1024
+    return ''
 
 
 def replication_steps(cfg, dest: Path, lang: str) -> tuple:
@@ -365,7 +380,8 @@ def replication(cfg, dest: Path, with_raw: bool = False, standalone: bool = Fals
     # 実行すればできるので入れない
     def quarto_output(p: Path) -> bool:
         parts = p.relative_to(cfg.root / 'analysis').parts
-        if parts[0] == transmod.SUBDIR or any(x.endswith(('_files', '_cache')) for x in parts[:-1]):
+        if parts[0] == transmod.SUBDIR or any(x.endswith(('_files', '_cache')) or x == '__pycache__'
+                                              for x in parts[:-1]):
             return True
         return p.suffix in anamod.RENDERED and p.with_suffix('.qmd').is_file()
     res.say(f'{tag("replication")} analysis '
@@ -387,8 +403,12 @@ def replication(cfg, dest: Path, with_raw: bool = False, standalone: bool = Fals
 
     # -- データ。原データは明示しないと入れない -----------------------------
     data = dataset.data_dir(cfg)
+    before = len(res.files)
     n = copy_tree(data / 'derived', 'data/derived', t('data'))
-    res.say(f'{tag("replication")} data/derived {n}')
+    size = sum(p.stat().st_size for p in res.files[before:])
+    # 派生データはいつも入る。大きいと、パッケージも大きくなるので、大きさを見せる
+    res.say(f'{tag("replication")} data/derived {n}'
+            + (f' ({human_size(size)})' if n else ''))
     if with_raw:
         n = copy_tree(data / 'raw', 'data/raw', t('raw data'))
         res.say(f'{tag("replication")} data/raw {n} '
@@ -397,6 +417,45 @@ def replication(cfg, dest: Path, with_raw: bool = False, standalone: bool = Fals
         res.say(f'{tag("replication")} ' + t('data/raw is not included '
                                              '(--with-raw-data adds it, once you '
                                              'have checked it may be shared)'))
+
+    # -- 入力（ほかのプロジェクトやフォルダーのデータ）----------------------------
+    # 使う側から見れば、もらったデータ。だから原データと同じで、明示しないと入れない。
+    # 相手が Octavo のプロジェクトなら、その分析とハッシュ値の記録は出所として入れる
+    # （パッケージの中では実行しない）。
+    used = dataset.input_files(cfg)
+    input_lines = []
+    for name, inp in inputmod.declared(cfg).items():
+        if not inp.exists:
+            res.say(f'{tag("replication")}{tag("warning")} ' + t(
+                'input {name}: its folder is not there, so nothing of it goes in', name=name))
+            continue
+        files = {rel: p for rel, p in used.get(name, {}).items() if p.is_file()}
+        if with_raw:
+            for rel, p in sorted(files.items()):
+                if not excluded(f'inputs/{name}/{rel}'):
+                    copy_file(p, f'inputs/{name}/{rel}')
+            res.say(f'{tag("replication")} inputs/{name} {len(files)} '
+                    + t('(make sure this data may be redistributed)'))
+        else:
+            res.say(f'{tag("replication")} ' + t(
+                'the files of input {name} are not included ({n} named in deps; '
+                '--with-raw-data adds them, once you have checked they may be shared)',
+                name=name, n=len(files)))
+        if inp.is_project:
+            def made(p: Path, base=inp.path / 'analysis') -> bool:
+                parts = p.relative_to(base).parts
+                return any(x.endswith(('_files', '_cache')) for x in parts[:-1]) \
+                    or (p.suffix in anamod.RENDERED and p.with_suffix('.qmd').is_file())
+            copy_tree(inp.path / 'analysis', f'inputs/{name}/analysis', name, skip=made)
+            copy_file(inp.path / 'data' / dataset.MANIFEST_NAME,
+                      f'inputs/{name}/data/{dataset.MANIFEST_NAME}')
+        notes_in = REPLICATION_NOTES[lang]
+        input_lines.append(f'\n    inputs/{name}/'.ljust(21) + (
+            notes_in['input_with'] if with_raw else notes_in['input_without'])
+            + (notes_in['input_project'] if inp.is_project else ''))
+    if any(used.values()) and not dataset.read_inputs(cfg) and dataset.manifest_path(cfg).is_file():
+        res.say(f'{tag("replication")}{tag("note")} ' + t(
+            'data/HASHES.json does not record the inputs yet: octavo data hash records them'))
 
     # -- ハッシュ値。データを入れなくても「何を使ったか」は残す --------------------
     if not dataset.manifest_path(cfg).is_file():
@@ -454,7 +513,7 @@ def replication(cfg, dest: Path, with_raw: bool = False, standalone: bool = Fals
               .replace('@@SETUP@@', setup)
               .replace('@@RUN@@', steps)
               .replace('@@RAWNOTE@@',
-                       '' if with_raw else notes['no_raw']))
+                       ('' if with_raw else notes['no_raw']) + ''.join(input_lines)))
     (dest / 'README.md').write_text(readme, encoding='utf-8')
     res.files.append(dest / 'README.md')
 

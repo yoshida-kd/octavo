@@ -40,6 +40,7 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import inputs as inputmod
 from . import values as valmod
 from .i18n import language, t, tag
 
@@ -67,6 +68,7 @@ class Unit:
     src: Path
     deps: tuple = ()
     manual: bool = False          # 自動では実行しない（明示されたときだけ）
+    unmatched: tuple = ()         # 何にも当たらない deps: (書いたまま, 理由)
 
     def newest(self) -> float:
         ts = [self.src.stat().st_mtime] if self.src.exists() else [0.0]
@@ -86,20 +88,52 @@ class Unit:
         return {'newest': self.newest(), 'hash': self.digest()}
 
 
-def _expand(root: Path, pats) -> list:
+def _expand(cfg, pats, unmatched: list | None = None) -> list:
     """グロブを開く。`.` で始まるものは拾わない。
 
     `data/*` のような見張りに `.DS_Store` や `.Rhistory`、エディタの一時
     ファイルが混ざると、触っていない .qmd が「古い」と判定されてしまう。
+
+    `prep:data/x.csv` は、`inputs` に宣言した入力（ほかのプロジェクトやフォルダー）の
+    中のファイル。何にも当たらなかった書き方は `unmatched` に (書いたまま, 理由) で足す。
+    理由は 'nothing'（ファイルが無い）、'no-input'（そういう入力は宣言されていない）、
+    'no-folder'（入力のフォルダーが無い）。
     """
     out: list = []
+    known = inputmod.declared(cfg)
     for pat in pats or ():
         s = str(pat)
-        if any(c in s for c in '*?['):
-            out += [p.resolve() for p in sorted(root.glob(s))
-                    if not p.name.startswith('.')]
+        name, rest = inputmod.split(s, known)
+        root = Path(cfg.root)
+        if name:
+            if name.startswith('?'):
+                if unmatched is not None:
+                    unmatched.append((s, 'no-input'))
+                continue
+            root, s_in = known[name].path, rest
+            if not root.is_dir():
+                if unmatched is not None:
+                    unmatched.append((s, 'no-folder'))
+                # 無いことも中身のうち（フォルダーが現れたら古くなる）
+                out.append((root / s_in).resolve())
+                continue
         else:
-            out.append((root / s).resolve())
+            s_in = s
+        if any(c in s_in for c in '*?['):
+            got = [p.resolve() for p in sorted(root.glob(s_in))
+                   if not p.name.startswith('.')]
+            out += got
+        else:
+            got = [(root / s_in).resolve()]
+            out += got
+            got = [p for p in got if p.exists()]
+        # 「このフォルダーにあるもの全部」（`data/derived/*`）は、フォルダーがあれば空でもよい
+        # （作ったばかりのプロジェクトのひな型がそう書いてある）
+        whole = s_in.rsplit('/', 1)[-1] in ('*', '**') and '/' in s_in \
+            and not any(c in s_in.rsplit('/', 1)[0] for c in '*?[') \
+            and (root / s_in.rsplit('/', 1)[0]).is_dir()
+        if not got and not whole and unmatched is not None:
+            unmatched.append((s, 'nothing'))
     return out
 
 
@@ -157,7 +191,8 @@ def units(cfg) -> list:
     1本として扱い、グロブでない項目の設定を使う。グロブで拾った .qmd は、冒頭の
     `octavo:` の設定（qmd_settings）で手動実行や見張る入力を足せる。
     """
-    common = _expand(cfg.root, cfg['analysis_deps'])
+    missing_common: list = []
+    common = _expand(cfg, cfg['analysis_deps'], missing_common)
     found: dict = {}            # パス -> (Unit, 個別に書いた項目か)
     for item in cfg['analysis'] or ():
         manual = False
@@ -172,16 +207,18 @@ def units(cfg) -> list:
                        "{{'src': '…', 'deps': ['data/*.csv'], 'manual': True}} (got {got})",
                        got=repr(item)))
         explicit = not any(c in src_pat for c in '*?[')
-        extra = _expand(cfg.root, deps)
-        for p in _expand(cfg.root, [src_pat]):
+        missing: list = []
+        extra = _expand(cfg, deps, missing)
+        for p in _expand(cfg, [src_pat]):
             if p in found and (found[p][1] or not explicit):
                 continue
-            m, d = manual, list(extra)
+            m, d, gone = manual, list(extra), list(missing)
             if not explicit:
                 own = qmd_settings(p)
                 m = own.get('manual', m)
-                d += _expand(cfg.root, own.get('deps', []))
-            found[p] = (Unit(src=p, deps=tuple(dict.fromkeys(common + d)), manual=m), explicit)
+                d += _expand(cfg, own.get('deps', []), gone)
+            found[p] = (Unit(src=p, deps=tuple(dict.fromkeys(common + d)), manual=m,
+                             unmatched=tuple(dict.fromkeys(missing_common + gone))), explicit)
     return [u for u, _ in found.values()]
 
 
@@ -282,7 +319,8 @@ def _env(cfg) -> dict:
            'OCTAVO_ROOT': str(cfg.root),
            'OCTAVO_VALUES_DIR': str(cfg['values_dir']),
            'OCTAVO_FIGURE_DIR': str(cfg['figure_dir']),
-           'OCTAVO_TABLE_DIR': str(cfg['table_dir'])}
+           'OCTAVO_TABLE_DIR': str(cfg['table_dir']),
+           **inputmod.env(cfg)}
     py = venv_python(Path(cfg.root) / '.venv')
     if py.exists() and not env.get('QUARTO_PYTHON'):
         env['QUARTO_PYTHON'] = str(py)
@@ -699,10 +737,33 @@ def status_json(cfg) -> dict:
         rec = stamp.get(key(cfg, u))
         rows.append({'key': key(cfg, u), 'src': str(u.src), 'exists': exists,
                      'stale': stale, 'manual': u.manual, 'deps': len(u.deps),
+                     'unmatched': [{'dep': d, 'why': why} for d, why in u.unmatched],
                      'engine': engine(u.src) if exists else None,
                      'rendered_at': rec.get('rendered_at') if isinstance(rec, dict) else None})
     return {'quarto': quarto_version() or None, 'units': rows,
             'stale': sum(1 for r in rows if r['stale'])}
+
+
+def unmatched_note(dep: str, why: str) -> str:
+    """何にも当たらない deps の1行（octavo analysis と octavo check が同じ文で言う）。"""
+    if why == 'no-input':
+        return t("{dep}: no input of that name is declared (inputs in octavo.config.py)",
+                 dep=dep)
+    if why == 'no-folder':
+        name = dep.split(':', 1)[0]
+        return t('{dep}: the folder of input {name} is not there (set {env}, or fix '
+                 'inputs in octavo.config.py)', dep=dep, name=name,
+                 env=inputmod.env_name(name))
+    return t('{dep}: matches no file', dep=dep)
+
+
+def unmatched(cfg) -> list:
+    """[(.qmd の名前, 書いたまま, 理由)]。どのファイルにも当たらない deps。
+
+    名前の打ち間違い、まだ作っていないデータ、clone した直後で data/ が空、のどれでも
+    こうなる。黙って「入力なし」と扱うと、データが変わってもやり直されない。
+    """
+    return [(key(cfg, u), d, why) for u in units(cfg) for d, why in u.unmatched]
 
 
 def watch_paths(cfg) -> list:
