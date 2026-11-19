@@ -75,7 +75,9 @@ study/
   data/HASHES.json   fingerprints of data/ (in git)
   figures/           hand-made figures: <name>.typ drawn in Typst, _parts.typ shared parts, photos
   tables/            hand-made tables: <name>.csv
-  notes/writing/     writing rules and phrases (packs)
+  refs/              material from elsewhere (codebooks, guidelines; in git)
+  refs/private/      material that must not be shared (PDFs of papers, manuscripts sent for review; not in git)
+  notes/             your own notes; notes/writing/ holds writing rules and phrases (packs)
   templates/         the project's own copies of Octavo's templates
   assets/values/     <qmd>.json: the numbers behind {{…}}
   assets/figures/    <name>.pdf and .png
@@ -87,6 +89,11 @@ study/
 
 The config registers every folder by a pattern (`docs/*/`, `analysis/*.qmd`), so adding a
 document or an analysis never means editing it.
+
+The files the whole project shares (`AGENTS.md`, `README.md`, `.gitignore`, the comments in
+`octavo.config.py`, `data/raw/README.md`, `requirements.txt`) are in English whatever the language;
+`lang` (`--lang`) is the manuscripts' language. A project made when these were in Japanese keeps its Japanese
+files; `octavo migrate --rules` replaces the Japanese sections of `AGENTS.md` with the English ones.
 
 ### 2.2 Documents and their names
 
@@ -416,6 +423,39 @@ octavo fmt my-paper --apply    # rewrites them
 brackets. It leaves code, math, comments, tables, headings, `:::` lines and hard breaks alone,
 and never splits English lines.
 
+### 3.13 A manuscript in two languages
+
+```bash
+octavo new paper my-paper --lang en        # beside an existing paper: docs/my-paper/my-paper.en.md
+octavo translation my-paper.en              # section by section: matched or not, and what differs
+octavo translation my-paper.en --print sec-intro   # what is needed to bring one section in line
+octavo translation my-paper.en --mark sec-intro    # record it as matched
+octavo build my-paper.en --compile          # build/pdf/my-paper.en.pdf
+```
+
+`docs/<name>/<name>.en.md` (or `.ja.md`) is the same document in the other language; `<name>.md` is the
+main one, in either language. It is a document of its own named `<name>.en`. Its appendix is
+`appendix.en.md`, and its layout is `main.typ`, or `main.en.typ` when there is one. It shares the
+analysis, figures, tables, bibliography and labels with the main manuscript. It takes how the
+document is made (`outputs`, `sessions`, numbering, appendix and slide settings) from the main
+manuscript's front matter. What depends on the language is not inherited: `lang`, the citation
+style and form, length limits, fonts and writing packs.
+
+- Sections are matched by label, or by order under the same heading when they have none; the title,
+  subtitle and abstract of the front matter count as one section (`_front`). For each pair, `octavo
+  translation` compares the references, labels, citations and `{{values}}`, which a translation
+  keeps as they are.
+- `--mark` writes both sides' fingerprints to `docs/<name>/translation.json` (keep it in git). A
+  section changed afterwards shows as *the main manuscript changed*, *this language changed* or
+  *both changed*. `octavo check` lists those, sections in one manuscript only, and what differs, as
+  notes.
+- `--print` adds `notes/writing/terms.csv` (a table of terms, if there is one). Octavo never
+  translates: the text is for you or an AI.
+- A figure can have a version per language: `ov_figure(p, "trend.en")` writes `trend.en.pdf` and
+  `.png`, which the English manuscript uses instead of `trend.*`. The manuscript still writes
+  `trend.png`.
+- `bib tidy` sorts the Zotero collection by the main manuscript's sections only.
+
 ---
 
 ## 4. Outputs
@@ -569,7 +609,7 @@ cannot be placed stops the build.
 | `bib_file` | the `.bib` |
 | `csl`, `csl_locale` | citation style (an ID from zotero.org/styles, or a path), its locale |
 | `japanese_citation_form`, `citations_by_language` | Japanese works in the bibliography ([7.1](#71-the-bib-and-the-style)) |
-| `lang` | the project's language (`ja` / `en`) |
+| `lang` | the manuscripts' language (`ja` / `en`); a manuscript's front matter wins. The Zotero collections `bib tidy` makes are named in the first document's language |
 | `meta` | `title`, `author`, `affiliation`, `email` defaults |
 | `crossref_numbering` | `'document'` / `'section'` |
 | `theorem_envs` | numbered block kinds |
@@ -583,6 +623,7 @@ cannot be placed stops the build.
 | `appendix_separate`, `appendix_after_references` | the appendix |
 | `docx_reference` | Word styles |
 | `zotero_collection`, `zotero_linked`, `zotero_write` | Zotero ([7.2](#72-zotero)) |
+| `ai_url`, `ai_model`, `ai_timeout`, `ai_allow`, `ai_private` | the AI for `octavo ai` ([9.7](#97-set-tasks-for-an-ai-octavo-ai)) |
 | `writing`, `writing_off` | writing-rule packs ([9](#9-writing-rules-for-ai-assistants)) |
 | `replication_exclude` | left out of the replication package |
 | `inputs`, `data_hash_derived` | data in other projects and folders; whether `HASHES.json` records derived data ([6.8](#68-data)) |
@@ -888,7 +929,7 @@ Inside the package `ov_input()` reads `inputs/<name>/`, and `--standalone` rewri
 octavo bib collections            # the collections, nested
 octavo bib pull                   # the .bib from zotero_collection (and the collections under it)
 octavo bib login --user-id 1234567   # the web API key, read from stdin
-octavo bib tidy                   # the plan: cited but not in the main collection, in it but cited nowhere
+octavo bib tidy                   # the plan: sort the main collection by section, uncited ones apart
 octavo bib tidy --apply --keys smith2020,doe2019
 ```
 
@@ -903,10 +944,17 @@ octavo bib tidy --apply --keys smith2020,doe2019
 - `bib tidy` reads the main and the linked collections only; a cited work in neither is listed
   as such (`--library` also looks in the whole library, slow the first time). It keeps a copy in
   `~/.cache/octavo/` and, after the first run, reads only what changed since.
-- `bib tidy --apply` needs `'zotero_write': True` and a key with write access. It only adds
-  entries to, or takes them out of, the main collection; it never deletes or edits an entry,
-  and never takes out an entry whose citation key is not pinned in Better BibTeX. Ask the
-  user before applying.
+- `bib tidy` sorts the main collection by the manuscripts' top-level sections: a cited entry goes
+  into `<main> / 01 Introduction` (numbered in order; appendix sections `A1 …`; citations before
+  the first heading `00 Opening`; with several manuscripts `<main> / <document> / 01 …`), into
+  each section that cites it. An entry cited nowhere moves into `<main> / Not cited` (`非引用文献`
+  in a `lang: 'ja'` project) and stays in the `.bib`. Membership of collections the user made is
+  kept.
+- `bib tidy --apply` needs `'zotero_write': True` and a key with write access. It changes which
+  collections entries are in, makes the section collections, and deletes those it made once
+  they are empty (recorded in `zotero-collections.json` beside the `.bib`; keep it in git). With
+  `--keys` it deletes nothing. It never deletes or edits an entry, and never moves an entry whose
+  citation key is not pinned in Better BibTeX. Ask the user before applying.
 
 ### 7.3 Priorwork
 
@@ -1031,9 +1079,19 @@ what it prints.** How to set packs up, with examples: [Writing support](https://
   `slides`, `lecture`, `poster`, `all`; default `all`), `section` (none = always read). Each `##`
   heading is one entry; its id is `pack/file#slug` (lower case, non-alphanumeric runs -> `-`, a repeat
   gets `-2`).
-- Rules are printed as written; only `Flag: <regex>` (検出) is read: one Python `re` expression per
-  line, any number of lines, case-sensitive unless it starts with `(?i)`, optionally wrapped in
-  `` ` ``. In phrases, `When:` / `Note:` / `Source:` (場面 / 注意 / 出典) become
+- Rules are printed as written, less the lines only Octavo reads: `Flag: <regex>` (検出): one Python
+  `re` expression per line, any number of lines, case-sensitive unless it starts with `(?i)`,
+  optionally wrapped in `` ` ``; `Id:` (a slug that stays when the heading changes; the heading's own
+  slug and `Alias:` (別名) names still resolve); `Stage:` (段階) `draft` (the default: read when drafting,
+  checked when revising), `revise` (only by `octavo revise`) or `lookup` (only where its `Flag:` matches
+  the text: a usage note); `Section:` (節: this entry's sections, in place of the file's);
+  `Scope:` (範囲) `sentence` (the default), `paragraph`, `first-sentence`, `last-sentence` (the `Flag:`
+  is tried there only), `section` or `document` (which material `octavo revise` hands over);
+  `Replaces: pack/file#id` (置き換え: that entry is not used while this one is);
+  `Count: <regex> per sentence|paragraph|section > N` (数える; `>=` too). The file's front matter may
+  set `stage:` and `scope:` for its entries. `Good:` / `Bad:` (良い例 / 悪い例) may come any number of
+  times, with the example on the line or as the `- ` / `> ` lines below; `octavo writing --check` tries
+  each `Flag:` on them. In phrases, `When:` / `Note:` / `Source:` (場面 / 注意 / 出典) become
   JSON fields, as do `Contains:` and `Repeat: yes` (繰り返し; `repeat` true: a run of this kind is not
   noted); list items are frames (`- Open:` / `- Body:` / `- Close:` give their
   position), 〈 〉 are slots and `〈A / B〉` a choice; other lines are printed and not read.
@@ -1046,10 +1104,17 @@ what it prints.** How to set packs up, with examples: [Writing support](https://
 - Packs: `writing` in the config or the front matter (the front matter replaces the config's), most
   general first, the later winning; `extends` are put in front; none chosen = every pack (extends
   first, then by name); `local` last.
+- `name@ref` in `writing` or `extends`: the pack as it is at the git tag `name@ref`, else the tag or
+  commit `ref`, of the repository the pack's folder is in (written out under `~/.cache/octavo/writing/`);
+  a version in `writing` wins over one in `extends`; locations without that version (a project's
+  `notes/writing/<pack>/`) still layer on top; no such version = the pack is not used, with a warning.
 - `writing_off` (config **plus** front matter): `pack/file`, `file`, `pack/file#slug` or `file#slug`.
 - A file is left out when its `applies` does not match the manuscript's kinds (from its outputs), its
-  `lang` differs from the manuscript's, it is turned off, or it has a `section` other than the one
-  asked for. `--all` drops only the last condition.
+  `lang` differs from the manuscript's, it is turned off, or none of its entries is left. An entry is
+  left out when its section (`Section:`, else the file's) is not the one asked for, when it has
+  `Stage: revise`, when it has `Stage: lookup` and its `Flag:` matches nothing in the manuscript (with
+  `--line`, in that file; a sectioned entry only in its section's lines), or when an entry of a pack in
+  use `Replaces:` it. `--all` keeps every entry.
 - The section of a line: from the nearest heading up to shallower ones, the first that names a
   section (a pack's own sections first; in one heading the word that comes first). Built-in sections:
   `abstract`, `introduction`, `literature`, `theory`, `design`, `results`, `discussion`,
@@ -1070,6 +1135,10 @@ octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 octavo writing --for my-paper --kind field/results#the-main-result --print
 octavo writing --for my-paper --section discussion --section-only --print
 octavo writing --for my-paper --flags
+octavo writing --check
+octavo writing --check --pack-dir ~/projects/writing/packs
+octavo writing --stats
+octavo writing --harvest v1-draft --for my-paper
 octavo outline my-paper --paragraphs
 octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
@@ -1085,6 +1154,18 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
   citations, `{…}` attributes, link targets. Places to reread, not errors: `octavo check` gives the
   count in an OK row ("places to reread") that `--strict` does not fail on; a `Flag:` that is not a
   regular expression is a warning in "writing rules".
+- `--check` checks the packs: unknown `Stage` / `Scope` / section names, a `Count` not in its form, a
+  `Flag` or `Count` that is not a regular expression, an `Id` used twice, a `Replaces` naming no entry,
+  a `Stage: lookup` without a `Flag`, a `Flag` that misses a `Bad:` example; a `Flag` matching a `Good:`
+  example is a note (a correct use may contain the word). Exit 1 on a problem. `--pack-dir DIR`
+  (repeatable; a folder of packs, or one pack) checks without a project. `octavo check` counts the
+  problems in "writing rules".
+- `--stats` totals, rule by rule, what `octavo revise` recorded (9.8): found, fixed, judged fine, and
+  lists the rules with a `Flag` or `Count` that never matched in a recorded pass (`--for DOC` for one
+  manuscript).
+- `--harvest REF` lists, as `Before:` / `After:` pairs, the lines of the manuscripts (one with `--for`)
+  rewritten since the git version `REF`, for the AI to propose rules from (`octavo ai run suggest-rules`
+  on the saved output); `--docx F` adds a coauthor's tracked changes and comments. Nothing is written.
 - With a kind (from `--kind`, or from the mark on `--line`), rules are unchanged and phrases are only
   those entries, from the phrase files this manuscript uses (chosen packs, matching `applies` / `lang`,
   not turned off; any section). A kind from another file is left out with a warning.
@@ -1095,6 +1176,8 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
   mark followed by a blank line is an unwritten paragraph; leave a blank line before a mark (otherwise
   pandoc joins it to the paragraph above). Kinds resolve like `writing_off` ids (`file#slug` from the
   later pack).
+- `<!-- para: <kind> + <kind> | <claim> -->` names a main kind and a secondary one (a mixed
+  paragraph): runs count the main one, `--line` reads both kinds' phrases, `--contains` prints both.
 - `<!-- para: + -->` (or `<!-- para: + | <claim> -->`) continues the nearest mark above it under the
   same heading and takes its kind (one claim over several paragraphs; a paragraph after a table).
   `--line` on it reads that kind's phrases. A mark above a quotation (`> …`) or a list makes that block
@@ -1116,20 +1199,22 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
 
 - `octavo writing --json` (no manuscript): `rules`, `phrases` (files: `path`, `title`, `lang`,
   `applies`, `section`, `entries`, `where`, `pack`, `kind`), `packs` (`name`, `title`, `path`, `where`,
-  `extends`, `sections`, `description`, `files`), `sections`, `warnings`.
-- `octavo writing --for|--file … --json`: `doc`, `packs`, `chosen`, `chosen_here`, `kinds`, `lang`,
+  `extends`, `sections`, `description`, `files`, `pin`, `commit`, `versions`), `sections`, `warnings`.
+- `octavo writing --for|--file … --json`: `doc`, `packs`, `versions` (`{pack: {pin, commit}}` for the packs read at a version), `chosen`, `chosen_here`, `kinds`, `lang`,
   `section`, `section_only`, `no_section` (the message, or null), `heading`, `sections`, `off`, `off_here`, `paragraph_kinds` (null without kinds),
   `paragraph` (`line`, `kind`, `claim`, `body_line`, `first_sentence`; null without `--line`),
   `warnings`, `text` (with `--print`) and `files`: `id`, `pack`, `kind`, `path`, `title`, `lang`,
   `applies`, `section`, `entry_kind` (`paragraphs` or `sentences`), `where`, `used`, `skipped`
   (`applies`, `lang`, `off`, `section`, `kind`, `always` — left out by `--section-only` — or
-  null), `items` (`id`, `title`, `slug`, `line`, `off`; phrases also `when`, `note`, `source`, `lines`
+  null), `items` (`id`, `title`, `slug`, `line`, `off`, `aliases`, `stage`, `scope`, `sections`,
+  `skipped` (`stage`, `lookup`, `section`, `always`, `replaced` or null); phrases also `when`, `note`, `source`, `lines`
   = [`position`, `text`], `contains`, `repeat`, and `picked` when kinds are given).
 - `octavo writing --for|--file … --flags --json`: `doc`, `count`, `warnings`, `rules` (only those with
   a hit: `id`, `title`, `file`, `patterns`, `hits` = [`file`, `line`, `match`, `text`]).
 - `octavo outline … --paragraphs --json`: a list per manuscript file: `doc`, `file`, `appendix`,
   `paragraphs` (`line`, `body_line`, `kind`, `id`, `title`, `claim`, `first_sentence`, `heading`,
-  `heading_line`, `heading_level`, `problems`, `near`, `continues`, `contains`), `repeats` (`heading`, `heading_line`, `id`,
+  `heading_line`, `heading_level`, `problems`, `near`, `continues`, `contains`, `also`,
+  `also_contains`), `repeats` (`heading`, `heading_line`, `id`,
   `text`, `lines`, `section`), `asks` (`line`, `text`).
 
 ### 9.6 When nothing comes out
@@ -1141,6 +1226,90 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
   (`octavo check`).
 - `writing_off names nothing`: the entry's heading, hence its slug, changed.
 - `needs a blank line before the mark`: add an empty line above the mark.
+
+### 9.7 Set tasks for an AI (octavo ai)
+
+```bash
+octavo ai                                          # the tasks: proofread, revise, summarize, ocr, and yours
+octavo ai check                                    # does the AI answer, and is it on this machine
+octavo ai run proofread docs/my-paper/my-paper.md --section sec-intro
+octavo ai run summarize refs/report.pdf            # refs/report.summary.md
+octavo ai run ocr refs/private/scan.png            # refs/private/scan.md
+octavo ai run proofread notes/draft.md --lines 10-40 --out notes/ai/check.md
+```
+
+- The AI is any server with the OpenAI-compatible chat API (`<ai_url>/chat/completions`): Ollama,
+  LM Studio, the llama.cpp server or vLLM on this machine, or a cloud API. Octavo installs and
+  chooses no model. Settings: `ai_url` (such as `http://localhost:11434/v1`), `ai_model`,
+  `ai_timeout` (seconds, 600), `ai_allow` (other addresses that count as this machine, such as a lab
+  GPU server) and `ai_private` (default `['refs/private/']`). `OCTAVO_AI_URL` and `OCTAVO_AI_MODEL`
+  override the first two on one machine. A key, if the server needs one, is read only from
+  `OCTAVO_AI_KEY`, never from the config.
+- **What is in `ai_private` goes only to this machine** (`localhost`, a loopback address, or
+  `ai_allow`); `octavo ai run` refuses to send it elsewhere.
+- A task is a file, `templates/ai/<name>.md`, overridable and extendable like any template
+  (`octavo template copy ai/proofread.md`, then rename the copy). Its front matter gives `title`,
+  `input` (`text`, `pdf` (its text, via `pdftotext`), `image`, `pdf-pages` (page by page as images,
+  via `pdftoppm`, joined with `=== page N ===`)) and `output` (where the answer goes: `{dir}` the
+  sent file's folder, `{name}` its name without the extension (plus `.<section>`), `{task}`). The
+  body is what the AI is told.
+- The answer is written to that file, with a first line `<!-- octavo ai: … -->` saying what was sent
+  to which model. Octavo never writes over a manuscript, an appendix or a file without that line
+  (unless `--force`). The manuscript is never changed: what to take from the answer is yours to
+  decide.
+- `--section KEY` sends one section of a manuscript (by its label), `--lines A-B` some lines,
+  `--dry-run` says what would be sent, and `--json` answers `{ok, error, output}`. In VS Code,
+  **Ask the AI** (the editor's and the explorer's right-click menu) runs a task on the file, or on
+  the selected lines, and opens the answer beside it.
+
+- `writing: rules` in a task's front matter hands a manuscript over with its writing rules for that
+  range (as `octavo revise --print` gives them, unsplit); `writing: revise` sends it pass by pass, one
+  request each, the answers joined with `=== pass … ===`. The bundled `proofread` has the first,
+  `revise` the second; `suggest-rules` takes the output of `octavo writing --harvest`.
+
+### 9.8 Revising (octavo revise)
+
+```bash
+octavo revise my-paper                             # the places to reread (* = new since the last pass)
+octavo revise my-paper --section results --print   # what to hand the AI, pass by pass
+octavo revise my-paper --lines 60-120 --print --pass 2
+octavo revise my-paper --fine 3fa9c1               # a place that needs no change
+octavo revise my-paper --verdict field/style#hedges 84 fixed --note "doubled hedge"
+octavo revise my-paper --json
+```
+
+- One list of the places to reread, gathered from what other commands find, plus a few counts:
+  a rule's `Flag` (only in the first or last sentence of each paragraph under those `Scope`s) and
+  `Count`; a `Stage: lookup` entry whose word appears; `octavo/long-sentence` (more than
+  `revise_sentence_words` words, default 40, or `revise_sentence_chars` characters in Japanese,
+  default 100; 0 = off; also per document); `octavo/repeated-ending` (three sentences in a row with the
+  same Japanese ending); `octavo/repeated-opening` (three sentences of a paragraph, or three paragraphs
+  under a heading, opening with the same word, or the same Japanese lead such as また、);
+  `octavo/abbreviation` (used before its definition, `Full name (ABC)` or `ABC（…）`; only abbreviations
+  that are defined somewhere); `octavo/term-variant` (a spelling listed in the `variants` column of
+  `notes/writing/terms.csv`, whose other columns are `en` / `ja`; the preferred term is the
+  manuscript's language column); the paragraph plan (when the manuscript has marks); questions; numbers
+  typed into the prose and lines broken mid-sentence; and, for the other-language version, sections
+  behind the main manuscript. Nothing is judged and the text is never changed.
+- `--section S`, `--lines A-B`, `--file F` narrow the list (the whole manuscript is still read, so the
+  record stays whole); `--all` adds the findings judged fine.
+- **Passes are recorded** in `docs/<name>/revise.json` (each run without `--json`, and `--print`;
+  `--no-record` skips it): the fingerprints of the paragraphs and the findings. A finding not in the last
+  recorded pass is new (`*`). A finding that disappears because its paragraph was edited counts as
+  fixed. `--fine KEY` (a prefix is enough) hides one until its sentence changes; `--verdict RULE LINE
+  fixed|fine [--note TEXT]` records the author's decision on a finding the AI raised. `octavo writing
+  --stats` adds them up.
+- `--print` gives what the AI needs, pass by pass (`--pass N` for one): the rules to check, at most
+  eight to a pass, grouped by `Scope` — sentences and paragraphs, sections, the whole manuscript — each
+  with its id (drafting and revising rules, and the lookups whose word appears); the paragraphs changed
+  since the last pass whose text differed (all with `--all`), line-numbered; for sections, the
+  sections holding them; for the whole manuscript, the headings and each paragraph's kind, claim and
+  first sentence. The first pass also lists the places Octavo found; every pass lists the findings
+  judged fine.
+- `--json`: `doc`, `base`, `findings` (`key`, `check` (`rule`, `count`, `lookup`, `octavo`, `outline`,
+  `ask`, `lint`, `translation`), `rule`, `title`, `file`, `line`, `para`, `match`, `text`, `note`,
+  `section`, `state` (`new`, `seen`, `fine`)), `paragraphs`, `changed`, `fine`, `warnings`. With
+  `--print`: `doc`, `passes` (`title`, `scope`, `rules`, `text`).
 
 ---
 
@@ -1192,7 +1361,11 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
+octavo ai [list | check | run TASK FILE] [--section KEY] [--lines A-B] [--out FILE] [--force] [--dry-run] [--json]
+octavo translation [name] [--lang ja|en] [--mark [KEY ...]] [--print KEY] [--json]
 octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--section-only] [--print] [--flags] [--json]
+octavo writing --check [--pack-dir DIR] | --stats | --harvest REF [--docx FILE] [--for DOC] [--json]
+octavo revise <document> [--section S | --lines A-B | --file F] [--all] [--print [--pass N]] [--fine KEY ...] [--verdict RULE LINE fixed|fine] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
@@ -1227,3 +1400,5 @@ still work. Messages follow `OCTAVO_LANG` (`ja` / `en`), else the system's langu
 - **A slide overflows**: the build names it; add `\newslide`, cut, or shrink a figure.
 - **Citations look wrong**: `octavo selftest` prints them as typeset; check the `.bib` entry
   with `octavo check cites`.
+- **A cited key is not in the `.bib` yet**: the PDF is still made, with the key shown as
+  `key?`; the build warns and `octavo check` counts it as an error until the entry arrives.

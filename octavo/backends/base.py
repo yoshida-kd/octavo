@@ -172,7 +172,11 @@ class Ctx:
         p = (self.out_dir / bare).resolve()
         if p.parent != Path(self.cfg['figure_dir']).resolve():
             return path
-        return self.rel(p.with_suffix(self.backend.figure_ext(self.cfg)))
+        target = p.with_suffix(self.backend.figure_ext(self.cfg))
+        # 原稿の言語の版（ov_figure(p, "trend.en") が書く trend.en.pdf / .png）があればそれ。
+        # 同じ図を日英の原稿で使い、図の中の文字だけ言語を変えるため
+        own = target.with_name(f'{target.stem}.{self.lang}{target.suffix}')
+        return self.rel(own if own.is_file() else target)
 
     def table_path(self, name: str, ext: str | None = None) -> Path:
         return self.cfg['table_dir'] / f'{name}{ext or self.backend.table_ext}'

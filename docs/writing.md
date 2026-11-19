@@ -148,7 +148,7 @@ Flag: (?i)\bimpacts?\b
 - Headings, code, comments, display math, `{{values}}`, citations and labels (`@key`, `{#sec-x}`) and
   link targets are not searched.
 - A match is **a place to reread, not an error**: the word is flagged wherever it appears, right or
-  wrong. The list is in 5.3.
+  wrong. The list is in 5.1.
 
 ### 2.3 Phrases
 
@@ -182,16 +182,48 @@ Source: own
 | `- Open:` / `- Body:` / `- Close:` | (the same) | printed; each is a frame with its place in the paragraph (`position` in `--json`) |
 | `- ` any other list item | | printed; a frame with no place |
 | `Contains:` | | printed; also `contains` in `--json` |
-| `Repeat: yes` | `繰り返し: yes` | printed; paragraphs of this kind normally follow one another, so the outline does not note a run of them (5.1) |
+| `Repeat: yes` | `繰り返し: yes` | printed; paragraphs of this kind normally follow one another, so the outline does not note a run of them (5.2) |
 | any other line | | printed as it is; not read |
 
 The field names are matched at the start of a line, with `:` or `：`. Frames — the list items — are
-what `octavo outline --paragraphs` looks for in the text (5.1).
+what `octavo outline --paragraphs` looks for in the text (5.2).
 
 A phrase file whose entries are **the sentences of one paragraph, in order** (an abstract: the
 question, the evidence, the finding, why it matters) says so at the top with `entries: sentences`.
 Its entries are not kinds of paragraph, so where every phrase file for a section says this, the outline
 does not ask that section's paragraphs for a kind.
+
+### 2.4 When a rule is read, where it applies, and its id
+
+A file's rules are read whenever its section is written. Some rules are better checked after drafting
+than kept in mind while drafting, and some are notes on one word that matter only where the word is
+used. A few more lines say so. Octavo reads them and leaves them out of what the assistant reads.
+
+```markdown
+## Doubled hedges
+Id: doubled-hedges
+Stage: revise
+Rule: Keep one hedge where there are two.
+Why: Two hedges read as doubt about the finding, not as caution.
+Bad: The results may possibly suggest a link.
+Good: The results may suggest a link.
+Flag: (?i)\bmay possibly\b
+Count: `(?i)\b(may|might|perhaps|possibly)\b` per paragraph > 2
+```
+
+| Line | Japanese | Values | Without it |
+|---|---|---|---|
+| `Stage:` | `段階:` | `draft`: read while drafting, and checked when revising. `revise`: only when revising (5.1). `lookup`: read only where its `Flag:` matches the manuscript (a usage note on one word) | `draft`, or the file's `stage:` |
+| `Scope:` | `範囲:` | `sentence`, `paragraph`, `first-sentence`, `last-sentence` (the `Flag:` is tried on that sentence of each paragraph only), `section`, `document` (what the assistant is given with the rule when revising) | `sentence`, or the file's `scope:` |
+| `Section:` | `節:` | a section or a list, for this entry only | the file's `section:` |
+| `Id:` | | a fixed name for the entry, used in place of the slug of its heading. The old slug and any `Alias:` (`別名:`) still work | the heading's slug |
+| `Replaces:` | `置き換え:` | `pack/file#id` of a more general pack: that entry is left out while this one is used | |
+| `Count:` | `数える:` | `<regular expression> per sentence`, `per paragraph` or `per section`, then `> N`: a place to reread where it matches more than N times | |
+
+- `Good:` and `Bad:` may be repeated, with one example each, or followed by `- ` lines. An exception
+  goes on a line of its own, such as `Except:`, which is printed like any other line.
+- Give an entry an `Id:` before projects turn it off by name; after that, its heading can change.
+- `octavo writing --check` tries each `Flag:` on its rule's examples (6.1).
 
 ---
 
@@ -313,6 +345,31 @@ prints only what that section adds. In VS Code: put the cursor in the manuscript
 **Show the Rules for Where the Cursor Is** (the editor's right-click menu, or the manuscript's
 **Writing rules** in the sidebar).
 
+### 3.6 Keeping a pack's version
+
+A pack you keep improving changes for every project at once. When the packs are in a git repository,
+tag a version and name it with `@` where the pack is chosen:
+
+```bash
+git -C ~/projects/writing tag academic-en@v1
+```
+
+```python
+CONFIG = {
+    'writing': ['academic-en@v1', 'field'],
+}
+```
+
+`academic-en@v1` reads the pack as it was at the tag `academic-en@v1` (else a tag or commit `v1`) of
+the repository the pack is in, and keeps doing so however the pack's folder changes; `field`, with no
+`@`, is read as it is now. A pack's `extends` can name a version the same way; a version in `writing`
+wins. Files a project adds to the same pack in `notes/writing/<pack>/` are still layered on top. If
+the version is not found, the pack is not used and Octavo warns — it never falls back to the folder as
+it is now. `octavo writing` lists each pack's tagged versions. Moving a project on is changing `@v1` to
+`@v2`.
+
+The version read is written out under `~/.cache/octavo/writing/` (safe to delete). Git is needed.
+
 ---
 
 ## 4. The paragraph plan
@@ -371,9 +428,62 @@ does not use is left out with a warning.
 
 ---
 
-## 5. After drafting
+## 5. Revising
 
-### 5.1 The outline
+### 5.1 octavo revise
+
+```bash
+octavo revise my-paper
+octavo revise my-paper --section results --print
+```
+
+`octavo revise` gathers every place to reread in one manuscript into one list. It takes the matches of
+the rules' `Flag:` and `Count:`, the usage notes whose word appears, the paragraph plan (5.2), the
+questions (5.3), numbers typed into the prose, lines broken in the middle of a sentence, and the
+sections of the other-language version that are behind. It also counts a few things itself:
+
+| Check | What it reports |
+|---|---|
+| `octavo/long-sentence` | a sentence of more than 40 words (`revise_sentence_words`), or more than 100 characters in Japanese (`revise_sentence_chars`); 0 turns it off |
+| `octavo/repeated-ending` | three Japanese sentences in a row with the same ending (〜である。) |
+| `octavo/repeated-opening` | three sentences of a paragraph, or three paragraphs under one heading, that open the same way (This …, また、) |
+| `octavo/abbreviation` | an abbreviation used before its definition, as in `regression discontinuity design (RDD)` |
+| `octavo/term-variant` | a spelling listed under `variants` in `notes/writing/terms.csv` |
+
+```csv
+en,ja,variants
+data set,データセット,dataset; data-set
+```
+
+Like a `Flag:`, each is a place to reread, not an error. Octavo never changes the text.
+
+**Each run is a pass, and the passes are recorded** in `docs/<name>/revise.json` (keep it in git).
+
+- A finding that was not there in the last pass is marked `*`.
+- If a finding needs no change, `octavo revise my-paper --fine <key>` hides it until its sentence
+  changes.
+- A finding that disappears because you edited its paragraph is counted as fixed.
+
+So the next pass shows what is new and what is still open. Over many passes, the record shows which
+rules earn their place (6.2).
+
+`--print` is what the assistant reads to revise:
+
+- the rules to check, in passes of at most eight, grouped by their `Scope`, each with its id;
+- the paragraphs changed since the last pass, with their line numbers (for rules about the whole
+  manuscript, the headings and each paragraph's claim and first sentence instead);
+- the places Octavo found;
+- the findings already judged fine.
+
+The assistant lists its findings with the line and the rule's id, and changes nothing until you have
+decided. When you decide on one of its findings, it records your decision with `--verdict`
+(AGENTS.md says so).
+
+`octavo ai run revise docs/my-paper/my-paper.md` sends the same passes to the AI set up for
+`octavo ai`, one request per pass; a local model handles a short list of rules better than a long one.
+`octavo ai run proofread` sends the rules along with the passage.
+
+### 5.2 The outline
 
 ```bash
 octavo outline my-paper --paragraphs
@@ -403,7 +513,7 @@ must start the sentence, one ending in `.` must end it; frames with fewer than t
 looked for. Only frames this manuscript uses, of the heading's own section (or of files with no
 `section:`), are compared.
 
-### 5.2 Questions for the author
+### 5.3 Questions for the author
 
 Where the text needs a number or a source that is in neither the manuscript nor the analysis, the
 assistant is told to leave a question instead of writing around it:
@@ -415,25 +525,73 @@ assistant is told to leave a question instead of writing around it:
 `octavo outline … --paragraphs` lists the questions with their lines, and `octavo check` shows
 **questions for the author** as a warning until each is answered and deleted.
 
-### 5.3 Places to reread
+### 5.4 Places to reread, rule by rule
 
 ```bash
 octavo writing --for my-paper --flags
 ```
 
 lists, rule by rule, the lines of the manuscript and its appendix that a rule's `Flag:` matches (2.2),
-with their line numbers. Read each against its rule; most will be fine. `octavo check` gives only the
-count (**places to reread**), never as a warning, and `--strict` does not fail on it. `--file F` in
+with their line numbers (it does not apply `Scope:`; `octavo revise` does). `octavo check` gives only
+the count (**places to reread**), never as a warning, and `--strict` does not fail on it. `--file F` in
 place of `--for` lists one file.
 
 ---
 
-## 6. Letting the assistant use it
+## 6. Improving the packs
+
+### 6.1 Checking a pack
+
+```bash
+octavo writing --check
+octavo writing --check --pack-dir ~/projects/writing/packs
+```
+
+checks every pack: field values it does not know, a `Flag:` or `Count:` that is not a regular
+expression, an `Id:` used twice, a `Replaces:` that names no entry, a `Stage: lookup` without a
+`Flag:`. It also tries each `Flag:` on its rule's examples: **a `Flag:` that misses a `Bad:` example is
+a problem**; one that matches a `Good:` example is only a note, since a correct use may contain the
+word. With `--pack-dir`, it checks the packs in a folder outside any project (where you keep and edit
+them). It exits with 1 when there is a problem, so it can run before you publish a change to a pack.
+
+### 6.2 What the record says
+
+```bash
+octavo writing --stats
+```
+
+adds up, rule by rule, what the passes of `octavo revise` recorded: how often each rule was found,
+fixed, and judged fine. It also lists the rules with a `Flag:` or `Count:` that never matched.
+
+| What you see | What it suggests |
+|---|---|
+| never found | the `Flag:` is too narrow, or the problem does not occur in your writing |
+| mostly judged fine | the rule or its `Flag:` is too broad: narrow it, or make it a `Stage: lookup` note |
+| mostly fixed | the rule earns its place; perhaps make it a drafting rule |
+
+### 6.3 Rules from your own revisions
+
+```bash
+octavo writing --harvest v1-draft --for my-paper > notes/writing/harvest.md
+octavo ai run suggest-rules notes/writing/harvest.md
+```
+
+Manuscripts are written one sentence per line, so the difference between a git version and now is a
+list of sentences before and after you revised them. Commit a draft (the assistant's, or your own),
+revise it, then run `--harvest` with that commit. `--docx` adds a coauthor's tracked changes and
+comments. The `suggest-rules` task (or the assistant in chat) groups the revisions by pattern and
+proposes candidate entries in the pack's form, quoting your before and after as `Bad:` and `Good:`.
+They are candidates: you decide which become rules and where they go. Octavo never writes to a pack.
+
+---
+
+## 7. Letting the assistant use it
 
 - **The project's AGENTS.md** (written by `octavo init`) tells the assistant to run `octavo writing
-  --file … --line … --print` before writing or revising prose, to follow the rules, to use the phrase
-  bank only where a frame fits, to plan with marks and check with the outline, to leave `ask` comments,
-  and not to edit the pack files. A project made before these sections existed gets them with:
+  --file … --line … --print` before writing prose, to follow the rules, to use the phrase bank only
+  where a frame fits, to plan with marks and check with the outline, to leave `ask` comments, and not
+  to edit the pack files. For revising, it tells the assistant to run `octavo revise … --print`, to
+  list findings without rewriting until you decide, and to record your decisions. A project made before these sections existed gets them with:
 
 ```bash
 octavo migrate --rules
@@ -442,13 +600,15 @@ octavo migrate --rules
 - **The sidebar**: each manuscript's **Writing rules** shows the packs it uses, their files and
   entries. **Choose the Packs…** sets `writing:` for that manuscript; right-click an entry to turn it
   off or back on; **Show the Rules for Where the Cursor Is** shows what the assistant reads at the
-  cursor.
+  cursor. **Revising** lists the places `octavo revise` finds; click one to go to its line, or
+  right-click it to mark it as needing no change.
 - `octavo check` has a **writing rules** row when there are packs: unknown pack and section names,
-  `writing_off` entries that name nothing, and a `Flag:` that is not a regular expression.
+  `writing_off` entries that name nothing, a `Flag:` that is not a regular expression, and the number
+  of problems `octavo writing --check` finds.
 
 ---
 
-## 7. When something goes wrong
+## 8. When something goes wrong
 
 | What you see | Why, and what to do |
 |---|---|
@@ -456,7 +616,10 @@ octavo migrate --rules
 | a file never appears for a manuscript | its `applies:` or `lang:` does not match the manuscript (3.3); `octavo writing --for DOC --all` lists the files left out with `- ` |
 | a file's section is never read | the heading above the line names no section (3.4), or the section name is mistyped: `octavo check` warns about an unknown section |
 | `no writing pack called …`, `extends …, but there is no pack called …` | a name in `writing` or in a pack's `extends` that no folder has |
-| `writing_off names nothing` | the entry's heading changed, so its slug changed (3.2); copy the new id from `octavo writing --for DOC --json` or turn it off again from the sidebar |
+| `… no version v1 …; the pack is not used` | the tag is missing or mistyped, or the pack is not in a git repository (3.6); `git tag --list` where the pack is shows the versions |
+| `writing_off names nothing` | the entry's heading changed, so its slug changed (3.2); copy the new id from `octavo writing --for DOC --json` or turn it off again from the sidebar. Giving the entry an `Id:` prevents this (2.4) |
+| a rule never comes when drafting | it has `Stage: revise` or `Stage: lookup` (2.4): it comes with `octavo revise`, or where its word appears |
+| `octavo revise` shows no text in `--print` | no paragraph changed since the last pass; `--all` shows every paragraph |
 | `needs a blank line before the mark` | put an empty line between the text above and the mark (4.1) |
 | `unknown kind` | the kind is mistyped, or its pack is not chosen for this manuscript |
 | `a kind this manuscript does not use` | the kind's file has `applies` / `lang` that do not fit this manuscript, or it is in `writing_off` |

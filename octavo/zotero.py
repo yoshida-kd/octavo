@@ -29,12 +29,13 @@ WSL2 のネットワークモードを mirrored にするか（`.wslconfig` の
 ように分けても、まとめて1つの .bib になる）。同じキーの文献は1つにする。
 
 **メインと関連。**`zotero_collection` がメイン（.bib になる）。`zotero_linked` は関連のコレクション
-（Priorwork の調査ごとなど）で、.bib には入れない。`octavo bib tidy` はメインを「原稿が引いている
-文献とぴったり同じ」に保つための計画を立てる: 引いているのにメインに無い文献（関連のどこにあるか）と、
-メインにあるのに引いていない文献。`zotero_write: True` のときだけ `--apply` で Zotero を書き換える。
-書き換えはウェブ API で、**文献のコレクションの所属だけ**（メインに足す・メインから外す）。文献その
-ものは消さず、中身も書き換えない。外した文献はライブラリと、ほかのコレクションに残る。
-キーを固定していない文献は、Zotero が付けるキーと .bib のキーが食い違いうるので、外す候補にしない。
+（Priorwork の調査ごとなど）で、.bib には入れない。`octavo bib tidy` はメインを原稿に合わせて仕分ける
+計画を立てる: 引いている文献は原稿の節ごとのサブコレクション（「01 はじめに」）へ、引いていない文献は
+メインの下の「非引用文献」へ（メインからは外さない）、引いているのにメインに無い文献は関連から足す。
+`zotero_write: True` のときだけ `--apply` で Zotero を書き換える。書き換えはウェブ API で、
+**文献のコレクションの所属と、仕分けのコレクション（作る・Octavo が作って空になったものを消す）だけ**。
+文献そのものは消さず、中身も書き換えない。利用者が自分で作ったコレクションには触らない。
+キーを固定していない文献は、Zotero が付けるキーと .bib のキーが食い違いうるので動かさない。
 """
 from __future__ import annotations
 
@@ -208,7 +209,8 @@ def tree(raw: list) -> list:
                                 and gone(parent_of[k], (*seen, k)))
     cols = {c['key']: {'name': c.get('data', {}).get('name', ''),
                        'parent': c.get('data', {}).get('parentCollection') or '',
-                       'items': (c.get('meta') or {}).get('numItems', 0)}
+                       'items': (c.get('meta') or {}).get('numItems', 0),
+                       'version': c.get('version') or (c.get('data') or {}).get('version') or 0}
             for c in raw if c.get('key') and not gone(c['key'])}
     children: dict = {}
     for k, c in cols.items():
@@ -221,7 +223,7 @@ def tree(raw: list) -> list:
                 continue
             path = f"{prefix} / {cols[k]['name']}" if prefix else cols[k]['name']
             out.append({'key': k, 'name': cols[k]['name'], 'parent': parent, 'path': path,
-                        'depth': depth, 'items': cols[k]['items']})
+                        'depth': depth, 'items': cols[k]['items'], 'version': cols[k]['version']})
             walk(k, path, depth + 1, seen | {k})
     walk('', '', 0, frozenset())
     return out
@@ -405,15 +407,22 @@ def web_bib(collection_key: str | None, fmt: str) -> tuple:
 
 def _web_patch(item_key: str, version: int, data: dict) -> None:
     """1つの文献を書き換える（ウェブ API）。version が Zotero 側と違えば（その間に変わった）止める。"""
+    _web_send('PATCH', f'/items/{item_key}', data, version)
+
+
+def _web_send(method: str, path: str, data, version=None) -> str:
+    """ウェブ API に書く（POST / DELETE）。version を渡せば、その間に変わっていたら止める。"""
     key, uid = credentials()
-    url = f'{WEB}/users/{uid}/items/{item_key}'
-    req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), method='PATCH',
-                                 headers={'User-Agent': f'octavo/{__version__}', 'Zotero-API-Key': key,
-                                          'Zotero-API-Version': '3', 'Content-Type': 'application/json',
-                                          'If-Unmodified-Since-Version': str(version)})
+    headers = {'User-Agent': f'octavo/{__version__}', 'Zotero-API-Key': key, 'Zotero-API-Version': '3'}
+    body = None
+    if data is not None:
+        body = json.dumps(data).encode('utf-8')
+        headers['Content-Type'] = 'application/json'
+    if version is not None:
+        headers['If-Unmodified-Since-Version'] = str(version)
+    req = urllib.request.Request(f'{WEB}/users/{uid}{path}', data=body, method=method, headers=headers)
     try:
-        _open(req, TIMEOUT)
-        return
+        return _open(req, TIMEOUT)[0]
     except urllib.error.HTTPError as e:
         if e.code == 403:
             raise WriteRefused(t('the Zotero API key cannot write. At zotero.org/settings/keys, allow '
@@ -423,6 +432,26 @@ def _web_patch(item_key: str, version: int, data: dict) -> None:
         raise ZoteroError(t('the Zotero web API failed ({why})', why=e))
     except (urllib.error.URLError, OSError) as e:
         raise ZoteroError(t('cannot reach the Zotero web API ({why})', why=e))
+
+
+def _web_create_collection(name: str, parent: str) -> str:
+    """parent の下にコレクションを1つ作り、そのキーを返す。"""
+    text = _web_send('POST', '/collections', [{'name': name, 'parentCollection': parent}])
+    try:
+        got = json.loads(text)
+        made = (got.get('successful') or {}).get('0') or {}
+        key = made.get('key') or (got.get('success') or {}).get('0')
+    except (ValueError, AttributeError):
+        key = None
+    if not key:
+        why = ((got.get('failed') or {}).get('0') or {}).get('message') if isinstance(got, dict) else ''
+        raise ZoteroError(t('Zotero did not make the collection {name} ({why})', name=name, why=why or text[:200]))
+    return key
+
+
+def _web_delete_collection(key: str, version: int) -> None:
+    """空のコレクションを1つ消す（中の文献は消えない。そもそも空のときだけ呼ぶ）。"""
+    _web_send('DELETE', f'/collections/{key}', None, version)
 
 
 class WriteRefused(ZoteroError):
@@ -522,14 +551,56 @@ def synced_items(collection_keys, whole_library: bool = False) -> list:
     return list(items.values())
 
 
-def tidy_plan(main, linked, cited, whole_library: bool = False) -> dict:
-    """メインのコレクションを「引いている文献とぴったり同じ」にする計画（Zotero は書き換えない）。
+# 整えるときに Octavo が作るコレクションの名前（プロジェクトの言語で）
+NAMES = {'ja': {'uncited': '非引用文献', 'before': '冒頭'},
+         'en': {'uncited': 'Not cited', 'before': 'Opening'}}
+
+
+def section_paths(documents: list, lang: str = 'ja') -> list:
+    """[(文書名, [(見出し, キーの集合)], 付録か)] を、メインの下の置き場所 [(パス, キー)] にする。
+
+    文書が1つならメインの直下に「01 はじめに」、2つ以上なら「論文名 / 01 はじめに」。番号は Zotero が
+    名前の順に並べるので、原稿の順に並ぶように付ける（付録は A1, A2, …）。最初の見出しより前の引用は
+    「00 冒頭」。引用の無い節は作らない。
+    """
+    words = NAMES.get(lang, NAMES['en'])
+    several = len({d for d, _, _ in documents}) > 1
+    out, count = [], {}
+    for doc, sections, appendix in documents:
+        for title, keys in sections:
+            n = count.setdefault((doc, appendix), [0])
+            if title is None:
+                name = f"00 {words['before']}"
+            else:
+                n[0] += 1
+                name = (f'A{n[0]} ' if appendix else f'{n[0]:02d} ') + title
+            if keys:
+                out.append(((doc, name) if several else (name,), set(keys)))
+    return out
+
+
+def _clean_name(s: str) -> str:
+    return re.sub(r'\s+', ' ', s).strip() or '-'
+
+
+def tidy_plan(main, linked, cited, whole_library: bool = False, sections=None, made=None,
+              lang: str = 'ja') -> dict:
+    """メインのコレクションを原稿の引用に合わせて仕分ける計画（Zotero は書き換えない）。
 
     main / linked は設定の zotero_collection / zotero_linked、cited は原稿が引いているキー。
-    返すもの: add（引いているのにメインに無く、関連にある文献。where は 'linked'。whole_library なら、
-    関連にも無いものをライブラリ全体から探す: where は 'library'）、remove（メインにあって引いていない
-    文献。キーを固定したものだけ）、unpinned（メインにあってキーを固定していない文献）、
-    not_found（引いているが、メインにも関連にも無いキー）。
+    sections は section_paths() の [(メインの下のパス, キー)]（None なら節に分けず、メインの直下）。
+    made は Octavo が前に作ったコレクション {キー: パス}（空になったら消してよいのは、これだけ）。
+
+    - 引いている文献は、引いている節のコレクションに入れる（2つの節で引けば両方）。メインの直下と、
+      Octavo の作ったコレクションからは出す。利用者が自分で作ったコレクションの所属はそのまま
+    - 引いていない文献はメインから外さず、メインの下の「非引用文献」に移す（.bib には入り続ける）
+    - 引いているのにメインに無い文献は、関連のコレクション（whole_library ならライブラリ全体）から
+      探して足す
+    - キーを固定していない文献は、Zotero の付けるキーと .bib のキーが食い違いうるので動かさない
+    - Octavo の作ったコレクションで、仕分けたあと空になるものは消す計画に入れる
+
+    返すもの: add（足す）、sort（メインの中で入れ直す）、uncited（非引用文献へ）、unpinned、
+    not_found、create（作るコレクション）、delete（消す空のコレクション）。
     """
     names = as_list(main)
     if not names:
@@ -544,66 +615,169 @@ def tidy_plan(main, linked, cited, whole_library: bool = False) -> dict:
     main_keys = {c['key'] for c in in_main}
     in_linked = [c for c in _targets(as_list(linked), cols) if c['key'] not in main_keys]
     library = synced_items([c['key'] for c in in_main + in_linked], whole_library)
+    made = {k: p for k, p in (made or {}).items() if k in by_key}
+    words = NAMES.get(lang, NAMES['en'])
+
+    # 置き場所: メインの下のパス -> 今あるコレクションのキー、無ければ 'new:<パス>'（作る）
+    child = {(c['parent'], c['name']): c['key'] for c in cols}
+    create: list = []
+    slot: dict = {}
+
+    def place(rel: tuple) -> str:
+        if rel in slot:
+            return slot[rel]
+        parent = place(rel[:-1]) if len(rel) > 1 else home['key']
+        name = _clean_name(rel[-1])
+        key = child.get((parent, name))
+        if not key:
+            key = 'new:' + ' / '.join(_clean_name(x) for x in rel)
+            create.append({'ref': key, 'name': name, 'parent': parent,
+                           'path': home['path'] + ' / ' + key[4:]})
+        slot[rel] = key
+        return key
+
+    def shown(ref: str) -> str:
+        return by_key[ref]['path'] if ref in by_key else home['path'] + ' / ' + ref[4:]
+
+    where_cited: dict = {}
+    for rel, keys in (sections or []):
+        for k in keys:
+            where_cited.setdefault(k, []).append(rel)
+    uncited_rel = (words['uncited'],)
+    # Octavo が中身を決めるコレクション: メインの直下、今ある置き場所、前に作ったもの
+    managed = {home['key'], *made}
+    for rel in [r for r, _ in (sections or [])] + [uncited_rel]:
+        k, parent = None, home['key']
+        for part in rel:
+            k = child.get((parent, _clean_name(part)))
+            if not k:
+                break
+            parent = k
+        if k:
+            managed.add(k)
 
     main_items = {it['item']: it for it in library if main_keys & set(it['collections'])}
     main_cites = {it['cite'] for it in main_items.values()}
-
     cited = set(cited)
+
+    def wanted(cite: str) -> list:
+        rels = where_cited.get(cite)
+        return [place(r) for r in rels] if rels else [home['key']]
+
+    def job(it: dict, want: list, **extra) -> dict | None:
+        keep = [c for c in it['collections'] if c not in managed]
+        new = keep + [w for w in want if w not in keep]
+        if set(new) == set(it['collections']):
+            return None
+        return {'key': it['cite'], 'item': it['item'], 'version': it['version'],
+                'collections': it['collections'], 'new': new, 'title': it['title'],
+                'pinned': it['pinned'], 'to': [shown(w) for w in want if w not in it['collections']],
+                **extra}
+
     add, found = [], set()
-    for c in in_linked:                        # 関連のコレクションの順に（どこから来たかを示す）
-        for it in library:
-            k = it['cite']
-            if (c['key'] in it['collections'] and k in cited and k not in main_cites and k not in found
-                    and it['item'] not in main_items):
-                found.add(k)
-                add.append({'key': k, 'item': it['item'], 'version': it['version'],
-                            'collections': it['collections'], 'title': it['title'], 'from': c['path'],
-                            'pinned': it['pinned'], 'where': 'linked'})
-    for it in (library if whole_library else ()):   # 関連にも無ければ、ライブラリ全体から（頼まれたときだけ）
+    candidates = [(c, it) for c in in_linked for it in library if c['key'] in it['collections']]
+    if whole_library:                          # 関連にも無ければ、ライブラリ全体から（頼まれたときだけ）
+        candidates += [(None, it) for it in library]
+    for c, it in candidates:
         k = it['cite']
-        if k in cited and k not in main_cites and k not in found and it['item'] not in main_items:
-            found.add(k)
+        if k not in cited or k in main_cites or k in found or it['item'] in main_items:
+            continue
+        found.add(k)
+        if c is not None:
+            src, where = c['path'], 'linked'
+        else:
             paths = [by_key[x]['path'] for x in it['collections'] if x in by_key]
-            add.append({'key': k, 'item': it['item'], 'version': it['version'],
-                        'collections': it['collections'], 'title': it['title'],
-                        'from': ', '.join(paths) or t('the library (in no collection)'),
-                        'pinned': it['pinned'], 'where': 'library'})
-    remove, unpinned = [], []
+            src, where = ', '.join(paths) or t('the library (in no collection)'), 'library'
+        add.append(job(it, wanted(k), **{'from': src, 'where': where}))
+
+    sort, uncited, unpinned = [], [], []
     for it in main_items.values():
         if it['cite'] in cited:
+            j = job(it, wanted(it['cite']))
+            if j:
+                sort.append(j)
             continue
         if not it['pinned']:
             unpinned.append({'key': it['cite'], 'title': it['title']})
             continue
-        remove.append({'key': it['cite'], 'item': it['item'], 'version': it['version'],
-                       'collections': it['collections'], 'title': it['title'],
-                       'from': [by_key[k]['path'] for k in it['collections'] if k in main_keys]})
+        j = job(it, [place(uncited_rel)])
+        if j:
+            uncited.append(j)
+
+    # 仕分けたあと空になる、Octavo の作ったコレクション（子のあるものは、子も消えるときだけ）
+    after = {it['item']: set(it['collections']) for it in main_items.values()}
+    for j in add + sort + uncited:
+        after[j['item']] = set(j['new'])
+    used = set().union(*after.values()) if after else set()
+    used |= set(slot.values())
+    delete, gone = [], set()
+    for c in reversed(cols):                   # 子から先に
+        if c['key'] not in made or c['key'] in used:
+            continue
+        kids = [x['key'] for x in cols if x['parent'] == c['key']]
+        if all(x in gone for x in kids):
+            gone.add(c['key'])
+            delete.append({'key': c['key'], 'path': c['path'], 'version': c['version']})
+
     not_found = sorted(cited - main_cites - found)
+    by = (lambda x: x['key'])
     return {'main': home['path'], 'main_key': home['key'], 'main_keys': sorted(main_keys),
             'linked': [c['path'] for c in in_linked],
-            'add': sorted(add, key=lambda x: x['key']), 'remove': sorted(remove, key=lambda x: x['key']),
-            'unpinned': sorted(unpinned, key=lambda x: x['key']), 'not_found': not_found}
+            'add': sorted(add, key=by), 'sort': sorted(sort, key=by), 'uncited': sorted(uncited, key=by),
+            'unpinned': sorted(unpinned, key=by), 'not_found': not_found,
+            'create': create, 'delete': delete, 'made': made}
 
 
-def tidy_apply(plan: dict, keys=None) -> tuple:
+def tidy_apply(plan: dict, keys=None, record=None) -> tuple:
     """計画どおりに Zotero を書き換える（keys を渡せば、そのキーの文献だけ）。(済んだキー, [(キー, 理由)])。
-    書き換えるのは文献の collections だけ: メインに足す・メインのコレクション（とその下）から外す。"""
+
+    書き換えるのは文献の collections と、Octavo が仕分けに使うコレクション（作る・空のものを消す）だけ。
+    文献そのものは消さず、中身も直さない。record（{'made': {キー: パス}}）に、作ったものと消したものを
+    書き込む（呼んだ側がプロジェクトに保存する）。空のコレクションを消すのは、keys を絞らずに全部が
+    うまくいったときだけ。
+    """
     keys = None if keys is None else set(keys)
-    main_keys = set(plan['main_keys'])
+    record = record if record is not None else {}
+    made = record.setdefault('made', {})
+    jobs = [j for j in plan['add'] + plan['sort'] + plan['uncited'] if keys is None or j['key'] in keys]
+    needed = {r for j in jobs for r in j['new'] if r.startswith('new:')}
+    real: dict = {}
     done, failed = [], []
-    jobs = [(x, x['collections'] + [plan['main_key']]) for x in plan['add']]
-    jobs += [(x, [k for k in x['collections'] if k not in main_keys]) for x in plan['remove']]
-    for x, collections in jobs:
-        if keys is not None and x['key'] not in keys:
+    for c in plan['create']:                   # 親が先に並んでいる
+        parent = real.get(c['parent'], c['parent'])
+        if c['ref'] not in needed and not any(n.startswith(c['ref'] + ' / ') for n in needed):
+            continue
+        if parent.startswith('new:'):
+            continue                           # 親を作れなかった
+        try:
+            real[c['ref']] = _web_create_collection(c['name'], parent)
+            made[real[c['ref']]] = c['path']
+        except WriteRefused as e:
+            return done, [(t('collection {path}', path=c['path']), str(e))]
+        except ZoteroError as e:
+            failed.append((t('collection {path}', path=c['path']), str(e)))
+    for j in jobs:
+        new = [real.get(r, r) for r in j['new']]
+        if any(r.startswith('new:') for r in new):
+            failed.append((j['key'], t('its collection could not be made')))
             continue
         try:
-            _web_patch(x['item'], x['version'], {'collections': collections})
-            done.append(x['key'])
+            _web_patch(j['item'], j['version'], {'collections': new})
+            done.append(j['key'])
         except WriteRefused as e:
-            failed.append((x['key'], str(e)))
-            break
+            failed.append((j['key'], str(e)))
+            return done, failed
         except ZoteroError as e:
-            failed.append((x['key'], str(e)))
+            failed.append((j['key'], str(e)))
+    if keys is None and not failed:
+        for c in plan['delete']:
+            try:
+                _web_delete_collection(c['key'], c['version'])
+                made.pop(c['key'], None)
+                record.setdefault('deleted', []).append(c['path'])
+            except ZoteroError as e:
+                failed.append((t('collection {path}', path=c['path']), str(e)))
+    record['created'] = [made[real[r]] for r in real]
     return done, failed
 
 

@@ -73,6 +73,7 @@ export interface AddOptions {
     name?: string;
     appendix?: boolean;
     tex?: boolean;
+    lang?: 'ja' | 'en';      // 既にある原稿に、この言語の版（<名前>.<言語>.md）を足す
 }
 
 /** 原稿・分析・図を足す。何も渡さなければ種類・名前・オプションを尋ねる。
@@ -116,6 +117,7 @@ export async function addToProject(
     const flags: string[] = [];
     if (preset.appendix) flags.push('--appendix');
     if (preset.tex) flags.push('--tex');
+    if (preset.lang) flags.push('--lang', preset.lang);
     if (kind === 'analysis' && engine === 'python') flags.push('--engine', 'python');
     const r = await runCapture(dirOf(configUri), ['new', kind, name, ...flags, '--json'], 60000);
     let report: NewReport | undefined;

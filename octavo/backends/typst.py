@@ -63,7 +63,12 @@ class TypstBackend(Backend):
         return ['-t', self.writer(ctx), '--wrap=preserve', '--top-level-division=section']
 
     def postprocess(self, typ: str, ctx: Ctx) -> str:
-        body = super().postprocess(typ, ctx)
+        body, gone = unlink_missing_citations(super().postprocess(typ, ctx), ctx.entries,
+                                              native=not self.uses_citeproc(ctx))
+        if gone:
+            ctx.say(f'{tag("warning")} ' + t(
+                'not in the .bib, shown as "key?" (the PDF is made anyway; octavo check cites '
+                'lists them): {keys}', keys=', '.join(gone)))
         if ctx.is_handout:
             return (f'// octavo build --to {self.name} が作った。手で直さない。\n'
                     + handout_meta(ctx) + '\n'
@@ -305,6 +310,74 @@ PLATFORM_FALLBACKS = {
 # 游明朝は日本語の言語機能を足したときに入る追加フォントで、英語の Windows には
 # ないことがある（游ゴシックは常にある）。だから明朝の並びの最後にも游ゴシック。
 OPTIONAL_FONTS = ('Yu Mincho',)
+
+
+def _closing(s: str, start: int) -> int:
+    """s[start] が `[` のとき、対になる `]` の位置（無ければ -1）。`\\]` は数えない。"""
+    depth, i = 0, start
+    while i < len(s):
+        c = s[i]
+        if c == '\\':
+            i += 2
+            continue
+        if c == '[':
+            depth += 1
+        elif c == ']':
+            depth -= 1
+            if depth == 0:
+                return i
+        i += 1
+    return -1
+
+
+CSL_LINK = re.compile(r'#link\(<ref-([^>]+)>\)\[')
+NATIVE_CITE = re.compile(r'#cite\(<([^>]+)>[^)]*\)')
+NATIVE_AT = re.compile(r'(?<![\w\\])@([\w\-.:]+)(\[[^\[\]]*\])?')
+
+
+def unlink_missing_citations(typ: str, entries: dict, native: bool = False) -> tuple:
+    """.bib に無い文献への引用を、組版を止めない形にする。(直した Typst, 無かったキー)。
+
+    CSL で組むと pandoc は引用を書誌の項目へのリンク `#link(<ref-キー>)[…]` にするが、
+    .bib に無いキーには書誌の項目ができず、Typst は「そのラベルが無い」と止まる。
+    文献が1つ足りないだけで PDF が作れないのは困るので、リンクだけを外す（pandoc が出した
+    `キー?` の表示は残る）。Typst の引用（typst_citations: 'native'）では `@キー` /
+    `#cite(<キー>)` を `キー?` の太字にする。足りないことは octavo check が致命的と言う。
+    """
+    gone: dict = {}
+    out, pos = [], 0
+    for m in CSL_LINK.finditer(typ):
+        if m.start() < pos or m.group(1) in entries:
+            continue
+        end = _closing(typ, m.end() - 1)
+        if end < 0:
+            continue
+        gone[m.group(1)] = True
+        out += [typ[pos:m.start()], typ[m.end():end]]
+        pos = end + 1
+    typ = ''.join(out) + typ[pos:]
+
+    def strong(k):
+        gone[k] = True
+        return f'#strong({typst_string(k + "?")})'
+
+    if not native:
+        return typ, list(gone)
+    typ = NATIVE_CITE.sub(lambda m: m.group(0) if m.group(1) in entries else strong(m.group(1)), typ)
+
+    def at(m):
+        k, tail = m.group(1), ''
+        while k and k[-1] in '.:' and k not in entries:
+            k, tail = k[:-1], k[-1] + tail          # 文末の「.」はキーではない
+        # `@` の後は pandoc の Typst 出力では引用だけ（相互参照は #ref(<…>)、地の @ は \@）。
+        # 手で書いた生の Typst がラベル <キー> を指しているなら触らない
+        if not k or k in entries or f'<{k}>' in typ:
+            return m.group(0)
+        if tail or not m.group(2):
+            return strong(k) + tail + (m.group(2) or '')
+        return f'{strong(k)} ({m.group(2)[1:-1]})'      # `@キー[p.~4]` の頁など
+    typ = NATIVE_AT.sub(at, typ)
+    return typ, list(gone)
 
 
 def font_expr(lang: str, kind: str, override=None) -> str:

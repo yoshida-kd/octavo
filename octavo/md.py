@@ -1074,6 +1074,36 @@ def cited_keys(md: str, kinds=None) -> set:
             if not any(k.startswith(x + '-') for x in kinds)}
 
 
+def cited_by_section(md: str, kinds=None) -> list:
+    """[(見出し, その節が引いているキー)] を原稿の順に。節はいちばん浅い段の見出しで切る。
+
+    最初の見出しより前に引用があれば、見出しを None にして先頭に置く。見出しの {#ラベル} などは
+    落とす。全部の節のキーを合わせると cited_keys() と同じになる（参考文献節は数えない）。
+    """
+    _, body = split_front_matter(md)
+    lines = drop_references(body).split('\n')
+    heads, fence = [], None
+    for i, line in enumerate(lines):
+        f = FENCE_LINE.match(line)
+        if f:
+            fence = None if fence == f.group(1) else (fence or f.group(1))
+            continue
+        h = None if fence else ANY_HEADING.match(line)
+        if h:
+            heads.append((i, len(h.group('hash')), h.group('title').strip().rstrip('#').strip()))
+    top = min((lvl for _, lvl, _ in heads), default=1)
+    cuts = [(i, title) for i, lvl, title in heads if lvl == top]
+    out = []
+    first = cuts[0][0] if cuts else len(lines)
+    before = cited_keys('\n'.join(lines[:first]), kinds)
+    if before:
+        out.append((None, before))
+    for n, (i, title) in enumerate(cuts):
+        end = cuts[n + 1][0] if n + 1 < len(cuts) else len(lines)
+        out.append((title, cited_keys('\n'.join(lines[i + 1:end]), kinds)))
+    return out
+
+
 # ---------------------------------------------------------------- 検査
 
 CJK = re.compile(r'[\u3000-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uff00-\uffef]')

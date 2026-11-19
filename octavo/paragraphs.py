@@ -14,6 +14,8 @@
   1つの主張を2〜3段落で書いたとき（"First, … / Second, …"、表や図をはさんだ続き）に使う。
   種類は前の印のものを引き継ぐ
 - 印の直後が引用（`> …`）や箇条書きでも、印があればその塊を段落として数える（仮説の表示など）
+- 1つの段落が2つの種類にまたがるなら `<!-- para: 主の種類 + 従の種類 | 主張 -->`。続けて同じ
+  種類かを数えるのは主の種類で、フレーズは両方の分を渡す
 
 ここでは原稿を段落に分けて、コメントと本文を対応させるだけ。種類が実在するかは
 writing.py のパックと照らす（`kind_index`）。
@@ -52,6 +54,7 @@ def parse(text: str) -> list:
 
     line / end_line   コメントの行（1から。無ければ None）
     kind / claim      コメントに書いた種類と主張（コメントが無ければ None）
+    also              従の種類（`<!-- para: 主の種類 + 従の種類 | 主張 -->`）。混ざった段落のため
     continues         `<!-- para: + -->`（前の印の続き）。kind は前の印の種類（前に印が無ければ ''）
     body_line / body_end / body   本文の行と本文（無ければ None / ''）
     prose             本文が文章の段落か（箇条書き・表・図・数式などでない）
@@ -84,7 +87,7 @@ def parse(text: str) -> list:
         block, pending = [], None
 
     def new(line, end, kind, claim, joined):
-        return {'line': line, 'end_line': end, 'kind': kind, 'claim': claim, 'continues': False,
+        return {'line': line, 'end_line': end, 'kind': kind, 'also': [], 'claim': claim, 'continues': False,
                 'body_line': None, 'body_end': None, 'body': '', 'prose': False,
                 'joined': joined, 'heading': heading[0], 'heading_line': heading[1],
                 'heading_level': heading[2]}
@@ -116,9 +119,13 @@ def parse(text: str) -> list:
                 chunk += '\n' + lines[j]
             mm = PARA.search(chunk)
             kind, claim = split_mark(mm.group(1) if mm else chunk.split(':', 1)[1])
+            also = []
+            if kind != CONTINUES and ' + ' in kind:
+                kind, *also = [x.strip() for x in kind.split(' + ') if x.strip()] or ['']
             joined = prev_text
             flush()
             pending = new(n, j + 1, kind, claim, joined)
+            pending['also'] = also
             if kind == CONTINUES:
                 # 同じ見出しの下の、直前の印（間に表・図・印の無い段落があってよい）
                 lead = next((q for q in reversed(paras)
@@ -244,6 +251,12 @@ def resolve(kind: str, index: dict):
     if kind in index:
         return kind
     hits = [k for k in index if k.split('/', 1)[-1] == kind]
+    if not hits:                                # 別名（`Alias:`、Id を付ける前の slug）
+        for k, v in index.items():
+            for a in v.get('aliases', []):
+                full = k.split('#', 1)[0] + '#' + a
+                if kind in (full, full.split('/', 1)[-1]):
+                    hits.append(k)
     return hits[-1] if hits else None          # 同じ名前が2つのパックにあれば後ろ（具体的なほう）
 
 
@@ -448,6 +461,16 @@ def review(text: str, index: dict, known: list | None = None, appendix: bool = F
         elif hit is None:
             marks.append('unknown-kind')
             near = suggest(kind, index)
+        also_ids = []
+        for k in p.get('also', []):
+            h2 = resolve(k, index)
+            if h2:
+                also_ids.append(h2)
+            elif every is not None and resolve(k, every):
+                marks.append('unused-kind')
+            else:
+                marks.append('unknown-kind')
+                near += suggest(k, index)
         if p['kind'] is not None and not p['body'].strip():
             marks.append('no-text')
         if p['joined']:
@@ -461,7 +484,9 @@ def review(text: str, index: dict, known: list | None = None, appendix: bool = F
         prev[region] = (hit, run)
         rows.append({'line': p['line'] or p['body_line'], 'body_line': p['body_line'],
                      'kind': p['kind'], 'continues': p['continues'], 'id': hit, 'title': index[hit]['title'] if hit else None,
+                     'also': also_ids,
                      'claim': p['claim'], 'contains': index[hit].get('contains', '') if hit else '',
+                     'also_contains': [index[k].get('contains', '') for k in also_ids],
                      'first_sentence': first_sentence(mdlib.strip_comments(p['body'])) if p['body'] else '',
                      'heading': p['heading'], 'heading_line': p['heading_line'],
                      'heading_level': p['heading_level'], 'problems': marks, 'near': near})

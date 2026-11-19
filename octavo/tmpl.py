@@ -15,7 +15,7 @@
 
 `octavo init` はまだプロジェクトがないので 2 と 3 だけを見る。プロジェクトの
 ひな型（`project/…`）は**木ごと**重ねるので、ユーザーの側に足したファイル
-（`project/ja/notes/reading/README.md` など）はそのまま新しいプロジェクトに入る。
+（`project/en/notes/reading/README.md` など）はそのまま新しいプロジェクトに入る。
 
 ここを通さずに `templates_dir() / …` を直に読むと上書きが効かなくなる。
 """
@@ -29,7 +29,7 @@ from .paths import templates_dir
 PROJECT, USER, BUNDLED = 'project', 'user', 'bundled'
 
 # 同梱の templates/ の直下にあるが、ひな型ではないもの（説明書き）。
-# `project/ja/README.md` などはひな型なので、直下のものだけを除く。
+# `project/en/README.md` などはひな型なので、直下のものだけを除く。
 NOT_TEMPLATES = {'README.md'}
 
 
@@ -94,7 +94,7 @@ def tree(prefixes, root: Path | None = None) -> dict:
     """prefix の下のファイルを全層から集める。{prefix からの相対パス: 実際のパス}。
 
     同じ相対パスなら優先度の高い層が勝つ。prefix を複数渡すと後ろのものが勝つ
-    （`project/common` の上に `project/ja` を重ねる、の順）。
+    （`project/common` の上に `project/en` を重ねる、の順）。
     """
     out: dict = {}
     for prefix in prefixes:

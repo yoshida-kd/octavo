@@ -81,6 +81,12 @@ KINDS = {
 # 新しい原稿の置き場所: docs/<名前>/<名前>.md（付録・体裁ファイルも同じフォルダ）
 DOCS_SRC = 'docs/*/'
 
+# プロジェクトに書き出す共有のファイル（AGENTS.md・README.md・.gitignore・octavo.config.py の
+# コメント・data/raw/README.md・requirements.txt）の言語。原稿の言語（lang）とは別で、英語に
+# そろえる（日英の原稿が同じプロジェクトに並んでも、共有のファイルは1つの言語で済む）。
+SHARED_LANG = 'en'
+
+
 DOCUMENTS_HEAD = {
     'ja': ["    # octavo new paper|slides|lecture <名前> で原稿を足す。ここは書き換えなくてよい",
            "    # docs/<名前>/<名前>.md が1つの文書。何を作るかは原稿の冒頭の outputs: で決める",
@@ -120,7 +126,7 @@ def with_front(text: str, lines: list) -> str:
     return f'---\n{m.group(1)}{add}---\n' + text[m.end():]
 
 
-def documents_block(lang: str = 'ja') -> str:
+def documents_block(lang: str = SHARED_LANG) -> str:
     """設定の `documents` の部分。KINDS から作る（`@@DOCUMENTS@@` に入る）。"""
     lang = 'ja' if lang == 'ja' else 'en'
     lines = DOCUMENTS_HEAD[lang] + ["    'documents': {",
@@ -310,6 +316,7 @@ def _lang(value) -> str:
     return 'ja' if value == 'ja' else 'en'
 
 
+
 def _doc_lang(cfg, kind: str, name: str) -> str | None:
     """すでにある原稿の冒頭に書いてある lang（ja | en）。なければ None。"""
     if kind not in KINDS:
@@ -347,7 +354,7 @@ def instruction_file(root: Path) -> Path | None:
     return None
 
 
-def migrate_instructions(root: Path, lang: str, dry_run: bool = False) -> tuple:
+def migrate_instructions(root: Path, dry_run: bool = False) -> tuple:
     """一時的な移行（次の版で消す）: AGENTS.md ができる前のプロジェクトの CLAUDE.md を
     AGENTS.md に移し、CLAUDE.md は AGENTS.md を読むだけの1行にする。
 
@@ -364,7 +371,7 @@ def migrate_instructions(root: Path, lang: str, dry_run: bool = False) -> tuple:
         return False, t('CLAUDE.md already only points at AGENTS.md.')
     if not dry_run:
         agents.write_text(text, encoding='utf-8')
-        claude.write_text(render_template(f'claude/{_lang(lang)}/stub.md', {'NAME': root.name}, root),
+        claude.write_text(render_template(f'claude/{SHARED_LANG}/stub.md', {'NAME': root.name}, root),
                           encoding='utf-8')
     return True, t('Moved the rules from CLAUDE.md to AGENTS.md; CLAUDE.md now points at it.')
 
@@ -385,11 +392,18 @@ def section_fingerprint(text: str, name: str = '') -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
 
 
-def rules_edited(root: Path, lang: str) -> list:
-    """差し替えると変わる節のうち、Octavo の出したどの版とも違う（持ち主が手を入れた）もの。"""
+def known_section(text: str, name: str, root_name: str) -> bool:
+    """Octavo の出したどれかの版と1文字も違わない節か。前に出していた日本語の版も含める
+    （日本語の版で作ったプロジェクトの節は、手を入れていなければ英語の版に差し替えてよい）。"""
     from .rules_known import KNOWN
+    mark = section_fingerprint(text, root_name)
+    return any(mark in KNOWN.get(f'{lang}/{name}', ()) for lang in ('en', 'ja'))
+
+
+def rules_edited(root: Path) -> list:
+    """差し替えると変わる節のうち、Octavo の出したどの版とも違う（持ち主が手を入れた）もの。"""
     p = instruction_file(root)
-    got = rules_update(root, lang)
+    got = rules_update(root)
     if p is None or got is None:
         return []
     old = got[1]
@@ -400,12 +414,12 @@ def rules_edited(root: Path, lang: str) -> list:
         if name not in got[3]:
             continue
         end = marks[i + 1].start() if i + 1 < len(marks) else len(old)
-        if section_fingerprint(old[m.start():end], root.name) not in KNOWN.get(f'{_lang(lang)}/{name}', ()):
+        if not known_section(old[m.start():end], name, root.name):
             edited.append(name)
     return edited
 
 
-def rules_update(root: Path, lang: str) -> tuple:
+def rules_update(root: Path) -> tuple:
     """約束事のファイル（AGENTS.md か、前からの CLAUDE.md）の Octavo の節を、今のひな型に
     差し替えた全文。(ファイル, 前の全文, 新しい全文, [差し替えた節]) か、ファイルがなければ None。
 
@@ -427,7 +441,7 @@ def rules_update(root: Path, lang: str) -> tuple:
         part = old[m.start():end]
         name = m.group(1)
         try:
-            frag = render_template(f'claude/{_lang(lang)}/{name}.md', {'NAME': root.name}, root)
+            frag = render_template(f'claude/{SHARED_LANG}/{name}.md', {'NAME': root.name}, root)
         except (OSError, SystemExit, tmpl.TemplateError):     # ひな型のない節（自分で付けた名前など）
             frag = None
         if frag is None or not frag.startswith(m.group(0).rstrip()):
@@ -441,7 +455,7 @@ def rules_update(root: Path, lang: str) -> tuple:
     return p, old, ''.join(out), changed
 
 
-def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
+def add_claude_section(root: Path, section: str, made: list) -> None:
     """約束事のファイルに節がなければ末尾に書き足す。ファイルを消してあれば何もしない。"""
     p = instruction_file(root)
     if p is None:
@@ -449,7 +463,7 @@ def add_claude_section(root: Path, lang: str, section: str, made: list) -> None:
     text = p.read_text(encoding='utf-8')
     if SECTION_MARK.format(section) in text:
         return
-    frag = render_template(f'claude/{lang}/{section}.md', {'NAME': root.name}, root)
+    frag = render_template(f'claude/{SHARED_LANG}/{section}.md', {'NAME': root.name}, root)
     p.write_text(text.rstrip('\n') + '\n\n' + frag, encoding='utf-8')
     made.append('  ' + t('appended') + f'  {p.name} ' + t('({section} section)', section=section))
 
@@ -467,16 +481,20 @@ def init(dest: Path, lang: str = 'ja', force: bool = False,
     made: list = []
     name = dest.name
 
-    # 共通の部分（templates/project/<言語>）をそのままコピーする。ユーザーの上書き
-    # （~/.config/octavo/templates/project/…）も同じ木に重なる。
-    suffix = _lang(lang)
-    subs = {'NAME': name, 'DOCUMENTS': documents_block(suffix)}
-    for rel, src in tmpl.tree(['project/common', f'project/{suffix}']).items():
+    # 共通の部分（templates/project/en。共有のファイルは英語）をそのままコピーする。ユーザーの
+    # 上書き（~/.config/octavo/templates/project/…）も同じ木に重なる。前に日本語の版を上書き
+    # していた人の project/ja/ も、日本語のプロジェクトなら上に重ねる（同梱の project/ja はもうない）。
+    lang = _lang(lang)
+    # 著者の仮の名前は原稿の題名欄に出るので、共有のファイルでも原稿の言語で
+    subs = {'NAME': name, 'LANG': lang, 'AUTHOR': '著者名' if lang == 'ja' else 'Author Name',
+            'DOCUMENTS': documents_block(SHARED_LANG)}
+    layers = ['project/common', f'project/{SHARED_LANG}'] + (['project/ja'] if lang == 'ja' else [])
+    for rel, src in tmpl.tree(layers).items():
         text = render(src.read_text(encoding='utf-8'), subs, rel.endswith('.md'))
         _write(dest / project_target(rel), text, force, made, dest)
-    _write(dest / INSTRUCTIONS, render_template(f'claude/{suffix}/common.md', {'NAME': name}),
+    _write(dest / INSTRUCTIONS, render_template(f'claude/{SHARED_LANG}/common.md', {'NAME': name}),
            force, made, dest)
-    _write(dest / 'CLAUDE.md', render_template(f'claude/{suffix}/stub.md', {'NAME': name}),
+    _write(dest / 'CLAUDE.md', render_template(f'claude/{SHARED_LANG}/stub.md', {'NAME': name}),
            force, made, dest)
     (dest / 'figures').mkdir(parents=True, exist_ok=True)
     (dest / 'figures' / '.gitkeep').touch()
@@ -576,7 +594,7 @@ def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
     engine は R か Python か。両方使うプロジェクトでは、それぞれの補助が1つずつ置かれる。"""
     root = cfg.root
     python = engine == 'python'
-    folders = [f'analysis/{lang}'] + (['analysis/python'] if python else ['analysis/common'])
+    folders = [f'analysis/{SHARED_LANG}'] + (['analysis/python'] if python else ['analysis/common'])
     for rel, src in tmpl.tree(folders, root).items():
         if force or not (root / rel).exists():
             _write(root / rel, render(src.read_text(encoding='utf-8'), {'NAME': root.name},
@@ -607,9 +625,9 @@ def _new_analysis(cfg, name: str, lang: str, force: bool, example: bool,
             write_placeholder_pdf(fig / 'trend.pdf')
             made.append('  ' + t('made') + '  ' + t('{path} (and .pdf — placeholders)',
                                                   path=cfg.rel(fig / 'trend.png')))
-    add_claude_section(root, lang, 'analysis', made)
+    add_claude_section(root, 'analysis', made)
     if python:
-        add_claude_section(root, lang, 'analysis-python', made)
+        add_claude_section(root, 'analysis-python', made)
     return qmd
 
 
@@ -691,6 +709,40 @@ def _new_table(cfg, name: str, lang: str, force: bool, quiet: bool, made: list) 
     return 0
 
 
+def _new_translation(cfg, kind: str, name: str, lang: str, src: Path, force: bool, example: bool,
+                     appendix: bool, quiet: bool, made: list) -> int:
+    """既にある原稿の言語違い（docs/<名前>/<名前>.<言語>.md、付録があれば appendix.<言語>.md）を置く。
+
+    冒頭には lang だけを書く。何を作るか（outputs など）は主の原稿から受け継ぐ（config.TRANSLATION_SHARED_KEYS）。
+    体裁は主の原稿と同じ main.typ（違えたいときは main.<言語>.typ を置く）。"""
+    root = cfg.root
+    author = cfg['meta'].get('author') or ''
+    if isinstance(author, (list, tuple)):
+        author = author[0] if author else ''
+    subs = {'NAME': name, 'AUTHOR': str(author)}
+    folder = f'manuscripts/{lang}/example' if example else f'manuscripts/{lang}'
+    other = src.with_name(f'{name}.{lang}.md')
+    text = with_front(render_template(f'{folder}/{kind}.md', subs, root), [f'lang: {lang}'])
+    text = mdlib.rebase_links(text, (root / KINDS[kind]['src'].format(name)).parent, src.parent)
+    _write(other, text, force, made, root)
+    main_appendix = src.parent / 'appendix.md'
+    if kind == 'paper' and (appendix or main_appendix.is_file()):
+        ap = render_template(f'{folder}/appendix.md', subs, root)
+        ap = mdlib.rebase_links(ap, (root / KINDS[kind]['appendix'].format(name)).parent, src.parent)
+        _write(src.parent / f'appendix.{lang}.md', ap, force, made, root)
+    if quiet:
+        return 0
+    for m in made:
+        print(m)
+    print('\n' + t('Next:'))
+    steps = [(f'octavo translation {name}.{lang}', t('which sections the two manuscripts still differ in')),
+             (f'octavo build {name}.{lang} --compile', t('typeset this language through to PDF'))]
+    width = max(len(c) for c, _ in steps)
+    for cmd, why in steps:
+        print(f'  {cmd.ljust(width)}   # {why}')
+    return 0
+
+
 def new(config: Path, kind: str, name: str, force: bool = False,
         quiet: bool = False, example: bool = False, appendix: bool = False,
         tex: bool = False, made: list | None = None, engine: str = 'r',
@@ -723,7 +775,8 @@ def new(config: Path, kind: str, name: str, force: bool = False,
     root = cfg.root
     project_lang = _lang(cfg['lang'])
     # この文書の言語: --lang、なければすでにある原稿の冒頭の lang、なければプロジェクトの
-    lang = _lang(lang) if lang else _doc_lang(cfg, kind, name) or project_lang
+    asked = _lang(lang) if lang else None
+    lang = asked or _doc_lang(cfg, kind, name) or project_lang
     quiet_made = made is not None
     made = made if made is not None else []
 
@@ -755,6 +808,10 @@ def new(config: Path, kind: str, name: str, force: bool = False,
               file=sys.stderr)
         return 1
     src = doc_path(cfg, kind, name)
+    if in_docs and asked and src.is_file() and asked != (_doc_lang(cfg, kind, name) or project_lang):
+        # 既にある原稿に別の言語を頼まれた: 同じ文書の言語違い <名前>.<言語>.md を足す
+        return _new_translation(cfg, kind, name, asked, src, force, example, appendix,
+                                quiet or quiet_made, made)
     if name in cfg.documents and cfg.documents[name].src != src.resolve():
         print(t('a document called {name} already exists ({path})',
                 name=name, path=cfg.rel(cfg.documents[name].src)) + '\n  '
@@ -784,7 +841,7 @@ def new(config: Path, kind: str, name: str, force: bool = False,
         if in_docs:
             ap = mdlib.rebase_links(ap, (root / k['appendix'].format(name)).parent, src.parent)
         _write(appendix_path(cfg, kind, name), ap, force, made, root)
-    add_claude_section(root, project_lang, CLAUDE_SECTION[kind], made)
+    add_claude_section(root, CLAUDE_SECTION[kind], made)
 
     # 足した原稿を設定が本当に拾うかを、読み直して確かめる
     cfg = configmod.load(config)

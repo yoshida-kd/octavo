@@ -21,6 +21,10 @@ data/derived/*
 # The data fingerprints do go in (data/ itself doesn't, so this is the only record)
 !data/HASHES.json
 
+# Material from elsewhere that must not be shared (PDFs of papers, licensed
+# codebooks, manuscripts sent for review). Only this folder stays out of git.
+refs/private/
+
 # Submission and replication packages
 /submission*
 /replication*

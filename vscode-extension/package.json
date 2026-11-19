@@ -2,7 +2,7 @@
   "name": "octavo",
   "displayName": "Octavo",
   "description": "%extension.description%",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "publisher": "yoshida-kd",
   "license": "MIT",
   "icon": "media/icon.png",
@@ -225,6 +225,48 @@
         "icon": "$(file-add)"
       },
       {
+        "command": "octavo.aiRun",
+        "title": "%command.aiRun.title%",
+        "category": "Octavo",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "octavo.addTranslation",
+        "title": "%command.addTranslation.title%",
+        "category": "Octavo",
+        "icon": "$(globe)"
+      },
+      {
+        "command": "octavo.reviseOpen",
+        "title": "%command.reviseOpen.title%",
+        "category": "Octavo",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "octavo.reviseFine",
+        "title": "%command.reviseFine.title%",
+        "category": "Octavo",
+        "icon": "$(check)"
+      },
+      {
+        "command": "octavo.translationOpen",
+        "title": "%command.translationOpen.title%",
+        "category": "Octavo",
+        "icon": "$(go-to-file)"
+      },
+      {
+        "command": "octavo.translationMark",
+        "title": "%command.translationMark.title%",
+        "category": "Octavo",
+        "icon": "$(check)"
+      },
+      {
+        "command": "octavo.translationCopy",
+        "title": "%command.translationCopy.title%",
+        "category": "Octavo",
+        "icon": "$(copy)"
+      },
+      {
         "command": "octavo.addTex",
         "title": "%command.addTex.title%",
         "category": "Octavo"
@@ -338,6 +380,11 @@
         { "command": "octavo.addTex", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@2" },
         { "command": "octavo.askPriorwork", "when": "view == octavo.project && viewItem == octavo.doc.paper", "group": "octavo@3" },
         { "command": "octavo.extract", "when": "view == octavo.project && viewItem == octavo.doc.lecture", "group": "octavo@1" },
+        { "command": "octavo.reviseFine", "when": "view == octavo.project && viewItem == octavo.reviseFinding", "group": "octavo@1" },
+        { "command": "octavo.reviseFine", "when": "view == octavo.project && viewItem == octavo.reviseFinding", "group": "inline" },
+        { "command": "octavo.translationCopy", "when": "view == octavo.project && viewItem =~ /^octavo\\.translation/", "group": "octavo@1" },
+        { "command": "octavo.translationMark", "when": "view == octavo.project && viewItem == octavo.translationSection", "group": "octavo@2" },
+        { "command": "octavo.translationMark", "when": "view == octavo.project && viewItem == octavo.translationSection", "group": "inline" },
         { "command": "octavo.writingItemOff", "when": "view == octavo.project && viewItem == octavo.writingItem", "group": "octavo@1" },
         { "command": "octavo.writingItemOn", "when": "view == octavo.project && viewItem == octavo.writingItemOff", "group": "octavo@1" }
       ],
@@ -407,6 +454,30 @@
           "when": "false"
         },
         {
+          "command": "octavo.addTranslation",
+          "when": "false"
+        },
+        {
+          "command": "octavo.reviseOpen",
+          "when": "false"
+        },
+        {
+          "command": "octavo.reviseFine",
+          "when": "false"
+        },
+        {
+          "command": "octavo.translationOpen",
+          "when": "false"
+        },
+        {
+          "command": "octavo.translationMark",
+          "when": "false"
+        },
+        {
+          "command": "octavo.translationCopy",
+          "when": "false"
+        },
+        {
           "command": "octavo.extract",
           "when": "false"
         },
@@ -462,6 +533,11 @@
       ],
       "editor/context": [
         {
+          "command": "octavo.aiRun",
+          "when": "octavo.hasConfig && (editorLangId == markdown || editorLangId == quarto || editorLangId == plaintext)",
+          "group": "octavo"
+        },
+        {
           "command": "octavo.writingShow",
           "when": "octavo.hasConfig && editorLangId == markdown",
           "group": "octavo"
@@ -510,6 +586,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "octavo.aiRun",
+          "when": "octavo.hasConfig && resourceExtname =~ /^\\.(png|jpe?g|webp|gif|pdf|md|txt)$/i",
+          "group": "octavo"
+        },
         {
           "command": "octavo.build",
           "when": "resourceFilename == octavo.config.py",

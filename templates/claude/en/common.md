@@ -13,6 +13,7 @@ assets/           what goes into the manuscripts. **Written by the analysis and 
   figures/        figures (<name>.pdf and .png): the analysis's, and those drawn from figures/*.typ
   tables/         tables (<name>.typ / .tex / .md): the analysis's, and those made from tables/*.csv
 refs/             (make it when needed) material from elsewhere (codebooks, questionnaires, guidelines). kept in git
+  private/        what must not be shared (PDFs of papers, licensed codebooks, manuscripts sent for review). **not in git**
 notes/            (make it when needed) things you wrote (reading, referee, working notes). never part of the manuscript
 literature/       the bibliography (literature.bib; `bib_file`) and what Priorwork delivers. **The reference manager (e.g. Zotero) is the source of truth** (its export overwrites it)
 templates/        this project's own versions of Octavo's templates (absent = the bundled ones; octavo template list)
@@ -204,9 +205,9 @@ When the user asks to bring a Priorwork draft into the manuscript:
 - Do not edit the files in the inbox (Priorwork rewrites them; only `octavo priorwork resolve`
   replaces the marks)
 
-## Writing rules and the phrase bank
+## Drafting: the writing rules and the phrase bank
 
-Before writing or revising prose in a manuscript, run
+Before writing prose in a manuscript, run
 
     octavo writing --file <the file> --line <the line you are working on> --print
 
@@ -227,9 +228,8 @@ the section's rules and phrases are missing from what it printed: run it again w
   context; most sentences need none. Do not add a sentence only because a kind of paragraph has
   a line for it
 - Do not edit the rule and phrase files unless asked (the user refines them elsewhere)
-- After drafting or revising, run `octavo writing --for <document> --flags`: it lists the lines
-  where a word some rule is about appears (the rule's `Flag:`). Read each against its rule; a
-  match is a place to reread, not an error, so do not rewrite a correct use to clear the list
+- Some rules are only for revising (`Stage: revise`) and some are usage notes read only where
+  their word appears: they are left out here and come with `octavo revise` (below)
 
 ### The paragraph plan
 
@@ -261,7 +261,38 @@ one mark per paragraph, directly above the paragraph, with its kind (an entry of
   sentence there, and tell the author. `octavo outline … --paragraphs` and `octavo check` list
   the questions left
 - The marks are comments: they never reach the output. Keep them when revising, and update the
-  claim when the paragraph's point changes
+  claim when the paragraph's point changes. A paragraph that mixes two kinds may name both,
+  the main one first: `<!-- para: <kind> + <kind> | … -->`
+
+## Revising
+
+Revise in passes over a part of a manuscript, and record what the author decides, so that the next
+pass shows only what is new. Before revising, run
+
+    octavo revise <document> --section <section> --print
+
+(`--lines <from>-<to>` or `--file <file>` instead of `--section`). It prints, pass by pass, the rules
+to check, each with its id (the drafting rules, the rules marked for revising, and the usage notes whose
+word appears); the paragraphs changed since the last pass, with their line numbers; the places Octavo
+found (a rule's Flag or Count, long sentences, the same ending or opening again and again, an
+abbreviation used before it is defined, a variant spelling from `notes/writing/terms.csv`, the
+paragraph plan, questions for the author, numbers typed into the prose, lines broken mid-sentence, a
+translation that is behind); and the findings already judged fine.
+
+- Check the text one pass at a time, against the rules of that pass only. Give each finding with its
+  line, the rule id, the words quoted, what is wrong and the proposed wording. **Do not rewrite the text
+  before the author has decided**; then change only the findings the author accepts
+- Most places Octavo found need no change: say which ones do, and why
+- Never change what a sentence claims, nor numbers, citations, labels or `{{values}}`. Never ask for
+  new analysis: a missing number or source is an `<!-- ask: … -->`
+- Do not raise again a finding listed as already judged fine
+- Record what the author decided, and only that:
+  `octavo revise <document> --fine <key>` for a place Octavo found that needs no change, and
+  `octavo revise <document> --verdict <rule id> <line> fixed|fine --note "<the finding>"` for a finding
+  you raised. These records are how the user learns which rules work
+- `octavo writing --harvest <git version>` lists the sentences the author rewrote since that version.
+  When the user asks for new rules from it, propose them in the pack's form (Rule / Why / Bad / Good /
+  Source) as candidates; the user decides whether and where they go
 
 ## The examples are marked as examples
 
@@ -304,6 +335,23 @@ The user often has the manuscript open in the editor while you work.
   rewrite the file from the shell or a script (`sed` and the like) — the change does not show
   in the editor and the preview, and it collides with unsaved edits
 - Ask the user to save the manuscript before you change it
+
+## A manuscript in two languages
+
+`docs/<name>/<name>.en.md` (or `.ja.md`) is the same document in the other language: `<name>.md` is the
+main one, whichever language it is in. They share the analysis, figures, tables and bibliography, and
+the labels: a section, figure or table has **the same label in both**. A figure can have a version per
+language: `ov_figure(p, "trend.en")` writes `trend.en.pdf` / `.png`, which the English manuscript uses
+in place of `trend.*` (the manuscript still writes `trend.png`).
+
+- `octavo translation <name>.en` lists the sections, matched by label (or by order under the same
+  heading when there is none), with what differs: references, labels, citations, `{{values}}`, and
+  which side changed since the two were last matched
+- To bring a section in line, read `octavo translation <name>.en --print <key>`: both sides, what
+  differs, and the project's terms (`notes/writing/terms.csv`). Change only the side that is behind;
+  keep labels, references, citations and `{{values}}` as they are
+- After the user has checked a section, `octavo translation <name>.en --mark <key>` records it as
+  matched. Don't record a section the user has not seen
 
 ## Before you finish
 

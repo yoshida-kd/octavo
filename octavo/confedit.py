@@ -66,6 +66,8 @@ KNOBS = (
     Knob('zotero_collection', 'document', 'collections', 'Main Zotero collection (the .bib)'),
     Knob('zotero_linked', 'document', 'collections', 'Linked Zotero collections (surveys)'),
     Knob('zotero_write', 'document', 'bool', 'Let octavo bib tidy change the Zotero collection'),
+    Knob('ai_url', 'document', 'text', 'AI address (OpenAI-compatible, e.g. http://localhost:11434/v1)'),
+    Knob('ai_model', 'document', 'text', 'AI model'),
     Knob('writing', 'document', 'packs', 'Writing rule packs (general first)', docs=ALL_DOCS),
     Knob('writing_off', 'document', 'list', 'Writing rules turned off', docs=ALL_DOCS),
     Knob('outputs', 'document', 'multi', 'What to make', tuple(configmod.OUTPUTS),

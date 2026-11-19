@@ -119,6 +119,7 @@ study/
   data/derived/      data the analysis made (not in git)
   figures/           figures you make: drawn in Typst (<name>.typ), photos
   tables/            tables you make (<name>.csv)
+  refs/private/      material that must not be shared (PDFs of papers; not in git), when you make it
   assets/            what the analysis and Octavo write — never edited by hand
   build/             the output, a folder per output (pdf/, slides/, word/, …); can be deleted
 ```
@@ -126,6 +127,9 @@ study/
 The rule of the folders: **what you make** (`docs/`, `analysis/`, `figures/`, `tables/`,
 `data/raw/`) and **what is made for you** (`assets/`, `build/`, `data/derived/`) are kept
 apart. Never edit the second kind; change what it is made from.
+
+`AGENTS.md`, `README.md` and the other files the whole project shares are in English whatever the
+language of the project; its language is the manuscripts' language.
 
 ### 2.5 Examples are marked as examples
 
@@ -360,6 +364,34 @@ Write each sentence on a line of its own. Changes then show sentence by sentence
 your AI assistant edits one sentence without touching the next. **Check before submitting**
 points out lines broken in the middle of a sentence; your AI assistant can put a whole
 manuscript right in one go.
+
+### 3.9 The same manuscript in two languages
+
+A paper or a handout can also be written in the other language, either side by side or one after the
+other. In the sidebar, under the document, **Add an English Version** (or **Add a Japanese Version**)
+puts `<name>.en.md` beside the manuscript. The manuscript you started with stays the main one,
+whichever language it is in. The new one is a document of its own, `<name>.en`, with its own PDF.
+It shares the analysis, the figures and tables and the bibliography, so a number changed by the
+analysis changes in both. It also takes what to make and how to number from the main manuscript.
+
+Give sections the same label in both (`{#sec-intro}`). Under the document, the sidebar then lists
+the sections with where each stands:
+
+- *never matched*
+- *matched*
+- *the main manuscript changed* (or *this language changed*, or *both changed*) since you last
+  matched them
+- *only in one manuscript*
+
+The tooltip shows any reference, citation or `{{value}}` that one side has and the other lacks.
+
+Right-click a section and choose **Copy for the AI** to copy both versions and what differs; your AI
+assistant can then bring the side that is behind in line. Once you have read the result, **Record as
+Matched**. **Check before submitting** lists what is still out of step.
+
+A figure with words in it can have one version per language: save the English one as
+`trend.en.png` (`ov_figure(p, "trend.en")`). The English manuscript then uses it, while both
+manuscripts still write `trend.png`.
 
 ---
 
@@ -603,12 +635,18 @@ same through the web.
 
 **Keeping the main collection tidy.** Collections that only feed the paper — one per literature
 survey, say — are **linked collections** (**Linked collections (surveys)**, under the main one); they
-never go into the `.bib`. **Tidy the Main Zotero Collection** compares the main collection with what the
-manuscripts cite and lists, as a tick list, the papers to add (cited, found in a linked collection)
-and to take out (in it, but cited nowhere). It reads only those collections, and after the first time
-only what changed. Untick what to leave and confirm. It
-only changes which collections an entry is in; it never deletes or edits one. It needs the setting
-**Let octavo bib tidy change the Zotero collection** and a key with write access; the button asks.
+never go into the `.bib`. **Tidy the Main Zotero Collection** sorts the main collection by the
+manuscripts' sections: each cited paper goes into a collection under the main one named after the
+section that cites it (`01 Introduction`, numbered in the manuscript's order; a paper cited in two
+sections goes in both; with several manuscripts, one collection per manuscript holds its sections).
+Papers cited nowhere stay in the main collection, in its **Not cited** collection (**非引用文献** in a
+Japanese project), so they remain in the `.bib`. Cited papers found in a linked collection are added.
+It shows the moves as a tick list; untick what to leave and confirm. It reads only those collections,
+and after the first time only what changed. It makes the collections it needs, and deletes the ones
+it made once they are empty (a section renamed or removed); collections you made yourself are never
+touched. It only changes which collections an entry is in; it never deletes or edits one. It needs
+the setting **Let octavo bib tidy change the Zotero collection** and a key with write access; the
+button asks.
 
 ### 5.5 With a literature survey (Priorwork)
 
@@ -784,13 +822,17 @@ helps with the prose. They are Markdown files gathered in **packs**, in `~/.conf
 for every project or in the project's `notes/writing/`. Before the assistant writes or revises a part
 of a manuscript, it reads the rules and the phrases for that part, and follows them. A section can
 also be planned paragraph by paragraph before it is written, and checked against the plan afterwards.
+Revising goes in passes: each pass lists the places to reread (where a rule applies, long sentences,
+abbreviations used before they are defined, and so on), and what you decide about each is recorded,
+so the next pass shows only what is new and the record shows which rules are worth keeping.
 
 - Each manuscript in the sidebar has **Writing rules**: the packs it uses, their files and entries
   (right-click an entry to turn it off for that manuscript), **Choose the Packs…** (most general
   first; where two disagree, the later one wins) and **Show the Rules for Where the Cursor Is**
-  (also in the editor's right-click menu) — what the assistant reads there.
-- How to make a pack, write its files, choose what each manuscript reads, plan paragraphs and check
-  them: **[Writing support](https://yoshida-kd.github.io/octavo/writing/)**.
+  (also in the editor's right-click menu) — what the assistant reads there. **Revising** lists the
+  places to reread; right-click one that needs no change.
+- How to make a pack, write its files, choose what each manuscript reads, plan paragraphs, revise and
+  improve the packs: **[Writing support](https://yoshida-kd.github.io/octavo/writing/)**.
 
 ---
 
@@ -828,6 +870,23 @@ Things to ask, in your own words:
 - "Take the Priorwork draft into the literature review."
 - "Draw the causal diagram in Typst: Z causes X and Y, X causes Y."
 - "Change the slides to 4:3 and make the accent dark green."
+
+### 10.1 Set tasks for a local AI
+
+Besides the assistant you talk to, Octavo can hand a set task to a model running on your own
+machine (Ollama, LM Studio and the like) or to any service with the same kind of API:
+
+- **Proofread** a passage
+- **Summarize** a paper or a report
+- **Transcribe** a scanned page or a photo (OCR)
+
+Set the AI's address and model in the sidebar's settings. Then right-click a file (or the selected
+lines) and choose **Ask the AI**. The answer opens beside it, as a file of its own; the manuscript is
+never changed.
+
+What you keep in `refs/private/` (PDFs of papers, a manuscript sent to you for review) is sent only to
+an AI on your own machine. Each task is a short file of instructions, so you can change one or add your
+own ([reference 9.7](https://yoshida-kd.github.io/octavo/reference/#97-set-tasks-for-an-ai-octavo-ai)).
 
 ---
 

@@ -41,6 +41,8 @@ export interface DocInfo {
     exists: boolean;
     parts: Part[];
     handouts: boolean;       // 回の区切りがあり、回ごとの配布資料に切り出せる
+    translation_of: string | null;   // 言語違いの原稿（<名前>.en.md）なら主の文書の名前
+    lang: string;            // 原稿の言語（ja / en）
 }
 
 interface DocumentsReport { root: string; config: string | null; documents: DocInfo[] }

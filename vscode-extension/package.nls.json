@@ -73,5 +73,12 @@
   "command.writingShow.title": "Show the Writing Rules for Where the Cursor Is",
   "command.choosePacks.title": "Choose the Writing Rule Packs",
   "command.writingItemOff.title": "Turn Off for This Manuscript",
-  "command.writingItemOn.title": "Turn Back On for This Manuscript"
+  "command.writingItemOn.title": "Turn Back On for This Manuscript",
+  "command.addTranslation.title": "Add a Version in the Other Language",
+  "command.reviseOpen.title": "Go to the Line",
+  "command.reviseFine.title": "No Change Needed",
+  "command.translationOpen.title": "Open the Section",
+  "command.translationMark.title": "Record as Matched",
+  "command.translationCopy.title": "Copy for the AI (to Bring It in Line)",
+  "command.aiRun.title": "Ask the AI (Proofread, Summarize, Transcribe…)"
 }

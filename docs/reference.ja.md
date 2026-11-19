@@ -66,7 +66,9 @@ study/
   data/HASHES.json   data/ のハッシュ値（git に入れる）
   figures/           手で作る図: Typst で描く <name>.typ、共通部品 _parts.typ、写真
   tables/            手で作る表: <name>.csv
-  notes/writing/     文章のルールと表現集（パック）
+  refs/              外から来た資料（コードブック・投稿規定。git に入れる）
+  refs/private/      共有できない資料（文献の PDF・査読を頼まれた原稿。git に入れない）
+  notes/             自分のメモ。notes/writing/ は文章のルールと表現集（パック）
   templates/         Octavo のテンプレートのプロジェクト用のコピー
   assets/values/     <qmd>.json: {{…}} の数値
   assets/figures/    <name>.pdf と .png
@@ -77,6 +79,8 @@ study/
 ```
 
 設定はフォルダをパターン（`docs/*/`、`analysis/*.qmd`）で登録しているので、文書や分析を足しても設定は書き換えない。
+
+プロジェクト全体で共有するファイル（`AGENTS.md`、`README.md`、`.gitignore`、`octavo.config.py` のコメント、`data/raw/README.md`、`requirements.txt`）は、言語にかかわらず英語で書く。`lang`（`--lang`）は原稿の言語を決める。これらを日本語で書いていたころに作ったプロジェクトは日本語のまま残る。`octavo migrate --rules` で `AGENTS.md` の日本語の節を英語の節に置き換えられる。
 
 ### 2.2 文書とその名前
 
@@ -344,6 +348,24 @@ octavo fmt my-paper --apply    # 書き換える
 
 `fmt` は文の途中の改行をつなぎ、日本語の行をかっこの外の「。」ごとに改行する。コード・数式・コメント・表・見出し・`:::` の行・強制改行には触れず、英語の行は分けない。
 
+### 3.13 2つの言語の原稿
+
+```bash
+octavo new paper my-paper --lang en        # 既にある論文の横に: docs/my-paper/my-paper.en.md
+octavo translation my-paper.en              # 節ごとに: 合っているか、何が違うか
+octavo translation my-paper.en --print sec-intro   # 1つの節を揃えるための材料
+octavo translation my-paper.en --mark sec-intro    # 「合わせた」と記録する
+octavo build my-paper.en --compile          # build/pdf/my-paper.en.pdf
+```
+
+`docs/<name>/<name>.en.md`（か `.ja.md`）は、同じ文書の別の言語の版。`<name>.md` が主の原稿で、言語はどちらでもよい。言語違いの原稿は `<name>.en` という名前の文書になる。付録は `appendix.en.md`、体裁は `main.typ`（`main.en.typ` があればそれ）。分析・図表・書誌・ラベルは主の原稿と共有する。組み方（`outputs`、`sessions`、番号、付録とスライドの設定）は主の原稿の冒頭から受け継ぐ。言語で変わるもの（`lang`、引用の書式と形、字数の上限、フォント、文章のルールのパック）は受け継がない。
+
+- 節は、ラベルがあればラベルで、なければ同じ見出しの下での順番で対応させる。冒頭の title・subtitle・abstract は1つの節（`_front`）として数える。対応する節どうしで、`octavo translation` は参照・ラベル・引用・`{{値}}` を比べる。訳してもこれらは変わらない。
+- `--mark` は両方の中身のハッシュ値を `docs/<name>/translation.json`（git に入れる）に書く。そのあとで変わった節は「主の原稿が変わった」「こちらの言語が変わった」「両方が変わった」と出る。`octavo check` は、それらの節、片方の原稿にしかない節、食い違いを注意として出す。
+- `--print` は `notes/writing/terms.csv`（対訳表。あれば）も添える。Octavo は訳さない。材料はあなたか AI が使う。
+- 図は言語ごとの版を持てる。`ov_figure(p, "trend.en")` が書いた `trend.en.pdf` と `.png` を、英語の原稿は `trend.*` の代わりに使う。原稿には `trend.png` と書いたままでよい。
+- `bib tidy` が Zotero のコレクションを仕分けるのは、主の原稿の節だけ。
+
 ---
 
 ## 4. 出力
@@ -479,7 +501,7 @@ poster_rows: [2, 1]
 | `bib_file` | `.bib` |
 | `csl`、`csl_locale` | 引用のスタイル（zotero.org/styles の ID かパス）とそのロケール |
 | `japanese_citation_form`、`citations_by_language` | 文献一覧の日本語文献（[7.1](#71-bib-とスタイル)） |
-| `lang` | プロジェクトの言語（`ja` / `en`） |
+| `lang` | 原稿の言語（`ja` / `en`）。原稿の冒頭に書けばそちらが勝つ。`bib tidy` が Zotero に作るコレクションの名前は、最初の文書の言語 |
 | `meta` | `title`、`author`、`affiliation`、`email` の既定 |
 | `crossref_numbering` | `'document'` / `'section'` |
 | `theorem_envs` | 番号付きブロックの種類 |
@@ -493,6 +515,7 @@ poster_rows: [2, 1]
 | `appendix_separate`、`appendix_after_references` | 付録 |
 | `docx_reference` | Word のスタイル |
 | `zotero_collection`、`zotero_linked`、`zotero_write` | Zotero（[7.2](#72-zotero)） |
+| `ai_url`、`ai_model`、`ai_timeout`、`ai_allow`、`ai_private` | `octavo ai` の AI（[9.7](#97-ai-に決まった仕事を頼むoctavo-ai)） |
 | `writing`、`writing_off` | 文章のルールのパック（[9](#9-ai-アシスタントのための文章のルール)） |
 | `replication_exclude` | 再現用パッケージから除くもの |
 | `inputs`、`data_hash_derived` | ほかのプロジェクトやフォルダーのデータ、`HASHES.json` に派生データを入れるか（[6.8](#68-データ)） |
@@ -752,14 +775,15 @@ ov_value("n_firms", prep["n_firms"]["value"])   # 本文では {{n_firms}}
 octavo bib collections            # コレクションの一覧（入れ子）
 octavo bib pull                   # zotero_collection（とその下）から .bib を取得
 octavo bib login --user-id 1234567   # ウェブ API のキー（標準入力から読む）
-octavo bib tidy                   # 案: 引用しているのにメインにないもの、メインにあるのに引用していないもの
+octavo bib tidy                   # 案: メインを節ごとに仕分け、引用していないものは別に
 octavo bib tidy --apply --keys smith2020,doe2019
 ```
 
 - `zotero_collection` はメインのコレクション（名前、パス `'A / B'`、またはその並び）で、`.bib` に入るのはこれ。`zotero_linked` はそれに材料を出すコレクション（サーベイごとに1つ）で、`.bib` には入らない。
 - 同じ機械の Zotero はローカル API で読む（Better BibTeX が先）。なければウェブ API で、キーは `~/.config/octavo/zotero.env`（プロジェクトには置かない）。どの読み方でも、固定した引用キーを使う。Better BibTeX が入っているのに答えないときは、`bib pull` はほかの読み方に切り替えずに止まる（キーが変わりうるため）。ウェブ API が混んでいるときはやり直す。文献が1つも来なかったときは、中身のある `.bib` をそのままにする。
 - `bib tidy` が読むのはメインと関連のコレクションだけ。どちらにもない引用はそう示す（`--library` を付けるとライブラリ全体も探す。1回目は時間がかかる）。写しを `~/.cache/octavo/` に持ち、2回目からは変わったところだけを読む。
-- `bib tidy --apply` には `'zotero_write': True` と書き込みのできるキーが要る。メインのコレクションへの出し入れだけで、項目を消したり直したりしない。Better BibTeX で引用キーを固定していない項目は外さない。実行する前に利用者に尋ねる。
+- `bib tidy` はメインのコレクションを原稿のいちばん上の段の節ごとに仕分ける。引用している項目は、引用している節それぞれの `<メイン> / 01 はじめに` に入れる（原稿の順に番号。付録の節は `A1 …`、最初の見出しより前の引用は `00 冒頭`、原稿が2本以上なら `<メイン> / <文書名> / 01 …`）。どこにも引用していない項目は `<メイン> / 非引用文献`（`lang: 'en'` のプロジェクトでは `Not cited`）に移り、`.bib` には残る。利用者が作ったコレクションへの所属はそのまま。
+- `bib tidy --apply` には `'zotero_write': True` と書き込みのできるキーが要る。変えるのは項目がどのコレクションにあるかと、節のコレクション（作る・自分で作ったものが空になったら消す。`.bib` の横の `zotero-collections.json` に記録する。git に入れる）だけ。`--keys` で絞ると何も消さない。項目を消したり直したりしない。Better BibTeX で引用キーを固定していない項目は動かさない。実行する前に利用者に尋ねる。
 
 ### 7.3 Priorwork
 
@@ -850,14 +874,24 @@ octavo bundle --replication --standalone --verify   # パッケージそのも�
 
 - パックはフォルダー `<パック>/` で、`rules/*.md`・`phrases/*.md` と、任意の `pack.md`（`title`、`extends`、`sections`）を入れる。置き場所は `~/.config/octavo/writing/`（すべてのプロジェクト）か `notes/writing/`（そのプロジェクト。前からの `writing/` も読む）。同じパックの同じ名前のファイルはプロジェクトのものが勝つ。`rules/`・`phrases/` に直接置いたファイルはパック `local` で、いつも最後。
 - ファイルの冒頭: `title`、`lang`（`en`/`ja`。なければどの言語でも）、`applies`（`paper`、`slides`、`lecture`、`poster`、`all`。既定 `all`）、`section`（なければいつも読む）。`##` の見出し1つが項目1つで、id は `パック/ファイル#slug`（小文字にし、英数字以外の続きを `-` に。同じ見出しの2つ目は `-2`）。
-- ルールは書いたとおりに出る。読み取るのは `Flag: <正規表現>`（検出）だけ: 1行に Python の `re` の式を1つ、何行でも。大文字小文字を区別する（しないなら頭に `(?i)`）。`` ` `` で囲んでもよい。フレーズでは `When:` / `Note:` / `Source:`（場面 / 注意 / 出典）が JSON の欄になり（`Contains:` と `Repeat: yes`（繰り返し。`repeat` が true: この種類が続いても注を付けない）も）、箇条書きが型になる（`- Open:` / `- Body:` / `- Close:` は段落の中の位置）。〈 〉は埋める所、`〈A / B〉` は選ぶ言葉。ほかの行はそのまま出るだけで、読み取らない。
+- ルールは書いたとおりに出る。ただし、Octavo だけが読む行は渡さない。
+  - `Flag: <正規表現>`（検出）: 1行に Python の `re` の式を1つ、何行でも。大文字小文字を区別する（しないなら頭に `(?i)`）。`` ` `` で囲んでもよい
+  - `Id:`: 見出しを直しても変わらない slug。見出しから作った slug と `Alias:`（別名）の名前でも引ける
+  - `Stage:`（段階）: `draft`（既定。書くときに読み、推敲でも当てる）、`revise`（`octavo revise` だけ）、`lookup`（その `Flag:` が本文に当たったときだけ読む。語法のメモ）
+  - `Section:`（節）: この項目の節。ファイルの `section` に代わる
+  - `Scope:`（範囲）: `sentence`（既定）、`paragraph`、`first-sentence`・`last-sentence`（`Flag:` を段落の最初・最後の文にだけ当てる）、`section`、`document`（`octavo revise` が渡す材料が変わる）
+  - `Replaces: パック/ファイル#id`（置き換え）: この項目を使う間、その項目を使わない
+  - `Count: <正規表現> per sentence|paragraph|section > N`（数える。`>=` も）
+
+  ファイルの冒頭に `stage:`・`scope:` を書くと、そのファイルの項目の既定になる。`Good:` / `Bad:`（良い例 / 悪い例）は何度書いてもよく、例は同じ行か、下の `- ` / `> ` の行に書く。`octavo writing --check` が `Flag:` をそれらに当てる。フレーズでは `When:` / `Note:` / `Source:`（場面 / 注意 / 出典）が JSON の欄になり（`Contains:` と `Repeat: yes`（繰り返し。`repeat` が true: この種類が続いても注を付けない）も）、箇条書きが型になる（`- Open:` / `- Body:` / `- Close:` は段落の中の位置）。〈 〉は埋める所、`〈A / B〉` は選ぶ言葉。ほかの行はそのまま出るだけで、読み取らない。
 - 冒頭に `entries: sentences` と書いたフレーズのファイルは、段落の種類ではなく、1つの段落の中の文を並べたもの。ある節を名指しするフレーズのファイルがどれもそうなら、その節の段落には `no-kind` を付けない。
 
 ### 9.2 原稿が読むもの
 
 - パック: 設定か原稿の冒頭の `writing`（冒頭のものが設定に代わる）に、一般的なものから並べる。後ろが勝つ。`extends` はその前に入る。選ばなければすべてのパック（extends を前に、あとは名前順）。`local` は最後。
+- `writing` か `extends` の `名前@版`: パックのフォルダーがある git リポジトリの、タグ `名前@版`（なければタグか commit の `版`）の時点のパック（`~/.cache/octavo/writing/` に書き出す）。`writing` の版が `extends` の版に勝つ。その版のない置き場所（プロジェクトの `notes/writing/<パック>/`）は上に重なる。その版がなければ、そのパックは使わず警告。
 - `writing_off`（設定と冒頭の分を**合わせる**）: `パック/ファイル`、`ファイル`、`パック/ファイル#slug`、`ファイル#slug`。
-- ファイルを除くのは、`applies` が原稿の種類（出力から決まる）に合わないとき、`lang` が原稿と違うとき、外されたとき、聞かれた節と違う `section` があるとき。`--all` は最後の条件だけを外す。
+- ファイルを除くのは、`applies` が原稿の種類（出力から決まる）に合わないとき、`lang` が原稿と違うとき、外されたとき、使う項目が1つも残らないとき。項目を除くのは、その節（`Section:`、なければファイルの節）が聞かれた節と違うとき、`Stage: revise` のとき、`Stage: lookup` でその `Flag:` が原稿のどこにも当たらないとき（`--line` ならそのファイル。節のある項目はその節の行だけ）、使っているパックの項目がそれを `Replaces:` で置き換えたとき。`--all` はすべての項目を残す。
 - 行の節: すぐ上の見出しから浅い見出しへさかのぼり、節に当たる最初の見出しを使う（パックが足した節が先。1つの見出しの中では先に出る言葉）。組み込みの節は `abstract`、`introduction`、`literature`、`theory`、`design`、`results`、`discussion`、`conclusion`、`appendix`（`{.appendix}` の見出しとその後ろ、付録のファイル）。それぞれの言葉は [執筆支援 3.4](https://yoshida-kd.github.io/octavo/ja/writing/#34-行の節の決まり方) の表に。
 - 見出しは、まずラベルで節に当たる（`{#sec-literature}`、`{#sec-literature-2}`、`{#sec-intro}` のような4文字以上の短い形）。次に見出しの言葉、最後にラベルの言葉（`{#sec-data}` → `design`）。`--line` の行の見出しから節が決まらず、節ごとのファイルがあるときは、警告で知らせる（JSON の `no_section` と、`--print` の頭のコメントにも出る）。
 
@@ -870,6 +904,10 @@ octavo writing --file docs/my-paper/my-paper.md --line 120 --print
 octavo writing --for my-paper --kind field/results#the-main-result --print
 octavo writing --for my-paper --section discussion --section-only --print
 octavo writing --for my-paper --flags
+octavo writing --check
+octavo writing --check --pack-dir ~/projects/writing/packs
+octavo writing --stats
+octavo writing --harvest v1-draft --for my-paper
 octavo outline my-paper --paragraphs
 octavo outline my-paper --paragraphs --contains --lines 60-120
 ```
@@ -877,11 +915,21 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
 - `--for DOC` か `--file F` で原稿を言う。`--line N`（`--file` と）で節と段落の印を見つける。`--section S` は節を指定する。`--all` はすべての節。`--kind K`（何度でも、コンマ区切りでも）は段落の種類。`--print` は重ねた本文。`--json`。
 - `--section-only`（`--section` か `--line` で節が決まっているとき）は、`section:` のないファイルを除く。最初に1回すべてを読み、別の節に移るときに使う。
 - `--flags` は、その原稿が使うルールの `Flag:` に当たった原稿の行（付録も。`--file` ならそのファイルだけ）を、ルールごとに並べる。`section:` のあるファイルのルールは、その節の行にだけ当てる。当てない所: 冒頭、見出し、コード、コメント、別行立ての数式、`{{値}}`、引用、`{…}` の属性、リンクの先。誤りではなく読み直す所なので、`octavo check` は OK の行（「読み直す所」）に件数だけを出し、`--strict` でも止まらない。正規表現になっていない `Flag:` は「文章のルール」の警告になる。
+- `--check` はパックを点検する。知らせるのは次のもの。終わりのコードは、問題があれば 1。
+  - 知らない `Stage` / `Scope` / 節の名前
+  - 形の違う `Count`、正規表現でない `Flag` / `Count`
+  - 二度使った `Id`、どの項目も指さない `Replaces`、`Flag` のない `Stage: lookup`
+  - 悪い例（`Bad:`）に当たらない `Flag`
+
+  良い例（`Good:`）に当たる `Flag` は注意だけ（正しい使い方にもその語は出る）。`--pack-dir DIR`（何度でも。パックの入ったフォルダーか、パック1つ）なら、プロジェクトの外で点検する。`octavo check` は問題の数を「文章のルール」に出す。
+- `--stats` は、`octavo revise` が記録したもの（9.8）をルールごとに合計する（当たった・直した・これでよい）。記録した回で一度も当たっていない、`Flag` か `Count` のあるルールも並べる（`--for DOC` でその原稿だけ）。
+- `--harvest REF` は、git の版 `REF` から書き換わった原稿の行（`--for` でその原稿だけ）を、`Before:` / `After:` の対で並べる。AI にルールの案を作らせる材料で、出力を保存して `octavo ai run suggest-rules` に渡す。`--docx F` を付けると、共著者の変更履歴とコメントも足す。何も書き込まない。
 - 種類があるとき（`--kind` か、`--line` の行の印から）、ルールは変わらず、フレーズはその項目だけになる。その原稿が使うフレーズのファイル（選んだパックの、`applies`・`lang` が合い、外していないもの）から、節を問わず探す。ほかのファイルの種類は警告して除く。
 
 ### 9.4 段落の印と著者への問い
 
 - 段落のすぐ上に `<!-- para: <種類> | <主張> -->`。本文は次の行から。印の次が空行なら、まだ書いていない段落。印の前には空行を置く（ないと pandoc が上の段落とつなぐ）。種類は `writing_off` の id と同じに解決する（`ファイル#slug` は後ろのパックのもの）。
+- `<!-- para: <種類> + <種類> | <主張> -->` は、主の種類と従の種類（混ざった段落）。続けて同じ種類かを数えるのは主の種類で、`--line` は両方のフレーズを読み、`--contains` は両方を出す。
 - `<!-- para: + -->`（または `<!-- para: + | <主張> -->`）は、同じ見出しの下の、いちばん近い上の印の続きで、その種類を引き継ぐ（1つの主張を数段落で書いたとき、表のあとに続く段落）。その行での `--line` は、その種類のフレーズを読む。引用（`> …`）や箇条書きの上に印を置くと、その塊を段落に数える。印がなければ数えない。
 - `octavo outline … --paragraphs` の印: `no-kind`、`unknown-kind`（と `near`）、`unused-kind`（この原稿では使わないファイルの種類）、`no-text`、`joined`、`same-kind`（1つの見出しの下で同じ種類の3つ目。注意だけ。`+` の段落は続きの相手と合わせて1つに数え、`Repeat: yes` のある種類には付けない）、`continues-nothing`。繰り返し: 1つの見出しの下の2つの文に当たった型（〈 〉の外の言葉がすべて1つの文の中に同じ順で出る。大文字で始まる型は文の頭、`.` で終わる型は文の終わり。決まった言葉が2語に満たない型は探さない。その見出しの節か、`section:` のないファイルの型で、その原稿が使うものだけ）。
 - `--contains` は、各段落の下に、その種類の `Contains:` を添える（照合はしない）。`--lines A-B`（`A-` なら最後まで）は、その行の範囲の段落・繰り返し・問いだけにする（印は原稿全体で付けてから絞る）。
@@ -889,10 +937,10 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
 
 ### 9.5 JSON
 
-- `octavo writing --json`（原稿を言わないとき）: `rules`、`phrases`（ファイル: `path`、`title`、`lang`、`applies`、`section`、`entries`、`where`、`pack`、`kind`）、`packs`（`name`、`title`、`path`、`where`、`extends`、`sections`、`description`、`files`）、`sections`、`warnings`。
-- `octavo writing --for|--file … --json`: `doc`、`packs`、`chosen`、`chosen_here`、`kinds`、`lang`、`section`、`section_only`、`no_section`（知らせの文か null）、`heading`、`sections`、`off`、`off_here`、`paragraph_kinds`（種類がなければ null）、`paragraph`（`line`、`kind`、`claim`、`body_line`、`first_sentence`。`--line` がなければ null）、`warnings`、`text`（`--print` のとき）と `files`: `id`、`pack`、`kind`、`path`、`title`、`lang`、`applies`、`section`、`entry_kind`（`paragraphs` か `sentences`）、`where`、`used`、`skipped`（`applies`、`lang`、`off`、`section`、`kind`、`always`（`--section-only` で除いた）か null）、`items`（`id`、`title`、`slug`、`line`、`off`。フレーズには `when`、`note`、`source`、`lines` = [`position`、`text`]、`contains`、`repeat`、種類を言ったときは `picked` も）。
+- `octavo writing --json`（原稿を言わないとき）: `rules`、`phrases`（ファイル: `path`、`title`、`lang`、`applies`、`section`、`entries`、`where`、`pack`、`kind`）、`packs`（`name`、`title`、`path`、`where`、`extends`、`sections`、`description`、`files`、`pin`、`commit`、`versions`）、`sections`、`warnings`。
+- `octavo writing --for|--file … --json`: `doc`、`packs`、`versions`（版から読んだパックの `{パック: {pin, commit}}`）、`chosen`、`chosen_here`、`kinds`、`lang`、`section`、`section_only`、`no_section`（知らせの文か null）、`heading`、`sections`、`off`、`off_here`、`paragraph_kinds`（種類がなければ null）、`paragraph`（`line`、`kind`、`claim`、`body_line`、`first_sentence`。`--line` がなければ null）、`warnings`、`text`（`--print` のとき）と `files`: `id`、`pack`、`kind`、`path`、`title`、`lang`、`applies`、`section`、`entry_kind`（`paragraphs` か `sentences`）、`where`、`used`、`skipped`（`applies`、`lang`、`off`、`section`、`kind`、`always`（`--section-only` で除いた）か null）、`items`（`id`、`title`、`slug`、`line`、`off`、`aliases`、`stage`、`scope`、`sections`、`skipped`（`stage`、`lookup`、`section`、`always`、`replaced` か null）。フレーズには `when`、`note`、`source`、`lines` = [`position`、`text`]、`contains`、`repeat`、種類を言ったときは `picked` も）。
 - `octavo writing --for|--file … --flags --json`: `doc`、`count`、`warnings`、`rules`（当たったものだけ: `id`、`title`、`file`、`patterns`、`hits` = [`file`、`line`、`match`、`text`]）。
-- `octavo outline … --paragraphs --json`: 原稿のファイルごとの並び: `doc`、`file`、`appendix`、`paragraphs`（`line`、`body_line`、`kind`、`id`、`title`、`claim`、`first_sentence`、`heading`、`heading_line`、`heading_level`、`problems`、`near`、`continues`、`contains`）、`repeats`（`heading`、`heading_line`、`id`、`text`、`lines`、`section`）、`asks`（`line`、`text`）。
+- `octavo outline … --paragraphs --json`: 原稿のファイルごとの並び: `doc`、`file`、`appendix`、`paragraphs`（`line`、`body_line`、`kind`、`id`、`title`、`claim`、`first_sentence`、`heading`、`heading_line`、`heading_level`、`problems`、`near`、`continues`、`contains`、`also`、`also_contains`）、`repeats`（`heading`、`heading_line`、`id`、`text`、`lines`、`section`）、`asks`（`line`、`text`）。
 
 ### 9.6 何も出ないとき
 
@@ -900,6 +948,81 @@ octavo outline my-paper --paragraphs --contains --lines 60-120
 - ある原稿にファイルが出ない: `applies` / `lang`（`octavo writing --for DOC --all` で除いたものが見える）。ある節が読まれない: 見出しがどの節にも当たらないか、節の名前の打ち間違い（`octavo check`）。
 - 「writing_off に当たる項目がない」: 項目の見出しが変わり、slug が変わった。
 - 「印の前に空行が要る」: 印の上に空行を入れる。
+
+### 9.7 AI に決まった仕事を頼む（octavo ai）
+
+```bash
+octavo ai                                          # 仕事の一覧: proofread、revise、summarize、ocr と自分で足したもの
+octavo ai check                                    # AI が答えるか、この機械にあるか
+octavo ai run proofread docs/my-paper/my-paper.md --section sec-intro
+octavo ai run summarize refs/report.pdf            # refs/report.summary.md
+octavo ai run ocr refs/private/scan.png            # refs/private/scan.md
+octavo ai run proofread notes/draft.md --lines 10-40 --out notes/ai/check.md
+```
+
+- AI は、OpenAI 互換のチャットの口（`<ai_url>/chat/completions`）を持つサーバーなら何でもよい。この機械の Ollama・LM Studio・llama.cpp の server・vLLM でも、クラウドの API でもよい。Octavo はモデルを入れも選びもしない。設定は次のとおり。
+  - `ai_url`（例: `http://localhost:11434/v1`）
+  - `ai_model`
+  - `ai_timeout`（秒。既定 600）
+  - `ai_allow`（この機械と見なすほかのアドレス。研究室の GPU 機など）
+  - `ai_private`（既定 `['refs/private/']`）
+
+  `OCTAVO_AI_URL` と `OCTAVO_AI_MODEL` を設定すると、その機械では最初の2つより優先される。サーバーが鍵を求める場合、鍵は `OCTAVO_AI_KEY` からだけ読み、設定ファイルには書かない。
+- **`ai_private` にあるものは、この機械（`localhost`、ループバックのアドレス、`ai_allow`）にしか送らない。** ほかへ送ろうとすると、`octavo ai run` は断る。
+- 仕事はファイル `templates/ai/<名前>.md` で、ほかのひな型と同じに上書きも追加もできる（`octavo template copy ai/proofread.md` で写して名前を変える）。冒頭に書くものは次のとおり。
+  - `title`
+  - `input`: `text`、`pdf`（`pdftotext` で取り出した文字）、`image`、`pdf-pages`（`pdftoppm` でページごとに画像にして送り、`=== page N ===` でつなぐ）
+  - `output`: 答えを書く先。`{dir}` は送ったファイルのフォルダー、`{name}` は拡張子を除いた名前（節を指定すれば `.<節>` が付く）、`{task}` は仕事の名前
+
+  本文が AI への指示になる。
+- 答えはそのファイルに書く。1行目の `<!-- octavo ai: … -->` に、何をどのモデルに送ったかを記録する。原稿・付録と、その1行のないファイルには上書きしない（`--force` を付けない限り）。原稿は書き換えない。答えから何を取り入れるかは自分で決める。
+- オプション:
+  - `--section 鍵`: 原稿の1つの節（ラベル）を送る
+  - `--lines A-B`: その行だけを送る
+  - `--dry-run`: 何を送るかを示すだけ
+  - `--json`: `{ok, error, output}` で答える
+
+  VS Code では、エディターとエクスプローラーの右クリックの「**AI に頼む**」で、そのファイル（選んだ行があればその行）に仕事をさせ、答えを横に開く。
+- 仕事の冒頭に `writing: rules` と書くと、原稿を送るときに、その範囲の文章のルールを添える（`octavo revise --print` と同じもの。回には分けない）。`writing: revise` なら回ごとに1回ずつ頼み、答えを `=== pass … ===` でつなぐ。同梱の `proofread` は前者、`revise` は後者。`suggest-rules` は `octavo writing --harvest` の出力を読む。
+
+### 9.8 推敲（octavo revise）
+
+```bash
+octavo revise my-paper                             # 読み直す所（* は前の回から新しく出たもの）
+octavo revise my-paper --section results --print   # AI に渡すもの（回ごと）
+octavo revise my-paper --lines 60-120 --print --pass 2
+octavo revise my-paper --fine 3fa9c1               # 直さなくてよい所
+octavo revise my-paper --verdict field/style#hedges 84 fixed --note "doubled hedge"
+octavo revise my-paper --json
+```
+
+- 読み直す所を1つの一覧にする。ほかのコマンドが見つけるものに、ここで数えるものをいくつか足す。判断はせず、本文も書き換えない。
+  - ルールの `Flag`（`Scope` が first-sentence / last-sentence なら、各段落の最初・最後の文だけ）と `Count`
+  - 語が本文にある `Stage: lookup` の項目
+  - `octavo/long-sentence`: `revise_sentence_words`（既定 40）語より長い文。日本語は `revise_sentence_chars`（既定 100）文字。0 なら知らせない。原稿ごとにも書ける
+  - `octavo/repeated-ending`: 同じ文末（日本語）の文が3つ続く
+  - `octavo/repeated-opening`: 段落の中の3つの文、または1つの見出しの下の3つの段落が、同じ語（日本語なら「また、」のような頭）で始まる
+  - `octavo/abbreviation`: 定義（`Full name (ABC)`、`ABC（…）`）より前に使った略語。どこかで定義している略語だけ
+  - `octavo/term-variant`: `notes/writing/terms.csv` の `variants` の列にある表記。ほかの列は `en` / `ja` で、使う語は原稿の言語の列
+  - 段落の計画とのずれ（原稿に印があるとき）、著者への問い、本文に打ち込んだ数値、文の途中の改行
+  - 言語違いの版なら、主の原稿より遅れている節
+- `--section S`、`--lines A-B`、`--file F` は一覧を絞る（記録を欠かさないよう、読むのは原稿全体）。`--all` は「これでよい」とした指摘も出す。
+- **回を記録する。** 記録は `docs/<名前>/revise.json` に、段落の指紋と指摘を残す（`--json` なしの実行と `--print` のたび。`--no-record` なら残さない）。
+  - 記録した最後の回に無かった指摘は新しい（`*`）。
+  - 段落を直して消えた指摘は「直した」と数える。
+  - `--fine キー`（頭だけでよい）は、その文が変わるまで指摘を出さない。
+  - `--verdict ルール 行 fixed|fine [--note 文]` は、AI が挙げた指摘への著者の判断を記録する。
+  - これらを `octavo writing --stats` が合計する。
+- `--print` は AI に要るものを回ごとに出す（`--pass N` でその回だけ）。
+  - 当てるルールは1回に8つまでで、`Scope` で束ねる（文と段落・節・原稿全体）。それぞれに id を付ける（書くときのルール、推敲のルール、語が出てくる lookup）。
+  - 本文は、本文が違った前の回から変わった段落を、行番号付きで出す（`--all` なら全部）。節の回はそういう段落を含む節、原稿全体の回は見出しと、各段落の種類・主張・最初の文。
+  - 最初の回には Octavo が見つけた所を、どの回にも「これでよい」とした指摘を添える。
+- `--json`: `doc`、`base`、`paragraphs`、`changed`、`fine`、`warnings` と `findings`。
+  - `findings` の欄は `key`、`check`、`rule`、`title`、`file`、`line`、`para`、`match`、`text`、`note`、`section`、`state`。
+  - `check` は `rule`、`count`、`lookup`、`octavo`、`outline`、`ask`、`lint`、`translation` のどれか。
+  - `state` は `new`、`seen`、`fine` のどれか。
+
+  `--print` と一緒なら、`doc` と `passes`（`title`、`scope`、`rules`、`text`）。
 
 ---
 
@@ -949,7 +1072,11 @@ octavo fmt [name] [--apply]
 octavo bib pull|tidy|collections|login
 octavo csl get|list|which [ID]
 octavo priorwork [resolve|link|cards|ask|requests] [--dry-run] [--json]
+octavo ai [list | check | run TASK FILE] [--section KEY] [--lines A-B] [--out FILE] [--force] [--dry-run] [--json]
+octavo translation [name] [--lang ja|en] [--mark [KEY ...]] [--print KEY] [--json]
 octavo writing [--for DOC --section S | --file F --line N] [--kind KIND] [--section-only] [--print] [--flags] [--json]
+octavo writing --check [--pack-dir DIR] | --stats | --harvest REF [--docx FILE] [--for DOC] [--json]
+octavo revise <document> [--section S | --lines A-B | --file F] [--all] [--print [--pass N]] [--fine KEY ...] [--verdict RULE LINE fixed|fine] [--json]
 octavo bundle [name] [--anonymous] [--replication] [--with-raw-data] [--standalone] [--lang en|ja] [--verify]
 octavo review returned.docx [--json]
 octavo release <document> <label>
@@ -978,3 +1105,4 @@ octavo docs [section] [--search WORD] [--all] [--lang ja|en]
 - **PDF の数値が違う**: 分析を実行し直す（`octavo analysis run`）。手で書かない。
 - **スライドがはみ出す**: ビルドがそれを言う。`\newslide` を入れるか、削るか、図を小さくする。
 - **引用の形がおかしい**: `octavo selftest` が組んだ形を示す。`.bib` の項目は `octavo check cites` で確かめる。
+- **引いたキーがまだ `.bib` に無い**: PDF は作られ、そのキーは `キー?` と出る。ビルドが警告し、項目が入るまで `octavo check` は誤りとして数える。

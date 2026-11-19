@@ -155,6 +155,10 @@ MESSAGES: dict = {
     'Phrase bank (frames to draw on where they fit):': 'フレーズバンク（合う所でだけ使う型）:',
     'print the rules themselves, layered (for the AI)': 'ルールの本文を重ねて出す（AI が読むもの）',
     'no writing pack called {name} (packs: {names})': '文章のルールのパック {name} がない（パック: {names}）',
+    '{pack}: no version {ref} (a git tag {pack}@{ref} or {ref} where the pack is); the pack is not used':
+        '{pack}: 版 {ref} がない（パックのある git リポジトリのタグ {pack}@{ref} か {ref}）。このパックは使わない',
+    'Packs:': 'パック:',
+    'versions: {names}': '版: {names}',
     'the manuscript (or appendix) file being written': '書いている原稿（か付録）のファイル',
     '{file}: unknown section {name} (sections: {names})': '{file}: 不明な節 {name}（節: {names}）',
     'packs, general first: {order}. Where two disagree, the later one wins.':
@@ -234,8 +238,6 @@ MESSAGES: dict = {
         '--paragraphs と一緒に: 各段落の下に、その種類の Contains: の行を添える（段落と照らすため。照合はしない）',
     'with --paragraphs: only the paragraphs in these lines (60-120)':
         '--paragraphs と一緒に: この行の範囲の段落だけ（60-120）',
-    '{doc}: {n} {n|line matches|lines match} a Flag of the writing rules (octavo writing --for {doc} --flags)':
-        '{doc}: 文章のルールの Flag に当たる行が {n} 件（octavo writing --for {doc} --flags）',
     'the writing rules and phrase bank to follow': '従う文章のルールとフレーズバンク',
     'Typst slides (handout)': 'Typst スライド（配布用）',
     'Appendix as a separate PDF': '付録を別の PDF にする',
@@ -248,16 +250,24 @@ MESSAGES: dict = {
         '関連: {paths}',
     'cited but not in the main collection — to add ({n}):':
         '引用しているがメインに無い — 追加する（{n}件）:',
-    'in the main collection but cited nowhere — to take out ({n}):':
-        'メインにあるがどこでも引用していない — 外す（{n}件）:',
+    'cited nowhere — to move into the uncited collection, still in the main one ({n}):':
+        'どこでも引用していない — メインに残したまま「非引用文献」へ移す（{n}件）:',
+    'cited — to sort into the sections they are cited in ({n}):':
+        '引用している — 引用している節へ仕分ける（{n}件）:',
+    'collections to make ({n}):': '作るコレクション（{n}件）:',
+    'collections Octavo made that are now empty — to delete ({n}):':
+        'Octavo が作って空になったコレクション — 消す（{n}件）:',
+    'collection {path}': 'コレクション {path}',
+    'its collection could not be made': '入れるコレクションを作れなかった',
+    'Zotero did not make the collection {name} ({why})': 'Zotero がコレクション {name} を作らなかった（{why}）',
     '(skipped)':
         '（対象外）',
     'not cited, but the citation key is not pinned, so left alone ({n}):':
         '引用していないが、引用キーが固定されていないのでそのままにする（{n}件）:',
     'the main collection matches the manuscripts':
         'メインのコレクションは原稿の引用と一致している',
-    'nothing was changed. octavo bib tidy --apply changes Zotero as above (only which collection the entries are in; no entry is deleted)':
-        '何も変更していない。octavo bib tidy --apply で上のとおり Zotero を書き換える（変えるのは文献がどのコレクションに入っているかだけで、文献は消さない）',
+    'nothing was changed. octavo bib tidy --apply changes Zotero as above (only which collection the entries are in, and the collections for sorting them; no entry is deleted)':
+        '何も変更していない。octavo bib tidy --apply で上のとおり Zotero を書き換える（変えるのは文献がどのコレクションに入っているかと、仕分けのコレクションだけで、文献は消さない）',
     'changed {n} {n|entry|entries} in Zotero. Then: octavo bib pull':
         'Zotero の文献を {n} 件書き換えた。続けて: octavo bib pull',
     'tidy: change Zotero as planned (needs zotero_write: True)':
@@ -352,6 +362,8 @@ MESSAGES: dict = {
     'Zotero local API / collection {name}': 'Zotero ローカル API / コレクション {name}',
     'Zotero local API / the whole library': 'Zotero ローカル API / ライブラリ全体',
     '\\poscite{{{key}}}: no such key in the .bib': '\\poscite{{{key}}}: .bib にキーがない',
+    'not in the .bib, shown as "key?" (the PDF is made anyway; octavo check cites lists them): {keys}':
+        '.bib に無い文献は「キー?」と出した（PDF は作った。octavo check cites が一覧にする）: {keys}',
     'a CJK font for Typst': 'Typst 用の日本語フォント',
     "a Typst numbering string ('1.' and the like) or None": "Typst の numbering 文字列（'1.' など）か None",
     'a Word file for your coauthors': '共著者に渡す Word ファイル',
@@ -1401,4 +1413,355 @@ MESSAGES: dict = {
     'cited but in neither the main nor the linked collections ({n}): {keys} (octavo bib tidy --library looks in the whole library)':
         '引いているが、メインにも関連のコレクションにもない（{n}）: {keys}（octavo bib tidy --library でライブラリ全体を探す）',
     'tidy: also look in the whole library for cited works (slow the first time)': 'tidy: 引いている文献をライブラリ全体からも探す（1回目は時間がかかる）',
+    'no manuscript has a version in another language (docs/<name>/<name>.en.md or .ja.md; octavo new paper <name> --lang en adds one)':
+        '別の言語の版がある原稿はない（docs/<名前>/<名前>.en.md か .ja.md。octavo new paper <名前> --lang en で足す）',
+    'The main manuscript ({main_lang}) and the one in {other_lang} should say the same thing. Translate or adjust the side that is behind; keep every label, reference (@fig-…), citation and {{value}} exactly as it is; do not translate them.':
+        '主の原稿（{main_lang}）と {other_lang} の原稿は同じことを述べる。遅れている側を訳すか直す。ラベル・参照（@fig-…）・引用・{{値}} は書いてあるとおりに残し、訳さない。',
+    'never matched':
+        'まだ合わせていない',
+    'no section called {key} (octavo translation {doc} lists them)':
+        '{key} という節はない（octavo translation {doc} で一覧が出る）',
+    '# Section {key}: {state}':
+        '# 節 {key}: {state}',
+    'only in the main manuscript: {items}':
+        '主の原稿にだけある: {items}',
+    '{name} has no manuscript in another language (add one with: octavo new {kind} {name} --lang {lang})':
+        '{name} には別の言語の原稿がない（足すなら: octavo new {kind} {name} --lang {lang}）',
+    'matched':
+        '合わせてある',
+    'which language, when there are several':
+        'どの言語か（いくつもあるとき）',
+    'citations':
+        '引用',
+    'labels':
+        'ラベル',
+    'both changed':
+        '両方が変わった',
+    'title and abstract':
+        '題名と要旨',
+    'the main manuscript changed':
+        '主の原稿が変わった',
+    'octavo translation {doc} --print <key> gives what is needed to bring a section in line; --mark <key> records it as matched':
+        'octavo translation {doc} --print <鍵> で節を揃えるための材料が出る。--mark <鍵> で「合わせた」と記録する',
+    'only in this language':
+        'こちらの言語にだけある',
+    '{name} has manuscripts in several languages; say which with --lang':
+        '{name} には複数の言語の原稿がある。--lang でどれかを指定する',
+    'no section in both manuscripts: {keys}':
+        '両方の原稿にある節ではない: {keys}',
+    'the document (the main one, or the one in another language)':
+        '文書（主の原稿でも、別の言語の原稿でも）',
+    'before the first heading':
+        '最初の見出しの前',
+    'this language changed':
+        'こちらの言語が変わった',
+    '(not written yet)':
+        '（まだ書いていない）',
+    'Main manuscript':
+        '主の原稿',
+    '## Terms ({file})':
+        '## 対訳表（{file}）',
+    '{n} {n|point|points}':
+        '{n} 件',
+    'recorded {n} {n|section|sections} as matched in {file}':
+        '{n} 節を「合わせた」と {file} に記録した',
+    'When the two agree, record it with: octavo translation {doc} --mark {key}':
+        '両方がそろったら記録する: octavo translation {doc} --mark {key}',
+    'other languages':
+        '別の言語の版',
+    'a manuscript and its version in another language, section by section':
+        '原稿と別の言語の版の、節ごとの対応',
+    'record these sections (default: every section in both) as matched as they are now':
+        'これらの節（省けば両方にある節すべて）を、今の中身で「合わせた」と記録する',
+    '{n} of {total} {total|section|sections} to look at':
+        '{total} 節のうち {n} 節を確認',
+    'which sections the two manuscripts still differ in':
+        '2つの原稿でまだ違う節',
+    'only in the main manuscript':
+        '主の原稿にだけある',
+    'changed since they were last matched: {keys}':
+        '最後に合わせてから変わった: {keys}',
+    'octavo translation <document> shows them section by section':
+        'octavo translation <文書> で節ごとに出る',
+    'only in this language: {items}':
+        'こちらの言語にだけある: {items}',
+    'Manuscript in {lang}':
+        '{lang} の原稿',
+    '## What differs':
+        '## 食い違い',
+    'typeset this language through to PDF':
+        'この言語の版を PDF まで組む',
+    'values':
+        '値',
+    'every section matches ({names})':
+        'すべての節が合っている（{names}）',
+    'references':
+        '参照',
+    'what is needed to bring one section in line (for the AI)':
+        '1つの節を揃えるための材料（AI 向け）',
+    'no section {key} in {file} (sections: {keys})':
+        '{file} に節 {key} はない（節: {keys}）',
+    'run: replace a file octavo ai did not write':
+        'run: octavo ai が書いたのではないファイルも置き換える',
+    'add one: octavo template copy ai/proofread.md, then rename and edit the copy':
+        '足すには: octavo template copy ai/proofread.md で写し、名前を変えて直す',
+    'a list of strings':
+        '文字列の並び',
+    'it answers':
+        '応答あり',
+    'an http:// or https:// address, or None':
+        'http:// か https:// のアドレス、または None',
+    'pdftoppm could not read {file}':
+        'pdftoppm が {file} を読めなかった',
+    'the task {task} does not take images (it takes: {kinds})':
+        '仕事 {task} は画像を受け取らない（受け取るもの: {kinds}）',
+    'this machine':
+        'この機械',
+    'hand a set task (proofread, summarize, ocr, …) to an AI; the answer is written to a file':
+        '決まった頼みごと（校正・要約・文字起こし…）を AI に渡す。答えはファイルに書く',
+    'AI address (OpenAI-compatible, e.g. http://localhost:11434/v1)':
+        'AI のアドレス（OpenAI 互換。例: http://localhost:11434/v1）',
+    'the AI at {url} did not answer in JSON':
+        '{url} の AI が JSON で答えなかった',
+    'none':
+        'なし',
+    '{file} is already there and octavo ai did not write it — pass --out, or --force to replace it':
+        '{file} は既にあり、octavo ai が書いたものではない。--out で別の場所に書くか、--force で置き換える',
+    'would send {file} ({kind}) to the task {task} and write {out}':
+        '{file}（{kind}）を仕事 {task} に送り、{out} に書くところ',
+    'wrote {file}':
+        '{file} に書いた',
+    'run: only these lines of a text file':
+        'run: テキストのこの行だけ',
+    'AI model':
+        'AI のモデル',
+    'the task {task} does not take text files (it takes: {kinds})':
+        '仕事 {task} はテキストを受け取らない（受け取るもの: {kinds}）',
+    'run: only this section of a manuscript (its label)':
+        'run: 原稿のこの節だけ（ラベル）',
+    'elsewhere (files in {paths} are not sent there)':
+        'ほかの機械（{paths} のファイルは送らない）',
+    'could not reach the AI at {url} ({reason}) — is the server running?':
+        '{url} の AI につながらない（{reason}）。サーバーは動いているか',
+    'AI: {url}, model {model} ({where})':
+        'AI: {url}、モデル {model}（{where}）',
+    'a whole number of seconds':
+        '秒数（整数）',
+    'asking {model} at {url} ({task}) …':
+        '{url} の {model} に頼んでいる（{task}）…',
+    'run: the task':
+        'run: 仕事',
+    'the AI at {url} answered {code}: {detail}':
+        '{url} の AI の答えは {code}: {detail}',
+    '--lines takes FROM-TO, such as 12-40':
+        '--lines は 始め-終わり（例: 12-40）',
+    'no AI is set: write ai_url (and ai_model) in octavo.config.py, or set OCTAVO_AI_URL (for example http://localhost:11434/v1 for Ollama)':
+        'AI が設定されていない。octavo.config.py に ai_url（と ai_model）を書くか、OCTAVO_AI_URL を設定する（Ollama なら例えば http://localhost:11434/v1）',
+    'page {n} of {total}':
+        '{total} ページ中 {n} ページ目',
+    '{file} is in {where}, which is sent only to an AI on this machine (localhost, or ai_allow); {url} is not':
+        '{file} は {where} にあり、この機械の AI（localhost か ai_allow）にしか送らない。{url} はそうではない',
+    'no task called {task} (the tasks: {names})':
+        '{task} という仕事はない（仕事: {names}）',
+    'run: the file to send (text, PDF or image)':
+        'run: 送るファイル（テキスト・PDF・画像）',
+    'the AI at {url} answered without a message':
+        '{url} の AI の答えに本文がなかった',
+    'no such file: {file}':
+        'ファイルがない: {file}',
+    'reading the pages of a PDF needs pdftoppm (poppler-utils / poppler)':
+        'PDF のページを読むには pdftoppm（poppler-utils / poppler）が要る',
+    'reading a PDF needs pdftotext (poppler-utils / poppler)':
+        'PDF を読むには pdftotext（poppler-utils / poppler）が要る',
+    'no AI model is set: write ai_model in octavo.config.py, or set OCTAVO_AI_MODEL':
+        'AI のモデルが設定されていない。octavo.config.py に ai_model を書くか、OCTAVO_AI_MODEL を設定する',
+    'octavo ai run <task> <file>; the tasks: {names}':
+        'octavo ai run <仕事> <ファイル>。仕事: {names}',
+    '{file} has no text to read (a scan? transcribe it with the ocr task first)':
+        '{file} には読める文字がない（スキャンなら、先に ocr の仕事で文字起こしする）',
+    'the server does not list the model {model}':
+        'サーバーの一覧にモデル {model} がない',
+    'the task {task} does not take PDFs (it takes: {kinds})':
+        '仕事 {task} は PDF を受け取らない（受け取るもの: {kinds}）',
+    'run: write the answer here instead':
+        'run: 答えを代わりにここに書く',
+    '{file} is a manuscript (or the file sent); octavo ai never writes over it':
+        '{file} は原稿（か送ったファイル）。octavo ai は上書きしない',
+    'list the tasks, check the connection, or run a task':
+        '仕事の一覧、つながるかの確認、仕事の実行',
+    # 推敲（revise.py）・パックの点検・直しの材料（harvest.py）
+    'a long sentence':
+        '長い文',
+    '(no paragraph changed since the last pass; --all for every paragraph)':
+        '（前の回から変わった段落はない。--all ですべての段落）',
+    '{key} matches several findings; give more of it':
+        '{key} に当たる指摘がいくつもある。もっと長く書く',
+    'no writing packs found':
+        'パックが見つからない',
+    '(no sentence changed)':
+        '（変わった文はない）',
+    'rule':
+        'ルール',
+    'a line broken in the middle of a sentence':
+        '文の途中の改行',
+    '{doc}: {n} {n|line matches|lines match} a Flag of the writing rules (octavo revise {doc})':
+        '{doc}: 文章のルールの Flag に当たる行が {n} 件（octavo revise {doc}）',
+    'the sentences revised since this git version, as material for new rules':
+        'この git の版から直した文（ルールの案の材料）',
+    'with --verdict: what the finding was':
+        '--verdict と一緒に: どんな指摘だったか',
+    'Already judged fine (do not raise again)':
+        'これでよいと判断済み（もう一度挙げない）',
+    "record the author's decision on a finding the AI raised: fixed or fine":
+        'AI が挙げた指摘への著者の判断を記録する: fixed（直した）か fine（これでよい）',
+    '--verdict takes RULE LINE fixed|fine':
+        '--verdict には ルール 行 fixed|fine を渡す',
+    "A coauthor's changes and comments in {file}":
+        '{file} の共著者の変更とコメント',
+    'rules with a Flag or Count that have never matched in a recorded pass:':
+        '記録した回で一度も当たっていない、Flag か Count のあるルール:',
+    'also the findings judged fine, and every paragraph (not only those changed since the last pass)':
+        'これでよいとした指摘も、すべての段落も（前の回から変わった段落だけでなく）',
+    'nothing to fix':
+        '直すところはない',
+    'machine-readable JSON (without --print, records no pass)':
+        '機械可読な JSON（--print なしなら回を記録しない）',
+    'Rules to check':
+        '当てるルール',
+    '{n} {n|problem|problems} in the packs (octavo writing --check)':
+        'パックに問題が {n} 件（octavo writing --check）',
+    'the Flag misses the Bad example: {text}':
+        'Flag が悪い例に当たらない: {text}',
+    '{n} paragraphs in a row open with {text}':
+        '{text} で始まる段落が {n} つ続く',
+    'git show {ref}:{file} failed':
+        'git show {ref}:{file} が失敗した',
+    '{n} judged fine are not shown (--all shows them)':
+        'これでよいとした {n} 件は出していない（--all で出る）',
+    'planned: {kind} | {claim}':
+        '計画: {kind} | {claim}',
+    'a question for the author':
+        '著者への問い',
+    'for each rule, how often octavo revise found it, and how often it was fixed or judged fine':
+        'ルールごとに、octavo revise が当てた数と、直した数・これでよいとした数',
+    'Text':
+        '本文',
+    'in {n} {n|pass|passes}: {titles}':
+        '{n} 回に分けて: {titles}',
+    'the same opening again and again':
+        '同じ書き出しの連続',
+    'only this file (the manuscript or its appendix)':
+        'このファイルだけ（原稿か付録）',
+    '--pack-dir goes with --check':
+        '--pack-dir は --check と一緒に使う',
+    'fine':
+        'これでよい',
+    'the same phrase-bank line twice':
+        '同じフレーズの行を二度',
+    'found':
+        '当たった',
+    'also at line {lines}':
+        '{lines} 行目にも',
+    'only the paragraphs in these lines (60-120)':
+        'この行の範囲の段落だけ（60-120）',
+    'do not record this pass':
+        'この回を記録しない',
+    'the manuscript (document name)':
+        '原稿（文書の名前）',
+    '{n} sentences in a row open with {text}':
+        '{text} で始まる文が {n} つ続く',
+    'Sentences the author revised since {ref}':
+        '{ref} から著者が直した文',
+    'the same sentence ending again and again':
+        '同じ文末の連続',
+    'Places Octavo found (read each; most may be fine)':
+        'Octavo が見つけた所（一つずつ読む。多くはこのままでよい）',
+    'the places to reread in a manuscript, and what to hand the AI to revise it':
+        '原稿の読み直す所と、推敲を AI に頼むときに渡すもの',
+    '{id}: Replaces {target}, but there is no such entry':
+        '{id}: Replaces に {target} とあるが、そういう項目はない',
+    'check the packs: fields, regular expressions, each Flag against its Good and Bad examples, Replaces':
+        'パックの点検: 欄、正規表現、Flag を良い例・悪い例に当てる、Replaces',
+    'a variant of a term in terms.csv':
+        'terms.csv の別表記',
+    'fixed':
+        '直した',
+    'nothing recorded yet: octavo revise DOC records each pass':
+        'まだ記録がない。octavo revise 文書 が回ごとに記録する',
+    '{n} words (revise_sentence_words: {limit})':
+        '{n} 語（revise_sentence_words: {limit}）',
+    'what to hand the AI: the rules to check, pass by pass, with the text':
+        'AI に渡すもの: 当てるルールを回に分けて、本文と一緒に',
+    'the Count {pattern} is not a regular expression ({why})':
+        'Count の {pattern} は正規表現ではない（{why}）',
+    'the Flag matches the Good example: {text}':
+        'Flag が良い例に当たる: {text}',
+    'pass {n} of {total}':
+        '{total} 回のうち {n} 回目',
+    'unknown Stage {value} (stages: {names})':
+        '知らない Stage {value}（使えるもの: {names}）',
+    'sentences and paragraphs':
+        '文と段落',
+    '(fine)':
+        '（これでよい）',
+    '{file}: the Count under "{title}" is not a regular expression ({pattern}: {why})':
+        '{file}: 「{title}」の Count が正規表現ではない（{pattern}: {why}）',
+    'Stage: lookup needs a Flag: the entry is read only when its Flag matches the text':
+        'Stage: lookup には Flag が要る（Flag が本文に当たったときだけ読まれるので）',
+    'pass {i} of {n}: {what}':
+        '{n} 回のうち {i} 回目: {what}',
+    'a whole number (0 to turn it off)':
+        '整数（0 なら使わない）',
+    '{doc}: {n} {n|place|places} to reread in {p} {p|paragraph|paragraphs} ({c} changed{since})':
+        '{doc}: 段落 {p} のうち、読み直す所が {n} 件（{since}変わった段落 {c}）',
+    ' since the last pass ({when})':
+        '前の回（{when}）から',
+    'terms.csv writes {term}':
+        'terms.csv では {term}',
+    '{n} characters (revise_sentence_chars: {limit})':
+        '{n} 文字（revise_sentence_chars: {limit}）',
+    'with --print: only pass N':
+        '--print と一緒に: N 回目だけ',
+    'line {line} is not in a paragraph of {doc}':
+        '{line} 行目は {doc} の段落の中ではない',
+    '{n} sentences in a row end with {text}':
+        '「{text}」で終わる文が {n} つ続く',
+    'no finding {key}':
+        '指摘 {key} はない',
+    '{abbr} is defined later, at {file}:{line}':
+        '{abbr} の定義はこの後（{file}:{line}）',
+    'the whole manuscript':
+        '原稿全体',
+    'Count should read "<pattern> per paragraph > N" (sentence, paragraph or section): {value}':
+        'Count は「<正規表現> per paragraph > N」の形で書く（sentence・paragraph・section）: {value}',
+    'sections':
+        '節',
+    'with --check: the packs in this folder, outside any project':
+        '--check と一緒に: このフォルダのパック（プロジェクトの外で）',
+    'recorded: {rule} at line {line} — {verdict}':
+        '記録した: {rule}（{line} 行目）— {verdict}',
+    'List each problem with its line, the rule id, the words quoted and a proposed wording. Do not rewrite the text, and do not ask for new analysis.':
+        '問題ごとに、行・ルールの id・その言葉の引用・直す案を挙げる。本文を書き直さない。新しい分析を求めない。',
+    'record these findings as needing no change (they stay hidden until their sentence changes)':
+        'この指摘をこれでよいと記録する（その文が変わるまで出ない）',
+    'Id {id} is used twice in this file':
+        'Id {id} がこのファイルで二度使われている',
+    '{n} matches of {pattern} in one {unit}; the rule allows {limit}':
+        '1つの {unit} に {pattern} が {n} 回（ルールでは {limit} まで）',
+    'only this section (introduction, results, …)':
+        'この節だけ（introduction・results など）',
+    "with --harvest: also a coauthor's changes in this .docx":
+        '--harvest と一緒に: この .docx の共著者の変更も',
+    'Replaces {target}, but there is no such entry':
+        'Replaces に {target} とあるが、そういう項目はない',
+    'the Flag {pattern} is not a regular expression ({why})':
+        'Flag の {pattern} は正規表現ではない（{why}）',
+    '* new since the last pass. Mark one that needs no change with octavo revise {doc} --fine KEY':
+        '* は前の回から新しく出たもの。直さなくてよいものは octavo revise {doc} --fine キー',
+    'there {n|is|are} {n} {n|pass|passes}':
+        '回は {n} つ',
+    'unknown Scope {value} (scopes: {names})':
+        '知らない Scope {value}（使えるもの: {names}）',
+    'an abbreviation used before it is defined':
+        '定義より前に使った略語',
 }

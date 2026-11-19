@@ -7,9 +7,9 @@
 // Zotero が手元で動いていなければ（SSH でつないだサーバーなど）、CLI がウェブ API で読む
 // （キーは `octavo bib login` が ~/.config/octavo/ に書く。プロジェクトには入れない）。
 // zotero_collection がメイン（.bib になる）、zotero_linked が関連（Priorwork の調査ごとなど。.bib には
-// 入れない）。`octavo bib tidy` はメインを原稿の引用とぴったり同じにする計画を出し、プロジェクトで
+// 入れない）。`octavo bib tidy` はメインを原稿の節ごとに仕分ける計画を出し、プロジェクトで
 // zotero_write を許したときだけ、選んだ文献のコレクションの所属を書き換える（文献は消さない）。
-// コレクションを作ることはしないので、Zotero で作ってもらい、ここで読み直す。
+// メインのコレクションそのものは作らないので、Zotero で作ってもらい、ここで読み直す。
 //
 // Priorwork のワークスペースは別のフォルダ（ふつうは別のウィンドウ）なので、拡張機能どうしで
 // コマンドは呼べない。代わりに、原稿・プロジェクトのパスと Zotero のコレクションを入れた依頼文を
@@ -188,16 +188,17 @@ export async function chooseCollection(onChange?: () => void,
 }
 
 /** `octavo bib tidy --json` の結果 */
-interface TidyEntry { key: string; title: string; from: string | string[]; where?: 'linked' | 'library' }
+interface TidyEntry { key: string; title: string; to?: string[]; from?: string; where?: 'linked' | 'library' }
 interface TidyReport {
     ok: boolean; error?: string; write?: boolean; main?: string; linked?: string[];
-    add?: TidyEntry[]; remove?: TidyEntry[]; unpinned?: TidyEntry[]; not_found?: string[];
-    done?: string[]; failed?: { key: string; why: string }[];
+    add?: TidyEntry[]; sort?: TidyEntry[]; uncited?: TidyEntry[]; unpinned?: TidyEntry[]; not_found?: string[];
+    create?: string[]; delete?: string[];
+    done?: string[]; failed?: { key: string; why: string }[]; created?: string[]; deleted?: string[];
 }
 
 /**
- * メインのコレクションを、原稿の引用とぴったり同じにする（`octavo bib tidy`）。計画を出して、
- * どの文献を足す・外すかを選んでもらう。プロジェクトが zotero_write を許していなければ、先に尋ねる。
+ * メインのコレクションを原稿の節ごとに仕分ける（`octavo bib tidy`）。引いていない文献は「非引用文献」へ。
+ * 計画を出して、どの文献を動かすかを選んでもらう。プロジェクトが zotero_write を許していなければ、先に尋ねる。
  */
 export async function tidyCollection(onChange?: () => void): Promise<void> {
     const configUri = await findConfig();
@@ -240,7 +241,7 @@ export async function tidyCollection(onChange?: () => void): Promise<void> {
         plan.not_found?.length ? vscode.l10n.t('{0} cited but in neither the main nor the linked collections: {1}',
                                                plan.not_found.length, plan.not_found.join(', ')) : '',
     ].filter(Boolean).join('\n');
-    if (!plan.add?.length && !plan.remove?.length) {
+    if (!plan.add?.length && !plan.sort?.length && !plan.uncited?.length && !plan.delete?.length) {
         void vscode.window.showInformationMessage(
             vscode.l10n.t('The main collection "{0}" matches the manuscripts.', plan.main ?? ''));
         if (leftAlone) {
@@ -250,43 +251,68 @@ export async function tidyCollection(onChange?: () => void): Promise<void> {
     }
     type Pick = vscode.QuickPickItem & { key?: string };
     const items: Pick[] = [];
+    const to = (x: TidyEntry): string => vscode.l10n.t('into {0}', (x.to ?? []).join(', '));
     if (plan.add?.length) {
         items.push({ label: vscode.l10n.t('Cited but not in the main collection: add'), kind: vscode.QuickPickItemKind.Separator });
         items.push(...plan.add.map((x) => ({ label: `$(add) ${x.key}`, description: x.title,
-                                             detail: x.where === 'library'
+                                             detail: (x.where === 'library'
                                                  ? vscode.l10n.t('from {0} (found outside the linked collections)', String(x.from))
-                                                 : vscode.l10n.t('from {0}', String(x.from)),
+                                                 : vscode.l10n.t('from {0}', String(x.from))) + ' — ' + to(x),
                                              key: x.key, picked: true })));
     }
-    if (plan.remove?.length) {
-        items.push({ label: vscode.l10n.t('In the main collection but cited nowhere: take out'), kind: vscode.QuickPickItemKind.Separator });
-        items.push(...plan.remove.map((x) => ({ label: `$(remove) ${x.key}`, description: x.title,
-                                                detail: vscode.l10n.t('stays in the library and in other collections'),
-                                                key: x.key, picked: true })));
+    if (plan.sort?.length) {
+        items.push({ label: vscode.l10n.t('Cited: sort into the sections that cite them'), kind: vscode.QuickPickItemKind.Separator });
+        items.push(...plan.sort.map((x) => ({ label: `$(list-tree) ${x.key}`, description: x.title,
+                                              detail: to(x), key: x.key, picked: true })));
+    }
+    if (plan.uncited?.length) {
+        items.push({ label: vscode.l10n.t('Cited nowhere: move into the uncited collection (still in the main one)'), kind: vscode.QuickPickItemKind.Separator });
+        items.push(...plan.uncited.map((x) => ({ label: `$(archive) ${x.key}`, description: x.title,
+                                                 detail: to(x), key: x.key, picked: true })));
+    }
+    if (plan.delete?.length) {
+        // 消すのは、全部を選んだときだけ（CLI も --keys で絞ると消さない）
+        items.push({ label: vscode.l10n.t('Empty collections Octavo made, deleted when everything above is chosen: {0}',
+                                          plan.delete.join(', ')), kind: vscode.QuickPickItemKind.Separator });
     }
     if (leftAlone) {
         void vscode.window.showWarningMessage(leftAlone);
     }
-    const chosen = await vscode.window.showQuickPick(items, {
-        canPickMany: true,
-        title: vscode.l10n.t('Tidy the main Zotero collection "{0}"', plan.main ?? ''),
-        placeHolder: vscode.l10n.t('Untick what to leave as it is. Only which collection each entry is in changes; nothing is deleted.'),
-    });
-    if (!chosen?.length) {
-        return;
+    const pickable = items.filter((x) => x.key);
+    let chosen: readonly Pick[] = [];
+    if (pickable.length) {
+        const got = await vscode.window.showQuickPick(items, {
+            canPickMany: true,
+            title: vscode.l10n.t('Tidy the main Zotero collection "{0}"', plan.main ?? ''),
+            placeHolder: plan.create?.length
+                ? vscode.l10n.t('Untick what to leave as it is. Makes {0}. Only which collection each entry is in changes; nothing is deleted.', plan.create.join(', '))
+                : vscode.l10n.t('Untick what to leave as it is. Only which collection each entry is in changes; nothing is deleted.'),
+        });
+        if (!got?.length) {
+            return;
+        }
+        chosen = got;
+    } else {
+        // 動かす文献は無く、Octavo の作ったコレクションが空になっているだけ
+        const del = vscode.l10n.t('Delete Them');
+        if (await vscode.window.showInformationMessage(
+            vscode.l10n.t('Empty collections Octavo made: {0}', (plan.delete ?? []).join(', ')), del) !== del) {
+            return;
+        }
     }
+    const all = chosen.length === pickable.length;
     if (!plan.write) {
         const allow = vscode.l10n.t('Allow and Change Zotero');
         const picked = await vscode.window.showWarningMessage(
             vscode.l10n.t('This project does not let Octavo change Zotero yet.'),
-            { modal: true, detail: vscode.l10n.t('Allowing it writes \'zotero_write\': True in octavo.config.py. Octavo then only adds entries to the main collection and takes them out of it, through the Zotero web API (the API key needs write access); it never deletes or edits an entry.') },
+            { modal: true, detail: vscode.l10n.t('Allowing it writes \'zotero_write\': True in octavo.config.py. Octavo then only sorts entries into collections under the main collection (one per section, and one for what is not cited), through the Zotero web API (the API key needs write access). It makes those collections and deletes the ones it made when they are empty; it never deletes or edits an entry.') },
             allow);
         if (picked !== allow || !(await setConfig(cwd, 'zotero_write', 'true'))) {
             return;
         }
         onChange?.();
     }
-    const got = await tidy(['--apply', '--keys', chosen.map((x) => x.key).filter(Boolean).join(',')]);
+    const got = await tidy(all ? ['--apply'] : ['--apply', '--keys', chosen.map((x) => x.key).filter(Boolean).join(',')]);
     if (!got?.ok && !got?.done) {
         void vscode.window.showErrorMessage(vscode.l10n.t('Cannot tidy the Zotero collection: {0}', got?.error ?? ''));
         return;

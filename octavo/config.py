@@ -146,12 +146,28 @@ DEFAULTS: dict = {
     # （文献の追加と、引用していない文献の除外だけ。文献そのものは消さない）。ウェブ API を使う
     'zotero_write': False,
 
+    # ---- AI（octavo ai）--------------------------------------------------------
+    # OpenAI 互換の口（/v1/chat/completions。Ollama・LM Studio・llama.cpp・vLLM など）。None なら使わない。
+    # 環境変数 OCTAVO_AI_URL / OCTAVO_AI_MODEL が勝つ（機械ごとに違うので）。鍵は OCTAVO_AI_KEY だけ
+    #（設定ファイルは git に入るので、ここには書かない）
+    'ai_url': None,                # 'http://localhost:11434/v1'
+    'ai_model': None,              # 'gemma3:12b' など
+    'ai_timeout': 600,             # 1回の問い合わせを待つ秒数
+    # 手元の機械と見なすアドレス（localhost のほかに。同じ研究室の GPU 機など）。共有できないもの
+    # （ai_private）は、この中の口にしか送らない
+    'ai_allow': [],
+    # 共有できないもの: 手元の口（localhost と ai_allow）にしか送らない。プロジェクトからのパス
+    'ai_private': ['refs/private/'],
+
     # ---- 文章のルール（octavo writing）----------------------------------------
     # 使うパック（~/.config/octavo/writing/<名前>/ か notes/writing/<名前>/）を、一般的なものから
     # 順に。後ろが勝つ。None なら見つかったパックを全部。原稿の冒頭の `writing:` がその原稿では勝つ
     'writing': None,
     # 使わない項目（'パック/ファイル#見出し'）かファイル（'パック/ファイル'）。原稿の冒頭の分と合わせる
     'writing_off': [],
+    # 推敲（octavo revise）で「長い文」と知らせる長さ。英語は語数、日本語は文字数。0 なら知らせない
+    'revise_sentence_words': 40,
+    'revise_sentence_chars': 100,
     # 雑誌に合わせた書式。CSL スタイル ID（'apa', 'ieee',
     # 'modern-language-association' …）か .csl へのパス。
     # ID を書くと Zotero スタイルリポジトリから取得してキャッシュする。
@@ -332,8 +348,21 @@ DOC_KEYS = ('csl', 'outputs', 'targets', 'sessions', 'toc', 'word_limit', 'char_
             'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows', 'poster_font',
             'slides_select', 'poster_select', 'slides_bibliography', 'slide_level', 'slide_deeper_headings', 'crossref_numbering',
             'appendix_separate', 'appendix_after_references', 'lang', 'csl_locale',
-            'reference_section_title', 'writing', 'writing_off')
+            'reference_section_title', 'writing', 'writing_off', 'revise_sentence_words',
+            'revise_sentence_chars')
 SLIDE_BIB = ('slide', 'off', 'sheet', 'both')
+
+# 言語違いの原稿（docs/<名前>/<名前>.<言語>.md）が主の原稿から受け継ぐ冒頭の設定: 何をどう組むか。
+# 言語・引用の形・字数の上限・フォント・文章のルールは言語ごとなので受け継がない。
+TRANSLATION_SHARED_KEYS = ('outputs', 'targets', 'sessions', 'toc', 'first_section', 'slide_level',
+                           'slide_deeper_headings', 'crossref_numbering', 'appendix_separate',
+                           'appendix_after_references', 'slides_select', 'poster_select',
+                           'slides_aspect', 'slides_accent', 'slides_numbering',
+                           'slides_running_header', 'slides_section_slides', 'slides_bibliography',
+                           'poster_size', 'poster_orientation', 'poster_grid', 'poster_rows',
+                           'pagebreak')
+# 言語違いの原稿の名前に付ける言語
+TRANSLATION_LANGS = ('ja', 'en')
 
 
 LANG_DERIVED = ('latex_documentclass', 'csl_locale', 'reference_section_title')
@@ -365,7 +394,7 @@ def slide_bib(value) -> str | None:
     return value
 LIST_DOC_KEYS = ('poster_grid', 'poster_rows')
 INT_DOC_KEYS = ('word_limit', 'char_limit', 'abstract_word_limit', 'abstract_char_limit',
-                'first_section', 'slide_level')
+                'first_section', 'slide_level', 'revise_sentence_words', 'revise_sentence_chars')
 BOOL_DOC_KEYS = ('slides_running_header', 'slides_section_slides',
                  'citations_by_language', 'sessions', 'toc', 'appendix_separate',
                  'appendix_after_references')
@@ -492,6 +521,9 @@ class Document:
     # profile を書かずに登録した文書（docs/<名前>/ など）。体裁は main.* の有無で決まり、
     # `# 題` を外さない、目次の既定は sessions に従う、など新しい決まりで組む
     derived: bool = False
+    # 言語違いの原稿（docs/<名前>/<名前>.en.md）なら、主の文書の名前とその言語。文書名は `<名前>.en`
+    translation_of: str | None = None
+    lang: str | None = None
 
     def exists(self) -> bool:
         return self.src.is_file()
@@ -578,6 +610,11 @@ class Config:
         """
         import copy
         own = doc_settings(doc.src)
+        if doc.translation_of and doc.translation_of in self.documents:
+            # 言語違いの原稿: 組み方は主の原稿の冒頭から受け継ぎ、言語は名前の言語（冒頭に書けばそれ）
+            main = doc_settings(self.documents[doc.translation_of].src)
+            own = {**{k: v for k, v in main.items() if k in TRANSLATION_SHARED_KEYS}, **own}
+            own.setdefault('lang', doc.lang)
         view = copy.copy(self)
         view._v = {**self._v, **own}
         if 'lang' in own and own['lang']:
@@ -605,6 +642,10 @@ class Config:
             if not be.get(backend).always_standalone:
                 return base / doc.name
         return base
+
+    def translations(self, name: str) -> list:
+        """文書 name の言語違いの原稿（Document の並び）。"""
+        return [d for d in self.documents.values() if d.translation_of == name]
 
     def sources(self) -> list:
         """原稿を横断して見るコマンド用に (文書名, パス, 付録か) を並べる。
@@ -654,7 +695,8 @@ class Config:
                                 profile=doc.profile, targets=doc.targets,
                                 config_targets=doc.config_targets,
                                 out=doc.out, meta=dict(doc.meta), part=key,
-                                sessions=doc.sessions, derived=doc.derived))
+                                sessions=doc.sessions, derived=doc.derived,
+                                translation_of=doc.translation_of, lang=doc.lang))
         return out
 
     # -- 文書の組み立て -----------------------------------------------------
@@ -685,7 +727,8 @@ class Config:
                 )
                 split = bool(d.get('sessions', d.get('split_slides', False)))
 
-                def add(nm: str, src: Path, appendix: Path | None) -> None:
+                def add(nm: str, src: Path, appendix: Path | None, of: str | None = None,
+                        lang: str | None = None) -> None:
                     if nm in docs:
                         sys.exit(t('two documents share the name {name}', name=nm)
                                  + f'\n  {docs[nm].src}\n  {src}\n  '
@@ -695,6 +738,9 @@ class Config:
                     except OSError:
                         text = ''
                     own = doc_settings(src, text)            # 原稿の冒頭が優先
+                    if of is not None:
+                        own = {**{k: v for k, v in doc_settings(docs[of].src).items()
+                                  if k in TRANSLATION_SHARED_KEYS}, **own}
                     if 'outputs' in own and 'targets' in own and own['outputs'] != own['targets']:
                         print(t('{file}: both outputs and targets are written; outputs is used',
                                 file=self.rel(src)), file=sys.stderr)
@@ -708,7 +754,7 @@ class Config:
                         profile=derive_profile(src, targets) if derived else prof,
                         targets=targets, config_targets=common['targets'],
                         out=common['out'], meta=common['meta'],
-                        sessions=bool(sessions), derived=derived)
+                        sessions=bool(sessions), derived=derived, translation_of=of, lang=lang)
 
                 # src にワイルドカードが使える。同じ扱いの原稿がたくさんある
                 # （スライド10本、論文が数本）場合、1つ書けば全部登録される。
@@ -728,6 +774,14 @@ class Config:
                         nm = name.replace('*', folder.name) if '*' in name else folder.name
                         apx = folder / (ap or 'appendix.md')
                         add(nm, main.resolve(), apx.resolve() if apx.is_file() else None)
+                        # 同じ原稿の言語違い: <フォルダ名>.<言語>.md（付録は appendix.<言語>.md）
+                        for lg in TRANSLATION_LANGS:
+                            other = folder / f'{folder.name}.{lg}.md'
+                            if not other.is_file():
+                                continue
+                            oapx = apx.with_name(f'{apx.stem}.{lg}{apx.suffix}')
+                            add(f'{nm}.{lg}', other.resolve(), oapx.resolve() if oapx.is_file() else None,
+                                of=nm, lang=lg)
                 elif any(c in d['src'] for c in '*?['):
                     for p in sorted(self.root.glob(d['src'])):
                         stars = glob_captures(d['src'], p.relative_to(self.root))
@@ -767,6 +821,17 @@ class Config:
             bad('lang', t("'ja' or 'en'"))
         if v['crossref_numbering'] not in (None, 'section', 'document'):
             bad('crossref_numbering', "'section'/'document'")
+        if v['ai_url'] is not None and not (isinstance(v['ai_url'], str)
+                                            and v['ai_url'].startswith(('http://', 'https://'))):
+            bad('ai_url', t('an http:// or https:// address, or None'))
+        if not isinstance(v['ai_timeout'], int) or v['ai_timeout'] <= 0:
+            bad('ai_timeout', t('a whole number of seconds'))
+        for k in ('revise_sentence_words', 'revise_sentence_chars'):
+            if not isinstance(v[k], int) or isinstance(v[k], bool) or v[k] < 0:
+                bad(k, t('a whole number (0 to turn it off)'))
+        for k in ('ai_allow', 'ai_private'):
+            if not isinstance(v[k], (list, tuple)) or not all(isinstance(x, str) for x in v[k]):
+                bad(k, t('a list of strings'))
         if v['typst_citations'] not in ('csl', 'native'):
             bad('typst_citations', t("'csl' or 'native'"))
         if v['slides_aspect'] not in ('16-9', '4-3'):

@@ -196,6 +196,9 @@ def collect(cfg, anonymous: bool = False) -> list:
                         reread.append((d.name, fl['count']))
                 except SystemExit as e:
                     warns.append(f'{d.name}: {e.code}')
+        bad = [x for x in writingmod.check_packs(writingmod.packs(Path(cfg.root))) if x['level'] == 'problem']
+        if bad:
+            warns.append(t('{n} {n|problem|problems} in the packs (octavo writing --check)', n=len(bad)))
         items.append(Item(
             ok=not warns, fatal=False, label=t('writing rules'),
             detail='; '.join(warns) if warns else t('{n} {n|pack|packs}: {names}', n=len(wr['packs']),
@@ -206,7 +209,7 @@ def collect(cfg, anonymous: bool = False) -> list:
             items.append(Item(
                 ok=True, fatal=False, label=t('places to reread'),
                 detail='; '.join(t('{doc}: {n} {n|line matches|lines match} a Flag of the writing rules '
-                                   '(octavo writing --for {doc} --flags)', doc=name, n=n)
+                                   '(octavo revise {doc})', doc=name, n=n)
                                  for name, n in reread)))
     # -- 分析 ---------------------------------------------------------------
     # 分析のないプロジェクト（スライドだけ、など）には分析の行を出さない
@@ -426,6 +429,18 @@ def collect(cfg, anonymous: bool = False) -> list:
             lines=mine,
             hint=t('for blind review, decide whether to mask them as Author (year) '
                    '— it depends on the journal')))
+
+    # -- 言語違いの原稿 -----------------------------------------------------
+    # 訳の途中はよくあるので注意にとどめる（片方にしかない節、参照・引用・値の食い違い、合わせた後の変更）
+    from . import translation as trmod
+    if trmod.pairs(cfg):
+        found = trmod.collect(cfg)
+        items.append(Item(
+            ok=not found, fatal=False, label=t('other languages'),
+            detail=t('{n} {n|point|points}', n=len(found)) if found
+            else t('every section matches ({names})', names=', '.join(o.name for _, o in trmod.pairs(cfg))),
+            lines=[f'{doc}: {line}' for doc, line in found],
+            hint=t('octavo translation <document> shows them section by section')))
 
     # -- 再現性 -------------------------------------------------------------
     # 値を書かない .qmd（レポート）だけなら、記録が残らないのは当然なので出さない

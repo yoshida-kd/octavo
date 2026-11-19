@@ -16,7 +16,9 @@ import { priorworkWorkspace } from './literature';
 import { DocInfo, Part } from './preview';
 import { dirOf, findConfig, resolvePathFromTool, runCapture } from './runner';
 import { MigrateReport, fetchUpdates } from './migrate';
+import { fetchRevise, findingIcon, ReviseFinding, ReviseReport } from './revise';
 import { choosePacks, fetchWriting, showHere, toggleItem, WritingFile, WritingItem, WritingReport } from './writing';
+import { fetchTranslation, stateIcon, stateLabel, TranslationReport, TranslationSection } from './translation';
 
 export interface Setting {
     key: string;
@@ -68,6 +70,12 @@ type Node =
     | { kind: 'setting'; s: Setting; doc?: string }
     | { kind: 'docSettings'; doc: DocInfo }
     | { kind: 'writing'; doc: DocInfo }
+    // 推敲の読み直す所（octavo revise）
+    | { kind: 'revise'; doc: DocInfo }
+    | { kind: 'rfinding'; doc: DocInfo; f: ReviseFinding }
+    // 言語違いの原稿（<名前>.en.md）との節ごとの対応。other は言語違いの文書の名前
+    | { kind: 'trans'; doc: DocInfo; other: string }
+    | { kind: 'tsec'; other: string; s: TranslationSection }
     | { kind: 'pack'; doc: DocInfo; name: string; report: WritingReport }
     | { kind: 'wfile'; doc: DocInfo; f: WritingFile; report: WritingReport }
     | { kind: 'witem'; doc: DocInfo; f: WritingFile; it: WritingItem; report: WritingReport }
@@ -109,6 +117,8 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     private requests?: PriorworkRequest[];
     private updates?: MigrateReport | null;         // null = 読めなかった（古い CLI）
     private readonly writing = new Map<string, WritingReport | null>();     // null = 読めなかった
+    private readonly translation = new Map<string, TranslationReport | null>();
+    private readonly revising = new Map<string, ReviseReport | null>();
     private readonly subs: vscode.Disposable[] = [];
 
     constructor(private readonly log: (s: string) => void) {
@@ -125,6 +135,8 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                                this.refresh();
                            } else if (/\.qmd$/i.test(d.uri.fsPath)) {
                                this.refreshAnalysis();      // 保存した .qmd は「古い」になる
+                           } else if (/\.md$/i.test(d.uri.fsPath) && (this.translation.size || this.revising.size)) {
+                               this.refreshTranslation();   // 保存した節は「変わった」になる
                            }
                        }));
     }
@@ -144,7 +156,21 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
         this.requests = undefined;
         this.updates = undefined;
         this.writing.clear();
+        this.translation.clear();
+        this.revising.clear();
         this.changed.fire(undefined);
+    }
+
+    /** 言語違いの原稿の対応と、推敲の読み直す所だけ読み直す（保存したあと・記録したあと）。 */
+    refreshTranslation(): void {
+        this.translation.clear();
+        this.revising.clear();
+        this.changed.fire(undefined);
+    }
+
+    /** 文書の名前から、その原稿の情報（サイドバーの右クリックのため）。 */
+    findDoc(name: string): DocInfo | undefined {
+        return this.docs?.find((d) => d.name === name);
     }
 
     /** 分析の状態だけ読み直す（実行したあと・.qmd を保存したあと）。 */
@@ -407,8 +433,32 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                             command: 'octavo.extract', icon: 'files', args: [{ doc: node.doc }],
                             tooltip: vscode.l10n.t('One PDF per session in build/handouts/. They are also remade each time you save the notes (setting: Update Handouts On Save).') });
             }
+            // 言語違いの原稿: 主の原稿にはその言語ごと、言語違いの原稿には主の原稿との対応
+            const others = node.doc.translation_of ? [node.doc.name]
+                : (this.docs ?? []).filter((d) => d.translation_of === node.doc.name).map((d) => d.name);
+            for (const other of others) {
+                rows.push({ kind: 'trans', doc: node.doc, other });
+            }
+            if (!node.doc.translation_of && !others.length && ['paper', 'handout'].includes(node.doc.profile)) {
+                const lang = node.doc.lang === 'ja' ? 'en' : 'ja';
+                rows.push({ kind: 'action', icon: 'globe', command: 'octavo.addTranslation', args: [{ doc: node.doc, lang }],
+                            label: lang === 'en' ? vscode.l10n.t('Add an English Version') : vscode.l10n.t('Add a Japanese Version'),
+                            tooltip: vscode.l10n.t('A manuscript in the other language beside this one ({0}); the analysis, figures, tables and bibliography are shared', `${node.doc.name}.${lang}.md`) });
+            }
             rows.push({ kind: 'writing', doc: node.doc });
+            rows.push({ kind: 'revise', doc: node.doc });
             rows.push({ kind: 'docSettings', doc: node.doc });
+            return rows;
+        }
+        if (node.kind === 'trans') {
+            const r = await this.loadTranslation(node.other);
+            if (!r) {
+                return [{ kind: 'message', label: vscode.l10n.t('Could not read the sections (see the output).') }];
+            }
+            const rows: Node[] = r.sections.map((s): Node => ({ kind: 'tsec', other: node.other, s }));
+            rows.push({ kind: 'action', label: vscode.l10n.t('Record Every Section as Matched'), icon: 'check-all',
+                        command: 'octavo.translationMark', args: [{ other: node.other }],
+                        tooltip: vscode.l10n.t('After the two agree; a section changed later shows again') });
             return rows;
         }
         if (node.kind === 'writing') {
@@ -432,6 +482,17 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 rows.push({ kind: 'message', label: vscode.l10n.t('No packs yet (~/.config/octavo/writing/ or notes/writing/)') });
             }
             return rows.concat(r.packs.map((name): Node => ({ kind: 'pack', doc: node.doc, name, report: r })));
+        }
+        if (node.kind === 'revise') {
+            const r = await this.loadRevise(node.doc.name);
+            if (!r) {
+                return [{ kind: 'message', label: vscode.l10n.t('Could not read the places to reread (see the output).') }];
+            }
+            const rows: Node[] = r.warnings.map((w): Node => ({ kind: 'message', label: w }));
+            if (!r.findings.length) {
+                rows.push({ kind: 'message', label: vscode.l10n.t('Nothing to reread') });
+            }
+            return rows.concat(r.findings.map((f): Node => ({ kind: 'rfinding', doc: node.doc, f })));
         }
         if (node.kind === 'pack') {
             return node.report.files.filter((f) => f.pack === node.name)
@@ -681,6 +742,52 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
                 it.tooltip = vscode.l10n.t('Written at the top of the manuscript; what is not written there follows the project');
                 return it;
             }
+            case 'trans': {
+                const r = this.translation.get(node.other);
+                const it = new vscode.TreeItem(node.doc.translation_of
+                    ? vscode.l10n.t('Against {0}', node.doc.translation_of)
+                    : vscode.l10n.t('In {0}', node.other.split('.').pop() ?? ''), C);
+                it.iconPath = new vscode.ThemeIcon('globe');
+                if (r) {
+                    const behind = r.sections.filter((s) => s.state !== 'synced').length;
+                    it.description = behind ? vscode.l10n.t('{0} of {1} sections to look at', behind, r.sections.length)
+                        : vscode.l10n.t('every section matches');
+                }
+                it.tooltip = vscode.l10n.t('Section by section: whether the two manuscripts match, and which changed since they were last matched (octavo translation)');
+                return it;
+            }
+            case 'tsec': {
+                const s = node.s;
+                const it = new vscode.TreeItem((s.other ?? s.main)?.title ?? s.key, N);
+                it.description = stateLabel(s.state);
+                it.iconPath = new vscode.ThemeIcon(stateIcon(s.state));
+                const differs = Object.entries(s.differs).map(([k, v]) =>
+                    `${k}: ${[...v.main_only.map((x) => '−' + x), ...v.other_only.map((x) => '+' + x)].join(', ')}`);
+                it.tooltip = [s.key, ...differs].join('\n');
+                it.contextValue = s.main && s.other ? 'octavo.translationSection' : 'octavo.translationLone';
+                it.command = { command: 'octavo.translationOpen', title: '', arguments: [node] };
+                return it;
+            }
+            case 'revise': {
+                const it = new vscode.TreeItem(vscode.l10n.t('Revising'), C);
+                it.iconPath = new vscode.ThemeIcon('checklist');
+                const r = this.revising.get(node.doc.name);
+                if (r) {
+                    it.description = vscode.l10n.t('{0} to reread', String(r.findings.length));
+                }
+                it.tooltip = vscode.l10n.t('The places to reread (octavo revise): where a rule applies, long sentences, abbreviations before their definition, and more. A dot marks one new since the last recorded pass.');
+                return it;
+            }
+            case 'rfinding': {
+                const f = node.f;
+                const it = new vscode.TreeItem(f.title, N);
+                it.description = `${f.line}  ${f.text}`;
+                it.iconPath = new vscode.ThemeIcon(findingIcon(f));
+                it.tooltip = [`${f.file}:${f.line}`, f.rule, f.note, f.text].filter((x) => x).join('\n');
+                it.contextValue = 'octavo.reviseFinding';
+                it.command = { command: 'octavo.reviseOpen', title: '', arguments: [node] };
+                return it;
+            }
             case 'writing': {
                 const it = new vscode.TreeItem(vscode.l10n.t('Writing rules'), C);
                 it.iconPath = new vscode.ThemeIcon('whole-word');
@@ -912,6 +1019,27 @@ export class OctavoTree implements vscode.TreeDataProvider<Node>, vscode.Disposa
     }
 
     // -- 文章のルール ------------------------------------------------------
+    private async loadTranslation(other: string): Promise<TranslationReport | null> {
+        if (!this.translation.has(other)) {
+            const cwd = await this.cwd();
+            this.translation.set(other, cwd ? (await fetchTranslation(cwd, other, this.log)) ?? null : null);
+        }
+        return this.translation.get(other) ?? null;
+    }
+
+    private async loadRevise(doc: string): Promise<ReviseReport | null> {
+        if (!this.revising.has(doc)) {
+            const cwd = await this.cwd();
+            this.revising.set(doc, cwd ? (await fetchRevise(cwd, doc, this.log)) ?? null : null);
+        }
+        return this.revising.get(doc) ?? null;
+    }
+
+    /** 設定のあるフォルダ（CLI を動かす場所）。 */
+    async workdir(): Promise<string | undefined> {
+        return this.cwd();
+    }
+
     private async loadWriting(doc: string): Promise<WritingReport | null> {
         if (!this.writing.has(doc)) {
             const cwd = await this.cwd();

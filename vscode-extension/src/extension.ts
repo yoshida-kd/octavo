@@ -30,9 +30,12 @@ import { quietVenvActivation } from './venvActivation';
 import { migrateProject } from './migrate';
 import { AddKind, addToProject } from './scaffold';
 import { OctavoTree, Setting } from './sidebar';
+import { copyMaterial, markMatched, openSection, TranslationSection } from './translation';
+import { runTask } from './ai';
+import { markFine, openFinding, ReviseFinding } from './revise';
 import {
     describeMode, dirOf, extraPathDirs, findConfig, refreshWindowsPath, resolvePathFromTool,
-    runInTerminal,
+    runInTerminal, runStreaming,
 } from './runner';
 import { SetupManager } from './setup';
 import { ValuesCache } from './values';
@@ -55,6 +58,33 @@ function targetItems(): (vscode.QuickPickItem & { id: string })[] {
 
 export function activate(context: vscode.ExtensionContext): void {
     const output = vscode.window.createOutputChannel('Octavo');
+    // 文献の操作はターミナルを開かずに走らせ、出力は出力パネルに残す。
+    // 進み具合は通知に、失敗したら出力を見るボタンを出す
+    let lastLine = '';
+    const runLogged = async (cwd: string, args: string[], title: string,
+                             notify: boolean): Promise<number | null> => {
+        output.appendLine(`$ octavo ${args.join(' ')}`);
+        lastLine = '';
+        const code = await vscode.window.withProgress(
+            { location: notify ? vscode.ProgressLocation.Notification : vscode.ProgressLocation.Window,
+              title, cancellable: notify },
+            (progress, token) => runStreaming(cwd, args, (text) => {
+                output.append(text);
+                const last = text.trim().split('\n').pop()?.trim();
+                if (last) {
+                    lastLine = last;
+                    progress.report({ message: last.slice(0, 120) });
+                }
+            }, token));
+        // notify でないもの（checkbib）は、見つけたものがあると 0 以外で終わる。結果は呼んだ側が言う
+        if (notify && code !== 0 && code !== null) {
+            const show = vscode.l10n.t('Show the output');
+            void vscode.window.showErrorMessage(
+                vscode.l10n.t('Octavo: octavo {0} failed: {1}', args.join(' '), lastLine), show)
+                .then((p) => { if (p === show) { output.show(); } });
+        }
+        return code;
+    };
     const cache = new BibCache();
     const cards = new CardCache();
     const diagnostics = new DiagnosticsManager(cache);
@@ -304,6 +334,44 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('octavo.sidebarRefresh', () => tree.refresh()),
         vscode.commands.registerCommand('octavo.openConfig', () => tree.openConfig()),
         vscode.commands.registerCommand('octavo.writingShow', () => tree.writingShow()),
+        // 決まった頼みごと（校正・要約・文字起こし）を AI に。答えは横に開く（原稿は書き換えない）
+        vscode.commands.registerCommand('octavo.aiRun', (uri?: vscode.Uri) =>
+            runTask((line) => output.appendLine(line), uri instanceof vscode.Uri ? uri : undefined)),
+        // 言語違いの原稿（<名前>.en.md）: 足す・節を開く・合わせたと記録する・AI に渡す材料を写す
+        vscode.commands.registerCommand('octavo.addTranslation', async (node?: { doc?: DocInfo; lang?: 'ja' | 'en' }) => {
+            if (!node?.doc) return;
+            const kind = node.doc.profile === 'paper' ? 'paper' : 'lecture';
+            const lang = node.lang ?? (node.doc.lang === 'ja' ? 'en' : 'ja');
+            if (await addToProject((line) => output.appendLine(line), { kind, name: node.doc.name, lang })) {
+                afterAdding();
+            }
+        }),
+        vscode.commands.registerCommand('octavo.reviseOpen', async (node?: { f?: ReviseFinding }) => {
+            const cwd = await tree.workdir();
+            if (node?.f && cwd) await openFinding(cwd, node.f);
+        }),
+        vscode.commands.registerCommand('octavo.reviseFine', async (node?: { doc?: DocInfo; f?: ReviseFinding }) => {
+            const cwd = await tree.workdir();
+            if (!node?.f || !node.doc || !cwd) return;
+            if (await markFine(cwd, node.doc.name, node.f, (line) => output.appendLine(line))) {
+                tree.refreshTranslation();
+            }
+        }),
+        vscode.commands.registerCommand('octavo.translationOpen', async (node?: { s?: TranslationSection }) => {
+            const cwd = await tree.workdir();
+            if (node?.s && cwd) await openSection(cwd, node.s);
+        }),
+        vscode.commands.registerCommand('octavo.translationMark', async (node?: { other?: string; s?: TranslationSection }) => {
+            const cwd = await tree.workdir();
+            if (!node?.other || !cwd) return;
+            if (await markMatched(cwd, node.other, node.s?.key, (line) => output.appendLine(line))) {
+                tree.refreshTranslation();
+            }
+        }),
+        vscode.commands.registerCommand('octavo.translationCopy', async (node?: { other?: string; s?: TranslationSection }) => {
+            const cwd = await tree.workdir();
+            if (node?.other && node.s && cwd) await copyMaterial(cwd, node.other, node.s.key);
+        }),
         vscode.commands.registerCommand('octavo.choosePacks', (node?: { doc?: DocInfo }) => tree.choosePacks(node?.doc)),
         vscode.commands.registerCommand('octavo.writingItemOff', (node: Parameters<OctavoTree['toggleWriting']>[0]) =>
             node && tree.toggleWriting(node)),
@@ -381,7 +449,9 @@ export function activate(context: vscode.ExtensionContext): void {
         vscode.commands.registerCommand('octavo.checkbib', async () => {
             const configUri = await requireConfig();
             if (!configUri) return;
-            runInTerminal('checkbib', dirOf(configUri), ['checkbib'], true);
+            // ターミナルは開かない。人の読む一覧は出力パネルに書き、結果は通知で言う
+            await runLogged(dirOf(configUri), ['checkbib'],
+                            vscode.l10n.t('Checking the citations against the .bib'), false);
             const report = await cache.refresh(true);
             if (report) {
                 const n = report.missing.length + report.problems.length;
@@ -389,11 +459,13 @@ export function activate(context: vscode.ExtensionContext): void {
                     void vscode.window.showInformationMessage(
                         vscode.l10n.t('Octavo: the bibliography looks fine.'));
                 } else {
+                    const show = vscode.l10n.t('Show the output');
                     void vscode.window.showWarningMessage(
                         vscode.l10n.t(
                             'Octavo: {0} to look at ({1} citation keys not in the .bib). '
-                            + 'Check the squiggles in the Markdown and the terminal output.',
-                            n, report.missing.length));
+                            + 'Check the squiggles in the Markdown, or the list in the output.',
+                            n, report.missing.length), show)
+                        .then((p) => { if (p === show) { output.show(); } });
                 }
             }
         }),
@@ -463,12 +535,14 @@ export function activate(context: vscode.ExtensionContext): void {
             if (!(await currentCollections(cwd)).length) {
                 if ((await chooseCollection(() => tree.refresh())) === undefined) return;
             }
-            runInTerminal('bib', cwd, ['bib', 'pull']);
-            // 少し待ってからキャッシュを更新（Zotero からの取得は数秒かかることがある）。
-            setTimeout(() => {
-                void cache.refresh(true);
-                void valuesCache.refresh(true);
-            }, 4000);
+            const code = await runLogged(cwd, ['bib', 'pull'],
+                                         vscode.l10n.t('Pulling the .bib from Zotero'), true);
+            void cache.refresh(true);
+            void valuesCache.refresh(true);
+            if (code === 0) {
+                void vscode.window.showInformationMessage(
+                    vscode.l10n.t('Octavo: {0}', lastLine || vscode.l10n.t('pulled the .bib')));
+            }
         }),
 
         vscode.commands.registerCommand('octavo.chooseZoteroCollection', async () => {

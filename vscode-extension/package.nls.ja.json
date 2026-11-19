@@ -73,5 +73,12 @@
   "command.writingShow.title": "カーソルの所の文章のルールを見る",
   "command.choosePacks.title": "文章のルールのパックを選ぶ",
   "command.writingItemOff.title": "この原稿では使わない",
-  "command.writingItemOn.title": "この原稿でまた使う"
+  "command.writingItemOn.title": "この原稿でまた使う",
+  "command.addTranslation.title": "もう一方の言語の版を追加",
+  "command.reviseOpen.title": "その行へ",
+  "command.reviseFine.title": "直さなくてよい",
+  "command.translationOpen.title": "節を開く",
+  "command.translationMark.title": "合わせたと記録",
+  "command.translationCopy.title": "AI に渡す材料をコピー（揃えるため）",
+  "command.aiRun.title": "AI に頼む（校正・要約・文字起こし…）"
 }

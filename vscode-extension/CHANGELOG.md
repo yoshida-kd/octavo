@@ -3,6 +3,76 @@
 Octavo's command-line tool (`octavo-kit` on PyPI) and this extension are
 released together, under one version number.
 
+## 0.7.3
+
+- **Revising, in passes: `octavo revise`.** One list of the places to reread in a manuscript: where a
+  rule's `Flag:` or `Count:` matches, usage notes whose word appears, long sentences, the same ending or
+  opening again and again, an abbreviation used before it is defined, a variant spelling from
+  `notes/writing/terms.csv`, the paragraph plan, questions for the author, numbers typed in, and a
+  translation that is behind. Each run is a pass, recorded in `docs/<name>/revise.json`: what is new is
+  marked, `--fine` hides a place that needs no change until its sentence changes, and a place that goes
+  away when you edit its paragraph counts as fixed. `--print` hands the AI the rules to check, a few at a
+  time, with the paragraphs changed since the last pass; `octavo ai run revise` sends those passes to a
+  local AI one by one, and `proofread` now sends the writing rules too. In the sidebar: **Revising**
+  under each manuscript.
+- **Writing rules say when and where they apply.** `Stage: revise` (only when revising) and `Stage:
+  lookup` (only where the word appears) keep the drafting instructions short; `Scope:` (down to the first
+  or last sentence of a paragraph), `Section:` per entry, `Count: … per paragraph > N`, `Id:` (a heading
+  can change without breaking `writing_off`), `Replaces:` (a pack replaces an entry of the pack it
+  extends), and any number of `Good:` / `Bad:` examples. A paragraph may name two kinds:
+  `<!-- para: <kind> + <kind> | … -->`.
+- **Improving the packs.** `octavo writing --check` checks them, and tries each `Flag:` on its rule's own
+  examples (with `--pack-dir`, outside a project); `--stats` adds up, rule by rule, how often revising
+  found, fixed and dismissed it; `--harvest <git version>` lists the sentences you rewrote since then,
+  for the AI to propose rules from (`octavo ai run suggest-rules`). Octavo never writes to a pack.
+
+- **Keep a writing pack's version.** `writing: ['academic-en@v1']` reads the pack as it was at that git
+  tag, so a project keeps the same rules while the pack goes on changing; moving on is writing `@v2`.
+  A project's own additions to the pack still layer on top. `octavo writing` lists each pack's versions.
+- **Set tasks for an AI: `octavo ai`.** Proofread a passage, summarize a paper or a report, or transcribe a
+  scan (OCR) with any server that has the OpenAI-compatible chat API: Ollama, LM Studio, llama.cpp or vLLM
+  on your machine, or a cloud API. Set it with `ai_url` / `ai_model`, or `OCTAVO_AI_URL` /
+  `OCTAVO_AI_MODEL`; a key comes only from `OCTAVO_AI_KEY`. Each task is a template,
+  `templates/ai/<name>.md`, so you can change one or add your own. The answer is written to a file of
+  its own, and the manuscript is never changed. What is in `refs/private/` (`ai_private`) is sent only to
+  an AI on this machine. In VS Code: **Ask the AI** on a file or the selected lines.
+
+- **One manuscript in two languages.** `octavo new paper <name> --lang en` on an existing paper (or **Add an
+  English / Japanese Version** under the document in the sidebar) puts `<name>.en.md` beside it, as a
+  document of its own (`<name>.en`, its own PDF). The main manuscript can be in either language. It shares
+  the analysis, figures, tables, bibliography and labels, and takes the output settings from the main
+  manuscript. `octavo translation` matches the two section by section, by label or else by order, and
+  shows references, citations and `{{values}}` that one side lacks and which side changed since the two
+  were last matched (`--mark`, kept in `docs/<name>/translation.json`). `--print` gives an AI what it
+  needs to bring a section in line, and `octavo check` notes what is out of step. The sidebar lists the
+  sections with their state. A figure saved as `trend.en.png` is used by the English manuscript in place
+  of `trend.png`.
+
+- **The files a whole project shares are in English.** `AGENTS.md`, `README.md`, `.gitignore`, the
+  comments in `octavo.config.py`, `data/raw/README.md` and `requirements.txt` are written in English
+  whatever the project's language, which is now the manuscripts' language (and the Zotero collections
+  `bib tidy` makes are named in the first document's). A project made with the Japanese files keeps them;
+  Update in the sidebar (`octavo migrate --rules`) replaces the Japanese sections of `AGENTS.md` with the
+  English ones. Overrides kept in `~/.config/octavo/templates/project/ja/` still apply to Japanese projects.
+- **`refs/private/` stays out of git.** New projects' `.gitignore` leaves it out, for material that
+  must not be shared: PDFs of papers, licensed codebooks, manuscripts sent for review.
+
+- **A citation key missing from the `.bib` no longer stops the PDF.** Typst refused to typeset a
+  document that cited one entry not yet in the `.bib`. The PDF is now made with the key shown as `key?`,
+  the build warns, and `octavo check` still counts it as an error.
+- **The sidebar's literature actions no longer open a terminal.** Pulling the `.bib` from Zotero and
+  checking the citations run in the background with their progress in a notification; the details go to
+  the Octavo output panel, with a button to show it.
+- **Tidying the main Zotero collection sorts it by section.** `octavo bib tidy` (and the sidebar's
+  Tidy the Main Zotero Collection) puts each cited entry into a collection under the main one for the
+  section that cites it (`01 Introduction`, numbered in the manuscript's order; one collection per
+  manuscript when there are several). Entries cited nowhere are no longer taken out of the main
+  collection: they move into its `Not cited` collection (`非引用文献` in a Japanese project) and stay in
+  the `.bib`. Octavo makes these collections and deletes the ones it made once they are empty; collections
+  you made are left alone. The ones it made are recorded in `zotero-collections.json` beside the `.bib`
+  (keep it in git). `bib tidy --json` now gives `sort`, `uncited`, `create` and `delete` instead of
+  `remove`.
+
 ## 0.7.2
 
 - **Data shared between projects, and data management as a whole.**

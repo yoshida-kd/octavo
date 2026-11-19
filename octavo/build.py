@@ -53,6 +53,10 @@ def sync_layout(cfg, doc, ctx: Ctx) -> None:
     if ctx.standalone or not name:
         return
     src = Path(doc.src).parent / name
+    if doc.translation_of and doc.lang:
+        # 言語違いの原稿は main.<言語>.typ があればそれ、なければ主の原稿と同じ main.typ
+        own = src.with_name(f'{src.stem}.{doc.lang}{src.suffix}')
+        src = own if own.is_file() else src
     dest = ctx.out_dir / name
     if not src.is_file():
         # main.tex は既定では作らない（TeX は任意）。足し方をここで言う

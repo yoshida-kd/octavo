@@ -304,6 +304,9 @@ def cmd_documents(args) -> int:
             'parts': [],
             # 回の区切り（::: {.session}）があって、回ごとの配布資料に切り出せるか
             'handouts': False,
+            # 言語違いの原稿（<名前>.<言語>.md）なら主の文書の名前とその言語
+            'translation_of': d.translation_of,
+            'lang': cfg.for_document(d)['lang'],
         }
         if d.split_slides and d.exists():
             text = mdlib.read(d.src)
@@ -706,12 +709,145 @@ def cmd_priorwork(args) -> int:
     return 0
 
 
+def cmd_ai(args) -> int:
+    """決まった頼みごとを AI に渡して、答えをファイルに受け取る（octavo ai）。"""
+    import json as _json
+    from . import ai as aimod
+    cfg = configmod.load(args.config)
+    root = Path(cfg.root)
+    found = aimod.tasks(root)
+    if args.action == 'list':
+        if args.json:
+            print(_json.dumps({'tasks': [{'name': k, 'title': v.title, 'inputs': list(v.inputs),
+                                          'output': v.output, 'layer': v.layer} for k, v in found.items()]},
+                              ensure_ascii=False))
+            return 0
+        for k, v in found.items():
+            print(f'  {k:<14} {v.title:<34} {", ".join(v.inputs):<18} -> {v.output}')
+        print('\n' + t('add one: octavo template copy ai/proofread.md, then rename and edit the copy'))
+        return 0
+    if args.action == 'check':
+        got = aimod.check(cfg)
+        if args.json:
+            print(_json.dumps(got, ensure_ascii=False))
+        elif got['url'] is None:
+            print(got['error'])
+        else:
+            where = t('this machine') if got['local'] else t('elsewhere (files in {paths} are not sent there)',
+                                                              paths=', '.join(cfg['ai_private']))
+            print(t('AI: {url}, model {model} ({where})', url=got['url'], model=got['model'], where=where))
+            print('  ' + (t('it answers') if got['ok'] else '') + ('; ' if got['ok'] and got['error'] else '')
+                  + (got['error'] or ''))
+        return 0 if got['ok'] and not got['error'] else 1
+    # run
+    def fail(msg: str) -> int:
+        if args.json:
+            print(_json.dumps({'ok': False, 'error': msg, 'output': None}, ensure_ascii=False))
+        else:
+            print(msg, file=sys.stderr)
+        return 1
+    if not args.task or not args.file:
+        return fail(t('octavo ai run <task> <file>; the tasks: {names}', names=', '.join(found)))
+    if args.task not in found:
+        return fail(t('no task called {task} (the tasks: {names})', task=args.task, names=', '.join(found)))
+    lines = None
+    if args.lines:
+        m = re.fullmatch(r'(\d+)-(\d+)', args.lines.strip())
+        if not m or int(m.group(1)) > int(m.group(2)) or int(m.group(1)) < 1:
+            return fail(t('--lines takes FROM-TO, such as 12-40'))
+        lines = (int(m.group(1)), int(m.group(2)))
+    src = Path(args.file)
+    src = src if src.is_absolute() else Path.cwd() / src
+    try:
+        job = aimod.prepare(cfg, found[args.task], src, lines, args.section,
+                            Path(args.out) if args.out else None, args.force)
+        if args.dry_run:
+            print(t('would send {file} ({kind}) to the task {task} and write {out}', file=cfg.rel(src),
+                    kind=job.kind, task=args.task, out=cfg.rel(job.output)))
+            if job.passes:
+                print('  ' + t('in {n} {n|pass|passes}: {titles}', n=len(job.passes),
+                               titles='; '.join(x for x, _ in job.passes)))
+            return 0
+        ep = aimod.endpoint(cfg)
+        say = (lambda line: print(line, file=sys.stderr)) if args.json else print
+        aimod.run(cfg, job, ep, say)
+    except aimod.AIError as e:
+        return fail(str(e))
+    if args.json:
+        print(_json.dumps({'ok': True, 'error': None, 'output': str(job.output)}, ensure_ascii=False))
+    else:
+        print(t('wrote {file}', file=cfg.rel(job.output)))
+    return 0
+
+
+def cmd_translation(args) -> int:
+    """言語違いの原稿と主の原稿の、節ごとの対応（octavo translation）。"""
+    import json as _json
+    from . import translation as trmod
+    cfg = configmod.load(args.config)
+    if args.name is None:
+        found = trmod.pairs(cfg)
+        if args.json:
+            print(_json.dumps({'pairs': [{'main': m.name, 'other': o.name, 'lang': o.lang}
+                                         for m, o in found]}, ensure_ascii=False))
+            return 0
+        if not found:
+            print(t('no manuscript has a version in another language (docs/<name>/<name>.en.md '
+                    'or .ja.md; octavo new paper <name> --lang en adds one)'))
+            return 0
+        for m, o in found:
+            rows = trmod.status(cfg, m, o)
+            behind = sum(r.state != trmod.SYNCED for r in rows)
+            print(f'  {o.name:<24} ' + t('{n} of {total} {total|section|sections} to look at',
+                                          n=behind, total=len(rows)))
+        return 0
+    main, other = trmod.find_pair(cfg, args.name, args.lang)
+    if args.print:
+        sys.stdout.write(trmod.material(cfg, main, other, args.print))
+        return 0
+    if args.mark is not None:
+        done = trmod.mark(cfg, main, other, args.mark or None)
+        print(t('recorded {n} {n|section|sections} as matched in {file}', n=len(done),
+                file=cfg.rel(trmod.record_path(main))))
+        return 0
+    rows = trmod.status(cfg, main, other)
+    if args.json:
+        print(_json.dumps({'main': main.name, 'other': other.name, 'lang': other.lang,
+                           'record': cfg.rel(trmod.record_path(main)),
+                           'sections': [r.as_json(cfg, main, other) for r in rows]},
+                          ensure_ascii=False))
+        return 0
+    print(f'{main.name} <-> {other.name}')
+    width = max((len(r.key) for r in rows), default=0)
+    for r in rows:
+        title = (r.main or r.other).title
+        print(f'  {r.key.ljust(width)}  {trmod.state_text(r.state):<30}  {title}')
+        for line in trmod.differs_text(r.differs):
+            print(' ' * (width + 4) + line)
+    if any(r.state != trmod.SYNCED for r in rows):
+        print('\n' + t('octavo translation {doc} --print <key> gives what is needed to bring a section '
+                       'in line; --mark <key> records it as matched', doc=other.name))
+    return 0
+
+
 def cmd_writing(args) -> int:
     """文章のルールとフレーズバンク（AI が書く前に読むもの）。"""
     import json as _json
     from . import writing as writingmod
+    if args.check and args.pack_dir:
+        return _writing_check(None, args.pack_dir, args.json)
+    if args.pack_dir:
+        print(t('--pack-dir goes with --check'), file=sys.stderr)
+        return 2
     cfg = configmod.load(args.config)
     root = Path(cfg.root)
+    if args.check:
+        return _writing_check(cfg, None, args.json)
+    if args.stats:
+        return _writing_stats(cfg, [args.for_doc] if args.for_doc else None, args.json)
+    if args.harvest:
+        return _writing_harvest(cfg, args.harvest, [args.for_doc] if args.for_doc else None, args.docx,
+                                args.json)
     doc, heading = None, None
     if args.file:
         f = Path(args.file)
@@ -736,7 +872,7 @@ def cmd_writing(args) -> int:
               file=sys.stderr)
         return 2
     if doc is None:
-        got = writingmod.collect(root)
+        got = writingmod.collect(root, writingmod.split_pins(cfg.get('writing'))[1])
         if args.json:
             print(_json.dumps(got, ensure_ascii=False))
             return 0
@@ -746,6 +882,13 @@ def cmd_writing(args) -> int:
             print(t('no writing rules or phrase bank yet. Put Markdown files in notes/writing/rules/ and '
                     'notes/writing/phrases/ (or in {dir} for every project)', dir=writingmod.user_dir()))
             return 0
+        if any(p['pin'] or p['versions'] for p in got['packs']):
+            print(t('Packs:'))
+            for p in got['packs']:
+                name = f"{p['name']}@{p['pin']}" if p['pin'] else p['name']
+                print(f'  {name}'
+                      + (f"  ({p['commit'][:10]})" if p.get('commit') else '')
+                      + ('  ' + t('versions: {names}', names=', '.join(p['versions'])) if p['versions'] else ''))
         for kind, head in (('rules', t('Writing rules (follow them):')),
                            ('phrases', t('Phrase bank (frames to draw on where they fit):'))):
             if not got[kind]:
@@ -774,10 +917,15 @@ def cmd_writing(args) -> int:
         # その行の段落の印（<!-- para: 種類 | 主張 -->）。種類があれば、フレーズはその項目だけ
         para = paramod.at_line(paramod.parse(text), args.line)
         if para and para['kind'] and kinds is None:
-            kinds = [para['kind']]
+            kinds = [para['kind']] + para.get('also', [])
+    # `Stage: lookup` のルールは、その語が原稿にあるときだけ（--line なら書いているファイル）
+    if args.line:
+        lookup_in = [(text, is_appendix_file(cfg, doc, own))]
+    else:
+        lookup_in = [(mdlib.read(src), app) for n, src, app in cfg.sources() if n == doc.name]
     try:
         sel = writingmod.select(cfg, doc, section, every=args.all, kinds=kinds,
-                                section_only=args.section_only)
+                                section_only=args.section_only, lookup_in=lookup_in)
     except SystemExit as e:
         print(e.code, file=sys.stderr)
         return 2
@@ -806,7 +954,7 @@ def cmd_writing(args) -> int:
     if args.print:
         sys.stdout.write(sel['text'])
         return 0
-    print(t('{doc}: packs {order}', doc=doc.name, order=' → '.join(sel['packs']) or t('(none)'))
+    print(t('{doc}: packs {order}', doc=doc.name, order=' → '.join(writingmod.pack_labels(sel)) or t('(none)'))
           + (f"  section: {section}" + (f' ("{heading}")' if heading else '') if section else ''))
     if sel['paragraph_kinds'] is not None:
         print('  ' + t('paragraph kinds: {kinds}', kinds=', '.join(sel['paragraph_kinds']) or t('(none)')))
@@ -821,6 +969,176 @@ def cmd_writing(args) -> int:
               + (' ' + t('({n} picked)', n=picked) if picked else '')
               + (' ' + t('({n} turned off)', n=off) if off and not picked else ''))
     return 0
+
+
+def _line_range(text: str | None):
+    """`60-120` / `60-` / `60` を (始め, 終わり)。終わりが無ければ None。読めなければ ValueError。"""
+    if not text:
+        return None
+    m = re.match(r'(\d+)(?:\s*[-–:,]\s*(\d*))?$', text.strip())
+    if not m:
+        raise ValueError(t('--lines takes a range of lines: 60-120 (or 60- for the rest)'))
+    a = int(m.group(1))
+    return (a, int(m.group(2)) if m.group(2) else (a if m.group(2) is None else None))
+
+
+def cmd_revise(args) -> int:
+    """推敲: 読み直す所の一覧、AI に渡す材料、判断の記録。"""
+    import json as _json
+    from . import revise as revmod
+    from . import writing as writingmod
+    cfg = configmod.load(args.config)
+    try:
+        doc = cfg.document(args.document)
+    except SystemExit as e:
+        print(e.code, file=sys.stderr)
+        return 2
+    try:
+        lines = _line_range(args.lines)
+    except ValueError as e:
+        print(e, file=sys.stderr)
+        return 2
+    only = None
+    if args.file:
+        f = Path(args.file)
+        only = cfg.rel(f if f.is_absolute() else Path.cwd() / f)
+    if args.section:
+        known = writingmod.known_sections(writingmod.packs(Path(cfg.root)))
+        if args.section not in known:
+            print(t('unknown section {name} (sections: {names})', name=args.section, names=', '.join(known)),
+                  file=sys.stderr)
+            return 2
+    got = revmod.collect(cfg, doc)
+    if args.fine or args.verdict:
+        try:
+            done = []
+            for key in args.fine or []:
+                done.append(revmod.judge(cfg, doc, got, '', None, 'fine', key=key))
+            if args.verdict:
+                rule, line, verdict = args.verdict
+                if verdict not in ('fixed', 'fine') or not line.isdigit():
+                    print(t('--verdict takes RULE LINE fixed|fine'), file=sys.stderr)
+                    return 2
+                done.append(revmod.judge(cfg, doc, got, rule, int(line), verdict, note=args.note or '',
+                                         file=only))
+        except ValueError as e:
+            print(e, file=sys.stderr)
+            return 2
+        if args.json:
+            print(_json.dumps({'recorded': done}, ensure_ascii=False))
+        else:
+            for v in done:
+                print(t('recorded: {rule} at line {line} — {verdict}', rule=v['rule'], line=v['line'],
+                        verdict=v['verdict']))
+        return 0
+    if args.print:
+        ps = revmod.passes(got, only, lines, args.section, every=args.all)
+        if args.pass_no is not None:
+            if not 1 <= args.pass_no <= len(ps):
+                print(t('there {n|is|are} {n} {n|pass|passes}', n=len(ps)), file=sys.stderr)
+                return 2
+            ps = [ps[args.pass_no - 1]]
+        if args.json:
+            print(_json.dumps({'doc': doc.name, 'passes': [{k: p[k] for k in ('title', 'scope', 'rules', 'text')}
+                                                           for p in ps]}, ensure_ascii=False))
+        else:
+            sys.stdout.write('\n'.join(p['text'] for p in ps))
+        if not args.no_record:
+            revmod.record_pass(cfg, doc, got)
+        return 0
+    v = revmod.view(got, only, lines, args.section, every=args.all)
+    if args.json:
+        print(_json.dumps(v, ensure_ascii=False))
+        return 0
+    for w in v['warnings']:
+        print(tag('warning') + ' ' + w, file=sys.stderr)
+    since = t(' since the last pass ({when})', when=v['base']) if v['base'] else ''
+    print(t('{doc}: {n} {n|place|places} to reread in {p} {p|paragraph|paragraphs} '
+            '({c} changed{since})', doc=doc.name, n=len(v['findings']), p=v['paragraphs'],
+            c=v['changed'], since=since))
+    if v['fine'] and not args.all:
+        print('  ' + t('{n} judged fine are not shown (--all shows them)', n=v['fine']))
+    last = None
+    for f in v['findings']:
+        if f['file'] != last:
+            last = f['file']
+            print(f'\n  {last}')
+        state = {'new': ' *', 'fine': ' ' + t('(fine)'), 'seen': ''}[f['state']]
+        print(f"  {f['line']:>5}  {f['key'][:6]}  [{f['rule']}] {f['title']}"
+              + (f" — {f['note']}" if f['note'] else '') + state)
+        if f['text']:
+            print(f"               {f['text']}")
+    if v['findings']:
+        print('\n  ' + t('* new since the last pass. Mark one that needs no change with '
+                         'octavo revise {doc} --fine KEY', doc=doc.name))
+    if not args.no_record:
+        revmod.record_pass(cfg, doc, got)
+    return 0
+
+
+def _writing_check(cfg, pack_dirs, as_json: bool) -> int:
+    """パックの点検（プロジェクトの外でも --pack-dir で）。問題があれば 1。"""
+    import json as _json
+    from . import writing as writingmod
+    got = writingmod.packs(Path(cfg.root) if cfg else None, dirs=pack_dirs)
+    found = writingmod.check_packs(got)
+    problems = [x for x in found if x['level'] == 'problem']
+    if as_json:
+        print(_json.dumps({'packs': [n for n in writingmod.default_order(got)], 'findings': found},
+                          ensure_ascii=False))
+        return 1 if problems else 0
+    if not got:
+        print(t('no writing packs found'))
+        return 0
+    print(t('{n} {n|pack|packs}: {names}', n=len(got), names=', '.join(writingmod.default_order(got))))
+    for x in found:
+        where = cfg.rel(Path(x['file'])) if cfg else x['file']
+        print(f"  {tag('note') if x['level'] == 'note' else tag('warning')} {where}:{x['line']}  "
+              f"{x['id']}: {x['problem']}")
+    if not found:
+        print('  ' + t('nothing to fix'))
+    return 1 if problems else 0
+
+
+def _writing_stats(cfg, docs, as_json: bool) -> int:
+    """ルールごとの数（推敲の記録から）。"""
+    import json as _json
+    from . import revise as revmod
+    got = revmod.stats(cfg, docs)
+    if as_json:
+        print(_json.dumps(got, ensure_ascii=False))
+        return 0
+    if not got['rules'] and not got['never']:
+        print(t('nothing recorded yet: octavo revise DOC records each pass'))
+        return 0
+    print(f"{t('rule'):<44} {t('found'):>6} {t('fixed'):>6} {t('fine'):>6}")
+    for r in sorted(got['rules'], key=lambda r: (-(r['found'] + r['fixed'] + r['fine']), r['rule'])):
+        print(f"{r['rule']:<44} {r['found']:>6} {r['fixed']:>6} {r['fine']:>6}")
+    if got['never']:
+        print('\n' + t('rules with a Flag or Count that have never matched in a recorded pass:'))
+        for r in got['never']:
+            print(f"  {r['rule']}  {r['title']}")
+    return 0
+
+
+def _writing_harvest(cfg, ref, docs, docx, as_json: bool) -> int:
+    import json as _json
+    from . import harvest as harvestmod
+    try:
+        got = harvestmod.pairs(cfg, ref, docs)
+        changes = harvestmod.docx_changes(Path(docx)) if docx else None
+    except harvestmod.HarvestError as e:
+        print(e, file=sys.stderr)
+        return 2
+    if as_json:
+        print(_json.dumps({'ref': ref, 'pairs': got, 'docx': changes}, ensure_ascii=False))
+        return 0
+    sys.stdout.write(harvestmod.render(ref, got, changes, Path(docx).name if docx else ''))
+    return 0
+
+
+def is_appendix_file(cfg, doc, path: Path) -> bool:
+    return bool(doc.appendix) and Path(doc.appendix).resolve() == Path(path).resolve()
 
 
 def _writing_flags(cfg, doc, only, as_json: bool) -> int:
@@ -1183,31 +1501,77 @@ def cmd_bib(args) -> int:
     return 1
 
 
+def tidy_record_path(cfg) -> Path:
+    """Octavo が Zotero に作ったコレクションの記録（git に入れる。別の機械で整えても同じものを消せる）。"""
+    return Path(cfg['bib_file']).parent / 'zotero-collections.json'
+
+
+def main_lang(cfg) -> str:
+    """主の原稿（設定で最初の文書）の言語。Zotero に作るコレクションの名前（非引用文献 / Not cited
+    など）はこれに従う。節の名前は原稿の見出しから取るので、それとそろう。"""
+    for doc in cfg.documents.values():
+        if not doc.translation_of:
+            return cfg.for_document(doc)['lang']
+    return cfg['lang']
+
+
+def tidy_sections(cfg) -> list:
+    """メインの下の置き場所 [(パス, キー)]: 原稿ごと・いちばん浅い見出しの節ごとに、引いているキー。"""
+    from . import crossref as xref
+    kinds = xref.kinds_of(xref.theorem_envs(cfg))
+    # 言語違いの原稿は主の原稿と同じ節なので数えない（同じコレクションが2組できる）
+    docs = [(name, mdlib.cited_by_section(mdlib.read(src), kinds), appendix)
+            for name, src, appendix in cfg.sources() if not cfg.documents[name].translation_of]
+    return zoteromod.section_paths(docs, main_lang(cfg))
+
+
 def bib_tidy(cfg, args) -> int:
-    """メインの Zotero コレクションを、原稿が引いている文献とぴったり同じにする（既定は計画を出すだけ）。"""
+    """メインの Zotero コレクションを、原稿の節ごとに仕分ける（既定は計画を出すだけ）。"""
     import json as _json
     keys = [k.strip() for k in (args.keys or '').split(',') if k.strip()] or None
     cited = checkmod.collect(cfg).cited
+    record_path = tidy_record_path(cfg)
+    try:
+        record = _json.loads(record_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        record = {}
+    record = record if isinstance(record, dict) else {}
+    if not isinstance(record.get('made'), dict):
+        record['made'] = {}
     try:
         plan = zoteromod.tidy_plan(cfg['zotero_collection'], cfg['zotero_linked'], cited,
-                                   whole_library=args.library)
+                                   whole_library=args.library, sections=tidy_sections(cfg),
+                                   made=record['made'], lang=main_lang(cfg))
     except zoteromod.ZoteroError as e:
         if args.json:
             print(_json.dumps({'ok': False, 'error': str(e)}, ensure_ascii=False))
         else:
             print(str(e), file=sys.stderr)
         return 1
+    shown = ('add', 'sort', 'uncited', 'unpinned', 'not_found')
     out = {'ok': True, 'write': bool(cfg['zotero_write']),
-           **{k: plan[k] for k in ('main', 'linked', 'add', 'remove', 'unpinned', 'not_found')}}
+           'main': plan['main'], 'linked': plan['linked'],
+           **{k: [{x: v for x, v in j.items() if x not in ('item', 'version', 'collections', 'new')}
+                  if isinstance(j, dict) else j for j in plan[k]] for k in shown},
+           'create': [c['path'] for c in plan['create']], 'delete': [c['path'] for c in plan['delete']]}
     refused = ''
     if args.apply:
         if not cfg['zotero_write']:
             refused = t("Octavo may not change Zotero in this project. To allow it, set 'zotero_write': True "
                         'in octavo.config.py')
         else:
-            done, failed = zoteromod.tidy_apply(plan, keys)
+            record['made'] = dict(plan['made'])     # Zotero で消されたものは忘れる
+            done, failed = zoteromod.tidy_apply(plan, keys, record)
             out['done'] = done
             out['failed'] = [{'key': k, 'why': w} for k, w in failed]
+            out['created'] = record.pop('created', [])
+            out['deleted'] = record.pop('deleted', [])
+            try:
+                record_path.parent.mkdir(parents=True, exist_ok=True)
+                record_path.write_text(_json.dumps(record, ensure_ascii=False, indent=2, sort_keys=True)
+                                       + '\n', encoding='utf-8')
+            except OSError as e:
+                out['failed'].append({'key': cfg.rel(record_path), 'why': str(e)})
     if args.json:
         if refused:
             out.update(ok=False, error=refused)
@@ -1218,16 +1582,31 @@ def bib_tidy(cfg, args) -> int:
     if plan['linked']:
         print(t('linked: {paths}', paths=', '.join(plan['linked'])))
     picked = (lambda x: keys is None or x['key'] in keys)
+    skipped = (lambda x: '' if picked(x) else '  ' + t('(skipped)'))
+    to = (lambda x: '  → ' + ', '.join(x['to']) if x['to'] else '')
+    if plan['create']:
+        print('\n' + t('collections to make ({n}):', n=len(plan['create'])))
+        for c in plan['create']:
+            print(f"  + {c['path']}")
     if plan['add']:
         print('\n' + t('cited but not in the main collection — to add ({n}):', n=len(plan['add'])))
         for x in plan['add']:
-            print(f"  + {x['key']:<28} {x['title'][:50]}  ← {x['from']}"
+            print(f"  + {x['key']:<28} {x['title'][:40]}  ← {x['from']}"
                   + ('  ' + t('(found outside the linked collections)') if x.get('where') == 'library' else '')
-                  + ('' if picked(x) else '  ' + t('(skipped)')))
-    if plan['remove']:
-        print('\n' + t('in the main collection but cited nowhere — to take out ({n}):', n=len(plan['remove'])))
-        for x in plan['remove']:
-            print(f"  - {x['key']:<28} {x['title'][:50]}" + ('' if picked(x) else '  ' + t('(skipped)')))
+                  + to(x) + skipped(x))
+    if plan['sort']:
+        print('\n' + t('cited — to sort into the sections they are cited in ({n}):', n=len(plan['sort'])))
+        for x in plan['sort']:
+            print(f"  > {x['key']:<28} {x['title'][:40]}" + to(x) + skipped(x))
+    if plan['uncited']:
+        print('\n' + t('cited nowhere — to move into the uncited collection, still in the main one ({n}):',
+                        n=len(plan['uncited'])))
+        for x in plan['uncited']:
+            print(f"  - {x['key']:<28} {x['title'][:40]}" + to(x) + skipped(x))
+    if plan['delete']:
+        print('\n' + t('collections Octavo made that are now empty — to delete ({n}):', n=len(plan['delete'])))
+        for c in plan['delete']:
+            print(f"  x {c['path']}")
     if plan['unpinned']:
         print('\n' + t('not cited, but the citation key is not pinned, so left alone ({n}):', n=len(plan['unpinned'])))
         for x in plan['unpinned']:
@@ -1240,7 +1619,7 @@ def bib_tidy(cfg, args) -> int:
             print('\n' + t('cited but in neither the main nor the linked collections ({n}): {keys} '
                             '(octavo bib tidy --library looks in the whole library)',
                             n=len(plan['not_found']), keys=', '.join(plan['not_found'])))
-    if not (plan['add'] or plan['remove']):
+    if not (plan['add'] or plan['sort'] or plan['uncited'] or plan['delete']):
         print('\n' + t('the main collection matches the manuscripts'))
         return 0
     if refused:
@@ -1248,7 +1627,8 @@ def bib_tidy(cfg, args) -> int:
         return 1
     if not args.apply:
         print('\n' + t('nothing was changed. octavo bib tidy --apply changes Zotero as above '
-                        '(only which collection the entries are in; no entry is deleted)'))
+                        '(only which collection the entries are in, and the collections for sorting them; '
+                        'no entry is deleted)'))
         return 0
     for x in out['failed']:
         print(f"  {tag('failed')} {x['key']}: {x['why']}", file=sys.stderr)
@@ -1352,7 +1732,7 @@ def cmd_migrate(args) -> int:
     if args.helper:
         from . import helpers
         return helpers.run(cfg, dry_run=args.dry_run)
-    moved, line = scaffold.migrate_instructions(Path(cfg.root), cfg['lang'], args.dry_run)
+    moved, line = scaffold.migrate_instructions(Path(cfg.root), args.dry_run)
     print(('(' + t('dry run') + ') ' if args.dry_run and moved else '') + line)
     if not moved and (Path(cfg.root) / scaffold.INSTRUCTIONS).is_file():
         print(t('to bring its Octavo sections up to date: {cmd}', cmd='octavo migrate --rules'))
@@ -1378,7 +1758,7 @@ def pending_updates(cfg) -> tuple:
     def add(key, args, label, detail=''):
         updates.append({'key': key, 'args': args, 'label': label, 'detail': detail})
 
-    if scaffold.migrate_instructions(root, cfg['lang'], dry_run=True)[0]:
+    if scaffold.migrate_instructions(root, dry_run=True)[0]:
         add('instructions', [], t('Move the rules from CLAUDE.md to AGENTS.md'))
     moves, _ = relocate.plan(cfg)
     if moves:
@@ -1387,10 +1767,10 @@ def pending_updates(cfg) -> tuple:
     files = [cfg.rel(p.path) for _, ps in syntax.plan_all(cfg) for p in ps if p.changes]
     if files:
         add('syntax', ['--syntax'], t('Rewrite the older notation in the manuscripts'), ', '.join(files))
-    got = scaffold.rules_update(root, cfg['lang'])
+    got = scaffold.rules_update(root)
     if got and got[3]:
         # 手を入れた節だけが違うなら、数えない（ずっと「更新できる」と出続けないように）
-        edited = scaffold.rules_edited(root, cfg['lang'])
+        edited = scaffold.rules_edited(root)
         if [n for n in got[3] if n not in edited]:
             add('rules', ['--rules'], t("Replace Octavo's sections of {file} with the current ones",
                                         file=got[0].name), ', '.join(got[3]))
@@ -1415,7 +1795,7 @@ def migrate_rules(cfg, dry_run: bool, allow_dirty: bool) -> int:
     import difflib
     from .relocate import _git
     root = Path(cfg.root)
-    got = scaffold.rules_update(root, cfg['lang'])
+    got = scaffold.rules_update(root)
     if got is None:
         print(t('There is no AGENTS.md (or CLAUDE.md with rules), so there is nothing to update.'))
         return 0
@@ -1498,6 +1878,8 @@ def cmd_new(args) -> int:
                         'table': ('.csv', 'table_src_dir')}[args.kind]
             stem = args.name[:-len(ext)] if args.name.endswith(ext) else args.name
             opened = str(Path(cfg[key]) / f'{stem}{ext}')
+        elif args.lang and f'{args.name}.{args.lang}' in cfg.documents:
+            opened = str(cfg.documents[f'{args.name}.{args.lang}'].src)     # 足した言語違いの原稿
         elif args.name in cfg.documents:
             # 足したものを開く（--tex なら main.tex、--appendix なら付録、ほかは原稿）
             doc = cfg.documents[args.name]
@@ -1601,7 +1983,8 @@ def _outline_paragraphs(cfg, args) -> int:
             marks = ''.join(' [' + PARA_PROBLEMS[m]() + ']' for m in r['problems'])
             if r['near']:
                 marks += ' ' + t('(did you mean {names}?)', names=', '.join(r['near']))
-            kind = (paramod.CONTINUES + ' ' if r['continues'] else '') + (r['kind'] or '')
+            kind = (paramod.CONTINUES + ' ' if r['continues'] else '') + (r['kind'] or '') \
+                + ''.join(' + ' + k for k in r.get('also', []))
             print(f"{pad}{r['line']:>4}  {kind.strip()}{marks}")
             if r['claim']:
                 print(f"{pad}      {t('claim')}: {r['claim']}")
@@ -1609,6 +1992,9 @@ def _outline_paragraphs(cfg, args) -> int:
                 print(f"{pad}      {t('first')}: {r['first_sentence']}")
             if args.contains and r['contains']:
                 print(f"{pad}      {t('contains')}: {r['contains']}")
+            for c in (r.get('also_contains') or []) if args.contains else []:
+                if c:
+                    print(f"{pad}      {t('contains')}: {c}")
         for rp in d['repeats']:
             print('  ' + tag('note') + ' ' + t('the same phrase-bank line {n|once|# times} under "{heading}": {text} ({id}) at lines {lines}',
                                               n=len(rp['lines']), heading=rp['heading'] or '',
@@ -1914,6 +2300,30 @@ def make_parser() -> argparse.ArgumentParser:
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_priorwork)
 
+    p = with_config(sub.add_parser('ai', help=t('hand a set task (proofread, summarize, ocr, …) to an AI; '
+                                                'the answer is written to a file')))
+    p.add_argument('action', nargs='?', default='list', choices=('list', 'check', 'run'),
+                   help=t('list the tasks, check the connection, or run a task'))
+    p.add_argument('task', nargs='?', help=t('run: the task'))
+    p.add_argument('file', nargs='?', help=t('run: the file to send (text, PDF or image)'))
+    p.add_argument('--lines', metavar='FROM-TO', help=t('run: only these lines of a text file'))
+    p.add_argument('--section', metavar='KEY', help=t('run: only this section of a manuscript (its label)'))
+    p.add_argument('--out', metavar='FILE', help=t('run: write the answer here instead'))
+    p.add_argument('--force', action='store_true', help=t('run: replace a file octavo ai did not write'))
+    p.add_argument('--dry-run', action='store_true', help=t('show what would change, change nothing'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
+    p.set_defaults(func=cmd_ai)
+
+    p = with_config(sub.add_parser('translation',
+                                   help=t('a manuscript and its version in another language, section by section')))
+    p.add_argument('name', nargs='?', help=t('the document (the main one, or the one in another language)'))
+    p.add_argument('--lang', choices=('ja', 'en'), help=t('which language, when there are several'))
+    p.add_argument('--mark', nargs='*', metavar='KEY',
+                   help=t('record these sections (default: every section in both) as matched as they are now'))
+    p.add_argument('--print', metavar='KEY', help=t('what is needed to bring one section in line (for the AI)'))
+    p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
+    p.set_defaults(func=cmd_translation)
+
     p = with_config(sub.add_parser('writing', help=t('the writing rules and phrase bank to follow')))
     p.add_argument('--for', dest='for_doc', metavar='DOC', help=t('what this manuscript uses'))
     p.add_argument('--file', metavar='FILE', help=t('the manuscript (or appendix) file being written'))
@@ -1930,8 +2340,42 @@ def make_parser() -> argparse.ArgumentParser:
                    help=t('only this kind of paragraph from the phrase bank (pack/file#heading); '
                           'with --line, read from the paragraph\'s <!-- para: … --> mark'))
     p.add_argument('--print', action='store_true', help=t('print the rules themselves, layered (for the AI)'))
+    p.add_argument('--check', action='store_true',
+                   help=t('check the packs: fields, regular expressions, each Flag against its Good and '
+                          'Bad examples, Replaces'))
+    p.add_argument('--pack-dir', action='append', metavar='DIR',
+                   help=t('with --check: the packs in this folder, outside any project'))
+    p.add_argument('--stats', action='store_true',
+                   help=t('for each rule, how often octavo revise found it, and how often it was fixed '
+                          'or judged fine'))
+    p.add_argument('--harvest', metavar='REF',
+                   help=t('the sentences revised since this git version, as material for new rules'))
+    p.add_argument('--docx', metavar='FILE', help=t("with --harvest: also a coauthor's changes in this .docx"))
     p.add_argument('--json', action='store_true', help=t('machine-readable JSON'))
     p.set_defaults(func=cmd_writing)
+
+    p = with_config(sub.add_parser('revise', help=t('the places to reread in a manuscript, '
+                                                    'and what to hand the AI to revise it')))
+    p.add_argument('document', help=t('the manuscript (document name)'))
+    p.add_argument('--file', metavar='FILE', help=t('only this file (the manuscript or its appendix)'))
+    p.add_argument('--section', metavar='NAME', help=t('only this section (introduction, results, …)'))
+    p.add_argument('--lines', metavar='A-B', help=t('only the paragraphs in these lines (60-120)'))
+    p.add_argument('--all', action='store_true',
+                   help=t('also the findings judged fine, and every paragraph (not only those changed '
+                          'since the last pass)'))
+    p.add_argument('--print', action='store_true',
+                   help=t('what to hand the AI: the rules to check, pass by pass, with the text'))
+    p.add_argument('--pass', dest='pass_no', type=int, metavar='N', help=t('with --print: only pass N'))
+    p.add_argument('--fine', nargs='+', metavar='KEY',
+                   help=t('record these findings as needing no change (they stay hidden until '
+                          'their sentence changes)'))
+    p.add_argument('--verdict', nargs=3, metavar=('RULE', 'LINE', 'VERDICT'),
+                   help=t("record the author's decision on a finding the AI raised: fixed or fine"))
+    p.add_argument('--note', metavar='TEXT', help=t('with --verdict: what the finding was'))
+    p.add_argument('--no-record', action='store_true', help=t('do not record this pass'))
+    p.add_argument('--json', action='store_true',
+                   help=t('machine-readable JSON (without --print, records no pass)'))
+    p.set_defaults(func=cmd_revise)
 
     p = with_config(sub.add_parser('values',
                                    help=t('cross-check {{…}} in the text against assets/values/')))

@@ -12,7 +12,7 @@ CONFIG = {
     'csl': 'chicago-author-date',
 
     # ---- Language ------------------------------------------------------
-    'lang': 'en',
+    'lang': '@@LANG@@',                # the manuscripts' language ('ja' | 'en'); a manuscript's front matter wins
 
     # ---- Where things go (the defaults; write a key only to change it) --
     # What you make by hand:
@@ -26,7 +26,7 @@ CONFIG = {
     # ---- Title block (a manuscript's front matter wins) ----------------
     'meta': {
         'title': '@@NAME@@',
-        'author': 'Author Name',
+        'author': '@@AUTHOR@@',
     },
 
     # ---- Analysis (Quarto) ---------------------------------------------

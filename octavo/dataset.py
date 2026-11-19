@@ -42,7 +42,7 @@ class Drift:
                 'untracked': t('not recorded')}.get(self.kind, self.kind)
 
 
-# HASHES.json に書く説明（プロジェクトのファイルなので、画面の言語でなく cfg['lang'] に従う）
+# HASHES.json に書く説明（プロジェクトの共有のファイルなので英語。前に日本語で書いたものはそのまま残す）
 NOTE = {
     'ja': ('octavo data hash が作る。data/ は git に入らないので、'
            'これが「そのとき使ったデータ」の唯一の記録になる。'),
@@ -224,6 +224,16 @@ def read_inputs(cfg) -> dict:
             if isinstance(v, dict) and isinstance(v.get('files'), dict)}
 
 
+def _kept_note(p: Path) -> str | None:
+    """前の HASHES.json の説明が Octavo の書いたものなら、それを使い続ける（言語が変わって
+    差分が出ないように）。"""
+    try:
+        note = json.loads(p.read_text(encoding='utf-8')).get('_note')
+    except (OSError, ValueError, AttributeError):
+        return None
+    return note if note in NOTE.values() else None
+
+
 def write(cfg) -> tuple:
     """いまの中身を記録して (件数, パス) を返す。入力のファイルも数に入る。"""
     cache = Cache(cfg, False)
@@ -233,7 +243,7 @@ def write(cfg) -> tuple:
     p = manifest_path(cfg)
     p.parent.mkdir(parents=True, exist_ok=True)
     body = {'_recorded': datetime.now().isoformat(timespec='seconds'),
-            '_note': NOTE['ja' if cfg['lang'] == 'ja' else 'en'],
+            '_note': _kept_note(p) or NOTE['en'],
             'files': files}
     if inputs:
         body['inputs'] = inputs
