@@ -11264,11 +11264,16 @@ class MigrateRules(unittest.TestCase):
         """ひな型の節を変えたら、変える前の版のハッシュ値を rules_known.KNOWN に足す。足し忘れると、
         その版で作ったプロジェクトの節が「手を入れてある」と見なされ、更新できると数えられない。"""
         from octavo import rules_known
+        # 浅い clone（公開リポジトリの CI は最新の commit だけを取る）には、消した ja の履歴が無い
+        shallow = subprocess.run(['git', 'rev-parse', '--is-shallow-repository'], cwd=ROOT, capture_output=True,
+                                 text=True, encoding='utf-8').stdout.strip() == 'true'
         # 日本語の版（templates/claude/ja/）はもう無いが、それで作ったプロジェクトのために履歴を見る
         for lang in ('ja', 'en'):
             ever = subprocess.run(['git', 'log', '--format=', '--name-only', '--', f'templates/claude/{lang}/'],
                                   cwd=ROOT, capture_output=True, text=True, encoding='utf-8').stdout.split()
             stems = sorted({Path(n).stem for n in ever if n.endswith('.md')})
+            if not stems and shallow:
+                continue
             self.assertTrue(stems, lang)
             for stem in stems:
                 path = f'templates/claude/{lang}/{stem}.md'
